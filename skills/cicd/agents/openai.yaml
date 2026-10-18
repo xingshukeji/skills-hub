@@ -1,0 +1,6 @@
+interface:
+  display_name: "CICD"
+  short_description: "选择并触发已有 Jenkins 作业，查询参数并跟踪构建、发布和部署结果"
+  default_prompt: "使用 $cicd 触发我指定项目的 Jenkins 流水线并跟踪结果；如果上下文没有说明目标，先问我需要触发什么。"
+policy:
+  allow_implicit_invocation: true

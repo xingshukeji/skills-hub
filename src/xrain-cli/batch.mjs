@@ -1,0 +1,30 @@
+import { Args, CliError, readJsonInput } from './core.mjs';
+import { validateCommand } from './schema.mjs';
+
+export async function batchCommands(ctx) {
+  const plan = await readJsonInput(ctx.args.required('file'), 'Batch JSON');
+  if (!Array.isArray(plan)) throw new CliError('Batch JSON must be an array of command argument arrays.', { code: 'invalid_arguments' });
+  // Validate the entire command shape before the first side effect. Payload and
+  // server validation still happen per step; a batch is not a transaction.
+  for (const row of plan) {
+    if (!Array.isArray(row) || !row.length || row.some(value => typeof value !== 'string')) throw new CliError('Each batch item must be a nonempty array of strings.', { code: 'invalid_arguments' });
+    const args = new Args(row), spec = validateCommand(args);
+    if (['batch', 'auth login', 'app login'].includes(spec.path)) throw new CliError('Nested batches and browser login are not supported inside a batch. Log in before running it.', { code: 'invalid_arguments' });
+    if (['file', 'query-json', 'values-json', 'filter-json'].some(name => args.value(name) === '-') || ['query', 'values', 'filter'].some(name => args.value(name) === '@-'))
+      throw new CliError('Batch steps must use files or inline JSON instead of sharing stdin.', { code: 'invalid_arguments' });
+  }
+  const results = [];
+  for (const [index, argv] of plan.entries()) {
+    let stdout = '', stderr = '';
+    const code = await ctx.execute(argv.includes('--json') ? argv : [...argv, '--json'], {
+      stdout: { write(value) { stdout += value; } }, stderr: { write(value) { stderr += value; } },
+    });
+    const result = JSON.parse(stdout);
+    results.push({ index, ...result });
+    if (stderr) ctx.reporter.progress(stderr.trimEnd());
+    if (code !== 0) throw new CliError(`Batch stopped at step ${index + 1}.`, { code: 'batch_failed',
+      hint: 'Earlier completed operations remain in effect. Inspect the failed step and current state before retrying.', details: { results, failedIndex: index } });
+  }
+  ctx.reporter.print(results);
+  return 0;
+}

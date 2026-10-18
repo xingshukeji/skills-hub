@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+.xrain/
+*.appkg
+*.part
+*.log
+.env
+.env.*
+!.env.example
+.local-validation/

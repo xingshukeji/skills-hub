@@ -1,0 +1,22 @@
+{
+  "name": "skills-hub",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "build:check": "node tools/build.mjs --check",
+    "index": "node tools/skills.mjs --write",
+    "validate": "node tools/skills.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "verify:live": "node tools/verify-live.mjs",
+    "check": "npm run build:check && npm run validate && npm test"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jose": "6.2.12",
+    "yaml": "2.9.1"
+  }
+}
