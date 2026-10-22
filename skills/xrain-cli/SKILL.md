@@ -1,6 +1,6 @@
 ---
 name: xrain-cli
-description: 使用内置 Node.js CLI 连接 XRain，快速创建或复用固定测试账号，处理统一认证建号、激活和登录验证，管理用户角色与权限集、runtime 实体数据及应用包。用于 XRain CLI、快速登录验证、测试账号准备、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；不用于部署 XRain 服务或绕过权限。
+description: 使用内置 Node.js CLI 连接 XRain，完成浏览器认证、平台固定用户创建或复用，管理用户角色与权限集、runtime 实体数据及应用包。用于 XRain CLI、平台账号准备、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；认证中心建号、激活及客户端登记使用中心管理页面，不由 CLI 命令代办。
 metadata:
   runtime-requirements: Requires Node.js 22.12+ and network access to the target XRain API. Browser login uses a local loopback callback. Windows session protection uses built-in Windows PowerShell; no npm packages or .NET SDK installation is required.
 ---
@@ -17,7 +17,7 @@ Node.js 24 LTS 推荐，最低版本 22.12。脚本已包含依赖。不要要�
 
 ## 连接、发现与执行
 
-遇到缺少测试账号、注册或激活未完成、登录失败时，先读 [快速登录验证](references/login.md)。在已授权的开发验证范围内连续完成账号查重、必要建号、激活和原应用登录，不把“没有账号”直接留给用户处理。统一认证账号与平台业务用户分别由各自入口创建。
+遇到缺少测试账号或登录失败时，先读 [快速登录验证](references/login.md)。统一认证账号与平台业务用户分别由各自入口创建；`security user ensure` 不能创建认证中心身份。涉及中心建号、激活或客户端登记时，优先使用已安装的 `xrain-auth` skill；本 skill 的参考仍保留可独立执行的网页路径。
 
 1. 根据用户指令与 `profile list` / `profile show` 确认服务器、租户和 profile。显式指定不存在的 profile 会报错；创建连接使用 `auth login` 或 `profile set`。仅在目标信息缺失且无法从上下文确定时询问。
 2. 用 `auth status --json` 查看凭据来源、会话过期时间和本地状态；它不验证服务器是否接受凭据。需要核验连接时运行 `doctor --json`，其结果只覆盖实际探测的接口。
