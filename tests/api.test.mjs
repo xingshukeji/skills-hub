@@ -80,6 +80,115 @@ test('every supported security mutation maps to its resource and sends deduplica
   assert.equal(server.hits.length, count);
 });
 
+test('user creation sends platform fields and redacts the password even when echoed in text', async t => {
+  const f = fixture(t), password = 'synthetic-create-password';
+  const server = await mockServer(t, (hit, res) => respond(res, { userName: hit.json().userName, note: 'received ' + (hit.json().password ?? hit.json().Password) }, 201));
+  f.profile(server.url, 't', 'test-bearer');
+  const path = join(f.directory, 'account.json');
+  const values = { name: '张三', password, email: 'zhangsan@example.test', isAI: false };
+  writeFileSync(path, JSON.stringify(values));
+  const result = await f.run(['security', 'users', 'create', '--name', 'zhangsan', '--values-json', path, '--json']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.equal(server.hits.length, 1);
+  assert.equal(server.hits[0].method, 'POST');
+  assert.equal(server.hits[0].url, '/api/service/authen/v1/security/users');
+  assert.equal(server.hits[0].headers.authorization, 'Bearer test-bearer');
+  assert.deepEqual(server.hits[0].json(), { ...values, userName: 'zhangsan' });
+  assert.equal(JSON.parse(result.stdout).data.userName, 'zhangsan');
+  assert.ok(!result.stdout.includes(password)); assert.ok(!result.stderr.includes(password));
+  const capitalized = await f.run(['security', 'user', 'create', 'zhangsan', '--values', JSON.stringify({ Password: password }), '--json']);
+  assert.equal(capitalized.code, 0, capitalized.stdout);
+  assert.ok(!capitalized.stdout.includes(password)); assert.ok(!capitalized.stderr.includes(password));
+});
+
+test('ensuring an existing fixed user preserves all fields and accepts no creation credentials', async t => {
+  const f = fixture(t), password = 'unused-replacement-password';
+  const user = { userName: 'zhangsan', name: '原有姓名', roles: ['reader'], permissionSets: ['existing'], isActive: false };
+  const server = await mockServer(t, (hit, res) => respond(res, user));
+  f.profile(server.url, 't', 'test-bearer');
+  for (const input of [[], ['--values', JSON.stringify({ name: '覆盖姓名', password })]]) {
+    const result = await f.run(['security', 'user', 'ensure', 'zhangsan', ...input, '--json']);
+    assert.equal(result.code, 0, result.stdout);
+    assert.deepEqual(JSON.parse(result.stdout).data, { created: false, user });
+    assert.ok(!result.stdout.includes(password));
+  }
+  assert.deepEqual(server.hits.map(hit => [hit.method, hit.url, hit.body.length]), [
+    ['GET', '/api/service/authen/v1/security/users/zhangsan', 0],
+    ['GET', '/api/service/authen/v1/security/users/zhangsan', 0],
+  ]);
+});
+
+test('ensuring a missing fixed user creates it once and subsequent calls reuse its identity', async t => {
+  const f = fixture(t);
+  let user;
+  const server = await mockServer(t, (hit, res) => {
+    if (hit.method === 'GET') return respond(res, user ?? { errorCode: 'platform.authen.user_not_found' }, user ? 200 : 404);
+    user = { id: 'fixed-user-id', userName: hit.json().userName, name: hit.json().name, roles: [] };
+    respond(res, user, 201);
+  });
+  f.profile(server.url, 't', 'test-bearer');
+  const first = await f.run(['security', 'user', 'ensure', 'zhangsan', '--values', '{"password":"synthetic-password","name":"张三"}', '--json']);
+  assert.equal(first.code, 0, first.stdout);
+  assert.deepEqual(JSON.parse(first.stdout).data, { created: true, user });
+  const second = await f.run(['security', 'users', 'ensure', '--user', 'zhangsan', '--json']);
+  assert.equal(second.code, 0, second.stdout);
+  assert.deepEqual(JSON.parse(second.stdout).data, { created: false, user });
+  assert.deepEqual(server.hits.map(hit => hit.method), ['GET', 'POST', 'GET']);
+  assert.deepEqual(server.hits[1].json(), { userName: 'zhangsan', name: '张三', password: 'synthetic-password' });
+});
+
+test('ensure never creates on access failures, unknown routes or other missing resources', async t => {
+  const f = fixture(t);
+  let status, errorCode;
+  const server = await mockServer(t, (hit, res) => respond(res, { errorCode }, status));
+  f.profile(server.url, 't', 'test-bearer');
+  for ([status, errorCode] of [[401, 'platform.authen.authentication_failed'], [403, 'platform.authen.forbidden'],
+    [404, undefined], [404, 'platform.business_tenant.user_not_found'], [409, 'platform.authen.global_user_exists'], [500, 'platform.authen.user_not_found']]) {
+    const result = await f.run(['security', 'user', 'ensure', 'zhangsan', '--values', '{"password":"not-submitted"}', '--json']);
+    assert.equal(result.code, 1, result.stdout);
+    assert.equal(JSON.parse(result.stdout).error.httpStatus, status);
+  }
+  assert.equal(server.hits.length, 6);
+  assert.ok(server.hits.every(hit => hit.method === 'GET'));
+});
+
+test('creation conflicts do not replay writes or fall back to another identity', async t => {
+  const f = fixture(t), password = 'conflict-test-password';
+  const server = await mockServer(t, (hit, res) => hit.method === 'GET'
+    ? respond(res, { errorCode: 'platform.authen.user_not_found' }, 404)
+    : respond(res, { errorCode: 'platform.authen.global_user_exists', note: 'rejected ' + hit.json().password }, 409));
+  f.profile(server.url, 't', 'test-bearer');
+  const result = await f.run(['security', 'user', 'ensure', 'zhangsan', '--values', JSON.stringify({ password }), '--json']);
+  assert.equal(result.code, 1, result.stdout);
+  assert.equal(JSON.parse(result.stdout).error.serverCode, 'platform.authen.global_user_exists');
+  assert.ok(!result.stdout.includes(password)); assert.ok(!result.stderr.includes(password));
+  assert.deepEqual(server.hits.map(hit => hit.method), ['GET', 'POST']);
+});
+
+test('account input conflicts and malformed JSON are rejected before network access', async t => {
+  const f = fixture(t);
+  const server = await mockServer(t, (hit, res) => respond(res, { errorCode: 'platform.authen.user_not_found' }, 404));
+  f.profile(server.url, 't', 'test-bearer');
+  for (const argv of [
+    ['security', 'user', 'create', 'zhangsan'],
+    ['security', 'user', 'create', 'zhangsan', '--values', '[]'],
+    ['security', 'user', 'ensure', 'zhangsan', '--values', 'null'],
+    ['security', 'user', 'ensure', 'zhangsan', '--values', 'invalid JSON'],
+    ['security', 'user', 'ensure', 'zhangsan', '--values', '{"userName":"lisi","password":"synthetic-secret"}'],
+    ['security', 'user', 'ensure', 'zhangsan', '--values', '{}', '--values-json', 'not-read.json'],
+    ['security', 'user', 'create', 'zhangsan', '--values', '{}', '--roles', 'admin'],
+  ]) {
+    const result = await f.run([...argv, '--json']);
+    assert.equal(result.code, 1, result.stdout);
+    assert.ok(!result.stdout.includes('synthetic-secret'));
+  }
+  assert.equal(server.hits.length, 0);
+  const missing = await f.run(['security', 'user', 'ensure', 'zhangsan', '--json']);
+  assert.equal(missing.code, 1);
+  assert.equal(JSON.parse(missing.stdout).error.code, 'creation_input_required');
+  assert.equal(server.hits.length, 1); assert.equal(server.hits[0].method, 'GET');
+});
+
 test('credential precedence, token binding and sanitized API error output', async t => {
   const f = fixture(t);
   let fail = false;

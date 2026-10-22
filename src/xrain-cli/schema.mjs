@@ -34,6 +34,8 @@ command('data delete', [...api, 'entity', 'id'], [slot('entity'), slot('id')], '
 command('data create', [...api, 'entity', 'values', 'values-json', 'file'], [slot('entity')], 'Create one record; JSON file options accept - for stdin.');
 command('data update', [...api, 'entity', 'id', 'values', 'values-json', 'file'], [slot('entity'), slot('id')], 'Update one record; a full values envelope can include expectedValues.');
 for (const action of ['ensure', 'show', 'path']) command('security tokens ' + action, [], [], 'Manage local test token aliases without printing token values.');
+for (const action of ['create', 'ensure']) command(`security user ${action}`, [...api, 'user', 'name', 'values', 'values-json', 'file'], [slot('user', ['name'])],
+  action === 'ensure' ? 'Reuse an existing platform user unchanged, or create a missing user from JSON. Does not create an OIDC identity.' : 'Create a platform user from JSON; use ensure to reuse fixed test accounts. Does not create an OIDC identity.');
 for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['permission-set']], ['permission-set', ['permission']]]) {
   command(`security ${kind} show`, [...api, kind, 'name'], [slot(kind, ['name'])], 'Read the selected security resource.');
   for (const member of members) for (const action of ['grant', 'revoke']) {
@@ -82,7 +84,7 @@ export function validateCommand(args) {
     if (['query', 'query-json', 'file'].some(name => args.has(name)) && ['page', 'page-size', 'search', 'fields', 'filter', 'filter-json', 'sort', 'no-total'].some(name => args.has(name)))
       throw new CliError('A complete query JSON request cannot be combined with individual query options.', { code: 'invalid_arguments' });
   }
-  if (['data create', 'data update'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
+  if (['data create', 'data update', 'security user create', 'security user ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
   if (spec.path.startsWith('security ') && / (?:grant|revoke)-/.test(spec.path)) exclusive(['names', 'roles', 'permission-sets', 'permissions']);
   if (args.has('exchange')) {
     exclusive(['server', 'exchange']);

@@ -49,7 +49,7 @@ export function requireSuccess(response, hint = '') {
   throw responseError(response, hint);
 }
 
-export async function api(ctx, method, path, json) {
+export async function apiValue(ctx, method, path, json) {
   const profile = ctx.store.resolve(ctx.args, true);
   const { token, source } = ctx.store.credential(ctx.args, profile);
   if (ctx.args.value('auth') === 'session' && !token) throw new CliError('A matching browser session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
@@ -57,6 +57,10 @@ export async function api(ctx, method, path, json) {
   let result;
   try { result = response.json(); } catch { result = response.text(); }
   if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
-  ctx.reporter.print(response.bytes.length ? result : null);
+  return response.bytes.length ? result : null;
+}
+
+export async function api(ctx, method, path, json) {
+  ctx.reporter.print(await apiValue(ctx, method, path, json));
   return 0;
 }

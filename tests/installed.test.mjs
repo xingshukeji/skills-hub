@@ -39,6 +39,18 @@ test('installed skill alone runs help, profile, token, HTTP and app-init command
   assert.equal(created.code, 0, created.stderr); assert.deepEqual(server.hits.at(-1).json(), { values: { name: 'Installed' } });
   const stdin = await execute(script, ['data', 'create', 'customer', '--values-json', '-', '--json'], f.directory, f.env, '{"name":"输入中文"}');
   assert.equal(stdin.code, 0, stdin.stdout); assert.equal(JSON.parse(stdin.stdout).data.received.values.name, '输入中文');
+  const accountPassword = 'installed-test-account-password';
+  const account = await execute(script, ['security', 'user', 'create', '--user', 'zhangsan', '--values-json', '-', '--json'], f.directory, f.env,
+    JSON.stringify({ name: '张三', password: accountPassword }));
+  assert.equal(account.code, 0, account.stdout);
+  assert.equal(server.hits.at(-1).url, '/api/service/authen/v1/security/users');
+  assert.equal(server.hits.at(-1).json().password, accountPassword);
+  assert.equal(JSON.parse(account.stdout).data.received.name, '张三');
+  assert.ok(!account.stdout.includes(accountPassword)); assert.ok(!account.stderr.includes(accountPassword));
+  const reused = await execute(script, ['security', 'user', 'ensure', 'zhangsan', '--json'], f.directory, f.env);
+  assert.equal(reused.code, 0, reused.stdout); assert.equal(JSON.parse(reused.stdout).data.created, false);
+  assert.equal(server.hits.at(-1).method, 'GET');
+  assert.equal(server.hits.at(-1).url, '/api/service/authen/v1/security/users/zhangsan');
   const streamed = await execute(script, ['data', 'create', 'customer', '--values-json', '-', '--json'], f.directory, f.env, stream => {
     const bytes = Buffer.from('{"name":"分段中文"}');
     stream.write(bytes.subarray(0, 11));

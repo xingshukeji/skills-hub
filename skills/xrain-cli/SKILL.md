@@ -1,7 +1,8 @@
 ---
 name: xrain-cli
-description: 使用内置 Node.js CLI 管理 XRain profiles、本地测试令牌、用户角色和权限集，查询或修改 runtime 实体数据，并通过浏览器登录检查、构建、发布和查询应用包。用于 XRain CLI、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；不用于部署 XRain 服务或绕过权限。
-compatibility: Requires Node.js 22.12+ and network access to the target XRain API. Browser login uses a local loopback callback. Windows session protection uses built-in Windows PowerShell; no npm packages or .NET SDK installation is required.
+description: 使用内置 Node.js CLI 连接 XRain，快速创建或复用固定测试账号，处理统一认证建号、激活和登录验证，管理用户角色与权限集、runtime 实体数据及应用包。用于 XRain CLI、快速登录验证、测试账号准备、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；不用于部署 XRain 服务或绕过权限。
+metadata:
+  runtime-requirements: Requires Node.js 22.12+ and network access to the target XRain API. Browser login uses a local loopback callback. Windows session protection uses built-in Windows PowerShell; no npm packages or .NET SDK installation is required.
 ---
 
 # XRain CLI
@@ -15,6 +16,8 @@ node <skill绝对路径>/scripts/xrain-cli.mjs --help
 Node.js 24 LTS 推荐，最低版本 22.12。脚本已包含依赖。不要要求用户安装全局 `xrain-cli`、运行 `npm install`、安装 .NET SDK，或寻找其他仓库的构建产物。不要在安装副本内修改生成脚本。
 
 ## 连接、发现与执行
+
+遇到缺少测试账号、注册或激活未完成、登录失败时，先读 [快速登录验证](references/login.md)。在已授权的开发验证范围内连续完成账号查重、必要建号、激活和原应用登录，不把“没有账号”直接留给用户处理。统一认证账号与平台业务用户分别由各自入口创建。
 
 1. 根据用户指令与 `profile list` / `profile show` 确认服务器、租户和 profile。显式指定不存在的 profile 会报错；创建连接使用 `auth login` 或 `profile set`。仅在目标信息缺失且无法从上下文确定时询问。
 2. 用 `auth status --json` 查看凭据来源、会话过期时间和本地状态；它不验证服务器是否接受凭据。需要核验连接时运行 `doctor --json`，其结果只覆盖实际探测的接口。
@@ -30,6 +33,7 @@ Agent 和脚本调用优先加 `--json`：stdout 只有一个成功或失败 JSO
 - 当前服务的权限管理、元数据标准及健康检查使用浏览器登录会话。API Token 仅用于服务端开放的数据接口；向不接受 API Token 的接口发送它，会返回 `platform.authen.authentication_method_not_allowed`，不要绕过该限制。
 - `data` 支持浏览器会话或已授权的 API Token。默认 `--auth auto` 保持原有凭据优先级；`--auth session` 显式使用匹配的浏览器会话，不回退到 API Token。它不能与 `--bearer` / `--token-name` 同时指定。
 - 本地 `admin` / `guest` 令牌只用于已配置同一令牌的开发环境。`security tokens ensure` 只创建本地令牌文件，不会在服务器授予权限。
+- `security user ensure` 按固定用户名查询，存在时原样复用，缺失时用 JSON 创建平台用户。它不修改已有密码、角色或权限，也不创建统一认证账号。建号与实际登录路径见 [快速登录验证](references/login.md)。
 - 优先使用现有 token alias 或 `XRAIN_TOKEN` 环境变量。不要把真实 bearer 值写入命令行、聊天、日志或 Git。
 - 租户由服务端验证后的 token 确定。`--tenant` 不能切换 token 的租户，不发送覆盖租户或伪造用户的 header。
 - 403 时检查身份与实际授权；不要自动升级到管理员、切换租户或添加权限来让测试通过。用户明确授权开发环境能力验证时，可使用已有开发测试入口，并创建专用合成用户、角色、权限集和数据；保持真实服务的认证、授权与租户校验。
@@ -48,7 +52,7 @@ app publish --file <工作目录>/myapp.appkg
 app status --json
 ```
 
-- `auth login` 通过浏览器完成 OIDC。无法自动打开时使用 `--no-browser`，在浏览器打开 stderr 给出的当次登录链接；不要代填密码或绕过 MFA。
+- `auth login` 通过浏览器完成 OIDC。无法自动打开时使用 `--no-browser`，在浏览器打开 stderr 给出的当次登录链接。使用本次已获准的固定账号凭据自动填写并完成正常认证；只有确实需要本人提供验证码或批准时才交给本人。保留 MFA 与服务端认证校验。
 - `app build` 完成服务端构建、源码摘要、包摘要、包标识和 manifest 校验后保存产物；无需先运行 `app check`。只想验证而不保存包时使用 `app check`，它同样会执行一次服务端构建。
 - `app init` / `app build` 不覆盖已有输出。更换路径或明确处理旧文件。
 - `app publish` 会更改目标服务器中的发布记录。发布遇到超时或响应异常，先运行 `app status` 确认结果，再决定是否重试；不自动重复发布。

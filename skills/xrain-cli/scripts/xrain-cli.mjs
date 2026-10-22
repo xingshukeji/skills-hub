@@ -426,7 +426,7 @@ function requireSuccess(response, hint = "") {
   if (response.ok) return response;
   throw responseError(response, hint);
 }
-async function api(ctx, method, path, json) {
+async function apiValue(ctx, method, path, json) {
   const profile = ctx.store.resolve(ctx.args, true);
   const { token, source } = ctx.store.credential(ctx.args, profile);
   if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching browser session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
@@ -438,7 +438,10 @@ async function api(ctx, method, path, json) {
     result = response.text();
   }
   if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
-  ctx.reporter.print(response.bytes.length ? result : null);
+  return response.bytes.length ? result : null;
+}
+async function api(ctx, method, path, json) {
+  ctx.reporter.print(await apiValue(ctx, method, path, json));
   return 0;
 }
 
@@ -541,7 +544,7 @@ async function dataCommands(ctx) {
   if (!isObject(values)) throw new CliError("Values JSON must be an object. Use --values or --values-json.");
   return api(ctx, action === "create" ? "POST" : "PUT", path, Object.hasOwn(values, "values") ? values : { values });
 }
-function securityCommands(ctx) {
+async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
   const kind = args.command(1), action = args.command(2);
   if (kind === "tokens") {
@@ -559,6 +562,29 @@ function securityCommands(ctx) {
   const [resource, singular] = kinds[kind];
   const name = args.required(singular, args.value("name") ?? args.operand(3));
   const path = `/api/service/authen/v1/security/${resource}/${segment(name)}`;
+  if (singular === "user" && ["create", "ensure"].includes(action)) {
+    const values = await jsonInput(args, "values");
+    if (values !== void 0 && !isObject(values)) throw new CliError("User values JSON must be an object.", { code: "invalid_arguments" });
+    for (const [key, value] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value);
+    if (values && Object.hasOwn(values, "userName") && (typeof values.userName !== "string" || !equalIgnoreCase(values.userName, name)))
+      throw new CliError("userName in JSON must match --user.", { code: "invalid_arguments" });
+    if (action === "ensure") {
+      try {
+        const user2 = await apiValue(ctx, "GET", path);
+        reporter.print({ created: false, user: user2 });
+        return 0;
+      } catch (error) {
+        if (error.httpStatus !== 404 || error.serverCode !== "platform.authen.user_not_found") throw error;
+      }
+    }
+    if (!values) throw new CliError("User creation requires values JSON.", {
+      code: action === "ensure" ? "creation_input_required" : "invalid_arguments",
+      hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep the password out of command arguments."
+    });
+    const user = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, userName: name });
+    reporter.print(action === "ensure" ? { created: true, user } : user);
+    return 0;
+  }
   if (action === "show") return api(ctx, "GET", path);
   const match = /^(grant|revoke)-(role|permission-set|permission)$/.exec(action ?? "");
   const allowed = { user: ["role", "permission-set"], role: ["permission-set"], "permission-set": ["permission"] };
@@ -1686,6 +1712,12 @@ command("data delete", [...api2, "entity", "id"], [slot("entity"), slot("id")], 
 command("data create", [...api2, "entity", "values", "values-json", "file"], [slot("entity")], "Create one record; JSON file options accept - for stdin.");
 command("data update", [...api2, "entity", "id", "values", "values-json", "file"], [slot("entity"), slot("id")], "Update one record; a full values envelope can include expectedValues.");
 for (const action of ["ensure", "show", "path"]) command("security tokens " + action, [], [], "Manage local test token aliases without printing token values.");
+for (const action of ["create", "ensure"]) command(
+  `security user ${action}`,
+  [...api2, "user", "name", "values", "values-json", "file"],
+  [slot("user", ["name"])],
+  action === "ensure" ? "Reuse an existing platform user unchanged, or create a missing user from JSON. Does not create an OIDC identity." : "Create a platform user from JSON; use ensure to reuse fixed test accounts. Does not create an OIDC identity."
+);
 for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["permission-set"]], ["permission-set", ["permission"]]]) {
   command(`security ${kind} show`, [...api2, kind, "name"], [slot(kind, ["name"])], "Read the selected security resource.");
   for (const member of members) for (const action of ["grant", "revoke"]) {
@@ -1734,7 +1766,7 @@ function validateCommand(args) {
     if (["query", "query-json", "file"].some((name) => args.has(name)) && ["page", "page-size", "search", "fields", "filter", "filter-json", "sort", "no-total"].some((name) => args.has(name)))
       throw new CliError("A complete query JSON request cannot be combined with individual query options.", { code: "invalid_arguments" });
   }
-  if (["data create", "data update"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
+  if (["data create", "data update", "security user create", "security user ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
   if (spec.path.startsWith("security ") && / (?:grant|revoke)-/.test(spec.path)) exclusive(["names", "roles", "permission-sets", "permissions"]);
   if (args.has("exchange")) {
     exclusive(["server", "exchange"]);

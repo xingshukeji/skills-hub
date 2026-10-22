@@ -10,7 +10,7 @@
 | Skill | 用途 |
 | --- | --- |
 | [cicd](skills/cicd/SKILL.md) | 按用户指定的项目、操作和环境触发已有 Jenkins 流水线，查询可用作业与参数，跟踪构建、发布和部署结果。源码获取及 CI/CD 执行由 Jenkins 负责；目标不清楚时询问需要触发什么。 |
-| [xrain-cli](skills/xrain-cli/SKILL.md) | 使用内置 Node.js CLI 管理 XRain profiles、本地测试令牌、用户角色和权限集，查询或修改 runtime 实体数据，并通过浏览器登录检查、构建、发布和查询应用包。用于 XRain CLI、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；不用于部署 XRain 服务或绕过权限。 |
+| [xrain-cli](skills/xrain-cli/SKILL.md) | 使用内置 Node.js CLI 连接 XRain，快速创建或复用固定测试账号，处理统一认证建号、激活和登录验证，管理用户角色与权限集、runtime 实体数据及应用包。用于 XRain CLI、快速登录验证、测试账号准备、租户连接、权限验证、数据操作、应用开发和独立应用市场操作；不用于部署 XRain 服务或绕过权限。 |
 <!-- skills:end -->
 
 ## 使用第一个 skill

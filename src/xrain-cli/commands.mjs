@@ -1,5 +1,5 @@
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, jsonInput, origin, segment } from './core.mjs';
-import { api } from './http.mjs';
+import { api, apiValue } from './http.mjs';
 
 export async function profileCommands(ctx, action = ctx.args.command(1)) {
   const { args, store, reporter } = ctx;
@@ -94,7 +94,7 @@ export async function dataCommands(ctx) {
   return api(ctx, action === 'create' ? 'POST' : 'PUT', path, Object.hasOwn(values, 'values') ? values : { values });
 }
 
-export function securityCommands(ctx) {
+export async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
   const kind = args.command(1), action = args.command(2);
   if (kind === 'tokens') {
@@ -109,6 +109,27 @@ export function securityCommands(ctx) {
   const [resource, singular] = kinds[kind];
   const name = args.required(singular, args.value('name') ?? args.operand(3));
   const path = `/api/service/authen/v1/security/${resource}/${segment(name)}`;
+  if (singular === 'user' && ['create', 'ensure'].includes(action)) {
+    const values = await jsonInput(args, 'values');
+    if (values !== undefined && !isObject(values)) throw new CliError('User values JSON must be an object.', { code: 'invalid_arguments' });
+    for (const [key, value] of Object.entries(values ?? {})) if (key.toLowerCase() === 'password') reporter.secret(value);
+    if (values && Object.hasOwn(values, 'userName') && (typeof values.userName !== 'string' || !equalIgnoreCase(values.userName, name)))
+      throw new CliError('userName in JSON must match --user.', { code: 'invalid_arguments' });
+    if (action === 'ensure') {
+      try {
+        const user = await apiValue(ctx, 'GET', path);
+        reporter.print({ created: false, user });
+        return 0;
+      } catch (error) {
+        if (error.httpStatus !== 404 || error.serverCode !== 'platform.authen.user_not_found') throw error;
+      }
+    }
+    if (!values) throw new CliError('User creation requires values JSON.', { code: action === 'ensure' ? 'creation_input_required' : 'invalid_arguments',
+      hint: 'Use --values-json FILE or pipe JSON with --values-json -. Keep the password out of command arguments.' });
+    const user = await apiValue(ctx, 'POST', `/api/service/authen/v1/security/${resource}`, { ...values, userName: name });
+    reporter.print(action === 'ensure' ? { created: true, user } : user);
+    return 0;
+  }
   if (action === 'show') return api(ctx, 'GET', path);
   const match = /^(grant|revoke)-(role|permission-set|permission)$/.exec(action ?? '');
   const allowed = { user: ['role', 'permission-set'], role: ['permission-set'], 'permission-set': ['permission'] };

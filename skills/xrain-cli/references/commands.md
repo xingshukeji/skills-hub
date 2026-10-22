@@ -6,7 +6,7 @@
 
 Agent 和脚本使用 `--json`。stdout 始终只有一个 JSON 文档：成功为 `{"ok":true,"data":...}`，失败为 `{"ok":false,"error":{"code":"...","message":"...",...}}`。错误按实际情况附带 `httpStatus`、`serverCode`、`requestId`、`hint` 和脱敏的 `details`；登录链接与进度位于 stderr。
 
-`app status --json` 的 data 始终为数组，零个匹配项返回 `[]`；批量命令的 data 为按执行顺序排列的结果数组。其他 API 命令的 data 保留服务端响应结构。默认模式保留兼容输出；多应用 status 也会输出一份数组，避免拼接多个 JSON 对象。
+`app status --json` 的 data 始终为数组，零个匹配项返回 `[]`；批量命令的 data 为按执行顺序排列的结果数组。`security user ensure` 返回 `{created, user}`，其余 API 命令的 data 保留服务端响应结构。默认模式保留兼容输出；多应用 status 也会输出一份数组，避免拼接多个 JSON 对象。
 
 选项按子命令校验。未知选项、重复选项、无关选项、多余位置参数，以及 JSON 文件与内联输入冲突都会报错。`data delete` 只接受一个实体与记录 ID，不接受 filter。`data delete --help` 显示该命令的参数；`help metadata` 显示元数据命令组。
 
@@ -63,14 +63,26 @@ data delete customer rec0000000000000001
 
 ## 用户、角色与权限集
 
-先在管理端创建目标测试用户 `cli-test-user`、自建角色 `custom.cli.reader` 和权限集 `custom.cli.reader`。这些示例使用已有权限 `platform.entity.customer.read`；若目标环境采用其他业务对象，替换为它实际存在的权限。系统角色的只读限制由服务端执行。
+快速准备账号及完成原应用登录时，先按 [快速登录验证](login.md) 确认身份归属。平台用户可使用以下命令；`account.json` 为秘密目录中的创建数据，不能放入仓库。统一认证账号须通过认证中心的创建与激活入口准备。
 
 ```text
-security user show --user cli-test-user
-security user grant-role --user cli-test-user --roles custom.cli.reader
-security user revoke-role --user cli-test-user --roles custom.cli.reader
-security user grant-permission-set --user cli-test-user --permission-sets custom.cli.reader
-security user revoke-permission-set --user cli-test-user --permission-sets custom.cli.reader
+security user ensure --user zhangsan --auth session --json
+security user ensure --user zhangsan --values-json account.json --auth session --json
+security user create --user zhangsan --values-json - --auth session --json
+```
+
+`create` 直接创建平台用户。`ensure` 先查询，存在时返回 `{created:false,user}`，缺失时创建并返回 `{created:true,user}`。仅 `404 / platform.authen.user_not_found` 表示可创建的缺失；其他错误原样返回。已有账号的密码、名称、角色及权限均不被更新。创建冲突或响应不确定时先查询，不自动重试创建。
+
+创建 JSON 直接使用平台字段，常用 `password`、`name`、`email` 和 `isAI`；其余人员资料字段按目标契约提供。CLI 从 `--user` 设置 `userName`；JSON 中同名字段若存在，必须与之相符。创建需要 JSON 对象；`ensure` 查询已有账号时可不提供。输入支持 `--values-json FILE|-`、`--file FILE|-` 和 `--values @FILE`，每次只选一种。真实密码通过秘密文件或 stdin 传入，不使用内联参数。
+
+下面的权限示例复用目标已约定的测试人物 `zhangsan`、自建角色 `custom.cli.reader` 和权限集 `custom.cli.reader`。这些示例使用已有权限 `platform.entity.customer.read`；若目标环境采用其他业务对象，替换为它实际存在的权限。系统角色的只读限制由服务端执行。
+
+```text
+security user show --user zhangsan
+security user grant-role --user zhangsan --roles custom.cli.reader
+security user revoke-role --user zhangsan --roles custom.cli.reader
+security user grant-permission-set --user zhangsan --permission-sets custom.cli.reader
+security user revoke-permission-set --user zhangsan --permission-sets custom.cli.reader
 security role show --role custom.cli.reader
 security role grant-permission-set --role custom.cli.reader --permission-sets custom.cli.reader
 security role revoke-permission-set --role custom.cli.reader --permission-sets custom.cli.reader
