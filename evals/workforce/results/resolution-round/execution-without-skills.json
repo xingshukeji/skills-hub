@@ -1,0 +1,255 @@
+{
+  "answers": [
+    {
+      "id": "l01",
+      "skill": null,
+      "conclusion": "离线模拟中 apo-1 已成功将 tenant-lab/apg-1 从 apv-1 升级为 apv-2，revision 8、无活动操作，列表组件 Active/effective=true。已提交目录中订单测试网关地址，并仅更改 fieldNames 为 name、amount；未提交标题覆盖。接口不回显标题、字段和绑定，不能宣布其业务效果或真实生产验证完成。",
+      "actions": [
+        "读取当前 installation、operation 与绑定目录，核对租户、包、目标版本和原操作。",
+        "实际调用 resolve；5 次 application_binding_required(422) 和1次 managed_property_read_only(409)均留档，随后按接口接受的记录/属性键修正。",
+        "以 tenantBindings[apr-connector/baseAddress] 和 configurationChanges[apr-view/fieldNames]={present:true,value:[name,amount]} 完成同一操作；回读安装、操作、组件。"
+      ],
+      "evidence": [
+        "output/bodies/l01-resolve-editable-configuration.json",
+        "output/responses/l01-09-resolve-editable-configuration.json",
+        "output/responses/l01-10-installation-after.json",
+        "output/responses/l01-11-operation-after.json",
+        "output/responses/l01-12-components-after.json",
+        "output/analysis/l01.json"
+      ],
+      "unresolved": [
+        "模拟器未提供升级后标题、字段顺序、连接器有效绑定的直接读回。",
+        "未验证网关连通性、业务数据及原用户页面；没有真实环境操作。"
+      ]
+    },
+    {
+      "id": "l02",
+      "skill": null,
+      "conclusion": "离线模拟中从失败操作 apo-2 的受管 retry 入口重试同一目标，生成 l02-apg-2-apv-2-retry-apo-2 并成功；tenant-lab/apg-2 已安装 apv-2，revision 8，无活动操作。失败关联保存在原操作重试路径、请求与新操作回执中。",
+      "actions": [
+        "读取 api-2 与失败操作 apo-2，核对 Failed/dependency_unavailable、相同 installation 与目标 apv-2。",
+        "POST /operations/apo-2/retry，使用稳定 requestId 与当前 expectedRevision=7。",
+        "回读新 operation、installation 和组件，确认 Succeeded、最新操作关联及版本 apv-2。"
+      ],
+      "evidence": [
+        "output/responses/l02-02-operation.json",
+        "output/bodies/l02-retry.json",
+        "output/responses/l02-03-retry.json",
+        "output/responses/l02-04-installation-after.json",
+        "output/responses/l02-05-operation-after.json",
+        "output/responses/l02-06-components-after.json",
+        "output/analysis/l02.json"
+      ],
+      "unresolved": [
+        "模拟回执未提供独立 retryOfOperationId 审计字段；关系由原失败操作的 retry 入口和请求回执证明。",
+        "依赖真实恢复情况、业务访问和真实环境升级未验证。"
+      ]
+    },
+    {
+      "id": "l03",
+      "skill": null,
+      "conclusion": "离线模拟中仅恢复原 Finalizing 操作 apo-3；同一 operation 现为 Succeeded，tenant-lab/apg-3 已安装 apv-2、revision 8，无活动操作。",
+      "actions": [
+        "读取 api-3 与 apo-3，核对原活动操作为 Finalizing。",
+        "仅 POST /operations/apo-3/continue，未创建重试操作。",
+        "回读原操作、安装与组件，确认 operationId 未变且组件生效。"
+      ],
+      "evidence": [
+        "output/bodies/l03-continue.json",
+        "output/responses/l03-03-continue.json",
+        "output/responses/l03-04-installation-after.json",
+        "output/responses/l03-05-operation-after.json",
+        "output/responses/l03-06-components-after.json",
+        "output/analysis/l03.json"
+      ],
+      "unresolved": [
+        "真实服务恢复及用户业务访问没有验证。"
+      ]
+    },
+    {
+      "id": "l04",
+      "skill": null,
+      "conclusion": "离线模拟中仅将 api-4 的 apr-view 从 Hidden/ineffective 恢复为 Active/effective=true；安装版本保持 apv-2，revision 从7变8。原用户实际可见性及业务数据没有直接验证。",
+      "actions": [
+        "读取当前安装和组件，确认仅列表视图隐藏。",
+        "POST /installations/api-4/components/apr-view:restore，expectedRevision=7。",
+        "回读安装与组件，对比版本及 latestOperationId，确认没有触发升级或重装。"
+      ],
+      "evidence": [
+        "output/bodies/l04-restore.json",
+        "output/responses/l04-02-components.json",
+        "output/responses/l04-03-restore.json",
+        "output/responses/l04-04-installation-after.json",
+        "output/responses/l04-05-components-after.json",
+        "output/analysis/l04.json"
+      ],
+      "unresolved": [
+        "接口未返回恢复后的业务行数；初始23行不能作为事后数据保留证据。",
+        "未以原用户验证列表入口、字段和记录可见性。"
+      ]
+    },
+    {
+      "id": "l05",
+      "skill": null,
+      "conclusion": "离线模拟中通过受管 DELETE 入口卸载且只操作 api-5；卸载操作 Succeeded，installedVersionId=null，revision 8，组件为 Retained/effective=false。可确认受管保留状态，不能凭此证明23行业务数据实际完好。",
+      "actions": [
+        "读取 api-5 与当前组件，核对目标租户、包和 revision。",
+        "DELETE /installations/api-5，提交稳定 requestId 和 expectedRevision=7。",
+        "回读安装、卸载 operation 和组件，核对目标版本清空及组件 Retained；请求日志只有 api-5 卸载写入。"
+      ],
+      "evidence": [
+        "output/bodies/l05-uninstall.json",
+        "output/responses/l05-03-uninstall.json",
+        "output/responses/l05-04-installation-after.json",
+        "output/responses/l05-05-operation-after.json",
+        "output/responses/l05-06-components-after.json",
+        "output/analysis/l05.json"
+      ],
+      "unresolved": [
+        "API 子集不提供卸载后业务行数、内容校验或其他应用完整性读回。",
+        "未执行真实生产卸载。"
+      ]
+    },
+    {
+      "id": "l06",
+      "skill": null,
+      "conclusion": "离线模拟中已为现有执行用户 fixed-executor 补齐 perm-orders-read，读回 orders.read=allowed；复用 role-fixed/set-fixed，未创建角色或权限集。消息机器人未建立，消息能力及字段/记录范围仍待诊断。",
+      "actions": [
+        "读取 execution-authorization，区分缺失的读取权限、已有写权限和未验证消息能力。",
+        "仅 PUT grants permissionIds=[perm-orders-read]。",
+        "回读授权，确认新增项仅读取权限、已有写权限仍 allowed、消息能力仍 unverified；未发送消息或创建账号。"
+      ],
+      "evidence": [
+        "output/bodies/l06-grant.json",
+        "output/responses/l06-02-grant.json",
+        "output/responses/l06-03-authorization-after.json",
+        "output/analysis/l06.json"
+      ],
+      "unresolved": [
+        "field_access 与 record_scope 尚未验证。",
+        "消息机器人未建立，发送消息没有授权，本轮不作发送或建号操作。",
+        "真实自动化读取、字段及记录边界未验证。"
+      ]
+    },
+    {
+      "id": "l07",
+      "skill": null,
+      "conclusion": "离线模拟中已将 user-li 加入 app-sales 的当前 selected 发布范围；保留 user-zhang、user-colleague 和 org-main/dept-sales。使用实时 revision 4 更新为5，未按过期截图覆盖。",
+      "actions": [
+        "GET 当前 publication-scope，确认比截图 revision 3 多 user-colleague。",
+        "在当前 userIds 上取并集合并 user-li，保留 mode 与 departments，PUT expectedRevision=4。",
+        "再次 GET，验证完整人员集合、部门和 revision=5。"
+      ],
+      "evidence": [
+        "output/responses/l07-01-scope.json",
+        "output/bodies/l07-scope.json",
+        "output/responses/l07-02-scope-update.json",
+        "output/responses/l07-03-scope-after.json",
+        "output/analysis/l07.json"
+      ],
+      "unresolved": [
+        "固定用户真实登录及应用可见性未验证；发布范围成功不能证明执行权限。"
+      ]
+    },
+    {
+      "id": "l08",
+      "skill": null,
+      "conclusion": "接入包不能据现有文件判定可直接启动。实际解析 .workforce/development-launch.json 后，应用宿主为 http://localhost:4870，浏览器入口为 https://localhost:9443；start/dev/preview/debug 均登记到 pwsh -NoProfile -File ./Start-Development.ps1。缺失 proxy.mjs，两个 PowerShell 脚本均只有空脚本块，应用配置也是空对象。",
+      "actions": [
+        "枚举本案例含隐藏文件的材料，实际 JSON 解析登记文件与 package.json。",
+        "按项目根目录解析 applicationDirectory、连接与代理脚本；按应用目录解析 applicationConfiguration，逐项检查文件存在性。",
+        "用 PowerShell AST 解析器静态解析 Start-Development.ps1 与 connect.ps1：语法有效但命令数均0；未启动服务。"
+      ],
+      "evidence": [
+        "input/artifacts/l08/demo project/.workforce/development-launch.json",
+        "output/l08-powershell-parse.json",
+        "output/parse-l08.ps1",
+        "output/analysis/l08.json",
+        "output/analyze.mjs"
+      ],
+      "unresolved": [
+        "proxy.mjs 缺失；启动与连接脚本没有实际实现。",
+        "application.json={}，未提供应用配置契约，无法进一步断言必填字段名。",
+        "未启动或探测宿主、代理、证书、端口及浏览器连通性。"
+      ]
+    },
+    {
+      "id": "l09",
+      "skill": null,
+      "conclusion": "共41条。warm/foreground：20条，19成功、1次9000ms超时，均值1276.5ms、中位885ms、P95(最近秩)1140ms、最大9000ms，成功且≤2秒19/20，整组不达标；cold/foreground：1条成功但3100ms，超预算；warm/background：20条均成功700ms，样本内满足预算。现有证据不能代表用户页面达标。",
+      "actions": [
+        "实际解析41条采样，按 scenario×phase×visibility 分组，保留超时样本。",
+        "分别计算总数、成功/失败、失败率、超预算数、成功且预算内比例、包含失败的耗时分布和成功耗时分布。",
+        "保存最近秩P95定义、分组JSON和CSV；将前台、后台、冷启动结论分别报告。"
+      ],
+      "evidence": [
+        "output/analysis/l09.json",
+        "output/l09-statistics.csv",
+        "output/analyze.mjs"
+      ],
+      "unresolved": [
+        "未提供页面端到端起止与可交互判定、浏览器测量、环境和采样来源。",
+        "冷启动仅1条且超预算；后台700ms不能代替前台用户体验。",
+        "P95=1140ms仍伴随超时，不能据单个分位数宣布两秒预算达标。"
+      ]
+    },
+    {
+      "id": "l10",
+      "skill": null,
+      "conclusion": "任务页未完成有事实依据：任务 paused，当前责任人 human-owner、assignmentVersion=8；旧AI执行版本7在seq102尝试更新，seq103明确返回 task.execution_forbidden，seq104“已处理完成”没有成功写入证据。seq88的 completed 早于committedBeforeInput=100及本次输入101；分页未读完。应由当前人工负责人核对产物后，通过原任务受管入口更新进度/完成状态；本轮保持只读及暂停。",
+      "actions": [
+        "解析 task.json 与 history.json，用 committedBeforeInput=100 划分历史与当前输入后的事件。",
+        "按 callId=call-update 关联seq102调用与seq103错误，并比较执行分配版本7和当前8。",
+        "检查本次输入后没有已提供的 turn/end(completed)，记录 hasMore=true；没有恢复AI或修改任务。"
+      ],
+      "evidence": [
+        "input/artifacts/l10/task.json",
+        "input/artifacts/l10/history.json",
+        "output/analysis/l10.json",
+        "output/analyze.mjs"
+      ],
+      "unresolved": [
+        "历史 hasMore=true，后续分页及完整运行结果未提供。",
+        "实际业务产物是否完成未知；不能自动把任务置为完成或恢复旧AI。"
+      ]
+    },
+    {
+      "id": "l11",
+      "skill": null,
+      "conclusion": "不能宣布 tenant-lab 的升级完成。回执 installation 属于 tenant-other，且返回 operation.id=apo-unrelated，并非目标 apo-11；installation.latestOperationId=apo-11 也没有与返回成功操作匹配。包及版本相同、某个 operation Succeeded 不能补足这些关联缺口。",
+      "actions": [
+        "实际解析 receipt.json，对比目标租户、包、版本、operationId 与 installation/operation。",
+        "逐项计算关联：tenantMatches=false、operationIdMatches=false、latestOperationMatchesReturned=false，另保存匹配项。",
+        "仅诊断并列出应补充的 tenant-lab 安装及 apo-11 只读证据，没有调用修改操作。"
+      ],
+      "evidence": [
+        "input/artifacts/l11/receipt.json",
+        "output/analysis/l11.json",
+        "output/analyze.mjs"
+      ],
+      "unresolved": [
+        "未提供 tenant-lab/apg-11 对应安装与目标 apo-11 的真实关联回执。",
+        "目标组件生效、业务数据及原用户访问未验证。"
+      ]
+    },
+    {
+      "id": "l12",
+      "skill": null,
+      "conclusion": "需要处理工具提供层和会话配置层。skill 已发现并加载，但 nativeTools=[]、业务工具仅 task_read，加载说明不会生成命令执行器。员工当前定义是 workspace-new/preset-new/model-b，原会话仍为 workspace-old/preset-old/model-a；宿主 configureDelegate=false，原因是工作区/预设不可变。现有证据不支持原会话已切换模型。",
+      "actions": [
+        "实际解析配置，核对 skill 状态、原生/业务工具和员工标识。",
+        "计算当前定义与原会话的 workspace、preset、model 三项差异，并读取宿主不可变配置原因。",
+        "记录处理建议：检查既有授权下的工具提供器与预设配置；如需使用新定义，先确认受支持的新会话或非破坏迁移路径并保留原会话。本轮未扩权、改配或删除会话。"
+      ],
+      "evidence": [
+        "input/artifacts/l12/configuration.json",
+        "output/analysis/l12.json",
+        "output/analyze.mjs"
+      ],
+      "unresolved": [
+        "缺少宿主工具注册、权限策略和会话迁移/模型热更新契约，无法确认可用修复接口。",
+        "命令能力开通不在本次授权内，原会话就地变更 workspace/preset 被宿主拒绝。"
+      ]
+    }
+  ]
+}

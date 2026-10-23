@@ -1,0 +1,1661 @@
+{
+  "format": 1,
+  "baselineCommit": "aa8b1966559702ee07a319983fada12ed79e1c06",
+  "createdAt": "2026-10-22T15:48:15.297Z",
+  "scoredAt": "2026-10-22T21:01:17.470Z",
+  "casesHash": "c45cd092333e994195319ff62a579003e6fef9868686fe3ce089dd00353974e7",
+  "snapshots": {
+    "baseline": {
+      "hash": "181d757cf5f0befd76f940dfb5385608811b13265ebf129cbd4965c669259eea",
+      "sizes": {
+        "cicd": {
+          "descriptionChars": 96,
+          "entryChars": 2085,
+          "markdownChars": 2085
+        },
+        "xrain-auth": {
+          "descriptionChars": 143,
+          "entryChars": 1866,
+          "markdownChars": 7619
+        },
+        "xrain-cli": {
+          "descriptionChars": 159,
+          "entryChars": 3811,
+          "markdownChars": 19040
+        }
+      }
+    },
+    "candidate": {
+      "hash": "04f74984d71ebf92ef551b3afc1794ecf7ad45fe5126fd2b964e08da31c7a6cb",
+      "sizes": {
+        "cicd": {
+          "descriptionChars": 71,
+          "entryChars": 1023,
+          "markdownChars": 2162
+        },
+        "xrain-auth": {
+          "descriptionChars": 90,
+          "entryChars": 1397,
+          "markdownChars": 7150
+        },
+        "xrain-cli": {
+          "descriptionChars": 102,
+          "entryChars": 1827,
+          "markdownChars": 17275
+        }
+      }
+    }
+  },
+  "totals": {
+    "baseline": {
+      "total": 48,
+      "passed": 48,
+      "routingPassed": 48,
+      "decisionPassed": 48
+    },
+    "candidate": {
+      "total": 48,
+      "passed": 48,
+      "routingPassed": 48,
+      "decisionPassed": 48
+    }
+  },
+  "groups": [
+    {
+      "id": "group-1-1",
+      "repeat": 1,
+      "variant": "candidate",
+      "inputHash": "23a1dc7b1e4270a69bd0cfd9ce63ead3fee0c87b85e935e4d1a86c146c698e6a",
+      "instructionHash": "2d4000c33feee0f2b4e769c30201b40c0bd16456b6827fddfc2419532c4ab678",
+      "catalogHash": "00b95d0d1af5dfe0a028e7642eff454d09359a7dd54e6ff612d5bb1acc012b42",
+      "responseHash": "6db6e4132ca29fa9443553734e8f87bd19563c3905bd246c4fa2a4da8704ea69",
+      "total": 24,
+      "passed": 24,
+      "routingPassed": 24,
+      "decisionPassed": 24,
+      "results": [
+        {
+          "id": "c01",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c01",
+            "skill": "cicd",
+            "choice": 2,
+            "reason": "查询退出码只说明查询成功，第 73 次的 result 为 FAILURE，应报告该次失败及其证据。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c02",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c02",
+            "skill": "cicd",
+            "choice": 3,
+            "reason": "目标项目、操作和环境均无法从现有上下文确定，应只询问这些缺项。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c03",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c03",
+            "skill": "cicd",
+            "choice": 1,
+            "reason": "完整部署须关闭只检查参数并指定 test-a，以新回执触发一次后跟踪同一构建。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c04",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c04",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "无队列标识的未知提交不能靠重复查询回执恢复，应保留回执并核对原队列和构建后再决定。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c05",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c05",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "原 queueId=42 对应构建 #17，应恢复该关联并继续跟踪本次运行。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c06",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c06",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "现有作业不能采用用户的新提交，应报告能力缺口，不能用旧版本重跑或自行改作业替代。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c07",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c07",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "目标、有效凭据、实际元数据及 Runtime 支持均已确认，可以直接执行已知查询。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c08",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c08",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "auto 模式选中了接口不接受的环境 token，应显式使用目标 profile 的有效浏览器会话。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c09",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c09",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "服务端按已验证 token 绑定租户，必须先取得 tenant-b 的正常授权，不能靠参数改变身份。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c10",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c10",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "app build 已包含服务端构建、完整性校验和新文件保存，直接构建即可满足请求。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c11",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c11",
+            "skill": "xrain-cli",
+            "choice": 2,
+            "reason": "同一目标和 profile 的状态已匹配包、版本及源码摘要，足以确认原发布完成，无需重复发布或安装。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c12",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c12",
+            "skill": "xrain-cli",
+            "choice": 1,
+            "reason": "批量失败会保留前序修改，应保留 r7 并核对失败步骤权限和剩余步骤，不能重放、提权或擅自回滚。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c13",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c13",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "当前没有文件读取、命令执行或等价查询工具，应如实报告具体能力缺口。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c14",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c14",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "用户电脑浏览器的 loopback 无法回到远端 CLI 主机，缺少获准回调路径是实际阻断。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c15",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c15",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "已有启用身份且凭据可用时直接从原应用正常登录，并核对用户、租户和目标页面。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c16",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c16",
+            "skill": "xrain-auth",
+            "choice": 0,
+            "reason": "已有身份凭据缺失应保留原身份，恢复授权缺失时说明影响并只请求该恢复决定。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c17",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c17",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "恢复密码与验证器会撤销旧登录并清除验证器，普通登录准备授权不能替代原身份恢复授权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c18",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c18",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "管理员登录页不能证明身份不存在，应先用已获准管理员正常登录再完成查重。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c19",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c19",
+            "skill": "xrain-auth",
+            "choice": 1,
+            "reason": "原应用使用独立且有效的客户端，应沿其正常登录链路验证，CLI 客户端错误不构成前置阻断。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c20",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c20",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "已授权的准入扩展应合并 u7、保留既有用户与部门并使用当前 revision，更新后以 u7 复查。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c21",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c21",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "实际错误为 permission_denied，应诊断其权限原因，不能将其他 403 当成首次建档或自动加权依据。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c22",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c22",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "密码验证必须正常退出旧应用及中心会话并确认出现密码表单，免登不能证明原密码有效。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c23",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c23",
+            "skill": null,
+            "choice": 0,
+            "reason": "该任务是已定位的前端文案修改，不属于这三个技能的适用范围。"
+          },
+          "expected": {
+            "skill": null,
+            "choice": 0
+          }
+        },
+        {
+          "id": "c24",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c24",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "应按本次加载的 resourceBase.path 定位已打包脚本，并为含空格的绝对路径加引号。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "group-1-2",
+      "repeat": 1,
+      "variant": "baseline",
+      "inputHash": "23a1dc7b1e4270a69bd0cfd9ce63ead3fee0c87b85e935e4d1a86c146c698e6a",
+      "instructionHash": "2d4000c33feee0f2b4e769c30201b40c0bd16456b6827fddfc2419532c4ab678",
+      "catalogHash": "51b2e7af5b7134df4c54b3f7fe384321fb51bd014d8b9c2a9252c7b71a7a4182",
+      "responseHash": "1a1ad42073723181cfafc0619e7c24fd99915fd0ea0d33f64c432321904e3887",
+      "total": 24,
+      "passed": 24,
+      "routingPassed": 24,
+      "decisionPassed": 24,
+      "results": [
+        {
+          "id": "c01",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c01",
+            "skill": "cicd",
+            "choice": 2,
+            "reason": "查询退出码仅代表查询完成，应依据指定第 73 次构建的 FAILURE 结果报告失败及其日志和链接。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c02",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c02",
+            "skill": "cicd",
+            "choice": 3,
+            "reason": "上下文缺少项目、操作与环境，必须先补齐这些目标信息才能选择并触发已有作业。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c03",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c03",
+            "skill": "cicd",
+            "choice": 1,
+            "reason": "用户已授权完整发布部署，应将 CHECKS_ONLY 设为 false、环境设为 test-a，并以新回执跟踪这一次串联构建。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c04",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c04",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "原提交结果未知且回执查询没有联网，应保留回执并核对原队列和构建记录后再判断是否需要重发。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c05",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c05",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "本次 queueId 为 42，必须关联相同队列 ID 的第 17 次构建继续跟踪。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c06",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c06",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "现有作业无法采用新提交，应报告流水线能力缺口及责任项目，不能用旧提交重跑冒充新版本发布。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c07",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c07",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "目标、会话、真实字段及查询能力均已核验，可以直接执行已授权的查询并报告实际结果。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c08",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c08",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "auto 选中了环境 API Token，而该管理接口要求浏览器会话，应保留目标并显式使用 --auth session。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c09",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c09",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "租户由服务端验证后的 token 绑定，必须取得 tenant-b 的正常授权后才能查询该租户。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c10",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c10",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "app build 已完成服务端构建及完整性校验，可直接保存新产物并核对，无需重复构建或发布。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c11",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c11",
+            "skill": "xrain-cli",
+            "choice": 2,
+            "reason": "同一目标的状态已匹配包标识、版本和本次源码摘要，可确认原发布成功并保留证据。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c12",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c12",
+            "skill": "xrain-cli",
+            "choice": 1,
+            "reason": "批次失败保留已完成修改，应核对 r7 和第二步实际权限，再处理未执行步骤，不能自动回滚、提权或整批重放。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c13",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c13",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "当前员工没有读取并执行内置 CLI 或等价查询的工具能力，应明确具体缺口而不能编造执行结果。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c14",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c14",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "用户电脑浏览器的 loopback 回调指向 L，缺少到 CLI 执行主机 R 的获准回调路径，--no-browser 无法解决该网络条件。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c15",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c15",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "已有启用身份及可用凭据时可直接通过原应用登录，并以真实用户、租户和页面验证完成依据。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c16",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c16",
+            "skill": "xrain-auth",
+            "choice": 0,
+            "reason": "已有 lisi 身份必须复用，凭据恢复可能改变现有身份状态且尚未获准，因此只请求缺失的恢复决定。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c17",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c17",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "恢复密码与验证器会撤销旧登录并清除验证器，必须取得原身份恢复授权，不能视为无影响重发激活码。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c18",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c18",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "管理员登录页不能证明账号不存在，应先用获准原管理员正常登录并完整查询身份。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c19",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c19",
+            "skill": "xrain-auth",
+            "choice": 1,
+            "reason": "原业务网页使用独立且有效的客户端，可直接完成其正常登录链路并验证，无需先修复未获请求的 CLI 接入。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c20",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c20",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "已授权的应用准入应去重合并 u7 并保留原用户和部门，使用最新 revision 更新后再验证普通用户的准入及页面。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c21",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c21",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "permission_denied 不是 tenant_membership_required，应按实际权限错误排查并保留原主体，不能据此自动建档、重建或加权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c22",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c22",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "免登可能复用旧会话，只有正常退出应用与中心并确认出现密码表单后的登录才能验证该密码。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c23",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c23",
+            "skill": null,
+            "choice": 0,
+            "reason": "该任务只是已授权的前端文案修改，与目录中的流水线、CLI 和认证技能均无关。"
+          },
+          "expected": {
+            "skill": null,
+            "choice": 0
+          }
+        },
+        {
+          "id": "c24",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c24",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "内置 CLI 应按本次加载资源的目录解析绝对脚本路径，不能依赖当前工作目录或其他安装副本。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "group-2-1",
+      "repeat": 2,
+      "variant": "candidate",
+      "inputHash": "23a1dc7b1e4270a69bd0cfd9ce63ead3fee0c87b85e935e4d1a86c146c698e6a",
+      "instructionHash": "2d4000c33feee0f2b4e769c30201b40c0bd16456b6827fddfc2419532c4ab678",
+      "catalogHash": "3234edec27fa34c2c18325e8878192027b958b33ba03316669fac93bbbeba939",
+      "responseHash": "430137a0bcdad22d498c24797271aa383102ec1edee0ec369c0dd446b0fb639b",
+      "total": 24,
+      "passed": 24,
+      "routingPassed": 24,
+      "decisionPassed": 24,
+      "results": [
+        {
+          "id": "c01",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c01",
+            "skill": "cicd",
+            "choice": 2,
+            "reason": "查询退出码只表示查询成功，第 73 次的实际 result 为 FAILURE，应报告该次失败及其已有证据。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c02",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c02",
+            "skill": "cicd",
+            "choice": 3,
+            "reason": "项目、操作和环境均无法从当前信息确定，只需询问这些缺项后再选择已有作业。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c03",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c03",
+            "skill": "cicd",
+            "choice": 1,
+            "reason": "完整发布部署已获授权，应关闭只检查模式并以 test-a 参数触发一次，持续跟踪同一构建。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c04",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c04",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "无 queue ID 的未知提交不能靠重复查询回执恢复关联，应保留回执并核对原队列和历史构建，避免重复部署。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c05",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c05",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "原 queueId=42 精确关联到运行中的 #17，应继续跟踪本次构建。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c06",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c06",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "已有作业无法采用新提交 def456，应报告新版本入口缺口并交责任项目处理，不能以旧版重跑代替。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c07",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c07",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "目标、有效会话、真实字段与 Runtime 支持已核验，可直接执行已知只读查询并报告实际结果。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c08",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c08",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "auto 选中了环境 token，而管理接口要求浏览器会话，明确 --auth session 可复用已有有效会话。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c09",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c09",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "租户由服务端验证后的 token 绑定，必须取得 tenant-b 的正常授权，不能用参数或伪造头跨租户。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c10",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c10",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "app build 已包含服务端构建、完整性校验和保存，新的输出路径可直接使用且无需重复 check 或发布。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c11",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c11",
+            "skill": "xrain-cli",
+            "choice": 2,
+            "reason": "同一目标和 profile 的发布状态已匹配包标识、版本及源码摘要，可报告原发布成功而无需重发或安装。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c12",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c12",
+            "skill": "xrain-cli",
+            "choice": 1,
+            "reason": "批次失败不会回滚已完成的 r7，需保留现状核对第二步权限，再单独处理后续步骤，不能整批重放或提权。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c13",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c13",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "当前没有执行脚本所需的命令和文件能力，也没有等价查询入口，应明确能力缺口。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c14",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c14",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "用户电脑浏览器的 loopback 无法到达远端 CLI，缺少获准回调路径时 --no-browser 不能解决该网络问题。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c15",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c15",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "固定身份已启用且凭据可用，可直接正常登录原应用并核对用户、租户及页面，无需中心管理员会话。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c16",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c16",
+            "skill": "xrain-auth",
+            "choice": 0,
+            "reason": "已有 lisi 必须保留，有权查看管理页不等于获得身份恢复授权，应说明影响并请求缺失的恢复决定。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c17",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c17",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "恢复密码与验证器会撤销登录并清除验证器，丢失激活码时必须先取得原身份恢复授权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c18",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c18",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "管理员登录页不能证明账号不存在，应使用已获准管理员正常登录后完成查重。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c19",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c19",
+            "skill": "xrain-auth",
+            "choice": 1,
+            "reason": "原业务网页具有独立且有效的客户端登录链路，应直接使用已有固定账号登录验证，CLI 故障无需作为前置条件。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c20",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c20",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "已授权增加 u7 时应合并原用户范围、保留部门并携带当前 revision 更新，再以普通用户验证准入与原应用。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c21",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c21",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "permission_denied 不是 tenant_membership_required，应诊断实际权限原因，不能据此首次建档、重建主体或自动加权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c22",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c22",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "旧会话免登不能验证密码，必须正常退出应用与中心并完成确认，再从密码表单重新登录验证。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c23",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c23",
+            "skill": null,
+            "choice": 0,
+            "reason": "已定位的前端文案修改不属于这三个技能，应沿用现有代码编辑流程修改并检查。"
+          },
+          "expected": {
+            "skill": null,
+            "choice": 0
+          }
+        },
+        {
+          "id": "c24",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c24",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "脚本必须从当前加载的 resourceBase.path 解析并为含空格路径加引号，不能依赖工作目录或其他副本。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "group-2-2",
+      "repeat": 2,
+      "variant": "baseline",
+      "inputHash": "23a1dc7b1e4270a69bd0cfd9ce63ead3fee0c87b85e935e4d1a86c146c698e6a",
+      "instructionHash": "2d4000c33feee0f2b4e769c30201b40c0bd16456b6827fddfc2419532c4ab678",
+      "catalogHash": "f6bcc98170c8873eead3e7bf6e61ad72ebeeb936640be5a1008705d21d7071be",
+      "responseHash": "a9d823db09e9b3ac0e631f8be3aca94a009bc49744cd44915e698e88ce6c6769",
+      "total": 24,
+      "passed": 24,
+      "routingPassed": 24,
+      "decisionPassed": 24,
+      "results": [
+        {
+          "id": "c01",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c01",
+            "skill": "cicd",
+            "choice": 2,
+            "reason": "查询退出码仅表示查询完成，应按指定第73次构建的 FAILURE 及其报告回答。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c02",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c02",
+            "skill": "cicd",
+            "choice": 3,
+            "reason": "目标项目、操作与环境均未知，应只补齐这些信息后再选择已有作业。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c03",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c03",
+            "skill": "cicd",
+            "choice": 1,
+            "reason": "完整发布部署须关闭仅检查模式并选择 test-a，一次触发后跟踪同一构建即可。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c04",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c04",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "未知提交结果应保留回执并查询原作业队列和历史记录，确认前不能重复触发。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c05",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c05",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "队列过期后应以原 queueId=42 关联第17次构建，不能用最新构建替代。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c06",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c06",
+            "skill": "cicd",
+            "choice": 0,
+            "reason": "现有作业无法获取新提交，应说明流水线能力缺口并交所属项目处理。"
+          },
+          "expected": {
+            "skill": "cicd",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c07",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c07",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "目标、远端会话和实体能力已核实，可直接执行已授权的数据查询。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c08",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c08",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "管理接口拒绝环境 token，应显式选择已有效且匹配目标的浏览器会话。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c09",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c09",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "租户由服务端验证后的 token 绑定，必须取得 tenant-b 的正常授权才能查询。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c10",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c10",
+            "skill": "xrain-cli",
+            "choice": 3,
+            "reason": "app build 已包含构建和完整性校验，可直接保存新产物且不扩展为发布。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c11",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c11",
+            "skill": "xrain-cli",
+            "choice": 2,
+            "reason": "同一目标的包标识、版本和源码摘要已核实，应报告原发布成功而不重复发布或安装。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c12",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c12",
+            "skill": "xrain-cli",
+            "choice": 1,
+            "reason": "批次失败保留已完成修改，应核对权限和执行状态后处理剩余步骤，不能擅自回滚或提权。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c13",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c13",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "当前没有执行脚本、读取资源或等价查询能力，应如实指出具体能力缺口。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c14",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c14",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "用户电脑的回环地址无法到达远端 CLI 监听端口，缺少获准回调路径才是阻断原因。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c15",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c15",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "已有启用身份及可用凭据时可直接登录原应用，并核对实际用户、租户和目标页面。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c16",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c16",
+            "skill": "xrain-auth",
+            "choice": 0,
+            "reason": "凭据缺失应保留 lisi 原身份，现有查看权限不包含恢复或改密授权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 0
+          }
+        },
+        {
+          "id": "c17",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c17",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "恢复密码与验证器会撤销旧登录并清除验证器，必须取得原身份的恢复授权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c18",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c18",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "管理员登录页不能证明身份不存在，应使用获准管理员重新登录并完成查重。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c19",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c19",
+            "skill": "xrain-auth",
+            "choice": 1,
+            "reason": "原业务网页已有独立有效客户端，可直接完成正常登录，无需先修复 CLI 接入。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 1
+          }
+        },
+        {
+          "id": "c20",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c20",
+            "skill": "xrain-auth",
+            "choice": 3,
+            "reason": "获准新增 u7 时应合并现有用户并保留部门，以当前 revision 更新后复查普通用户准入。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 3
+          }
+        },
+        {
+          "id": "c21",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c21",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "该错误不是 tenant_membership_required，应查明实际权限原因而不能据此建档或提权。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c22",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c22",
+            "skill": "xrain-auth",
+            "choice": 2,
+            "reason": "旧会话免登不能证明密码可用，需正常退出应用和中心后通过密码表单重新验证。"
+          },
+          "expected": {
+            "skill": "xrain-auth",
+            "choice": 2
+          }
+        },
+        {
+          "id": "c23",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c23",
+            "skill": null,
+            "choice": 0,
+            "reason": "已定位的前端文案修改不属于这三个 skill 的范围，按现有代码流程修改并检查即可。"
+          },
+          "expected": {
+            "skill": null,
+            "choice": 0
+          }
+        },
+        {
+          "id": "c24",
+          "routing": true,
+          "decision": true,
+          "passed": true,
+          "actual": {
+            "id": "c24",
+            "skill": "xrain-cli",
+            "choice": 0,
+            "reason": "脚本应以本次加载的 resourceBase 解析绝对路径，不依赖当前目录或其他安装副本。"
+          },
+          "expected": {
+            "skill": "xrain-cli",
+            "choice": 0
+          }
+        }
+      ]
+    }
+  ]
+}

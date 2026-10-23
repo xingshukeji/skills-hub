@@ -1,0 +1,28 @@
+{
+  "answers": [
+    {"id":"c01","skill":"cicd","choice":2,"reason":"查询退出码只说明查询成功，第 73 次的 result 为 FAILURE，应报告该次失败及其证据。"},
+    {"id":"c02","skill":"cicd","choice":3,"reason":"目标项目、操作和环境均无法从现有上下文确定，应只询问这些缺项。"},
+    {"id":"c03","skill":"cicd","choice":1,"reason":"完整部署须关闭只检查参数并指定 test-a，以新回执触发一次后跟踪同一构建。"},
+    {"id":"c04","skill":"cicd","choice":0,"reason":"无队列标识的未知提交不能靠重复查询回执恢复，应保留回执并核对原队列和构建后再决定。"},
+    {"id":"c05","skill":"cicd","choice":0,"reason":"原 queueId=42 对应构建 #17，应恢复该关联并继续跟踪本次运行。"},
+    {"id":"c06","skill":"cicd","choice":0,"reason":"现有作业不能采用用户的新提交，应报告能力缺口，不能用旧版本重跑或自行改作业替代。"},
+    {"id":"c07","skill":"xrain-cli","choice":0,"reason":"目标、有效凭据、实际元数据及 Runtime 支持均已确认，可以直接执行已知查询。"},
+    {"id":"c08","skill":"xrain-cli","choice":0,"reason":"auto 模式选中了接口不接受的环境 token，应显式使用目标 profile 的有效浏览器会话。"},
+    {"id":"c09","skill":"xrain-cli","choice":3,"reason":"服务端按已验证 token 绑定租户，必须先取得 tenant-b 的正常授权，不能靠参数改变身份。"},
+    {"id":"c10","skill":"xrain-cli","choice":3,"reason":"app build 已包含服务端构建、完整性校验和新文件保存，直接构建即可满足请求。"},
+    {"id":"c11","skill":"xrain-cli","choice":2,"reason":"同一目标和 profile 的状态已匹配包、版本及源码摘要，足以确认原发布完成，无需重复发布或安装。"},
+    {"id":"c12","skill":"xrain-cli","choice":1,"reason":"批量失败会保留前序修改，应保留 r7 并核对失败步骤权限和剩余步骤，不能重放、提权或擅自回滚。"},
+    {"id":"c13","skill":"xrain-cli","choice":0,"reason":"当前没有文件读取、命令执行或等价查询工具，应如实报告具体能力缺口。"},
+    {"id":"c14","skill":"xrain-cli","choice":0,"reason":"用户电脑浏览器的 loopback 无法回到远端 CLI 主机，缺少获准回调路径是实际阻断。"},
+    {"id":"c15","skill":"xrain-auth","choice":2,"reason":"已有启用身份且凭据可用时直接从原应用正常登录，并核对用户、租户和目标页面。"},
+    {"id":"c16","skill":"xrain-auth","choice":0,"reason":"已有身份凭据缺失应保留原身份，恢复授权缺失时说明影响并只请求该恢复决定。"},
+    {"id":"c17","skill":"xrain-auth","choice":2,"reason":"恢复密码与验证器会撤销旧登录并清除验证器，普通登录准备授权不能替代原身份恢复授权。"},
+    {"id":"c18","skill":"xrain-auth","choice":3,"reason":"管理员登录页不能证明身份不存在，应先用已获准管理员正常登录再完成查重。"},
+    {"id":"c19","skill":"xrain-auth","choice":1,"reason":"原应用使用独立且有效的客户端，应沿其正常登录链路验证，CLI 客户端错误不构成前置阻断。"},
+    {"id":"c20","skill":"xrain-auth","choice":3,"reason":"已授权的准入扩展应合并 u7、保留既有用户与部门并使用当前 revision，更新后以 u7 复查。"},
+    {"id":"c21","skill":"xrain-auth","choice":2,"reason":"实际错误为 permission_denied，应诊断其权限原因，不能将其他 403 当成首次建档或自动加权依据。"},
+    {"id":"c22","skill":"xrain-auth","choice":2,"reason":"密码验证必须正常退出旧应用及中心会话并确认出现密码表单，免登不能证明原密码有效。"},
+    {"id":"c23","skill":null,"choice":0,"reason":"该任务是已定位的前端文案修改，不属于这三个技能的适用范围。"},
+    {"id":"c24","skill":"xrain-cli","choice":0,"reason":"应按本次加载的 resourceBase.path 定位已打包脚本，并为含空格的绝对路径加引号。"}
+  ]
+}

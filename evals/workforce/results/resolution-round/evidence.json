@@ -1,0 +1,2482 @@
+{
+  "scope": "Synthetic state traces and selected local analysis artifacts, not live-service evidence.",
+  "groups": [
+    {
+      "id": "group-1-1",
+      "variant": "with-skills",
+      "states": {
+        "l01": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-1",
+            "versionId": "apv-2",
+            "operationId": "apo-1"
+          },
+          "installation": {
+            "id": "api-1",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-1",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-1",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-1",
+            "installationId": "api-1",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "fieldNames": [
+            "name",
+            "amount"
+          ],
+          "operations": {
+            "apo-1": {
+              "id": "apo-1",
+              "installationId": "api-1",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector/baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view/fieldNames": {
+                    "present": true,
+                    "value": [
+                      "name",
+                      "amount"
+                    ]
+                  }
+                }
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1/components",
+              "body": {},
+              "status": 200
+            }
+          ],
+          "bindings": {
+            "apr-connector/baseAddress": "https://orders.example.invalid"
+          }
+        },
+        "l02": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-2",
+            "versionId": "apv-2",
+            "operationId": "apo-2"
+          },
+          "installation": {
+            "id": "api-2",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-2",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "req-l02-retry-fixed-target-01",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "req-l02-retry-fixed-target-01",
+            "installationId": "api-2",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-2": {
+              "id": "apo-2",
+              "installationId": "api-2",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Failed",
+              "errorCode": "dependency_unavailable",
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            },
+            "req-l02-retry-fixed-target-01": {
+              "id": "req-l02-retry-fixed-target-01",
+              "installationId": "api-2",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-2/retry",
+              "body": {
+                "requestId": "req-l02-retry-fixed-target-01",
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/req-l02-retry-fixed-target-01",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2/components",
+              "body": {},
+              "status": 200
+            }
+          ],
+          "retryOf": "apo-2"
+        },
+        "l03": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-3",
+            "versionId": "apv-2",
+            "operationId": "apo-3"
+          },
+          "installation": {
+            "id": "api-3",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-3",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-3",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-3",
+            "installationId": "api-3",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": true
+          },
+          "operations": {
+            "apo-3": {
+              "id": "apo-3",
+              "installationId": "api-3",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-3/continue",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3/components",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l04": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-4",
+            "versionId": "apv-2",
+            "operationId": "apo-4"
+          },
+          "installation": {
+            "id": "api-4",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-4",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-4",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-4",
+            "installationId": "api-4",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-4": {
+              "id": "apo-4",
+              "installationId": "api-4",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-4",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/installations/api-4/components/apr-view:restore",
+              "body": {
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4/components",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l05": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-5",
+            "versionId": "apv-2",
+            "operationId": "apo-5"
+          },
+          "installation": {
+            "id": "api-5",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-5",
+            "installedVersionId": null,
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "req-l05-uninstall-current-01",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "req-l05-uninstall-current-01",
+            "installationId": "api-5",
+            "sourceVersionId": "apv-2",
+            "targetVersionId": null,
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Retained",
+              "effective": false
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-5": {
+              "id": "apo-5",
+              "installationId": "api-5",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            },
+            "req-l05-uninstall-current-01": {
+              "id": "req-l05-uninstall-current-01",
+              "installationId": "api-5",
+              "sourceVersionId": "apv-2",
+              "targetVersionId": null,
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-5",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "DELETE",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {
+                "requestId": "req-l05-uninstall-current-01",
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/req-l05-uninstall-current-01",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5/components",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l06": {
+          "kind": "access",
+          "applicationId": "app-orders",
+          "executionUserId": "fixed-executor",
+          "configurationReason": null,
+          "capabilityChecks": [
+            {
+              "permissionId": "perm-orders-read",
+              "name": "orders.read",
+              "status": "allowed",
+              "canGrantInApplication": true
+            },
+            {
+              "permissionId": "perm-orders-write",
+              "name": "orders.write",
+              "status": "allowed",
+              "canGrantInApplication": true
+            },
+            {
+              "permissionId": "application.messages.send",
+              "name": "orders.messages.send",
+              "status": "unverified",
+              "reason": "message_robot_not_established",
+              "canGrantInApplication": false
+            }
+          ],
+          "unverifiedScopes": [
+            "field_access",
+            "record_scope"
+          ],
+          "messageRobot": {
+            "status": "not_established"
+          },
+          "granted": [
+            "perm-orders-read"
+          ],
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "PUT",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization/grants",
+              "body": {
+                "permissionIds": [
+                  "perm-orders-read"
+                ]
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l07": {
+          "kind": "publication",
+          "applicationId": "app-sales",
+          "publication": {
+            "mode": "selected",
+            "userIds": [
+              "user-zhang",
+              "user-colleague",
+              "user-li"
+            ],
+            "departments": [
+              {
+                "orgTreeId": "org-main",
+                "nodeId": "dept-sales"
+              }
+            ],
+            "revision": 5
+          },
+          "oldScreenshot": {
+            "mode": "selected",
+            "userIds": [
+              "user-zhang"
+            ],
+            "departments": [
+              {
+                "orgTreeId": "org-main",
+                "nodeId": "dept-sales"
+              }
+            ],
+            "revision": 3
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "PUT",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {
+                "mode": "selected",
+                "userIds": [
+                  "user-zhang",
+                  "user-colleague",
+                  "user-li"
+                ],
+                "departments": [
+                  {
+                    "orgTreeId": "org-main",
+                    "nodeId": "dept-sales"
+                  }
+                ],
+                "expectedRevision": 4
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {},
+              "status": 200
+            }
+          ]
+        }
+      },
+      "analyses": {
+        "l08-launch-inspection.json": {
+          "sha256": "dfb96e0ce67c0436b19919174ee7867cae2d9cd9f87ab7ebf4fa46023a12f25d",
+          "data": {
+            "root": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project",
+            "paths": {
+              "applicationDirectory": {
+                "path": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project\\tenant app",
+                "directory": true,
+                "exists": true
+              },
+              "applicationConfiguration": {
+                "path": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project\\tenant app\\application.json",
+                "exists": true
+              },
+              "connectionScript": {
+                "path": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project\\connect.ps1",
+                "exists": true
+              },
+              "proxyScript": {
+                "path": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project\\proxy.mjs",
+                "exists": false
+              },
+              "startScript": {
+                "path": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project\\Start-Development.ps1",
+                "exists": true
+              }
+            },
+            "applicationOrigin": "http://localhost:4870",
+            "browserOrigin": "https://localhost:9443",
+            "entry": {
+              "command": "npm start",
+              "cwd": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-1\\input\\artifacts\\l08\\demo project",
+              "registered": true,
+              "aliases": [
+                "start",
+                "dev",
+                "preview",
+                "debug"
+              ],
+              "aliasesMatch": true
+            },
+            "readyToInvoke": false,
+            "runtimeHealth": "not-checked",
+            "businessAcceptance": "not-checked"
+          }
+        },
+        "l09-performance-analysis.json": {
+          "sha256": "c097a9f01d22405ce99c6000920873863817f153204d412703c772b5ba4107a9",
+          "data": {
+            "total": 41,
+            "groups": [
+              {
+                "scenario": "打开订单",
+                "phase": "warm",
+                "visibility": "foreground",
+                "budgetMs": 2000,
+                "total": 20,
+                "counts": {
+                  "success": 19,
+                  "error": 0,
+                  "timeout": 1,
+                  "cancelled": 0
+                },
+                "maxAttemptMs": 9000,
+                "successfulP50Ms": 870,
+                "successfulP95Ms": null,
+                "overBudget": 1,
+                "verdict": "fail",
+                "failureCount": 1,
+                "minAttemptMs": 600,
+                "meanAttemptMs": 1276.5,
+                "successfulMinMs": 600,
+                "successfulMaxMs": 1140
+              },
+              {
+                "scenario": "打开订单",
+                "phase": "cold",
+                "visibility": "foreground",
+                "budgetMs": 2000,
+                "total": 1,
+                "counts": {
+                  "success": 1,
+                  "error": 0,
+                  "timeout": 0,
+                  "cancelled": 0
+                },
+                "maxAttemptMs": 3100,
+                "successfulP50Ms": 3100,
+                "successfulP95Ms": null,
+                "overBudget": 1,
+                "verdict": "fail",
+                "failureCount": 0,
+                "minAttemptMs": 3100,
+                "meanAttemptMs": 3100,
+                "successfulMinMs": 3100,
+                "successfulMaxMs": 3100
+              },
+              {
+                "scenario": "打开订单",
+                "phase": "warm",
+                "visibility": "background",
+                "budgetMs": 2000,
+                "total": 20,
+                "counts": {
+                  "success": 20,
+                  "error": 0,
+                  "timeout": 0,
+                  "cancelled": 0
+                },
+                "maxAttemptMs": 700,
+                "successfulP50Ms": 700,
+                "successfulP95Ms": 700,
+                "overBudget": 0,
+                "verdict": "pass",
+                "failureCount": 0,
+                "minAttemptMs": 700,
+                "meanAttemptMs": 700,
+                "successfulMinMs": 700,
+                "successfulMaxMs": 700
+              }
+            ],
+            "measurementBoundaryProvided": false,
+            "renderedInteractiveEvidenceProvided": false,
+            "conclusion": "Foreground warm/cold samples fail the 2000ms budget. Background warm passes only this sample group, not the foreground user page."
+          }
+        },
+        "l10-task-diagnosis.json": {
+          "sha256": "b908173de87c6d299cdda0a243612101a15819cd61fdbe57a0b3600e7f9d9f3e",
+          "data": {
+            "taskId": "task-10",
+            "current": {
+              "status": "paused",
+              "assigneeId": "human-owner",
+              "assignmentVersion": "8"
+            },
+            "staleExecutionAssignmentVersion": "7",
+            "inputBoundary": 100,
+            "oldCompletedSeqExcluded": [
+              88
+            ],
+            "toolCall": {
+              "seq": 102,
+              "name": "workforce_update_task",
+              "resultSeq": 103,
+              "isError": true,
+              "code": "task.execution_forbidden"
+            },
+            "assistantClaimSeq": 104,
+            "taskWriteSucceeded": false,
+            "currentTurnEndPresent": false,
+            "historyHasMore": true,
+            "action": "Keep paused human ownership and original history. Reconcile progress in the current owner task UI; do not replay stale AI execution. Any future AI resumption must originate from an explicit current task action and fresh assignment authorization.",
+            "writesPerformed": false
+          }
+        },
+        "l11-receipt-inspection.json": {
+          "sha256": "5063e160359e79fb825873891c75eab65b01eb136dbfe9d0a5292b04d8b44a8f",
+          "data": {
+            "operationStatus": "Succeeded",
+            "next": "reconcile-evidence-before-mutation",
+            "blockers": [
+              "tenant-mismatch",
+              "operation-mismatch"
+            ],
+            "evidenceGaps": [
+              "components-not-checked",
+              "runtime-check-not-supplied",
+              "original-user-business-action-not-proven"
+            ],
+            "required": {
+              "bindings": 0,
+              "confirmations": 0,
+              "conflicts": 0
+            },
+            "checkCounts": null,
+            "installedVersionMatchesTarget": true,
+            "businessVerified": false
+          }
+        },
+        "l12-configuration-analysis.json": {
+          "sha256": "7e0e7f94d60dceb26b605d6b026942b1624c7463162b0cd91cae9e2ccb10d475",
+          "data": {
+            "skillDiscovery": true,
+            "skillLoaded": true,
+            "actualNativeTools": [],
+            "actualBusinessTools": [
+              "task_read"
+            ],
+            "shellAvailable": false,
+            "layers": {
+              "policy": "Skill loading does not grant a command tool; this employee has no native tools and only task_read.",
+              "definition": {
+                "agentId": "employee-fixed",
+                "workspace": "workspace-new",
+                "preset": "preset-new",
+                "model": "model-b"
+              },
+              "originalSession": {
+                "id": "session-original",
+                "agentId": "employee-fixed",
+                "workspace": "workspace-old",
+                "preset": "preset-old",
+                "model": "model-a"
+              },
+              "mismatchedFields": [
+                "workspace",
+                "preset",
+                "model"
+              ],
+              "host": {
+                "configureDelegate": false,
+                "reason": "immutable_workspace_or_preset"
+              },
+              "treatment": "Preserve original session. Route the required command action to an already authorized executor or request an explicit minimum tool-policy change. The host refuses reconfiguration because workspace/preset are immutable; use a new session from the current definition only when authorized, then select/verify the desired model there."
+            },
+            "changed": false,
+            "businessVerified": false
+          }
+        },
+        "l01-prepare-resolution.json": {
+          "sha256": "caac9b952f002d65beda670f287e48a606c6a8c3b981eff99ab017da6f6fcfd3",
+          "data": {
+            "method": "POST",
+            "path": "/api/application/v1/operations/apo-1/resolve",
+            "bodyFileWritten": true,
+            "counts": {
+              "bindings": 1,
+              "configurationProperties": 1,
+              "confirmations": 0
+            },
+            "serviceValidationPending": true,
+            "businessVerified": false
+          }
+        }
+      }
+    },
+    {
+      "id": "group-1-2",
+      "variant": "without-skills",
+      "states": {
+        "l01": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-1",
+            "versionId": "apv-2",
+            "operationId": "apo-1"
+          },
+          "installation": {
+            "id": "api-1",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-1",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-1",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-1",
+            "installationId": "api-1",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "fieldNames": [
+            "name",
+            "amount"
+          ],
+          "operations": {
+            "apo-1": {
+              "id": "apo-1",
+              "installationId": "api-1",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector": {
+                    "baseAddress": "https://orders.example.invalid"
+                  }
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 422
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector:baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 422
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector.baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 422
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 422
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 422
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector/baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view": {
+                    "present": true,
+                    "value": {
+                      "label": "租户自定义标题",
+                      "fieldNames": [
+                        "name",
+                        "amount"
+                      ]
+                    }
+                  }
+                }
+              },
+              "status": 409
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-1/resolve",
+              "body": {
+                "expectedRevision": 7,
+                "tenantBindings": {
+                  "apr-connector/baseAddress": "https://orders.example.invalid"
+                },
+                "configurationChanges": {
+                  "apr-view/fieldNames": {
+                    "present": true,
+                    "value": [
+                      "name",
+                      "amount"
+                    ]
+                  }
+                }
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-1",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-1",
+              "body": {},
+              "status": 200
+            }
+          ],
+          "bindings": {
+            "apr-connector/baseAddress": "https://orders.example.invalid"
+          }
+        },
+        "l02": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-2",
+            "versionId": "apv-2",
+            "operationId": "apo-2"
+          },
+          "installation": {
+            "id": "api-2",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-2",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "l02-apg-2-apv-2-retry-apo-2",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "l02-apg-2-apv-2-retry-apo-2",
+            "installationId": "api-2",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-2": {
+              "id": "apo-2",
+              "installationId": "api-2",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Failed",
+              "errorCode": "dependency_unavailable",
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            },
+            "l02-apg-2-apv-2-retry-apo-2": {
+              "id": "l02-apg-2-apv-2-retry-apo-2",
+              "installationId": "api-2",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-2/retry",
+              "body": {
+                "requestId": "l02-apg-2-apv-2-retry-apo-2",
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/l02-apg-2-apv-2-retry-apo-2",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-2/components",
+              "body": {},
+              "status": 200
+            }
+          ],
+          "retryOf": "apo-2"
+        },
+        "l03": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-3",
+            "versionId": "apv-2",
+            "operationId": "apo-3"
+          },
+          "installation": {
+            "id": "api-3",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-3",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-3",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-3",
+            "installationId": "api-3",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": true
+          },
+          "operations": {
+            "apo-3": {
+              "id": "apo-3",
+              "installationId": "api-3",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/operations/apo-3/continue",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/apo-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-3/components",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l04": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-4",
+            "versionId": "apv-2",
+            "operationId": "apo-4"
+          },
+          "installation": {
+            "id": "api-4",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-4",
+            "installedVersionId": "apv-2",
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "apo-4",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "apo-4",
+            "installationId": "api-4",
+            "sourceVersionId": "apv-1",
+            "targetVersionId": "apv-2",
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Active",
+              "effective": true
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-4": {
+              "id": "apo-4",
+              "installationId": "api-4",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "POST",
+              "path": "/api/application/v1/installations/api-4/components/apr-view:restore",
+              "body": {
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-4",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l05": {
+          "kind": "application",
+          "target": {
+            "tenantId": "tenant-lab",
+            "packageId": "apg-5",
+            "versionId": "apv-2",
+            "operationId": "apo-5"
+          },
+          "installation": {
+            "id": "api-5",
+            "tenantId": "tenant-lab",
+            "packageId": "apg-5",
+            "installedVersionId": null,
+            "revision": 8,
+            "activeOperationId": null,
+            "latestOperationId": "l05-uninstall-api-5-preserve-data",
+            "managementPolicyVersion": 2
+          },
+          "operation": {
+            "id": "l05-uninstall-api-5-preserve-data",
+            "installationId": "api-5",
+            "sourceVersionId": "apv-2",
+            "targetVersionId": null,
+            "sourceRevision": 7,
+            "status": "Succeeded",
+            "errorCode": null,
+            "details": {
+              "schemaVersion": 1,
+              "requiredBindings": [],
+              "requiredConfirmations": [],
+              "conflicts": [],
+              "resolutions": {},
+              "plan": null,
+              "result": null
+            }
+          },
+          "components": [
+            {
+              "recordId": "apr-view",
+              "kind": "BizListView",
+              "state": "Retained",
+              "effective": false
+            }
+          ],
+          "businessRows": 23,
+          "label": "租户自定义标题",
+          "toolContext": {
+            "rootCauseFixed": true,
+            "executionInterrupted": false
+          },
+          "operations": {
+            "apo-5": {
+              "id": "apo-5",
+              "installationId": "api-5",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            },
+            "l05-uninstall-api-5-preserve-data": {
+              "id": "l05-uninstall-api-5-preserve-data",
+              "installationId": "api-5",
+              "sourceVersionId": "apv-2",
+              "targetVersionId": null,
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            }
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "DELETE",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {
+                "requestId": "l05-uninstall-api-5-preserve-data",
+                "expectedRevision": 7
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5/components",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/operations/l05-uninstall-api-5-preserve-data",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/application/v1/installations/api-5",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l06": {
+          "kind": "access",
+          "applicationId": "app-orders",
+          "executionUserId": "fixed-executor",
+          "configurationReason": null,
+          "capabilityChecks": [
+            {
+              "permissionId": "perm-orders-read",
+              "name": "orders.read",
+              "status": "allowed",
+              "canGrantInApplication": true
+            },
+            {
+              "permissionId": "perm-orders-write",
+              "name": "orders.write",
+              "status": "allowed",
+              "canGrantInApplication": true
+            },
+            {
+              "permissionId": "application.messages.send",
+              "name": "orders.messages.send",
+              "status": "unverified",
+              "reason": "message_robot_not_established",
+              "canGrantInApplication": false
+            }
+          ],
+          "unverifiedScopes": [
+            "field_access",
+            "record_scope"
+          ],
+          "messageRobot": {
+            "status": "not_established"
+          },
+          "granted": [
+            "perm-orders-read"
+          ],
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "PUT",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization/grants",
+              "body": {
+                "permissionIds": [
+                  "perm-orders-read"
+                ]
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-orders/execution-authorization",
+              "body": {},
+              "status": 200
+            }
+          ]
+        },
+        "l07": {
+          "kind": "publication",
+          "applicationId": "app-sales",
+          "publication": {
+            "mode": "selected",
+            "userIds": [
+              "user-zhang",
+              "user-colleague",
+              "user-li"
+            ],
+            "departments": [
+              {
+                "orgTreeId": "org-main",
+                "nodeId": "dept-sales"
+              }
+            ],
+            "revision": 5
+          },
+          "oldScreenshot": {
+            "mode": "selected",
+            "userIds": [
+              "user-zhang"
+            ],
+            "departments": [
+              {
+                "orgTreeId": "org-main",
+                "nodeId": "dept-sales"
+              }
+            ],
+            "revision": 3
+          },
+          "trace": [
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {},
+              "status": 200
+            },
+            {
+              "method": "PUT",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {
+                "mode": "selected",
+                "userIds": [
+                  "user-zhang",
+                  "user-colleague",
+                  "user-li"
+                ],
+                "departments": [
+                  {
+                    "orgTreeId": "org-main",
+                    "nodeId": "dept-sales"
+                  }
+                ],
+                "expectedRevision": 4
+              },
+              "status": 200
+            },
+            {
+              "method": "GET",
+              "path": "/api/xrain/v1/applications/app-sales/publication-scope",
+              "body": {},
+              "status": 200
+            }
+          ]
+        }
+      },
+      "analyses": {
+        "analysis/l08.json": {
+          "sha256": "c1247af44494c99c41129cdac616721efab0018ef5d87ffdaaa4fb823017af4f",
+          "data": {
+            "registryPath": "input\\artifacts\\l08\\demo project\\.workforce\\development-launch.json",
+            "registry": {
+              "applicationDirectory": "tenant app",
+              "applicationConfiguration": "application.json",
+              "connectionScript": "connect.ps1",
+              "proxyScript": "proxy.mjs",
+              "applicationUrl": "http://localhost:4870",
+              "browserUrl": "https://localhost:9443"
+            },
+            "pathChecks": [
+              {
+                "label": "applicationDirectory",
+                "relativePath": "tenant app",
+                "resolvedPath": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-2\\input\\artifacts\\l08\\demo project\\tenant app",
+                "exists": true,
+                "expectedKind": "directory",
+                "actualKind": "directory",
+                "kindMatches": true
+              },
+              {
+                "label": "applicationConfiguration",
+                "relativePath": "tenant app/application.json",
+                "resolvedPath": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-2\\input\\artifacts\\l08\\demo project\\tenant app\\application.json",
+                "exists": true,
+                "expectedKind": "file",
+                "actualKind": "file",
+                "kindMatches": true
+              },
+              {
+                "label": "connectionScript",
+                "relativePath": "connect.ps1",
+                "resolvedPath": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-2\\input\\artifacts\\l08\\demo project\\connect.ps1",
+                "exists": true,
+                "expectedKind": "file",
+                "actualKind": "file",
+                "kindMatches": true
+              },
+              {
+                "label": "proxyScript",
+                "relativePath": "proxy.mjs",
+                "resolvedPath": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-2\\input\\artifacts\\l08\\demo project\\proxy.mjs",
+                "exists": false,
+                "expectedKind": "file",
+                "actualKind": null,
+                "kindMatches": false
+              },
+              {
+                "label": "unifiedEntry",
+                "relativePath": "Start-Development.ps1",
+                "resolvedPath": "D:\\github.com\\skills-hub\\.local-validation\\resolution-round\\execution-01\\group-1-2\\input\\artifacts\\l08\\demo project\\Start-Development.ps1",
+                "exists": true,
+                "expectedKind": "file",
+                "actualKind": "file",
+                "kindMatches": true
+              }
+            ],
+            "applicationConfiguration": {},
+            "powershellParse": [
+              {
+                "file": "input\\artifacts\\l08\\demo project\\Start-Development.ps1",
+                "syntacticallyValid": true,
+                "parseErrors": [],
+                "commands": [],
+                "commandCount": 0,
+                "emptyScriptBlock": true,
+                "serviceExecuted": false
+              },
+              {
+                "file": "input\\artifacts\\l08\\demo project\\connect.ps1",
+                "syntacticallyValid": true,
+                "parseErrors": [],
+                "commands": [],
+                "commandCount": 0,
+                "emptyScriptBlock": true,
+                "serviceExecuted": false
+              }
+            ],
+            "npmAliases": {
+              "start": "pwsh -NoProfile -File ./Start-Development.ps1",
+              "dev": "pwsh -NoProfile -File ./Start-Development.ps1",
+              "preview": "pwsh -NoProfile -File ./Start-Development.ps1",
+              "debug": "pwsh -NoProfile -File ./Start-Development.ps1"
+            },
+            "unifiedEntryRegistered": true,
+            "entryRuntime": "pwsh",
+            "applicationHost": {
+              "url": "http://localhost:4870",
+              "protocol": "http:",
+              "hostname": "localhost",
+              "port": "4870"
+            },
+            "browserEntry": {
+              "url": "https://localhost:9443",
+              "protocol": "https:",
+              "hostname": "localhost",
+              "port": "9443"
+            },
+            "canDeclareLaunchReady": false,
+            "issues": [
+              "proxy.mjs missing",
+              "Start-Development.ps1 and connect.ps1 each contain only an empty script block and no commands",
+              "tenant app/application.json is an empty object; required application schema not supplied"
+            ],
+            "serviceExecuted": false
+          }
+        },
+        "analysis/l09.json": {
+          "sha256": "b746555547d8057c27089f0d0a53334170f70a31d33497bb02bbc478eec61390",
+          "data": {
+            "grouping": [
+              "scenario",
+              "phase",
+              "visibility"
+            ],
+            "percentileMethod": "nearest rank: sorted[ceil(n*p)-1]; failed/timeout rows included in primary duration distribution",
+            "groups": [
+              {
+                "scenario": "打开订单",
+                "phase": "warm",
+                "visibility": "foreground",
+                "count": 20,
+                "successCount": 19,
+                "failureCount": 1,
+                "failureRate": 0.05,
+                "outcomeCounts": {
+                  "success": 19,
+                  "timeout": 1
+                },
+                "overBudgetCount": 1,
+                "successOverBudgetCount": 0,
+                "withinBudgetSuccessCount": 19,
+                "withinBudgetSuccessRate": 0.95,
+                "budgetMs": [
+                  2000
+                ],
+                "allSamplesSatisfyBudgetAndSuccess": false,
+                "durationsIncludingFailures": {
+                  "n": 20,
+                  "minMs": 600,
+                  "maxMs": 9000,
+                  "meanMs": 1276.5,
+                  "medianMs": 885,
+                  "p95NearestRankMs": 1140,
+                  "sumMs": 25530
+                },
+                "successDurations": {
+                  "n": 19,
+                  "minMs": 600,
+                  "maxMs": 1140,
+                  "meanMs": 870,
+                  "medianMs": 870,
+                  "p95NearestRankMs": 1140,
+                  "sumMs": 16530
+                },
+                "failureDurations": {
+                  "n": 1,
+                  "minMs": 9000,
+                  "maxMs": 9000,
+                  "meanMs": 9000,
+                  "medianMs": 9000,
+                  "p95NearestRankMs": 9000,
+                  "sumMs": 9000
+                }
+              },
+              {
+                "scenario": "打开订单",
+                "phase": "cold",
+                "visibility": "foreground",
+                "count": 1,
+                "successCount": 1,
+                "failureCount": 0,
+                "failureRate": 0,
+                "outcomeCounts": {
+                  "success": 1
+                },
+                "overBudgetCount": 1,
+                "successOverBudgetCount": 1,
+                "withinBudgetSuccessCount": 0,
+                "withinBudgetSuccessRate": 0,
+                "budgetMs": [
+                  2000
+                ],
+                "allSamplesSatisfyBudgetAndSuccess": false,
+                "durationsIncludingFailures": {
+                  "n": 1,
+                  "minMs": 3100,
+                  "maxMs": 3100,
+                  "meanMs": 3100,
+                  "medianMs": 3100,
+                  "p95NearestRankMs": 3100,
+                  "sumMs": 3100
+                },
+                "successDurations": {
+                  "n": 1,
+                  "minMs": 3100,
+                  "maxMs": 3100,
+                  "meanMs": 3100,
+                  "medianMs": 3100,
+                  "p95NearestRankMs": 3100,
+                  "sumMs": 3100
+                },
+                "failureDurations": null
+              },
+              {
+                "scenario": "打开订单",
+                "phase": "warm",
+                "visibility": "background",
+                "count": 20,
+                "successCount": 20,
+                "failureCount": 0,
+                "failureRate": 0,
+                "outcomeCounts": {
+                  "success": 20
+                },
+                "overBudgetCount": 0,
+                "successOverBudgetCount": 0,
+                "withinBudgetSuccessCount": 20,
+                "withinBudgetSuccessRate": 1,
+                "budgetMs": [
+                  2000
+                ],
+                "allSamplesSatisfyBudgetAndSuccess": true,
+                "durationsIncludingFailures": {
+                  "n": 20,
+                  "minMs": 700,
+                  "maxMs": 700,
+                  "meanMs": 700,
+                  "medianMs": 700,
+                  "p95NearestRankMs": 700,
+                  "sumMs": 14000
+                },
+                "successDurations": {
+                  "n": 20,
+                  "minMs": 700,
+                  "maxMs": 700,
+                  "meanMs": 700,
+                  "medianMs": 700,
+                  "p95NearestRankMs": 700,
+                  "sumMs": 14000
+                },
+                "failureDurations": null
+              }
+            ],
+            "total": {
+              "count": 41,
+              "successCount": 40,
+              "failureCount": 1,
+              "failureRate": 0.024390243902439025,
+              "outcomeCounts": {
+                "success": 40,
+                "timeout": 1
+              },
+              "overBudgetCount": 2,
+              "successOverBudgetCount": 1,
+              "withinBudgetSuccessCount": 39,
+              "withinBudgetSuccessRate": 0.9512195121951219,
+              "budgetMs": [
+                2000
+              ],
+              "allSamplesSatisfyBudgetAndSuccess": false,
+              "durationsIncludingFailures": {
+                "n": 41,
+                "minMs": 600,
+                "maxMs": 9000,
+                "meanMs": 1039.7560975609756,
+                "medianMs": 700,
+                "p95NearestRankMs": 1140,
+                "sumMs": 42630
+              },
+              "successDurations": {
+                "n": 40,
+                "minMs": 600,
+                "maxMs": 3100,
+                "meanMs": 840.75,
+                "medianMs": 700,
+                "p95NearestRankMs": 1110,
+                "sumMs": 33630
+              },
+              "failureDurations": {
+                "n": 1,
+                "minMs": 9000,
+                "maxMs": 9000,
+                "meanMs": 9000,
+                "medianMs": 9000,
+                "p95NearestRankMs": 9000,
+                "sumMs": 9000
+              }
+            },
+            "foreground": {
+              "count": 21,
+              "successCount": 20,
+              "failureCount": 1,
+              "failureRate": 0.047619047619047616,
+              "outcomeCounts": {
+                "success": 20,
+                "timeout": 1
+              },
+              "overBudgetCount": 2,
+              "successOverBudgetCount": 1,
+              "withinBudgetSuccessCount": 19,
+              "withinBudgetSuccessRate": 0.9047619047619048,
+              "budgetMs": [
+                2000
+              ],
+              "allSamplesSatisfyBudgetAndSuccess": false,
+              "durationsIncludingFailures": {
+                "n": 21,
+                "minMs": 600,
+                "maxMs": 9000,
+                "meanMs": 1363.3333333333333,
+                "medianMs": 900,
+                "p95NearestRankMs": 3100,
+                "sumMs": 28630
+              },
+              "successDurations": {
+                "n": 20,
+                "minMs": 600,
+                "maxMs": 3100,
+                "meanMs": 981.5,
+                "medianMs": 885,
+                "p95NearestRankMs": 1140,
+                "sumMs": 19630
+              },
+              "failureDurations": {
+                "n": 1,
+                "minMs": 9000,
+                "maxMs": 9000,
+                "meanMs": 9000,
+                "medianMs": 9000,
+                "p95NearestRankMs": 9000,
+                "sumMs": 9000
+              }
+            },
+            "canRepresentUserPageCompliance": false,
+            "limitations": [
+              "warm foreground includes one 9000ms timeout",
+              "cold foreground is 3100ms and exceeds 2000ms budget",
+              "background observations cannot replace foreground user-page timings",
+              "no end-to-end start/end or interactivity definition, browser evidence, environment provenance, or adequate cold-sample count"
+            ]
+          }
+        },
+        "analysis/l10.json": {
+          "sha256": "aa3ec0c3263ae65d2e9ff75f6caf41f488c335f13b34957f4cd9f0966278b4fd",
+          "data": {
+            "task": {
+              "id": "task-10",
+              "status": "paused",
+              "assigneeId": "human-owner",
+              "assignmentVersion": "8",
+              "oldExecutionAssignmentVersion": "7",
+              "committedBeforeInput": 100
+            },
+            "committedBeforeInput": 100,
+            "priorTurnCompletions": [
+              {
+                "seq": 88,
+                "type": "turn/end",
+                "data": {
+                  "reason": {
+                    "kind": "completed"
+                  }
+                }
+              }
+            ],
+            "currentEvents": [
+              {
+                "seq": 101,
+                "type": "user/message",
+                "data": {
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "请更新原任务进度"
+                    }
+                  ]
+                }
+              },
+              {
+                "seq": 102,
+                "type": "tool/call",
+                "data": {
+                  "callId": "call-update",
+                  "name": "workforce_update_task"
+                }
+              },
+              {
+                "seq": 103,
+                "type": "tool/result",
+                "data": {
+                  "message": {
+                    "role": "tool",
+                    "toolCallId": "call-update",
+                    "isError": true,
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "task.execution_forbidden"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "seq": 104,
+                "type": "assistant/message",
+                "data": {
+                  "message": {
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "已经处理完成"
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "matchingTaskUpdate": {
+              "callId": "call-update",
+              "callSeq": 102,
+              "resultSeq": 103,
+              "isError": true,
+              "errorTexts": [
+                "task.execution_forbidden"
+              ]
+            },
+            "assistantClaimSeq": 104,
+            "postInputCompletedTurnObserved": false,
+            "historyComplete": false,
+            "taskUpdateSucceeded": false,
+            "diagnosis": "The old execution has assignment version 7; task is paused, assigned to human-owner, and currently version 8. Update tool returned task.execution_forbidden; completion text is unsupported. seq 88 belongs before the committed boundary 100 and cannot complete the user request at seq 101.",
+            "recommendedHandling": [
+              "Keep AI execution paused in this read-only round.",
+              "Read remaining paginated history and verify outputs using an authorized read path.",
+              "The current human owner should inspect actual work and update progress or completion on the original task under current assignment version 8 through its managed task entry.",
+              "Do not revive the old version-7 AI execution or treat assistant prose as a successful task-state write."
+            ],
+            "mutationsPerformed": []
+          }
+        },
+        "analysis/l11.json": {
+          "sha256": "3bb08a3e9bf2d00c959cb28c4e40c74dc73223458019730f255d4ce777b18ddd",
+          "data": {
+            "target": {
+              "tenantId": "tenant-lab",
+              "packageId": "apg-11",
+              "versionId": "apv-2",
+              "operationId": "apo-11"
+            },
+            "installation": {
+              "id": "api-11",
+              "tenantId": "tenant-other",
+              "packageId": "apg-11",
+              "installedVersionId": "apv-2",
+              "revision": 7,
+              "activeOperationId": null,
+              "latestOperationId": "apo-11",
+              "managementPolicyVersion": 2
+            },
+            "operation": {
+              "id": "apo-unrelated",
+              "installationId": "api-11",
+              "sourceVersionId": "apv-1",
+              "targetVersionId": "apv-2",
+              "sourceRevision": 7,
+              "status": "Succeeded",
+              "errorCode": null,
+              "details": {
+                "schemaVersion": 1,
+                "requiredBindings": [],
+                "requiredConfirmations": [],
+                "conflicts": [],
+                "resolutions": {},
+                "plan": null,
+                "result": null
+              }
+            },
+            "checks": {
+              "tenantMatches": false,
+              "packageMatches": true,
+              "operationIdMatches": false,
+              "operationInstallationMatches": true,
+              "operationTargetVersionMatches": true,
+              "installedVersionMatches": true,
+              "latestOperationPointsToRequested": true,
+              "latestOperationMatchesReturned": false,
+              "operationSucceeded": true
+            },
+            "canAnnounceRequestedTenantUpgradeComplete": false,
+            "requiredReadOnlyEvidence": [
+              "tenant-lab installation for apg-11",
+              "requested operation apo-11 linked to that installation",
+              "target apv-2 installed with no active operation",
+              "managed components and user-facing business validation"
+            ],
+            "mutationsPerformed": []
+          }
+        },
+        "analysis/l12.json": {
+          "sha256": "9f2f4d0e28f8a4fbf07d8b4977be235a47bf9d9ab5e8a3484e16866088d2f147",
+          "data": {
+            "skillLayer": {
+              "discovered": true,
+              "loaded": true
+            },
+            "toolLayer": {
+              "nativeTools": [],
+              "businessTools": [
+                "task_read"
+              ],
+              "commandToolPresent": false
+            },
+            "definition": {
+              "agentId": "employee-fixed",
+              "workspace": "workspace-new",
+              "preset": "preset-new",
+              "model": "model-b"
+            },
+            "session": {
+              "id": "session-original",
+              "agentId": "employee-fixed",
+              "workspace": "workspace-old",
+              "preset": "preset-old",
+              "model": "model-a"
+            },
+            "differentFields": [
+              "workspace",
+              "preset",
+              "model"
+            ],
+            "hostObservation": {
+              "configureDelegate": false,
+              "reason": "immutable_workspace_or_preset"
+            },
+            "diagnosis": [
+              "Skill discovery/loading is working; an instruction skill does not register a native command executor. Only task_read is available.",
+              "Current definition is workspace-new/preset-new/model-b; original session retains workspace-old/preset-old/model-a under the same employee id.",
+              "Host configureDelegate is false because workspace or preset is immutable; current definition changes are not evidence of an in-place session reconfiguration."
+            ],
+            "recommendedHandling": [
+              "Inspect native tool provider registration and existing authorized preset/workspace configuration without granting new command rights.",
+              "Use existing permitted tools while command execution is unavailable.",
+              "If the current definition is to be used, use the supported new-session or non-destructive migration path for workspace-new/preset-new/model-b, preserving session-original; availability must be checked first.",
+              "Do not claim that this host can hot-update model-b in session-original, and do not delete the session."
+            ],
+            "mutationsPerformed": []
+          }
+        }
+      }
+    }
+  ],
+  "preparedRequest": {
+    "case": "f23",
+    "sha256": "1a5dcbcd3944e747abcf5163fd76242cdc28dc89112f01bd85c9525a56ffff27",
+    "generatedFile": "prepared-request.json",
+    "topLevelKeys": [
+      "configurationChanges",
+      "expectedRevision",
+      "tenantBindings"
+    ],
+    "bindingKeys": [
+      "apr-connector/baseAddress"
+    ],
+    "configurationKeys": [
+      "apr-view/fieldNames"
+    ],
+    "expectedRevisionMatchesOriginal": true,
+    "allowedFieldOrderMatchesRequest": true,
+    "noOrdinaryPropertyResolutions": true,
+    "syntheticAcceptance": true,
+    "businessVerified": false,
+    "rawBodyPublished": false
+  },
+  "preparationMetadata": {
+    "exitCode": 0,
+    "method": "POST",
+    "path": "/api/application/v1/operations/apo-1/resolve",
+    "bodyFileWritten": true,
+    "counts": {
+      "bindings": 1,
+      "configurationProperties": 1,
+      "confirmations": 0
+    },
+    "serviceValidationPending": true,
+    "businessVerified": false
+  }
+}

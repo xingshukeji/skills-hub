@@ -1,0 +1,22 @@
+[
+  {"id":"f01","skill":"workforce-runtime","requires":["执行当前统一根入口","旧三套拓扑不沿用","原入口浏览器登录及业务验证"]},
+  {"id":"f02","skill":"xrain-access-diagnosis","requires":["具体原用户业务权限定位","管理员成功不替代","只诊断不加权或重启"]},
+  {"id":"f03","skill":"workforce-runtime","requires":["关联构建制品实际实例","部署未知不等于成功","不擅自重发流水线"]},
+  {"id":"f04","skill":"xrain-access-diagnosis","requires":["可能是正确拒绝","不开放元数据管理","核对业务所需范围"]},
+  {"id":"f05","skill":"xrain-app-operations","requires":["上架与安装区分","处理原 operation 绑定","不删除重装或重新发布","普通用户验证"]},
+  {"id":"f06","skill":"xrain-app-operations","requires":["查原 operation 与安装","不新建请求盲重试","跟踪真实终态"]},
+  {"id":"f07","skill":"workforce-verify","requires":["管理员只读检查不替代验收","普通用户 UI 与写入结果","消息未授权不得发送","不能全部通过"]},
+  {"id":"f08","skill":"workforce-agent-troubleshoot","requires":["原会话 pending input","202 只表示接受","不能重启或重发跳过本人输入"]},
+  {"id":"f09","skill":"workforce-agent-troubleshoot","requires":["模型自述不是交付证据","用原 ID 查持久交付","不向客户重发"]},
+  {"id":"f10","skill":"workforce-agent-troubleshoot","requires":["旧执行授权失效","阻止迟到写入而不继续旧执行","复测接管后无写入","不删除会话"]},
+  {"id":"f11","skill":"workforce-verify","requires":["可见功能逐项覆盖","记录 403 失败并按原授权修复复测","不首页通过即全部通过"]},
+  {"id":"f12","skill":"xrain-auth","requires":["原身份正常退出中心和应用","出现密码表单后验证","不用旧会话免登证明密码"]},
+  {"id":"f13","skill":"workforce-performance","requires":["执行样本汇总","20 次包含 1 次超时","成功 19 次不报告 p95","判 fail"]},
+  {"id":"f14","skill":"workforce-performance","requires":["执行样本汇总","冷热前后台分成四组","前台热 20 次 pass","不声称全场景达标"]},
+  {"id":"f15","skill":"workforce-agent-troubleshoot","requires":["skill 不授予命令能力","nativeTools 为空是当前限制","不扩大权限"]},
+  {"id":"f16","skill":"workforce-runtime","requires":["沿代理上游查实际进程依赖","遵守只读","不重启共享服务"]},
+  {"id":"f17","skill":null,"requires":["不选运行类 skill 处理架构设计"]},
+  {"id":"f18","skill":"xrain-cli","requires":["已有配置元数据可复用","直接执行授权查询","不强制重复 doctor"]},
+  {"id":"f19","skill":"cicd","requires":["真实完整发布参数","本次回执跟踪","不本地构建替代"]},
+  {"id":"f20","skill":null,"requires":["不选运行排障 skill 生成开场白"]}
+]

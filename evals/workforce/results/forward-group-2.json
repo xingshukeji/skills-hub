@@ -1,0 +1,290 @@
+{
+  "answers": [
+    {
+      "id": "f01",
+      "skill": "workforce-runtime",
+      "nextSteps": [
+        "在后续获准的实际项目执行中，读取已存在的 .workforce/development-launch.json，按 applicationDirectory、applicationConfiguration、connectionScript、proxyScript 及 browserUrl 解析本实例入口。",
+        "执行已登记的 npm start（即 pwsh -NoProfile -File ./Start-Development.ps1），复用已有连接、代理和就绪宿主；沿实际入口检查代理、宿主、Runtime、共享测试平台与认证。",
+        "使用内置浏览器打开配置的 browserUrl，以原固定测试身份核对用户和租户，并完成一个相关业务动作；涉及保存时刷新回读。"
+      ],
+      "evidence": [
+        "当前 start 与 dev 都调用同一 Start-Development.ps1，启动配置存在。",
+        "当前拓扑为本机统一宿主，平台与认证使用共享测试服务；三个人三套入口只是旧记录，不能作为当前启动依据。"
+      ],
+      "completion": "本轮仅离线制定启动步骤，未启动服务或打开浏览器。完成须证明登记入口可登录、用户与租户正确且原业务动作可用，健康就绪只能证明对应运行层。"
+    },
+    {
+      "id": "f02",
+      "skill": "xrain-access-diagnosis",
+      "nextSteps": [
+        "沿原固定业务测试用户在测试租户 A 的会话，关联 POST /api/runtime/v1/customer/query 的请求与错误码，核对已验证主体及 token 绑定租户。",
+        "成员 active、准入 allowed 已有证据，继续只读查询此用户实际有效角色、权限集、customer 查询登记能力以及对象、字段和记录范围，与其业务职责比较，定位第一个拒绝点。",
+        "交付具体缺失或不符的授权项及应允许/应拒绝场景；当前只要求定位，不改权限、不换管理员或重启服务。"
+      ],
+      "evidence": [
+        "服务 ready；原请求返回 403 / permission_denied。",
+        "成员关系 active，应用准入 allowed。管理员能读只证明管理员的权限结果，不能证明普通用户应有同样权限。"
+      ],
+      "completion": "已将定位重点收敛到原主体的业务能力及数据授权层，尚无具体有效权限证据，不能确定缺哪条授权。完成诊断须给出主体、租户、资源、动作及有效授权差异；本轮未访问真实系统。"
+    },
+    {
+      "id": "f03",
+      "skill": "workforce-runtime",
+      "nextSteps": [
+        "只读关联期望提交 new-source、Jenkins 构建 42 的实际参数、制品来源和部署阶段回执，确认 new-digest 是否确由该提交生成及部署目标是否正确。",
+        "从原浏览器入口 https://workforce.example.invalid 追踪到实际服务实例，核对部署选择、实例摘要、配置版本和启动生效情况。",
+        "交付构建与运行实例不一致的证据及部署缺口；如后续需要执行补部署，使用已有作业支持的参数并沿用相应执行授权。实例变更后从原 URL 复测原功能。"
+      ],
+      "evidence": [
+        "构建 42 的 buildResult 为 SUCCESS，制品摘要为 new-digest，但 deploymentResult 为 unknown。",
+        "当前 servingInstance 摘要为 old-digest，与新制品不同；构建成功尚不能证明新版本已在该入口生效。"
+      ],
+      "completion": "目前可确认服务实例仍为旧摘要，部署阶段结果及新制品来源提交仍待核实。未触发流水线、重启或清缓存，未完成实际入口业务复测。"
+    },
+    {
+      "id": "f04",
+      "skill": "xrain-access-diagnosis",
+      "nextSteps": [
+        "按原普通用户的职责核对 GET /api/metadata/v1/entities 的管理权限契约，并保留该 403 的脱敏证据。",
+        "以同一用户检查客户列表及业务必需的发现、筛选接口，确保只查询本人范围；若业务页面错误依赖管理元数据接口，则定位页面调用问题。",
+        "保持元数据管理限制，不因 403 给普通用户新增管理权限；交付该拒绝与业务允许范围的对照。"
+      ],
+      "evidence": [
+        "角色契约明确：业务用户仅使用已发布业务对象，无元数据管理职责。",
+        "客户列表已能正常查询本人范围，元数据列表返回 403 与现有职责边界一致。"
+      ],
+      "completion": "现有观测支持这是预期限制，不是需要加权修复的权限缺口。本轮未实际复测；若业务必需接口在原身份下正常且管理元数据仍被拒绝，即可确认边界正确。"
+    },
+    {
+      "id": "f05",
+      "skill": "xrain-app-operations",
+      "nextSteps": [
+        "读取原 operation-7、对应安装记录及当前 revision，确认目标版本 v2 与本次已授权升级一致，核对 WaitingForResolution 的 details、冲突和影响。",
+        "通过目标租户的受管管理页面查询已有数据源并选取正确绑定；向原操作的 resolve 提交当前 expectedRevision 及所需 bindings，随后按实际状态允许的 continue 流程推进，不另发一次升级。",
+        "持续跟踪 operation-7 到终态；Succeeded 后回读 installedVersionId 与生效组件，并以固定普通用户验证入口及相关业务动作。遇 revision 变化先重读预检；额外删除、覆盖定制或扩大授权须单独明确。"
+      ],
+      "evidence": [
+        "市场版本为 v2，但租户 installedVersion 为 v1。",
+        "operation-7 目标 v2，状态 WaitingForResolution，要求绑定目标租户的数据源；已有受管数据源可从管理页面查得。"
+      ],
+      "completion": "已定位为租户升级等待绑定，不能把上架 v2 当升级完成。本轮未解析绑定或推进真实操作；完成须原操作成功、安装版本和组件为 v2，且普通用户相关动作验证通过。"
+    },
+    {
+      "id": "f06",
+      "skill": "xrain-app-operations",
+      "nextSteps": [
+        "恢复查询 operation-original 和 installation-original，保留 request-original、目标 v3 及原操作关联，先查已提交操作当前结果。",
+        "若仍 Running 或 Finalizing，继续跟踪原操作；若 WaitingForResolution，解决原操作具体缺项；只有确认 Failed 并排除根因后才使用原操作支持的 retry 流程。",
+        "终态 Succeeded 后回读安装版本和组件并复测原用户功能；如果关联或结果仍无法确认，保留未知状态，不使用新 requestId 再安装。"
+      ],
+      "evidence": [
+        "原 requestId、operationId、installationId 均已知。",
+        "最后状态为 Running，连接只是响应丢失；没有安装失败证据。"
+      ],
+      "completion": "本轮未联网恢复状态，不能声称安装完成或失败。完成依据是 operation-original 成功、installation-original 实际为 v3、组件生效及原用户验证通过。"
+    },
+    {
+      "id": "f07",
+      "skill": "workforce-verify",
+      "nextSteps": [
+        "以已存在固定普通测试用户在内置浏览器核对环境、租户与 v3，建立记录列表、编辑记录、消息机器人的逐项验收记录。",
+        "验证列表查询、筛选、本人及范围外记录边界；对已授权测试记录验证可编辑和只读字段、保存、刷新后回读持久结果。",
+        "核对机器人入口、身份和能力配置及可只读检查的运行状态。消息发送未获授权，将实际发送与交付验收标为未执行；后续只有获得明确发送授权并使用隔离测试收件方才能补测。",
+        "逐项报告通过、失败、未执行或阻断，记录原用户、场景预期、实际结果与脱敏证据。"
+      ],
+      "evidence": [
+        "安装 v3 succeeded。",
+        "已有检查 scope 为 CurrentActorObjectReadOnly，actor 是 tenant administrator，all passed 仅覆盖该管理员的对象只读检查。",
+        "可见功能为记录列表、编辑记录与消息机器人；普通测试用户已存在，messageSendingAuthorization 为 false。"
+      ],
+      "completion": "现有结果不能证明普通用户、编辑保存或机器人交付全部可用。本轮未进行真实浏览器验收；消息交付明确未获发送授权，不能报告完整验收通过。"
+    },
+    {
+      "id": "f08",
+      "skill": "workforce-agent-troubleshoot",
+      "nextSteps": [
+        "在原任务详情和 session-original 中关联执行授权、任务负责人、持久历史及 pending-actions，核对等待项确属于当前原执行。",
+        "向用户展示原会话要求的人工作答内容和待输入位置，保持等待，不能代替用户臆造输入或重发原任务。",
+        "用户完成该必要输入后，继续跟踪原会话执行、任务回写和业务结果；若仍无推进，再关联同一 turn/tool-call 定位后续阶段。"
+      ],
+      "evidence": [
+        "assist 返回 HTTP 202 只表示接受请求，taskStatus 仍为 open。",
+        "session-original 存在 state=pending 的 human_input，且 modelError 为 null。"
+      ],
+      "completion": "现有证据表明当前在等人工输入，而非已证实模型超时。本轮未读取真实等待内容或提交输入；完成任务仍需本人输入、原会话推进及业务结果核验。"
+    },
+    {
+      "id": "f09",
+      "skill": "workforce-agent-troubleshoot",
+      "nextSteps": [
+        "按原任务、会话和 clientMessageId=message-original，只读关联 send_message 的工具调用、持久消息、发送状态及可用交付回执。",
+        "如消息已持久化但客户界面未显示，查实际交付链路、订阅与刷新；如没有确认回执，明确区分已存储、已发送与已交付。",
+        "保留原幂等标识和未知结果，不为诊断向客户试发，不换 ID 重发；只有未来获得明确发送授权并查明原结果后才能决定受控重试。"
+      ],
+      "evidence": [
+        "assistantText 声称“已发送”，但工具返回 timeout，deliveryStatus 为 unknown。",
+        "本次授权仅诊断，不允许试发客户消息。"
+      ],
+      "completion": "当前不能认定发送或交付成功，也不能仅凭 timeout 断言未发送。完成诊断须以 message-original 的实际持久与交付证据解释客户未见原因；本轮没有实际发送或状态查询。"
+    },
+    {
+      "id": "f10",
+      "skill": "workforce-agent-troubleshoot",
+      "nextSteps": [
+        "围绕 task-original 只读关联人工接管时间、当前 execution-access、assignmentVersion=8 和旧执行 version=7 的队列及写入历史，确认是否发生迟到写入。",
+        "在已授权修复范围内，使人工接管立即撤销旧执行写权限，并在队列消费和最终持久提交处核对当前负责人、任务状态及 assignmentVersion；拒绝 version=7 的过期写入，使用原受管取消机制停止旧执行。",
+        "在授权隔离测试范围复现接管与排队写入的竞争条件，确认旧 AI 写入被拒绝、人工合法修改仍成功，再复测 task-original 的原问题；不得靠重启或继续旧执行恢复过期授权。"
+      ],
+      "evidence": [
+        "当前负责人为 human，assignmentVersion=8。",
+        "旧 AI 执行仍携带 assignmentVersion=7，且 queuedWrite=true，存在过期写入风险。"
+      ],
+      "completion": "版本错配与排队写入是明确排查线索，尚不能仅凭队列项证明已经写入。本轮未修改产品或真实任务；修复完成须持久提交边界拒绝过期执行，并验证接管后无迟到写入。"
+    },
+    {
+      "id": "f11",
+      "skill": "workforce-verify",
+      "nextSteps": [
+        "按实际可见导航建立消息、任务、客户记录的验收清单，逐项列出正常、失败和权限边界预期；保留首页可开和任务页可读的既有有限结果。",
+        "使用已具备的 browser、shell、file 能力，以原用户和租户复现客户记录 403，查询其有效授权与应有职责，定位后在既有修复授权内做最小必要修复，保持范围外拒绝。",
+        "在已授权 synthetic 数据中验证列表、筛选、可编辑字段、任务操作及保存后刷新回读，修复失败后继续复测原场景和相关回归，不每轮重新索要继续许可。",
+        "消息页执行只读与可见性检查；合成数据授权不等于消息发送授权，任何实际对外发送项须有明确发送授权及隔离测试收件方。汇总每项通过、失败、未执行和阻断。"
+      ],
+      "evidence": [
+        "可见导航包含消息、任务、客户记录。",
+        "目前只完成首页可打开与任务页可读，客户记录页仍 403。",
+        "工具具备 browser、shell、file，已授权合成数据测试；尚无消息发送授权证据。"
+      ],
+      "completion": "已有结果不足以声称全部功能通过。本轮为离线回放，未实际执行修复或浏览器验证；完成须所有授权范围内场景与相关边界有真实操作和持久结果证据，其余缺口明确列出。"
+    },
+    {
+      "id": "f12",
+      "skill": "xrain-auth",
+      "nextSteps": [
+        "复用原固定用户和已知凭据，从原 Workforce 应用及配置确认登录入口，无需管理员会话、创建身份或改密。",
+        "正常退出旧 Workforce 和认证中心会话，完成退出确认并确认真正出现密码表单，再通过受保护输入提交原固定凭据，保持正常 state、PKCE、Cookie 和 MFA 流程。",
+        "从 Workforce 重新发起登录，核对实际身份、目标租户与原业务页面，分别记录密码认证和应用准入结果；不输出凭据、原始响应或带授权码的 URL。"
+      ],
+      "evidence": [
+        "已知凭据可用，但当前认证中心和应用均保留旧登录会话。",
+        "旧会话免登成功不能证明当前密码有效，待验证身份是原固定用户。"
+      ],
+      "completion": "本轮未操作账号或浏览器，密码有效性仍未验证。完成须真正退出后通过密码表单认证，并回到原 Workforce 核对身份、租户及本次业务页面。"
+    },
+    {
+      "id": "f13",
+      "skill": "workforce-performance",
+      "nextSteps": [
+        "沿用导航点击到页面数据可操作的前台热访问边界，对现有 10 秒超时关联浏览器、代理、宿主、平台与渲染阶段，定位主要等待环节。",
+        "如需补充证据，在原环境、身份、数据量和相同计时条件下进行获准的有界采样，保留失败和超时；不为凑 p95 强行发请求，不用接口健康延迟替代页面体验。"
+      ],
+      "evidence": [
+        "已实际运行本组 summarize.mjs 汇总 input/artifacts/performance.json，进程退出码 1 表示样本 verdict=fail。",
+        "前台热访问共 20 次：success=19、timeout=1、error=0、cancelled=0；maxAttemptMs=10000，successfulP50Ms=880，overBudget=1，预算 2000 ms。",
+        "successfulP95Ms=null：成功样本只有 19 个，未满足至少 20 个成功样本的 p95 报告条件。"
+      ],
+      "completion": "现有样本不能证明达标，且已包含一次明确超预算超时。离线样本汇总已完成；真实链路瓶颈、总体表现及修复效果尚未验证。"
+    },
+    {
+      "id": "f14",
+      "skill": "workforce-performance",
+      "nextSteps": [
+        "将同一动作按 cold/warm 和 foreground/background 分组解释，不能混合计算一组前台 p95；先确认采样中的“页面操作”确实以切换至会话可输入且身份、工具绑定正确为完成标志。",
+        "优先对前台冷访问的 3000 ms 分解初始化、定义/工具绑定、请求和渲染阶段；后台样本检查标签节流等因素，但样本本身不能证明具体原因。",
+        "需要复测时保持入口、版本、数据量、身份、网络与分组条件一致，采用获准有界采样；单样本冷态不报告 p95，也不把本次热访问结果推广为全部切换达标。"
+      ],
+      "evidence": [
+        "已实际运行本组 summarize.mjs 汇总 input/artifacts/mixed-performance.json，退出码 1，按条件输出 4 组。",
+        "warm/foreground：20 次全成功，p50=600 ms、p95=600 ms、最大 600 ms、超预算 0，样本 verdict=pass。",
+        "cold/foreground：1 次成功，3000 ms、超预算 1、p95=null，样本 verdict=fail。",
+        "warm/background：20 次全成功，p50=p95=3000 ms、超预算 20，样本 verdict=fail。",
+        "cold/background：1 次成功，4500 ms、超预算 1、p95=null，样本 verdict=fail。全部预算为 2000 ms。"
+      ],
+      "completion": "该份采样只有前台热访问组通过本次样本预算；前台冷访问和后台访问均有超预算。分组统计已完成，尚无阶段耗时可证明瓶颈，后台数据仅解释后台行为。"
+    },
+    {
+      "id": "f15",
+      "skill": "workforce-agent-troubleshoot",
+      "nextSteps": [
+        "只读核对当前员工生效定义、原会话工具目录及策略，将加载的排障 skill 与实际工具授权逐项比较。",
+        "报告当前缺少 shell/命令执行工具，说明 skill 提供操作知识而不会授予新工具；使用已有 task_read 与 record_query 仅执行其实际支持且获准的查询。",
+        "保持当前 nativeTools 和员工配置，若后续确需执行命令，交付具体缺失能力及其用途，等待相应配置变更授权。"
+      ],
+      "evidence": [
+        "skillLoaded=true。",
+        "实际 tools 只有 task_read、record_query，nativeTools=[]。",
+        "本次 allowedChanges 仅诊断当前员工配置。"
+      ],
+      "completion": "已能解释不能执行命令：当前会话未获命令工具能力，加载 skill 不会改变授权。本轮未修改员工配置或工具策略；生效配置与会话目录的真实核验仍待执行。"
+    },
+    {
+      "id": "f16",
+      "skill": "workforce-runtime",
+      "nextSteps": [
+        "从原生产入口关联 503 时间和代理日志，只读核对实际 upstream 地址、对应监听、服务归属与现有运行状态。",
+        "查当前生产宿主或其依赖的原受管状态与相关日志，区分进程未监听、上游地址错误或连接路径故障；本机端口监听不能替代端到端可达证据。",
+        "交付最先失败环节、影响范围和具体恢复建议；本次保持只读，不执行开发启动命令、重启共享依赖、清状态或部署变更。"
+      ],
+      "evidence": [
+        "浏览器状态 503，代理可达，上游返回 connection refused。",
+        "共享平台还服务其他应用；本次明确仅只读授权。"
+      ],
+      "completion": "现有证据将故障定位到代理之后的上游连接阶段，尚未确定进程或配置根因。本轮未访问生产或进行恢复；只读诊断完成须关联实际上游、服务归属及具体错误证据。"
+    },
+    {
+      "id": "f17",
+      "skill": null,
+      "nextSteps": [
+        "这是新架构技术方案任务，catalog 中没有直接处理该目标的 skill。应先明确插件扩展点、信任边界、运行宿主、隔离与升级兼容要求。",
+        "据此编写插件契约、发现与加载、生命周期、权限与资源限制、版本兼容、可观测性、失败恢复及渐进迁移方案，并列出取舍和验证计划。"
+      ],
+      "evidence": [
+        "请求是为下一代 Workforce 设计插件架构。",
+        "本组运行排障类 skill 处理现有运行问题；没有提供现有架构资料或插件约束。"
+      ],
+      "completion": "已给出无匹配 skill 的路由及可执行方案准备步骤，未声称完成技术设计；完整方案仍需系统约束和评审依据。"
+    },
+    {
+      "id": "f18",
+      "skill": "xrain-cli",
+      "nextSteps": [
+        "复用已确认 profile、可用认证及当前可靠元数据，直接用本 skill 的 scripts/xrain-cli.mjs 执行 data query，无需重复查询 metadata、auth status 或 doctor。",
+        "将可靠元数据中的客户实体代码和实际更新时间字段代入：node \"<skill目录>/scripts/xrain-cli.mjs\" data query <客户实体代码> --page 1 --page-size 10 --sort <更新时间字段>:desc --profile <已确认profile> --json。认证参数沿用已确认方式；若为浏览器会话明确 --auth session。",
+        "检查单个 JSON 响应的 ok、返回条数、更新时间降序及目标租户；只报告授权范围内最多 10 条数据。如 403，保留原身份定位授权，不自动换管理员。"
+      ],
+      "evidence": [
+        "目标与认证已经确认，具备当前可靠字段信息，且有读取授权。",
+        "本组命令参考支持 data query 的 --page、--page-size、--sort 和 --json；具体实体代码及时间字段未在案例中给出，不能臆造。"
+      ],
+      "completion": "本轮未调用真实 CLI 数据接口，未获取客户记录。完成须实际查询成功并核对正确租户、最新更新时间排序及最多 10 条结果。"
+    },
+    {
+      "id": "f19",
+      "skill": "cicd",
+      "nextSteps": [
+        "沿用已确认的 Workforce 测试环境作业与完整发布参数，使用现有项目自动化入口或本 skill 的 jenkins.mjs；不回退到仅检查参数，也不把串联阶段拆成多次触发。",
+        "将非敏感参数写入本次参数 JSON，用新回执文件触发一次；凭据从既有秘密管理注入，不写参数、回执或输出。",
+        "持续用同一回执查询原队列与构建，直到完成、取消或明确阻断；断线或提交未知先核对原记录，不重新触发。读取 status 和 result，再核对源码、制品与部署阶段回执。",
+        "交付本次作业、测试环境、状态、构建链接及已有版本、制品、部署证据，明确实际入口业务验证范围。"
+      ],
+      "evidence": [
+        "项目 Workforce，已有作业已确认支持完整发布，参数已确认。",
+        "授权明确为测试发布，目标与执行许可不需重复确认。"
+      ],
+      "completion": "本轮离线未触发或查询 Jenkins。完成须原回执所指运行终态成功且完整发布、部署阶段有相应证据；构建成功不单独证明部署或业务可用。"
+    },
+    {
+      "id": "f20",
+      "skill": null,
+      "nextSteps": [
+        "按普通写作请求直接交付晨会开场白：大家早上好！今天我们先对齐最重要的客户进展：哪些机会需要推进，哪些问题需要协作解决。每位同事请用一分钟分享今天的首要目标和需要的支持。会后把下一步行动落实到人和时间，我们开始吧。"
+      ],
+      "evidence": [
+        "请求仅要求销售团队晨会开场白，没有运行、权限、安装、性能、认证或发布问题。",
+        "本组 catalog 没有适用的业务文案 skill。"
+      ],
+      "completion": "已提供可直接使用的开场白，无需调用系统服务。"
+    }
+  ]
+}

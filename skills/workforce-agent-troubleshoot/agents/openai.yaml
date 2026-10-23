@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workforce 智能体运行排障"
+  short_description: "追踪任务、会话、工具和交付结果，排查不回复及重复执行问题"

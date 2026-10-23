@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workforce 运行维护"
+  short_description: "处理环境启动、依赖与版本故障，完成浏览器验收和使用性能定位"

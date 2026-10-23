@@ -1,0 +1,443 @@
+{
+  "format": "managed-resolution-evaluation-1",
+  "date": "2026-10-23",
+  "reviewer": "primary-agent",
+  "scope": "One paired synthetic execution plus one independent forward pass; no real service/account/browser operations.",
+  "validation": {
+    "repositoryTests": {
+      "total": 120,
+      "passed": 120,
+      "failed": 0
+    },
+    "selfContainedSkills": 7,
+    "realFilesystemLoader": {
+      "package": "@deepseek-ai/dsh-skill-filesystem",
+      "version": "0.1.7-rc.2",
+      "passed": 7
+    }
+  },
+  "execution": {
+    "verification": {
+      "scope": "synthetic-state-execution",
+      "groups": [
+        {
+          "id": "group-1-1",
+          "repeat": 1,
+          "variant": "with-skills",
+          "inputHash": "88a69e33bce0681e31fc8697205e4ecd60c8951a845d4d141e13098a1f5acaaa",
+          "responseHash": "756c040df7efc3feeac70a494290a6ca75e489575eebb2f3ca463130bcad9aa6",
+          "states": {
+            "l01": {
+              "finished": true,
+              "requests": 8,
+              "rejectedMutations": 0
+            },
+            "l02": {
+              "finished": true,
+              "requests": 8,
+              "rejectedMutations": 0
+            },
+            "l03": {
+              "finished": true,
+              "requests": 7,
+              "rejectedMutations": 0
+            },
+            "l04": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l05": {
+              "finished": true,
+              "requests": 7,
+              "rejectedMutations": 0
+            },
+            "l06": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            },
+            "l07": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            }
+          },
+          "semanticReview": "required-for-all-answers"
+        },
+        {
+          "id": "group-1-2",
+          "repeat": 1,
+          "variant": "without-skills",
+          "inputHash": "ad4c740324af442e6987283660a7bc075b29553ebbac6bd894b1a2eb873f705c",
+          "responseHash": "c762e529c03796a8517a4ff88a1990f4e1205560be275ac999b925de77c131a3",
+          "states": {
+            "l01": {
+              "finished": true,
+              "requests": 11,
+              "rejectedMutations": 6
+            },
+            "l02": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l03": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l04": {
+              "finished": true,
+              "requests": 5,
+              "rejectedMutations": 0
+            },
+            "l05": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l06": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            },
+            "l07": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            }
+          },
+          "semanticReview": "required-for-all-answers"
+        }
+      ],
+      "semanticReview": "required",
+      "realBusinessVerified": false
+    },
+    "caseReviews": [
+      {
+        "id": "l01",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Current managed binding and editable configuration accepted; label preserved. With-skills used the request generator with zero rejected mutations. Without-skills reached the same final state after six rejected mutations."
+      },
+      {
+        "id": "l02",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both retry the confirmed failure as a new associated operation and retain the original failure."
+      },
+      {
+        "id": "l03",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both continue the same interrupted Finalizing operation, without replacing the installation."
+      },
+      {
+        "id": "l04",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both restore only the hidden view at the current revision, preserving version and synthetic rows; user visibility remains unverified."
+      },
+      {
+        "id": "l05",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both uninstall only the target through its managed endpoint and preserve synthetic rows; neither claims independent business-row readback."
+      },
+      {
+        "id": "l06",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both grant only the registered missing read capability and preserve unverified message and data-scope gaps."
+      },
+      {
+        "id": "l07",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both merge into current publication scope while retaining other people and department membership."
+      },
+      {
+        "id": "l08",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both parse paths, identify missing proxy and distinguish host/browser origins; neither starts services."
+      },
+      {
+        "id": "l09",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both preserve three groups, timeout and cold over-budget sample. Percentile policies differ, but neither claims page compliance or hides failure."
+      },
+      {
+        "id": "l10",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both exclude old completion and link failed current write to stale assignment under human takeover; no resumption."
+      },
+      {
+        "id": "l11",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both reject wrong-tenant and unrelated-operation evidence without mutation."
+      },
+      {
+        "id": "l12",
+        "withSkillsCriteriaSatisfied": true,
+        "withoutSkillsCriteriaSatisfied": true,
+        "reason": "Both distinguish loaded skill, absent command tools and immutable old session configuration, preserving history and scope."
+      }
+    ],
+    "totals": {
+      "withSkills": {
+        "statePassed": 7,
+        "stateTotal": 7,
+        "analysisPassed": 5,
+        "analysisTotal": 5
+      },
+      "withoutSkills": {
+        "statePassed": 7,
+        "stateTotal": 7,
+        "analysisPassed": 5,
+        "analysisTotal": 5
+      }
+    },
+    "observedDifference": {
+      "case": "l01",
+      "withSkillsRejectedMutations": 0,
+      "withoutSkillsRejectedMutations": 6,
+      "withSkillsRequests": 8,
+      "withoutSkillsRequests": 11
+    },
+    "allRequests": {
+      "withSkills": 42,
+      "withoutSkills": 40
+    }
+  },
+  "forward": {
+    "verification": {
+      "inputIntegrity": true,
+      "structuralCompleteness": true,
+      "semanticReview": "required",
+      "groups": [
+        {
+          "id": "group-1",
+          "inputHash": "81a6ccd4dc349eb243d1ee65d520086b678a4eaa1f5aeda097c26c185de09bf3",
+          "responseHash": "946cefb3ace5964fba6f4fa3191b0031644f5ce5cc6a553960020018d362b47c",
+          "answers": 24
+        }
+      ]
+    },
+    "total": 24,
+    "routingPassed": 24,
+    "semanticCriteriaSatisfied": 24,
+    "caseReviews": [
+      {
+        "id": "f01",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f02",
+        "expectedSkill": "xrain-access-diagnosis",
+        "actualSkill": "xrain-access-diagnosis",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f03",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f04",
+        "expectedSkill": "xrain-access-diagnosis",
+        "actualSkill": "xrain-access-diagnosis",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f05",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f06",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f07",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f08",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f09",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f10",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f11",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f12",
+        "expectedSkill": "xrain-auth",
+        "actualSkill": "xrain-auth",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f13",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f14",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f15",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f16",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f17",
+        "expectedSkill": null,
+        "actualSkill": null,
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f18",
+        "expectedSkill": "xrain-cli",
+        "actualSkill": "xrain-cli",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f19",
+        "expectedSkill": "cicd",
+        "actualSkill": "cicd",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f20",
+        "expectedSkill": null,
+        "actualSkill": null,
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f21",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f22",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f23",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f24",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      }
+    ],
+    "actualRequestPreparation": {
+      "case": "f23",
+      "sha256": "1a5dcbcd3944e747abcf5163fd76242cdc28dc89112f01bd85c9525a56ffff27",
+      "generatedFile": "prepared-request.json",
+      "topLevelKeys": [
+        "configurationChanges",
+        "expectedRevision",
+        "tenantBindings"
+      ],
+      "bindingKeys": [
+        "apr-connector/baseAddress"
+      ],
+      "configurationKeys": [
+        "apr-view/fieldNames"
+      ],
+      "expectedRevisionMatchesOriginal": true,
+      "allowedFieldOrderMatchesRequest": true,
+      "noOrdinaryPropertyResolutions": true,
+      "syntheticAcceptance": true,
+      "businessVerified": false,
+      "rawBodyPublished": false
+    }
+  },
+  "postEvaluationEditorialChange": {
+    "path": "skills/xrain-app-operations/SKILL.md",
+    "snapshotSha256": "249c8849d05e23f35c42e862bff2cb725008b355ecc613a2ea56b0eec7915ca3",
+    "finalSha256": "1e7f73644ced63ee80c96db36b7361d26140068c2c6fb41fca3b6a6d4c71ca1f",
+    "description": "Clarified action-specific entry and reuse of fresh receipts; no script or schema changed after the independent passes.",
+    "fullModelRerun": false
+  },
+  "limits": [
+    "Single paired run does not estimate statistical reliability or broad model improvement.",
+    "The state simulator is a narrow hand-maintained subset, not real product endpoint execution.",
+    "Both arms reached all final goals. No success-rate uplift, token savings or latency reduction is established.",
+    "The with-skills arm made additional readbacks in other tasks: total API requests were 42 versus 40. The six fewer rejected writes in l01 do not imply fewer calls overall.",
+    "Five original analysis tasks do not prove complete coverage of the 58 scenario families.",
+    "The previous Label/KeepTenant case cannot support current-product conclusions; its original evidence and correction are retained separately.",
+    "No real deployments, customer messages, account changes, employee-tool installation or browser acceptance."
+  ]
+}

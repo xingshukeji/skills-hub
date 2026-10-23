@@ -1,0 +1,972 @@
+{
+  "capturedAt": "2026-10-23T05:13:43.413Z",
+  "scope": "Compression of seven independent skills and correction against current source and maintained deployment contracts.",
+  "metrics": {
+    "encoding": "o200k_base",
+    "scope": "All Markdown in seven skill directories, measured file contents only; not actual complete model request usage.",
+    "groups": {
+      "entries": {
+        "beforeCharacters": 8999,
+        "afterCharacters": 3870,
+        "beforeTokens": 5155,
+        "afterTokens": 1895,
+        "tokenReductionPercent": 63.2
+      },
+      "references": {
+        "beforeCharacters": 45184,
+        "afterCharacters": 24017,
+        "beforeTokens": 22590,
+        "afterTokens": 10721,
+        "tokenReductionPercent": 52.5
+      },
+      "allMarkdown": {
+        "beforeCharacters": 54183,
+        "afterCharacters": 27887,
+        "beforeTokens": 27745,
+        "afterTokens": 12616,
+        "tokenReductionPercent": 54.5
+      }
+    },
+    "files": [
+      {
+        "path": "skills/cicd/references/jenkins.md",
+        "beforeCharacters": 1139,
+        "afterCharacters": 1416,
+        "beforeTokens": 524,
+        "afterTokens": 617
+      },
+      {
+        "path": "skills/cicd/SKILL.md",
+        "beforeCharacters": 1023,
+        "afterCharacters": 452,
+        "beforeTokens": 645,
+        "afterTokens": 254
+      },
+      {
+        "path": "skills/workforce-agent-troubleshoot/references/agent-session.md",
+        "beforeCharacters": 959,
+        "afterCharacters": 505,
+        "beforeTokens": 548,
+        "afterTokens": 265
+      },
+      {
+        "path": "skills/workforce-agent-troubleshoot/references/diagnosis.md",
+        "beforeCharacters": 1440,
+        "afterCharacters": 722,
+        "beforeTokens": 775,
+        "afterTokens": 362
+      },
+      {
+        "path": "skills/workforce-agent-troubleshoot/references/history.md",
+        "beforeCharacters": 987,
+        "afterCharacters": 539,
+        "beforeTokens": 517,
+        "afterTokens": 247
+      },
+      {
+        "path": "skills/workforce-agent-troubleshoot/references/task-lifecycle.md",
+        "beforeCharacters": 1187,
+        "afterCharacters": 694,
+        "beforeTokens": 640,
+        "afterTokens": 299
+      },
+      {
+        "path": "skills/workforce-agent-troubleshoot/SKILL.md",
+        "beforeCharacters": 1118,
+        "afterCharacters": 529,
+        "beforeTokens": 656,
+        "afterTokens": 275
+      },
+      {
+        "path": "skills/workforce-runtime/references/acceptance.md",
+        "beforeCharacters": 1202,
+        "afterCharacters": 516,
+        "beforeTokens": 806,
+        "afterTokens": 350
+      },
+      {
+        "path": "skills/workforce-runtime/references/measurement.md",
+        "beforeCharacters": 1976,
+        "afterCharacters": 1087,
+        "beforeTokens": 1181,
+        "afterTokens": 567
+      },
+      {
+        "path": "skills/workforce-runtime/references/release.md",
+        "beforeCharacters": 614,
+        "afterCharacters": 786,
+        "beforeTokens": 407,
+        "afterTokens": 503
+      },
+      {
+        "path": "skills/workforce-runtime/references/startup.md",
+        "beforeCharacters": 1853,
+        "afterCharacters": 1354,
+        "beforeTokens": 1055,
+        "afterTokens": 650
+      },
+      {
+        "path": "skills/workforce-runtime/SKILL.md",
+        "beforeCharacters": 1182,
+        "afterCharacters": 494,
+        "beforeTokens": 708,
+        "afterTokens": 249
+      },
+      {
+        "path": "skills/xrain-access-diagnosis/references/access.md",
+        "beforeCharacters": 1437,
+        "afterCharacters": 755,
+        "beforeTokens": 740,
+        "afterTokens": 337
+      },
+      {
+        "path": "skills/xrain-access-diagnosis/references/authorization.md",
+        "beforeCharacters": 1597,
+        "afterCharacters": 784,
+        "beforeTokens": 813,
+        "afterTokens": 356
+      },
+      {
+        "path": "skills/xrain-access-diagnosis/references/execution.md",
+        "beforeCharacters": 1292,
+        "afterCharacters": 853,
+        "beforeTokens": 540,
+        "afterTokens": 330
+      },
+      {
+        "path": "skills/xrain-access-diagnosis/SKILL.md",
+        "beforeCharacters": 1116,
+        "afterCharacters": 477,
+        "beforeTokens": 684,
+        "afterTokens": 242
+      },
+      {
+        "path": "skills/xrain-app-operations/references/lifecycle.md",
+        "beforeCharacters": 2164,
+        "afterCharacters": 1451,
+        "beforeTokens": 971,
+        "afterTokens": 549
+      },
+      {
+        "path": "skills/xrain-app-operations/references/operations.md",
+        "beforeCharacters": 3950,
+        "afterCharacters": 2393,
+        "beforeTokens": 1694,
+        "afterTokens": 875
+      },
+      {
+        "path": "skills/xrain-app-operations/references/receipt.md",
+        "beforeCharacters": 2186,
+        "afterCharacters": 1411,
+        "beforeTokens": 964,
+        "afterTokens": 515
+      },
+      {
+        "path": "skills/xrain-app-operations/SKILL.md",
+        "beforeCharacters": 1336,
+        "afterCharacters": 544,
+        "beforeTokens": 809,
+        "afterTokens": 274
+      },
+      {
+        "path": "skills/xrain-auth/references/accounts.md",
+        "beforeCharacters": 1811,
+        "afterCharacters": 740,
+        "beforeTokens": 1170,
+        "afterTokens": 456
+      },
+      {
+        "path": "skills/xrain-auth/references/clients.md",
+        "beforeCharacters": 1487,
+        "afterCharacters": 605,
+        "beforeTokens": 827,
+        "afterTokens": 316
+      },
+      {
+        "path": "skills/xrain-auth/references/platform-access.md",
+        "beforeCharacters": 2455,
+        "afterCharacters": 1290,
+        "beforeTokens": 1256,
+        "afterTokens": 592
+      },
+      {
+        "path": "skills/xrain-auth/SKILL.md",
+        "beforeCharacters": 1397,
+        "afterCharacters": 615,
+        "beforeTokens": 754,
+        "afterTokens": 265
+      },
+      {
+        "path": "skills/xrain-cli/references/commands.md",
+        "beforeCharacters": 7070,
+        "afterCharacters": 3108,
+        "beforeTokens": 2713,
+        "afterTokens": 1175
+      },
+      {
+        "path": "skills/xrain-cli/references/configuration.md",
+        "beforeCharacters": 4463,
+        "afterCharacters": 2010,
+        "beforeTokens": 2175,
+        "afterTokens": 890
+      },
+      {
+        "path": "skills/xrain-cli/references/login.md",
+        "beforeCharacters": 3915,
+        "afterCharacters": 998,
+        "beforeTokens": 2274,
+        "afterTokens": 470
+      },
+      {
+        "path": "skills/xrain-cli/SKILL.md",
+        "beforeCharacters": 1827,
+        "afterCharacters": 759,
+        "beforeTokens": 899,
+        "afterTokens": 336
+      }
+    ]
+  },
+  "contracts": {
+    "capturedAt": "2026-10-23T05:05:48.313Z",
+    "scope": "Local working files and maintained deployment contracts; no live service or account verification",
+    "files": [
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "package.json",
+        "workingFileModified": false,
+        "sha256": "6f38ce49f6e5cc5e0fe1e55d4699fce6a5ba468e8a61d508bb3a08e2789b0f1d"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "scripts/start-development.mjs",
+        "workingFileModified": false,
+        "sha256": "1d92c8c5b27a29799f13dd3d0eca885af70f69c48f5af97f7389e09be286f6d0"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "scripts/development-proxy.mjs",
+        "workingFileModified": false,
+        "sha256": "a1f722ff364c907ed44d16f03f8a118e3f7fae80b6f1a837cbd023b75b14b1de"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "文档/项目/项目_XRAIN_WORKFORCE/运行/RUN-0011-默认开发启动.md",
+        "workingFileModified": false,
+        "sha256": "02ef4ffeb638fb619128ab6e8624d4892327abb6de8d0d1e742345e77cf74341"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "src/backend/plugins/workbench/host/routes.mjs",
+        "workingFileModified": false,
+        "sha256": "81db3f4efe27c3bc2e4facceeb7a3dc1d74d2ebd7abfebabdb5d356e1adc3a5a"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "src/backend/plugins/tasks/host/routes.mjs",
+        "workingFileModified": false,
+        "sha256": "9fff8d9c1836c2b18c969c3122fc2c48881272d1f20cbdec647a216d1bf6079b"
+      },
+      {
+        "project": "xrain-workforce",
+        "head": "5c3da3aaef58733f06aeee170c687f8b4600e1a6",
+        "file": "src/backend/plugins/messaging/host/services/runtime-agent-tools.mjs",
+        "workingFileModified": false,
+        "sha256": "e3b3d5e512e56fa07c200979c5b79c7fbb06f063d40919f7134c1f219d3c9cea"
+      },
+      {
+        "project": "anbang",
+        "head": "80001e3be22565fa8863f1203a220df7ffa3d616",
+        "file": "文档/RUNBOOK.md",
+        "workingFileModified": true,
+        "sha256": "d394683186c52aace5003d3e33a8e317aeb66d9e201c5986e9525364709b2764"
+      },
+      {
+        "project": "anbang",
+        "head": "80001e3be22565fa8863f1203a220df7ffa3d616",
+        "file": "scripts/start-development.mjs",
+        "workingFileModified": false,
+        "sha256": "a59830bf2048515fe8e9244565c56a3a6d6abb7b8b8b68ce378aed43eeb80fa5"
+      },
+      {
+        "project": "anbang",
+        "head": "80001e3be22565fa8863f1203a220df7ffa3d616",
+        "file": "applications/anbang-sales/deploy/compose.enterprise.yaml",
+        "workingFileModified": false,
+        "sha256": "665673481711ba5383b657081453c3e22f5515bf029ff69c673224ccf59a4112"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "文档/运行/RUN-0015-集中测试铵帮预览复刻.md",
+        "workingFileModified": false,
+        "sha256": "e17eaf055bf3f7af75029e9bfd7f210259570a7099d36378db78926d602fedd6"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "文档/运行/RUN-0016-Workforce套件持续交付.md",
+        "workingFileModified": false,
+        "sha256": "9f380a6d77acfb9b1285717ca0c0c823a5fde35ebf254634d98e8fee653fa6ef"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "文档/运行/RUN-0018-手动流水线最新源码.md",
+        "workingFileModified": false,
+        "sha256": "80a78334ca55515b83b1a57fe924cf310d4089a89ab347836722c16963f7f124"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "jenkins/pipelines/application-ci.groovy",
+        "workingFileModified": false,
+        "sha256": "607a89c3818ae84d61124efd34b3eb498a749f5c2a753b921b107adf6d7e663f"
+      },
+      {
+        "project": "xrain-oauth",
+        "head": "d9895cb2d5c233976ff4730fd05f9b80e68173c5",
+        "file": "src/Xrain.Auth/Pages/Admin/LocalAccounts.cshtml",
+        "workingFileModified": false,
+        "sha256": "a734239fac365940e53eba3e7b5c322bb9d84cfb43c51a37d7ffe43a9d82528e"
+      },
+      {
+        "project": "xrain-oauth",
+        "head": "d9895cb2d5c233976ff4730fd05f9b80e68173c5",
+        "file": "src/Xrain.Auth/Pages/Admin/Clients.cshtml",
+        "workingFileModified": false,
+        "sha256": "6a8d2f581cbc8498c8a5ebb24c20053d957bc2a47573bfd4b93cac7f56fe2ede"
+      },
+      {
+        "project": "xrain-oauth",
+        "head": "d9895cb2d5c233976ff4730fd05f9b80e68173c5",
+        "file": "src/Xrain.Auth/Pages/Admin/Users.cshtml",
+        "workingFileModified": false,
+        "sha256": "5e239be4c676255f7b260540addbd42445cb55dfc96c39ccce73a14a393be933"
+      },
+      {
+        "project": "xrain-oauth",
+        "head": "d9895cb2d5c233976ff4730fd05f9b80e68173c5",
+        "file": "src/Xrain.Auth/Pages/LoginActivate.cshtml",
+        "workingFileModified": false,
+        "sha256": "70c2a6c3c71fec016f46df0bf7e4257d5306cd6eb01d33c526f0afd0a87ffcc5"
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageResourceCoordinator.cs",
+        "sha256": "7fa1b43e5eabc801ede9388611dad41a8468641221c68ef37fd710a5969e01db",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Domain.Shared/Applications/ApplicationComponentManagementPolicy.cs",
+        "sha256": "db2c13d113b0a419c1028573806428e3a3ad2695345bccd7d44a8c84f76f28b5",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application.Contracts/Applications/ApplicationPackageContracts.cs",
+        "sha256": "86c6ce064a55c9fade376f0873d28b1820dff6981fd97601f68fcf1a176a78fb",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageAppService.cs",
+        "sha256": "0dc596f38f5164496e371a88a8c36e1a1a173f47c153a1337942babf5d4c8cfc",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.HttpApi/Applications/ManagedApplicationApiEndpoints.cs",
+        "sha256": "907e4e1ce6400e3e133564a096d84fccf70bd87085d94f3a901b031926d02f90",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.HttpApi/Applications/ApplicationPackageApiEndpoints.cs",
+        "sha256": "dc246792e2ef8d777aca6074d49674da36614de52154387a7c50ca6ed084f04e",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application.Contracts/Applications/ApplicationPackageManagementContracts.cs",
+        "sha256": "8cfa6d800f32904a1161dafad6a6cf15765f63a3c96a1617f02e85e3a86aa083",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application.Abstractions/Applications/ApplicationPackagePublicationPolicy.cs",
+        "sha256": "44d6371a6b85bdb088b81cf7e6dda715c02014412f50fbe165ff02a2f90648ae",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "all_in_one",
+        "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+        "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageAppService.Market.cs",
+        "sha256": "c2f94074c7c9bd47f611465ae736812ed670d0aa3498563ce7f9022b3356a3f1",
+        "unchangedFromPriorReview": true
+      },
+      {
+        "project": "xrain-app-exchange",
+        "head": "b347cf64d3b783bba6d51f12a273bb9391597a56",
+        "file": "src/server.mjs",
+        "workingFileModified": false,
+        "sha256": "5e18489abf35128ae6d952205187c71cc9bbb9f504e507dc7c0606c70ec2e1ab"
+      },
+      {
+        "project": "xrain-app-exchange",
+        "head": "b347cf64d3b783bba6d51f12a273bb9391597a56",
+        "file": "src/auth.mjs",
+        "workingFileModified": false,
+        "sha256": "34179fa2bd8b443074c89d78d4e9cfb941aa25aa4783d524deb2dd949e905358"
+      },
+      {
+        "project": "xrain-app-exchange",
+        "head": "b347cf64d3b783bba6d51f12a273bb9391597a56",
+        "file": "文档/项目/项目_XRAIN_APP_EXCHANGE/运行/RUN-0001-市场开发运行.md",
+        "workingFileModified": false,
+        "sha256": "6e104e69888ae4e71dcc9010e26c2e8e69e5cce56b25f07864b62864f50f4fb0"
+      },
+      {
+        "project": "xrain-harness",
+        "head": "008c1f220220a18c8a6b2e769ca567e83b46695f",
+        "file": "packages/xrain-agent-runtime/package.json",
+        "workingFileModified": false,
+        "sha256": "ac26ac01487e4c4afec74b032b9145d097e7dc85448d64558fbc41017e755d5e"
+      },
+      {
+        "project": "xrain-harness",
+        "head": "008c1f220220a18c8a6b2e769ca567e83b46695f",
+        "file": "packages/xrain-agent-runtime/src/workforce-tool-policy.ts",
+        "workingFileModified": false,
+        "sha256": "bb85148e41b33376e7039f353697bb9495fafade7b5fa135f8f1b1167613e38e"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "文档/运行/RUN-0013-AppExchange测试CI与部署.md",
+        "workingFileModified": false,
+        "sha256": "208827276016cb549f1c1f0430354efdffa5ea0aaedd2b24d37b6d0db06c815b"
+      },
+      {
+        "project": "xrain-cicd",
+        "head": "a50d1a786e9ceb651717f3aa077bea6d157a6b2c",
+        "file": "文档/运行/RUN-0017-OAuth持续交付.md",
+        "workingFileModified": false,
+        "sha256": "37fd9873115c0ba07429276c298664e54d328b8127092bfe343c16cf54321fd1"
+      }
+    ]
+  },
+  "validation": {
+    "npmCheck": {
+      "tests": 122,
+      "passed": 122,
+      "failed": 0
+    },
+    "independentSkillLoading": {
+      "provider": "@deepseek-ai/dsh-skill-filesystem@0.1.7-rc.2",
+      "passed": 7,
+      "total": 7
+    },
+    "quickValidate": {
+      "passed": 7,
+      "total": 7
+    },
+    "actualLocalLaunchRegistration": {
+      "inspected": true,
+      "registered": true,
+      "readyToInvoke": true,
+      "runtimeHealth": "not-checked",
+      "businessAcceptance": "not-checked"
+    },
+    "forward": {
+      "reviewMethod": "Primary agent reviewed all answers and observable local artifacts; no automated semantic scoring.",
+      "caseCount": 11,
+      "answerSha256": "c203c199580826436c0647e4fd528a6f9fd5d6525a0eadaa32a9169f65234997",
+      "inputIntegrity": true,
+      "reviews": [
+        {
+          "id": "f02",
+          "skill": "xrain-access-diagnosis",
+          "passed": true,
+          "reason": "原用户业务拒绝；未以管理员成功加权"
+        },
+        {
+          "id": "f06",
+          "skill": "xrain-app-operations",
+          "passed": true,
+          "reason": "未知安装先查原操作，中断证据齐备后才 continue"
+        },
+        {
+          "id": "f21",
+          "skill": "workforce-agent-troubleshoot",
+          "passed": true,
+          "reason": "协议 succeeded 不覆盖 ok:false 和旧分派拒绝"
+        },
+        {
+          "id": "f22",
+          "skill": "xrain-app-operations",
+          "passed": true,
+          "reason": "仅修 editableProperties 配置，未使用普通属性合并"
+        },
+        {
+          "id": "f23",
+          "skill": "xrain-app-operations",
+          "passed": true,
+          "reason": "实际私有请求生成，离线状态接受且保留标签"
+        },
+        {
+          "id": "f24",
+          "skill": "xrain-app-operations",
+          "passed": true,
+          "reason": "已决定选择保留，新增权限影响未被自动确认"
+        },
+        {
+          "id": "s01",
+          "skill": "workforce-runtime",
+          "passed": true,
+          "reason": "实际检查发现 HTTPS 配置缺失，识别 Node 入口"
+        },
+        {
+          "id": "s02",
+          "skill": "cicd",
+          "passed": true,
+          "reason": "识别企业宿主与旧三服务不兼容，未扩大为迁移授权"
+        },
+        {
+          "id": "s03",
+          "skill": "cicd",
+          "passed": true,
+          "reason": "EXPECTED_COMMIT 仅校验分支尖端，未部署不同提交"
+        },
+        {
+          "id": "s04",
+          "skill": "xrain-cli",
+          "passed": true,
+          "reason": "复用会话，直接查询，显式 session 排除旧 Token"
+        },
+        {
+          "id": "s05",
+          "skill": "xrain-auth",
+          "passed": true,
+          "reason": "原应用正常登录不依赖 CLI 客户端，未重复建号/恢复"
+        }
+      ],
+      "requestPreparation": {
+        "sha256": "1a5dcbcd3944e747abcf5163fd76242cdc28dc89112f01bd85c9525a56ffff27",
+        "submittedToRealService": false,
+        "syntheticAcceptance": true,
+        "tenantCustomizationPreserved": true
+      },
+      "launchInspection": {
+        "registeredNodeEntry": true,
+        "readyToInvoke": false,
+        "missing": [
+          "proxyTlsConfiguration"
+        ]
+      },
+      "postSnapshotEditorialChanges": [
+        {
+          "path": "workforce-agent-troubleshoot/references/diagnosis.md",
+          "beforeSha256": "44bd45aa231525d9457282c7ba842de1d7baf4f4d95a1051f902f7e30f250d1a",
+          "afterSha256": "b52f23ae213af365e4e20c0a670df2ba885055c320f25a63a97ed9e6ee117c0d"
+        },
+        {
+          "path": "xrain-app-operations/references/lifecycle.md",
+          "beforeSha256": "741289aa31d308c66db87c8ee5e7c14c686ede821eccc4dabcd055143b8e36fa",
+          "afterSha256": "4eac3b80e2d8bb87eb44b547ffeccd039c2d83e806bd6ca690bb02f76d8f7325"
+        },
+        {
+          "path": "xrain-app-operations/references/operations.md",
+          "beforeSha256": "5a3e99bd5871ff46b81bda188cf74ad6fde73f530d955c192fecd85550172ae7",
+          "afterSha256": "07a9797c1fbd6ec6429f21aedb8daf22c23749a470511542e91a159b20b0662d"
+        }
+      ],
+      "postSnapshotReason": "Expanded abbreviated API routes; no scripts or operation semantics changed.",
+      "answers": [
+        {
+          "id": "f02",
+          "skill": "xrain-access-diagnosis",
+          "nextSteps": [
+            "用原固定用户、租户 A 和原 POST customer/query 关联 requestId、验证后的 userId 与 token 租户，读取第一个拒绝判定。",
+            "核对该动作实际登记权限、有效角色/权限集及对象、字段和记录范围；本轮只定位。"
+          ],
+          "evidence": [
+            "服务 ready、成员 active、准入 allowed；管理员可读不证明普通用户应有权。",
+            "403 permission_denied 尚不足以区分能力缺口与数据范围拒绝。"
+          ],
+          "completion": "定位未闭合：需原主体及请求的首个拒绝层和授权差异；未加权、重启或声称修复。"
+        },
+        {
+          "id": "f06",
+          "skill": "xrain-app-operations",
+          "nextSteps": [
+            "先读取 /api/application/v1/operations/operation-original 与 /installations/installation-original，按 request-original 核对关联、当前状态和 revision。",
+            "仍 Running/Finalizing 就跟踪；确认中断才在本次继续授权内 POST 原操作的 /continue。状态改变则按当前状态接续，不能将响应丢失当失败重装。"
+          ],
+          "evidence": [
+            "原 request、operation、installation 均已知；最后状态 Running，response lost 不证明操作失败。"
+          ],
+          "completion": "离线未查询或恢复真实操作。完成须原操作成功、安装为已授权 v3 对应版本、组件及原用户动作验证通过。"
+        },
+        {
+          "id": "f21",
+          "skill": "workforce-agent-troubleshoot",
+          "nextSteps": [
+            "只读核对原任务、当前分派及 execution-conversation/本轮持久历史，按 executionId 和 assignmentVersion 关联。",
+            "保留 human-owner 与当前状态；不恢复旧执行权限、不重放更新或自动改回 AI。"
+          ],
+          "evidence": [
+            "isError=false/succeeded 只表示协议未标错；原业务结果 ok=false、task.execution_forbidden，任务仍 open。",
+            "旧执行版本 7 与当前分派版本 8 不同；旧写入被拒符合改派/人工接管后的边界。",
+            "turn completed 只代表回合结束，汇总 businessVerified=false。"
+          ],
+          "completion": "可判定任务未完成：业务回写被拒；本轮只读，原因关联仍以原任务本轮持久证据核实。"
+        },
+        {
+          "id": "f22",
+          "skill": "xrain-app-operations",
+          "nextSteps": [
+            "不使用 Label/KeepTenant；读取原等待操作、当前 installation revision 和 apr-view 的 editorContext。",
+            "只按可用字段修正 fieldNames，移除失效引用，保留仍有效配置；标题及其他租户定制按当前策略保留。",
+            "选择确定且回执仍有效后，通过 configurationChanges 准备原操作 /resolve；不直写受管元数据，不以 /continue 处理配置冲突。"
+          ],
+          "evidence": [
+            "managed_property_read_only 拒绝普通属性通用合并；BizListView/$configuration 冲突仅允许编辑 fieldNames。"
+          ],
+          "completion": "可行路径已明确，尚未真实执行。完成须原升级成功、标题与其他定制保留、视图无失效字段且原用户可查询。"
+        },
+        {
+          "id": "f23",
+          "skill": "xrain-app-operations",
+          "nextSteps": [
+            "保留 output/prepared-request.json；本轮不提交。以后提交前若状态或 revision 变化，重新取原回执和生成请求。"
+          ],
+          "evidence": [
+            "实际读取 input/artifacts/resolution.json 和 binding-directory.json，选择唯一匹配的受管网关；未输出绑定值或请求正文。",
+            "实际运行 inspect-operation.mjs：WaitingForResolution、blockers=[]，活动操作 apo-1 与安装关联一致，sourceRevision/current revision 均为 7。",
+            "实际执行 prepare-resolution.mjs 的 prepareResolution，写出 output/prepared-request.json：1 项绑定、1 项配置、0 项确认，其他租户配置未纳入修改。",
+            "目标 POST /api/application/v1/operations/apo-1/resolve；serviceValidationPending=true、businessVerified=false、requestSubmitted=false。"
+          ],
+          "completion": "本地请求准备完成，未提交；服务端校验、组件和原用户业务验证仍待后续真实操作。"
+        },
+        {
+          "id": "f24",
+          "skill": "xrain-app-operations",
+          "nextSteps": [
+            "保留已决定的绑定及配置，将新增 apr-security/permissions 执行权限影响交由有权者决定；token 存在不等于同意。",
+            "取得明确决定和当前完整回执后，只选择获准的 recordId/unit，由 prepare-resolution.mjs 提取当前 token；未决定时不生成可提交完整请求，也不提交部分 resolve。"
+          ],
+          "evidence": [
+            "WaitingForResolution 的 requiredConfirmations 包含新增执行权限；当前授权明确不含该扩大，confirmationDecisionAvailable=false。",
+            "生成器缺少确认决定时会报 confirmation-choice-missing，不能自动全选。"
+          ],
+          "completion": "受阻于新增权限影响未决定；原有选择无需重做，未生成或提交完整恢复请求。"
+        },
+        {
+          "id": "s01",
+          "skill": "workforce-runtime",
+          "nextSteps": [
+            "从原接入材料补齐 HTTPS 的 proxyTlsConfiguration，核对证书文件、信任及 Python 3 连接器兼容后重跑检查。",
+            "当前登记根入口为 npm start → scripts/start-development.mjs；将来启动沿用该入口，不依据旧 PowerShell 笔记。"
+          ],
+          "evidence": [
+            "实际运行 inspect-launch.mjs input/artifacts/project：退出 1，readyToInvoke=false。",
+            "根入口、应用目录/脚本/配置、connection.py、proxy.mjs 均存在；start/dev/start:ui 别名一致。",
+            "HTTPS browserUrl 缺少 proxyTlsConfiguration；connectionRuntime=python。题给 Node 24 符合宿主要求，检查器未验证运行时版本、连接器兼容或证书。"
+          ],
+          "completion": "文件检查完成但登记条件不全；未启动服务，健康和业务可用性未验证。"
+        },
+        {
+          "id": "s02",
+          "skill": "cicd",
+          "nextSteps": [
+            "后续 inspect 实际 anbang-sales-test-ci 及目标策略，核对 enterprise-host 所需模式与 V3 已有状态的兼容性。",
+            "停止套用旧三服务部署；由责任项目提供受支持目标和状态保留/迁移方案，新增迁移或覆盖影响获决定后再触发对应已有作业。"
+          ],
+          "evidence": [
+            "新企业宿主制品不能套用 legacy-three-services；目标已有状态。",
+            "jobDeployAvailable 不证明部署模式兼容；现有授权仅原业务更新，未决定迁移/覆盖，且无原 operation 可接续。"
+          ],
+          "completion": "受阻于模式不兼容及状态处理未决定；未触发作业或覆盖状态，构建成功不代表可部署或业务可用。"
+        },
+        {
+          "id": "s03",
+          "skill": "cicd",
+          "nextSteps": [
+            "先解决目标 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 与 main 尖端 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 不同的问题；不能用现作业选择历史 SHA，也不能留空后部署非目标提交。",
+            "形成获准 main 尖端或重新确定目标 SHA 后 inspect 作业；使用 CHECKS_ONLY=false、DEPLOY_TEST=true、TEST_INSTANCE=v2-public、SOURCE_BRANCH=main 和完整目标尖端 EXPECTED_COMMIT，并核对 Harness 来源。",
+            "触发一次保存 queue/build 回执，沿同一来源快照跟踪 status/result，分别核对 source、publication、deployment 与公共入口效果。"
+          ],
+          "evidence": [
+            "EXPECTED_COMMIT 是 main 尖端相等断言，不是历史提交选择器。",
+            "现参数 CHECKS_ONLY=true、DEPLOY_TEST=false 不会部署。"
+          ],
+          "completion": "受阻于目标提交不等于允许分支尖端；未改为部署最新代码，未触发真实流水线。"
+        },
+        {
+          "id": "s04",
+          "skill": "xrain-cli",
+          "nextSteps": [
+            "允许真实查询时直接执行：node input/skills/xrain-cli/scripts/xrain-cli.mjs data query customer --profile shared-demo --auth session --fields name --page 1 --page-size 25 --json。沿用现 profile 和会话，不重配或重新登录。"
+          ],
+          "evidence": [
+            "customer 支持 runtimeRead，name 为登记字段，用户有 customer.read。",
+            "auto 会优先使用旧 XRAIN_TOKEN；--auth session 忽略旧 Token，使用现有浏览器会话，租户仍由 token 绑定。"
+          ],
+          "completion": "离线已提供直接查询命令，未访问服务；完成以原用户会话的 JSON 业务结果为准，本地 valid 不证明远端成功。"
+        },
+        {
+          "id": "s05",
+          "skill": "xrain-auth",
+          "nextSteps": [
+            "从 https://app.example.invalid 原入口，用已有固定身份和凭据正常网页登录，核对回跳用户、租户与原业务动作。",
+            "若网页也失败，只核对原应用实际 authority/clientId/scope/redirectUri；CLI invalid_client 单独处理，不先改原应用客户端、恢复凭据或新建身份。"
+          ],
+          "evidence": [
+            "固定身份和凭据已存在，原应用自身 OIDC client 已登记启用；失败的是 CLI client。",
+            "原应用登录和中心管理网页不依赖 CLI 客户端；本次无需先获取管理员会话，也未要求账号恢复。"
+          ],
+          "completion": "离线未实际登录；完成须原固定用户进入原业务应用并验证租户和动作，CLI 修复不是先行条件。"
+        }
+      ]
+    }
+  },
+  "evaluationInputHashes": [
+    {
+      "path": "input/artifacts/binding-directory.json",
+      "sha256": "6837a2f38c69a37fdfd9f52ed34d192d3a039a00ac98bcd4c97100eabec19ab3"
+    },
+    {
+      "path": "input/artifacts/project/.workforce/development-launch.json",
+      "sha256": "b4a0e5bb8f7c6691322c679a9e00cd8cd9966a0785f4cf631612ad12f1cfdea2"
+    },
+    {
+      "path": "input/artifacts/project/app/config.json",
+      "sha256": "c07594a22b6010e507ad1ce44ff702951fc770e668bb85a0c53c1b61e23628df"
+    },
+    {
+      "path": "input/artifacts/project/app/scripts/start-development.mjs",
+      "sha256": "c07594a22b6010e507ad1ce44ff702951fc770e668bb85a0c53c1b61e23628df"
+    },
+    {
+      "path": "input/artifacts/project/connection.py",
+      "sha256": "c07594a22b6010e507ad1ce44ff702951fc770e668bb85a0c53c1b61e23628df"
+    },
+    {
+      "path": "input/artifacts/project/package.json",
+      "sha256": "ffdaf3068579a31a7abbda543df3e53611bd456dc67b621f467c1380c517c749"
+    },
+    {
+      "path": "input/artifacts/project/proxy.mjs",
+      "sha256": "c07594a22b6010e507ad1ce44ff702951fc770e668bb85a0c53c1b61e23628df"
+    },
+    {
+      "path": "input/artifacts/project/scripts/start-development.mjs",
+      "sha256": "c07594a22b6010e507ad1ce44ff702951fc770e668bb85a0c53c1b61e23628df"
+    },
+    {
+      "path": "input/artifacts/resolution.json",
+      "sha256": "7f6308fbbb8e16c267df72a2b7c2745551531bcbacbae4f7a180b9cf0b5a7468"
+    },
+    {
+      "path": "input/cases.json",
+      "sha256": "aa040b2dc0dea4d950705021ade118b68de296bc90bc7c5a48c9c66e11301793"
+    },
+    {
+      "path": "input/catalog.json",
+      "sha256": "967bbad4def6a1ade5a861966f368468827bb0202bc6def1a228970b6b2f13ab"
+    },
+    {
+      "path": "input/skills/cicd/agents/openai.yaml",
+      "sha256": "4cadbd66c56cb4e35c53d01e9175255201758f94887d9a456f8618858f14efdd"
+    },
+    {
+      "path": "input/skills/cicd/references/jenkins.md",
+      "sha256": "86d94c37362fa17bf8dd2e11323e448cc8f19aecfc54a34fe0d1b3be01395c1b"
+    },
+    {
+      "path": "input/skills/cicd/scripts/jenkins.mjs",
+      "sha256": "6e7554a41835d0b1e8824e9f761e020adf3323e49f0acf83309bf07d6b5fadc9"
+    },
+    {
+      "path": "input/skills/cicd/SKILL.md",
+      "sha256": "a1b4197b3e86ecb6da8113d6c69289d5e2cf20298b6fc3c0660662b9c3cb3e71"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/agents/openai.yaml",
+      "sha256": "8a8b3a044c3969dbad7de0af363e49ea9cc9f50b6c109c840e3d7db8ccdbcf3d"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/references/agent-session.md",
+      "sha256": "3a4293b8233d960b1fd9e5dd2a2480dcd5270e2eb7dbf17b81e6d74425abd5ca"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/references/diagnosis.md",
+      "sha256": "44bd45aa231525d9457282c7ba842de1d7baf4f4d95a1051f902f7e30f250d1a"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/references/history.md",
+      "sha256": "4729b6783924dea37afd0dc8627da84121e7e704baa490e7fce7049084628ae0"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/references/task-lifecycle.md",
+      "sha256": "3ba10503ce5bffc392733407be1681c6e2eb0d999adae1345d597e6c42c96811"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/scripts/summarize-history.mjs",
+      "sha256": "38d92b03d057a738a4624c4e72351560d73194b1f00937f766641d5ce175824e"
+    },
+    {
+      "path": "input/skills/workforce-agent-troubleshoot/SKILL.md",
+      "sha256": "ae19831f79461714b720690e5b31ff978a656bd0489359d25cb9ebbcc3abe43e"
+    },
+    {
+      "path": "input/skills/workforce-runtime/agents/openai.yaml",
+      "sha256": "0d2331bd41ae914012815eefcd57f265bb04ccad6bfe407fa320ad87b8da021e"
+    },
+    {
+      "path": "input/skills/workforce-runtime/references/acceptance.md",
+      "sha256": "a88d4b5e2f7cc5d28b6987572a1a5af0079b6e28413e4e1807f5d167a217b867"
+    },
+    {
+      "path": "input/skills/workforce-runtime/references/measurement.md",
+      "sha256": "3938c62d6eda2eb9b3f8d0ba88f154d1f9f1822f0186235e8df93644cd84af53"
+    },
+    {
+      "path": "input/skills/workforce-runtime/references/release.md",
+      "sha256": "86513daf3a4ae7bb173a3e56b00fad4442d024e0bce2634613127013eb180821"
+    },
+    {
+      "path": "input/skills/workforce-runtime/references/startup.md",
+      "sha256": "dcb3e48b0e56dcfbef7ff2cd7cc554a526db0d3535c388c2a5df1db1501935ae"
+    },
+    {
+      "path": "input/skills/workforce-runtime/scripts/inspect-launch.mjs",
+      "sha256": "38fef387358a4b0f3a2c586497788c268dad7a2fa351cc0ac87f3f76bff00262"
+    },
+    {
+      "path": "input/skills/workforce-runtime/scripts/summarize.mjs",
+      "sha256": "32eef57d383c68c0ca1c0e62eef912eb428c48fe423bd422afd787c13ff8de6b"
+    },
+    {
+      "path": "input/skills/workforce-runtime/SKILL.md",
+      "sha256": "e77418e540502aeff97aeecddae9c5db0d55bf992ae1695b53506164b06b13c3"
+    },
+    {
+      "path": "input/skills/xrain-access-diagnosis/agents/openai.yaml",
+      "sha256": "19cafa62a0730be0e74ce9798e371c6d24a530daaf1d89b9325453c1789b1bf8"
+    },
+    {
+      "path": "input/skills/xrain-access-diagnosis/references/access.md",
+      "sha256": "564ad940dbd129c49f9f3ad66f1e7aa9769bd541d0f68b4f6227563a303c6169"
+    },
+    {
+      "path": "input/skills/xrain-access-diagnosis/references/authorization.md",
+      "sha256": "5e73bdf3e913540be7adfcf8f015d5db8f2364f38e11bab15a2511d16aed6604"
+    },
+    {
+      "path": "input/skills/xrain-access-diagnosis/references/execution.md",
+      "sha256": "20d3bdc34dfd9aa549f53b1d3be4bb8cd782c1421efdd21a922179d735d348c4"
+    },
+    {
+      "path": "input/skills/xrain-access-diagnosis/SKILL.md",
+      "sha256": "a9c4d4a8d96726244214869ae908cef7e0447bfc3fa1b793d34c2c1e0602f442"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/agents/openai.yaml",
+      "sha256": "3f94e8139c3f0cce65e9d61c73ff049441b0302df33971db7ccae341d426d734"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/references/lifecycle.md",
+      "sha256": "741289aa31d308c66db87c8ee5e7c14c686ede821eccc4dabcd055143b8e36fa"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/references/operations.md",
+      "sha256": "5a3e99bd5871ff46b81bda188cf74ad6fde73f530d955c192fecd85550172ae7"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/references/receipt.md",
+      "sha256": "53d15712059b2ffb69991d705916c241a9814b4fb3ca33981093eec88e7b965e"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/scripts/inspect-operation.mjs",
+      "sha256": "d51bd5c79c7ffb5a01019ce04af7eb984b2e765524f9d051aa4df184bbcc3bcc"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/scripts/prepare-resolution.mjs",
+      "sha256": "040213ab32d1aaa64b98aa97eeb93997441585eb4caec3b4a0fc822cd6069d01"
+    },
+    {
+      "path": "input/skills/xrain-app-operations/SKILL.md",
+      "sha256": "909234212037cc03086e9a12c2bbbba0959507e7b1c0c6b858faeeb95cf2939a"
+    },
+    {
+      "path": "input/skills/xrain-auth/agents/openai.yaml",
+      "sha256": "5418d396c7a55418ea5b16cc277b035b607201c178ec9520fc8cef894ec123c4"
+    },
+    {
+      "path": "input/skills/xrain-auth/references/accounts.md",
+      "sha256": "024f1ada9915ed8e3459f84cc45351b593dde8d9b484ad38c1615b2eca76b606"
+    },
+    {
+      "path": "input/skills/xrain-auth/references/clients.md",
+      "sha256": "d0f9d30519c4c491b20002ade5bd925f6038d71aa450b1db25e9bf7ab92e57a5"
+    },
+    {
+      "path": "input/skills/xrain-auth/references/platform-access.md",
+      "sha256": "eade1c06b48d63d3b1d721cfbd269d7d43b49787aa8185ac63cc006db3d6dab5"
+    },
+    {
+      "path": "input/skills/xrain-auth/SKILL.md",
+      "sha256": "efaaa256c6a1d91d0ba07f82599e0b9f2be939c0e33ef00788d469ea4e509101"
+    },
+    {
+      "path": "input/skills/xrain-cli/agents/openai.yaml",
+      "sha256": "051f8a7c55ba774dbfe168bd490b0d9ffa1fb943df2a458cf2195953f9ac1832"
+    },
+    {
+      "path": "input/skills/xrain-cli/references/commands.md",
+      "sha256": "f74d68ae7136c4902d14a82cc799c0bc0d36354e4dc32f5a4ad80d13aabf85ee"
+    },
+    {
+      "path": "input/skills/xrain-cli/references/configuration.md",
+      "sha256": "c9a16b4cde050a0f8884d327c346dad2fdd421376899e64cb406c2528d12de66"
+    },
+    {
+      "path": "input/skills/xrain-cli/references/login.md",
+      "sha256": "1274344446cda98cb795f7fc849ed4a2c6c0ffa5585e089382e0a6bafcb8dcf6"
+    },
+    {
+      "path": "input/skills/xrain-cli/scripts/THIRD_PARTY_NOTICES.txt",
+      "sha256": "13a72c364086042a8d5ec632f78fd93d43a82068e741c07ededd142f93d13e70"
+    },
+    {
+      "path": "input/skills/xrain-cli/scripts/xrain-cli.mjs",
+      "sha256": "df763baacc742a94aaaa1595d25153439de3eaa9ab37581a0b23817153ae555c"
+    },
+    {
+      "path": "input/skills/xrain-cli/SKILL.md",
+      "sha256": "300d0bc9cdb7b26d3373ad7404c3ed601859fc04a430247dca57bb4a6fc8f112"
+    }
+  ],
+  "limits": [
+    "Token counts use o200k_base on file contents; not total conversation or model-specific usage.",
+    "Independent forward pass uses synthetic offline inputs; it does not establish production acceptance.",
+    "Historical experiments were preserved; current Node fixture was corrected without rewriting old snapshots.",
+    "Three shorthand API paths were expanded after the independent input snapshot; no script or state semantics changed."
+  ]
+}

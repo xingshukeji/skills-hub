@@ -1,0 +1,622 @@
+{
+  "format": "workforce-capability-audit-1",
+  "date": "2026-10-23",
+  "reviewer": "primary-agent",
+  "reviewMethod": "Manual semantic review by the primary agent of all 24 execution answers, calculation outputs and readback artifacts, plus all 20 routing answers. Structural checks are separate from semantic judgment.",
+  "skillCount": 7,
+  "scenarioFamilies": 58,
+  "validation": {
+    "repositoryCheck": {
+      "command": "npm run check",
+      "tests": 115,
+      "passed": 115,
+      "failed": 0
+    },
+    "standaloneSkillValidation": {
+      "skills": 7,
+      "passed": 7
+    },
+    "realFilesystemProvider": {
+      "package": "@deepseek-ai/dsh-skill-filesystem",
+      "version": "0.1.7-rc.2",
+      "isolatedCopies": 7,
+      "passed": 7,
+      "scope": "Discovery, descriptions, resourceBase and reference loading; no employee installation or live session"
+    }
+  },
+  "execution": {
+    "pairedRuns": 1,
+    "tasksPerGroup": 12,
+    "mutationTasksPerGroup": 7,
+    "analysisTasksPerGroup": 5,
+    "stateVerification": {
+      "scope": "synthetic-state-execution",
+      "groups": [
+        {
+          "id": "group-1-1",
+          "repeat": 1,
+          "variant": "without-skills",
+          "inputHash": "37243050078f65aa86fd9078404d00c4a9c776d4f22b0eb64e73730249180a2b",
+          "responseHash": "42f2d7477cb5a4814c6054fed59216d030ed307d621c428230898447fcea16e7",
+          "states": {
+            "l01": {
+              "finished": false,
+              "requests": 17,
+              "rejectedMutations": 5
+            },
+            "l02": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l03": {
+              "finished": true,
+              "requests": 5,
+              "rejectedMutations": 0
+            },
+            "l04": {
+              "finished": true,
+              "requests": 5,
+              "rejectedMutations": 0
+            },
+            "l05": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l06": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            },
+            "l07": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            }
+          },
+          "semanticReview": "required-for-all-answers"
+        },
+        {
+          "id": "group-1-2",
+          "repeat": 1,
+          "variant": "with-skills",
+          "inputHash": "b1090f99097530e34e99ffb97a5397b63983ec50c22032057f0c8542e33f0739",
+          "responseHash": "8fd8b300628ce639d90a99da8dfd1c5ab02905607dba424941fc8c9efdc40014",
+          "states": {
+            "l01": {
+              "finished": true,
+              "requests": 7,
+              "rejectedMutations": 0
+            },
+            "l02": {
+              "finished": true,
+              "requests": 8,
+              "rejectedMutations": 0
+            },
+            "l03": {
+              "finished": true,
+              "requests": 7,
+              "rejectedMutations": 0
+            },
+            "l04": {
+              "finished": true,
+              "requests": 6,
+              "rejectedMutations": 0
+            },
+            "l05": {
+              "finished": true,
+              "requests": 7,
+              "rejectedMutations": 0
+            },
+            "l06": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            },
+            "l07": {
+              "finished": true,
+              "requests": 3,
+              "rejectedMutations": 0
+            }
+          },
+          "semanticReview": "required-for-all-answers"
+        }
+      ],
+      "semanticReview": "required",
+      "realBusinessVerified": false
+    },
+    "caseReviews": [
+      {
+        "id": "l01",
+        "outcome": "Resolve original waiting upgrade with directory binding and retained tenant label.",
+        "withoutSkills": {
+          "criteriaSatisfied": false,
+          "reason": "Five binding submissions were rejected; the operation stayed waiting. The answer correctly reported it incomplete."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Correct recordId/binding and recordId/unit keys were accepted; replay confirms target version, binding and retained label."
+        }
+      },
+      {
+        "id": "l02",
+        "outcome": "Retry the confirmed failure as a new associated operation.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "New operation succeeded; original failed operation and missing live acceptance were retained."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "New operation succeeded; original failed operation and missing live acceptance were retained."
+        }
+      },
+      {
+        "id": "l03",
+        "outcome": "Continue the interrupted Finalizing operation.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Same operation completed and was read back; no replacement installation."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Same operation completed and was read back; no replacement installation."
+        }
+      },
+      {
+        "id": "l04",
+        "outcome": "Restore only the hidden managed view.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Effective state restored without version/data mutation; user visibility left unverified."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Effective state restored without version/data mutation; user visibility left unverified."
+        }
+      },
+      {
+        "id": "l05",
+        "outcome": "Uninstall the specified application while preserving rows.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Managed uninstall and retained state read back; row preservation confirmed by state replay, not claimed as an agent business-data readback."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Managed uninstall and retained state read back; row preservation confirmed by state replay, not claimed as an agent business-data readback."
+        }
+      },
+      {
+        "id": "l06",
+        "outcome": "Grant only the registered missing read capability.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Only orders.read changed; message capability and field/record gaps retained."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Only orders.read changed; message capability and field/record gaps retained."
+        }
+      },
+      {
+        "id": "l07",
+        "outcome": "Merge one user into the current publication scope.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Current revision, colleague, existing user and department retained."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Current revision, colleague, existing user and department retained."
+        }
+      },
+      {
+        "id": "l08",
+        "outcome": "Parse launch registration and inspect paths without startup.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Found missing proxy, correct path bases and separate origins; also identified placeholder contents."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Ran isolated launch checker; found missing proxy and correct path bases/origins, with runtime health explicitly unverified."
+        }
+      },
+      {
+        "id": "l09",
+        "outcome": "Calculate separated sample groups and preserve failures.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "All three groups, timeout and cold over-budget sample preserved. All-attempt nearest-rank p95 differs from skill policy but the task did not require that policy; no compliant-page claim."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Ran summary helper and independent calculations; three groups, timeout, sample limits and lack of page timing proof retained."
+        }
+      },
+      {
+        "id": "l10",
+        "outcome": "Distinguish old completion from a failed current task update.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Old seq88 excluded; failed seq103, paused version8 versus old version7, history gap and no-resume boundary retained."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Ran history checker; old seq88 excluded and failed task update, current ownership/version and history gap retained."
+        }
+      },
+      {
+        "id": "l11",
+        "outcome": "Reject receipt evidence from the wrong tenant and operation.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Detected tenant and operation mismatch; no mutation or completion claim."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Detected both mismatches. Preserved helper input-shape error and normalized only existing fields, without inventing component association."
+        }
+      },
+      {
+        "id": "l12",
+        "outcome": "Diagnose unavailable tools and immutable session configuration.",
+        "withoutSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Separated skill loading, tool policy and old session snapshot; preserved original history and diagnosis-only scope."
+        },
+        "withSkills": {
+          "criteriaSatisfied": true,
+          "reason": "Separated skill loading, tool policy and old session snapshot; preserved original history and diagnosis-only scope."
+        }
+      }
+    ],
+    "totals": {
+      "withSkills": {
+        "stateTasks": 7,
+        "statePassed": 7,
+        "analysisTasks": 5,
+        "analysisPassed": 5,
+        "taskCriteriaSatisfied": 12
+      },
+      "withoutSkills": {
+        "stateTasks": 7,
+        "statePassed": 6,
+        "analysisTasks": 5,
+        "analysisPassed": 5,
+        "taskCriteriaSatisfied": 11
+      }
+    }
+  },
+  "routing": {
+    "inputIntegrity": true,
+    "structuralCompleteness": true,
+    "semanticReview": "required",
+    "groups": [
+      {
+        "id": "group-1",
+        "inputHash": "aa08d467159b7e57710326ba97439b0268ac210ca84a03d47235af345272174a",
+        "responseHash": "645aae098f48ff9212009d04753e54221cb6af3cccde8902bece18b816ce3d71",
+        "answers": 20
+      }
+    ],
+    "reviews": [
+      {
+        "id": "f01",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f02",
+        "expectedSkill": "xrain-access-diagnosis",
+        "actualSkill": "xrain-access-diagnosis",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f03",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f04",
+        "expectedSkill": "xrain-access-diagnosis",
+        "actualSkill": "xrain-access-diagnosis",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f05",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f06",
+        "expectedSkill": "xrain-app-operations",
+        "actualSkill": "xrain-app-operations",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f07",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f08",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f09",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f10",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f11",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f12",
+        "expectedSkill": "xrain-auth",
+        "actualSkill": "xrain-auth",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f13",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f14",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f15",
+        "expectedSkill": "workforce-agent-troubleshoot",
+        "actualSkill": "workforce-agent-troubleshoot",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f16",
+        "expectedSkill": "workforce-runtime",
+        "actualSkill": "workforce-runtime",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f17",
+        "expectedSkill": null,
+        "actualSkill": null,
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f18",
+        "expectedSkill": "xrain-cli",
+        "actualSkill": "xrain-cli",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f19",
+        "expectedSkill": "cicd",
+        "actualSkill": "cicd",
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      },
+      {
+        "id": "f20",
+        "expectedSkill": null,
+        "actualSkill": null,
+        "routingPassed": true,
+        "semanticCriteriaSatisfied": true
+      }
+    ],
+    "total": 20,
+    "routingPassed": 20,
+    "semanticCriteriaSatisfied": 20
+  },
+  "limits": [
+    "The 58 scenario families are a coverage design and resource map, not 58 production acceptance tests.",
+    "Only one paired execution; no statistical reliability, latency or broad quality uplift estimate.",
+    "The simulator is a hand-maintained state model, not real product endpoints or full server validation.",
+    "Both groups had the same raw artifacts and API index; the index intentionally omitted some domain semantics which the with-skills group could read. Neither group could search external contracts.",
+    "Observed incremental completion occurred only in l01. The other 11 tasks do not establish incremental value for each individual skill.",
+    "The original three skills retain prior decision and existing integration evidence; these twelve tasks primarily exercise the four new domain skills.",
+    "No real accounts, customer messages, deployments, browser acceptance or employee configuration changes were performed.",
+    "Exploratory execution-01/routing-01 were superseded after source-contract correction and are excluded.",
+    "Subsequent source verification invalidated l01 as current-product support; see contractCorrection."
+  ],
+  "postEvaluationCheck": {
+    "reason": "Final review clarified an ambiguous helper output name. installedVersionMatchesTarget compares only versions; blockers remain authoritative for tenant, package and operation identity.",
+    "changedSkillFiles": [
+      {
+        "path": "xrain-app-operations/references/receipt.md",
+        "snapshotSha256": "e68eca55dfb145df0c145db2f0fa26fe336a25f1f44e1651f2edf07f4d7ee743",
+        "finalSha256": "7eb25b96dcf71ad656b57676612430763eba7eb99cdc7767add1956ab8ca53ce"
+      },
+      {
+        "path": "xrain-app-operations/scripts/inspect-operation.mjs",
+        "snapshotSha256": "6c79e9819f8582003328d235a0fb0e0e5744c4a8d87091a07661a98161c5e955",
+        "finalSha256": "d51bd5c79c7ffb5a01019ce04af7eb984b2e765524f9d051aa4df184bbcc3bcc"
+      }
+    ],
+    "receiptReplay": [
+      {
+        "case": "l01",
+        "output": {
+          "operationStatus": "WaitingForResolution",
+          "next": "resolve-original-operation",
+          "blockers": [],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 1,
+            "confirmations": 0,
+            "conflicts": 1
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": false,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      },
+      {
+        "case": "l02",
+        "output": {
+          "operationStatus": "Failed",
+          "next": "retry-with-new-request-after-root-cause",
+          "blockers": [],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 0,
+            "confirmations": 0,
+            "conflicts": 0
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": false,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      },
+      {
+        "case": "l03",
+        "output": {
+          "operationStatus": "Finalizing",
+          "next": "observe-or-continue-if-interrupted",
+          "blockers": [],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 0,
+            "confirmations": 0,
+            "conflicts": 0
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": false,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      },
+      {
+        "case": "l04",
+        "output": {
+          "operationStatus": "Succeeded",
+          "next": "verify-installed-components-and-user-action",
+          "blockers": [],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 0,
+            "confirmations": 0,
+            "conflicts": 0
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": true,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      },
+      {
+        "case": "l05",
+        "output": {
+          "operationStatus": "Succeeded",
+          "next": "verify-installed-components-and-user-action",
+          "blockers": [],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 0,
+            "confirmations": 0,
+            "conflicts": 0
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": true,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      },
+      {
+        "case": "l11",
+        "output": {
+          "operationStatus": "Succeeded",
+          "next": "reconcile-evidence-before-mutation",
+          "blockers": [
+            "tenant-mismatch",
+            "operation-mismatch"
+          ],
+          "evidenceGaps": [
+            "components-not-checked",
+            "runtime-check-not-supplied",
+            "original-user-business-action-not-proven"
+          ],
+          "required": {
+            "bindings": 0,
+            "confirmations": 0,
+            "conflicts": 0
+          },
+          "checkCounts": null,
+          "installedVersionMatchesTarget": true,
+          "businessVerified": false
+        },
+        "unchangedExceptExplicitVersionFlagName": true
+      }
+    ],
+    "fullModelReplayRepeated": false,
+    "originalEvidencePreserved": true
+  },
+  "contractCorrection": {
+    "recordedAt": "2026-10-23T04:12:10.585Z",
+    "case": "l01",
+    "currentProductEvidence": false,
+    "reason": "The previous synthetic case accepted a generic Label/KeepTenant merge and placed baseAddress on BizHttpRequest. The current managed coordinator rejects ordinary property resolution keys, and baseAddress belongs to BizConnector. Existing observed outcomes and response hashes are retained; this case cannot establish correctness or incremental benefit in the current product.",
+    "replacement": "The current suite uses BizConnector bindings and editable fieldNames configurationChanges with a presence envelope."
+  }
+}

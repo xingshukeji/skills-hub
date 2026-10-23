@@ -1,0 +1,394 @@
+{
+  "generatedAt": "2026-10-22T21:15:47.639273+00:00",
+  "scope": "Skills only; no live accounts, production changes or Workforce installation.",
+  "corpus": {
+    "threads": 459,
+    "messages": 3159,
+    "archivedThreads": 227,
+    "projects": {
+      "xrain-workforce": {
+        "threads": 241,
+        "messages": 1648
+      },
+      "xrain-oauth": {
+        "threads": 40,
+        "messages": 281
+      },
+      "xrain-cicd": {
+        "threads": 12,
+        "messages": 96
+      },
+      "xrain-app-exchange": {
+        "threads": 12,
+        "messages": 26
+      },
+      "xrain-harness": {
+        "threads": 17,
+        "messages": 65
+      },
+      "all_in_one": {
+        "threads": 137,
+        "messages": 1043
+      }
+    },
+    "firstTimestamp": "2026-08-02T13:51:47.374000+00:00",
+    "lastTimestamp": "2026-10-22T20:56:27.144Z",
+    "excluded": {
+      "automation_or_generated_prompt": 3
+    }
+  },
+  "ab": {
+    "baselineCommit": "aa8b1966559702ee07a319983fada12ed79e1c06",
+    "totals": {
+      "baseline": {
+        "total": 48,
+        "passed": 48,
+        "routingPassed": 48,
+        "decisionPassed": 48
+      },
+      "candidate": {
+        "total": 48,
+        "passed": 48,
+        "routingPassed": 48,
+        "decisionPassed": 48
+      }
+    },
+    "casesHash": "c45cd092333e994195319ff62a579003e6fef9868686fe3ce089dd00353974e7",
+    "snapshots": {
+      "baseline": {
+        "hash": "181d757cf5f0befd76f940dfb5385608811b13265ebf129cbd4965c669259eea",
+        "sizes": {
+          "cicd": {
+            "descriptionChars": 96,
+            "entryChars": 2085,
+            "markdownChars": 2085
+          },
+          "xrain-auth": {
+            "descriptionChars": 143,
+            "entryChars": 1866,
+            "markdownChars": 7619
+          },
+          "xrain-cli": {
+            "descriptionChars": 159,
+            "entryChars": 3811,
+            "markdownChars": 19040
+          }
+        }
+      },
+      "candidate": {
+        "hash": "04f74984d71ebf92ef551b3afc1794ecf7ad45fe5126fd2b964e08da31c7a6cb",
+        "sizes": {
+          "cicd": {
+            "descriptionChars": 71,
+            "entryChars": 1023,
+            "markdownChars": 2162
+          },
+          "xrain-auth": {
+            "descriptionChars": 90,
+            "entryChars": 1397,
+            "markdownChars": 7150
+          },
+          "xrain-cli": {
+            "descriptionChars": 102,
+            "entryChars": 1827,
+            "markdownChars": 17275
+          }
+        }
+      }
+    },
+    "entryCharacters": {
+      "baseline": 7762,
+      "candidate": 4247,
+      "reductionPercent": 45.3
+    },
+    "interpretation": "No observed correctness improvement; same pass rate with shorter entry instructions. Offline multiple choice only."
+  },
+  "forward": {
+    "cases": 20,
+    "repeats": 2,
+    "routingPassed": 40,
+    "behaviorPassed": 40,
+    "total": 40,
+    "groups": [
+      {
+        "group": "group-1",
+        "inputHash": "cb7b306edb9f30469d52f93580c8dca72737adc8df37abbff04cfcb36515a95a",
+        "responseHash": "78c2ff981001e48b32d3552e23c8926f1a421410d517b501b68c327c7dc77b6d",
+        "routingPassed": 20,
+        "behaviorPassed": 20,
+        "total": 20,
+        "reviewer": "primary-agent-semantic-review",
+        "rows": [
+          {
+            "id": "f01",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "沿统一根入口启动并以原用户验证，旧多套拓扑不采用。"
+          },
+          {
+            "id": "f02",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "定位原用户业务权限，管理员成功不替代；只诊断不改权。"
+          },
+          {
+            "id": "f03",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "关联指定构建、制品和实例，部署未知不说成功，不擅自补发。"
+          },
+          {
+            "id": "f04",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "识别符合职责的拒绝，不开放元数据管理权。"
+          },
+          {
+            "id": "f05",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "补原操作的受管绑定，跟踪 Succeeded 并验证普通用户，未重装。"
+          },
+          {
+            "id": "f06",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "恢复原请求与操作，未知结果不重发安装。"
+          },
+          {
+            "id": "f07",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "管理员只读检查不足；普通用户读写与消息未授权项分开。"
+          },
+          {
+            "id": "f08",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "等待原会话本人输入，202 不代表完成，不重发或绕过。"
+          },
+          {
+            "id": "f09",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "按原消息标识查持久与投递状态，未向客户试发。"
+          },
+          {
+            "id": "f10",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "校验旧执行版本失效与最终写入，复测接管竞态，未建议删除会话。"
+          },
+          {
+            "id": "f11",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "按全部导航逐项验收，修复复测 403，保留未验证项。"
+          },
+          {
+            "id": "f12",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "退出旧中心及应用会话，出现密码表单后验证原身份。"
+          },
+          {
+            "id": "f13",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "实际执行脚本：20 次中含 1 超时，19 成功不输出 p95，fail。"
+          },
+          {
+            "id": "f14",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "实际执行脚本：四组分开，只有热前台本次样本通过。"
+          },
+          {
+            "id": "f15",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "说明 skill 不授予命令工具，保持 nativeTools 限制。"
+          },
+          {
+            "id": "f16",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "只读沿代理到上游排障，不重启共享服务。"
+          },
+          {
+            "id": "f17",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "架构设计选 null，运行 skill 未误触发。"
+          },
+          {
+            "id": "f18",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "复用已知配置元数据直接查询，未强制 doctor。"
+          },
+          {
+            "id": "f19",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "真实完整发布参数，单次回执跟踪，由 Jenkins 完成构建。"
+          },
+          {
+            "id": "f20",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "文案选 null，没有调用运行服务或发送消息。"
+          }
+        ]
+      },
+      {
+        "group": "group-2",
+        "inputHash": "e9754f87125c8cf517b0db9f9f7d7066bee2f6c41551d6cc4918cfd09975bcf2",
+        "responseHash": "ada05c4f3d63e109eafe97193471836421bfd1d1dca25322de13bec5b3e22706",
+        "routingPassed": 20,
+        "behaviorPassed": 20,
+        "total": 20,
+        "reviewer": "primary-agent-semantic-review",
+        "rows": [
+          {
+            "id": "f01",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "沿统一根入口启动并以原用户验证，旧多套拓扑不采用。"
+          },
+          {
+            "id": "f02",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "定位原用户业务权限，管理员成功不替代；只诊断不改权。"
+          },
+          {
+            "id": "f03",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "关联指定构建、制品和实例，部署未知不说成功，不擅自补发。"
+          },
+          {
+            "id": "f04",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "识别符合职责的拒绝，不开放元数据管理权。"
+          },
+          {
+            "id": "f05",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "补原操作的受管绑定，跟踪 Succeeded 并验证普通用户，未重装。"
+          },
+          {
+            "id": "f06",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "恢复原请求与操作，未知结果不重发安装。"
+          },
+          {
+            "id": "f07",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "管理员只读检查不足；普通用户读写与消息未授权项分开。"
+          },
+          {
+            "id": "f08",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "等待原会话本人输入，202 不代表完成，不重发或绕过。"
+          },
+          {
+            "id": "f09",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "按原消息标识查持久与投递状态，未向客户试发。"
+          },
+          {
+            "id": "f10",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "校验旧执行版本失效与最终写入，复测接管竞态，未建议删除会话。"
+          },
+          {
+            "id": "f11",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "按全部导航逐项验收，修复复测 403，保留未验证项。"
+          },
+          {
+            "id": "f12",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "退出旧中心及应用会话，出现密码表单后验证原身份。"
+          },
+          {
+            "id": "f13",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "实际执行脚本：20 次中含 1 超时，19 成功不输出 p95，fail。"
+          },
+          {
+            "id": "f14",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "实际执行脚本：四组分开，只有热前台本次样本通过。"
+          },
+          {
+            "id": "f15",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "说明 skill 不授予命令工具，保持 nativeTools 限制。"
+          },
+          {
+            "id": "f16",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "只读沿代理到上游排障，不重启共享服务。"
+          },
+          {
+            "id": "f17",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "架构设计选 null，运行 skill 未误触发。"
+          },
+          {
+            "id": "f18",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "复用已知配置元数据直接查询，未强制 doctor。"
+          },
+          {
+            "id": "f19",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "真实完整发布参数，单次回执跟踪，由 Jenkins 完成构建。"
+          },
+          {
+            "id": "f20",
+            "routingPassed": true,
+            "behaviorPassed": true,
+            "review": "文案选 null，没有调用运行服务或发送消息。"
+          }
+        ]
+      }
+    ],
+    "limitations": "Primary-agent review of independent offline answers; not a human or live end-to-end acceptance test."
+  },
+  "checks": {
+    "npmRunCheck": {
+      "passed": 105,
+      "failed": 0
+    },
+    "quickValidate": {
+      "passed": 9
+    },
+    "workforceLoader": {
+      "provider": "@deepseek-ai/dsh-skill-filesystem",
+      "version": "0.1.7-rc.2",
+      "isolatedCopies": true,
+      "passed": 9
+    },
+    "liveEndToEnd": "not-run"
+  }
+}

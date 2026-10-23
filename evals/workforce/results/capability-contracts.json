@@ -1,0 +1,76 @@
+{
+  "capturedAt": "2026-10-23T02:53:08.130Z",
+  "scope": "Working-file fingerprints of principal contracts checked for round two; not a deployment or comprehensive source audit.",
+  "files": [
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.HttpApi/Applications/ManagedApplicationApiEndpoints.cs",
+      "workingFileModified": false,
+      "sha256": "907e4e1ce6400e3e133564a096d84fccf70bd87085d94f3a901b031926d02f90"
+    },
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.HttpApi/Applications/ApplicationPackageApiEndpoints.cs",
+      "workingFileModified": false,
+      "sha256": "dc246792e2ef8d777aca6074d49674da36614de52154387a7c50ca6ed084f04e"
+    },
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.Application.Contracts/Applications/ApplicationPackageContracts.cs",
+      "workingFileModified": false,
+      "sha256": "86c6ce064a55c9fade376f0873d28b1820dff6981fd97601f68fcf1a176a78fb"
+    },
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.Application.Contracts/Applications/ApplicationPackageManagementContracts.cs",
+      "workingFileModified": false,
+      "sha256": "8cfa6d800f32904a1161dafad6a6cf15765f63a3c96a1617f02e85e3a86aa083"
+    },
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.Application.Abstractions/Applications/ApplicationPackagePublicationPolicy.cs",
+      "workingFileModified": false,
+      "sha256": "44d6371a6b85bdb088b81cf7e6dda715c02014412f50fbe165ff02a2f90648ae"
+    },
+    {
+      "project": "all_in_one",
+      "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+      "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageAppService.Market.cs",
+      "workingFileModified": false,
+      "sha256": "c2f94074c7c9bd47f611465ae736812ed670d0aa3498563ce7f9022b3356a3f1"
+    },
+    {
+      "project": "xrain-workforce",
+      "head": "89292e3dac9c1ca5c95a06aa8e386e82002ee095",
+      "file": "Start-Development.ps1",
+      "workingFileModified": false,
+      "sha256": "8acdcc699d84fa5890e6eefa2c22e52d87ea1d0a7e327839d946c7da7957f86c"
+    },
+    {
+      "project": "xrain-workforce",
+      "head": "89292e3dac9c1ca5c95a06aa8e386e82002ee095",
+      "file": "src/backend/plugins/workbench/host/routes.mjs",
+      "workingFileModified": false,
+      "sha256": "81db3f4efe27c3bc2e4facceeb7a3dc1d74d2ebd7abfebabdb5d356e1adc3a5a"
+    },
+    {
+      "project": "xrain-workforce",
+      "head": "89292e3dac9c1ca5c95a06aa8e386e82002ee095",
+      "file": "src/backend/plugins/tasks/host/routes.mjs",
+      "workingFileModified": false,
+      "sha256": "9fff8d9c1836c2b18c969c3122fc2c48881272d1f20cbdec647a216d1bf6079b"
+    },
+    {
+      "project": "xrain-workforce",
+      "head": "89292e3dac9c1ca5c95a06aa8e386e82002ee095",
+      "file": "src/backend/plugins/messaging/host/services/runtime-agent-tools.mjs",
+      "workingFileModified": false,
+      "sha256": "e3b3d5e512e56fa07c200979c5b79c7fbb06f063d40919f7134c1f219d3c9cea"
+    }
+  ]
+}

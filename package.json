@@ -11,6 +11,12 @@
     "index": "node tools/skills.mjs --write",
     "validate": "node tools/skills.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "eval:prepare": "node tools/evaluate-skills.mjs prepare",
+    "eval:score": "node tools/evaluate-skills.mjs score",
+    "eval:forward": "node tools/evaluate-skills.mjs prepare-forward",
+    "eval:verify": "node tools/evaluate-skills.mjs verify-forward",
+    "eval:capabilities": "node tools/capability-lab.mjs",
+    "verify:workforce": "node tools/verify-workforce-loader.mjs",
     "verify:live": "node tools/verify-live.mjs",
     "check": "npm run build:check && npm run validate && npm test"
   },

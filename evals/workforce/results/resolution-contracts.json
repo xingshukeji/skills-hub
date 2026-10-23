@@ -1,0 +1,27 @@
+{
+  "project": "all_in_one",
+  "head": "79ff176f45a22553a86327fcf0815a345a136bcb",
+  "capturedAt": "2026-10-23T04:11:14.499Z",
+  "files": [
+    {
+      "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageResourceCoordinator.cs",
+      "sha256": "7fa1b43e5eabc801ede9388611dad41a8468641221c68ef37fd710a5969e01db",
+      "modified": false
+    },
+    {
+      "file": "XRain/backend/src/XRain.Domain.Shared/Applications/ApplicationComponentManagementPolicy.cs",
+      "sha256": "db2c13d113b0a419c1028573806428e3a3ad2695345bccd7d44a8c84f76f28b5",
+      "modified": false
+    },
+    {
+      "file": "XRain/backend/src/XRain.Application.Contracts/Applications/ApplicationPackageContracts.cs",
+      "sha256": "86c6ce064a55c9fade376f0873d28b1820dff6981fd97601f68fcf1a176a78fb",
+      "modified": false
+    },
+    {
+      "file": "XRain/backend/src/XRain.Application/Applications/ApplicationPackageAppService.cs",
+      "sha256": "0dc596f38f5164496e371a88a8c36e1a1a173f47c153a1337942babf5d4c8cfc",
+      "modified": false
+    }
+  ]
+}
