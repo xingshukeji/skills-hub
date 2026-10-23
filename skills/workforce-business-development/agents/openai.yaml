@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workforce 企业业务开发"
+  short_description: "基于 XRain 与 Workforce 完成建模、授权、系统集成与业务交互"
+  default_prompt: "使用 $workforce-business-development，结合当前项目复用平台资源和已有系统 API，按真实接口合同完成业务模型、授权、逻辑及 Workforce 页面和工具。"

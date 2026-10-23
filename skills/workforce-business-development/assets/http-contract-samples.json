@@ -1,0 +1,1046 @@
+{
+  "provenance": {
+    "kind": "sanitized-live-http",
+    "capturedOn": "2026-10-23",
+    "target": "铵帮使用的中央测试租户",
+    "notes": [
+      "这些结构来自真实 HTTP 响应，不是 mock。",
+      "20 位环境身份及 traceId 已替换为占位符；字段名、数据类型、状态码和合成业务值保持原样。",
+      "responseExcerpt 明确省略了 omittedResponsePaths；response 表示完整的脱敏响应正文。",
+      "bodyKind=empty 时 response 的空字符串表示没有正文，不是服务端返回 JSON 字符串。",
+      "合成测试对象及记录已清理；运行调用应使用当前对象描述与真实身份。"
+    ]
+  },
+  "exchanges": [
+    {
+      "id": "record-create",
+      "observedAt": "2026-10-23T10:29:45.664Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records",
+        "body": {
+          "values": {
+            "subject__c": "合同核验 A",
+            "amount__c": "10.20",
+            "tags__c": [
+              "low",
+              "high"
+            ],
+            "assigneeId__c": "<user-1>",
+            "occurredAt__c": "2026-10-23T09:00:00.1234567+08:00"
+          }
+        }
+      },
+      "status": 201,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "recordId": "<record-1>",
+        "entityCode": "skillContractProbe__c",
+        "createdAt": "2026-10-23T10:29:46.0610070Z",
+        "updatedAt": "2026-10-23T10:29:46.0610070Z",
+        "values": {
+          "amount__c": "10.20",
+          "assigneeId__c": "<user-1>",
+          "createdAt": "2026-10-23T10:29:46.0610070Z",
+          "createdById": "<user-1>",
+          "deletedAt": null,
+          "deletedById": null,
+          "externalId": null,
+          "externalSource": null,
+          "id": "<record-1>",
+          "isDeleted": false,
+          "occurredAt__c": "2026-10-23T01:00:00.123456Z",
+          "ownerId": "<user-1>",
+          "subject__c": "合同核验 A",
+          "tags__c": [
+            "low",
+            "high"
+          ],
+          "updatedAt": "2026-10-23T10:29:46.0610070Z",
+          "updatedById": "<user-1>"
+        }
+      },
+      "sourceResponseSha256": "c3a7d82dc3253da2e1aafb97d29e6e52d453c4d81eb91854656aa274015e786b"
+    },
+    {
+      "id": "record-query",
+      "observedAt": "2026-10-23T10:29:47.843Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:query",
+        "body": {
+          "page": 1,
+          "pageSize": 1,
+          "includeTotalCount": true,
+          "fields": [
+            "subject__c",
+            "amount__c",
+            "tags__c",
+            "occurredAt__c"
+          ],
+          "sort": [
+            {
+              "field": "subject__c",
+              "direction": "asc"
+            }
+          ],
+          "aggregates": [
+            {
+              "field": "amount__c",
+              "function": "sum",
+              "alias": "totalAmount"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "sourceResponseKeys": [
+        "entityCode",
+        "metadataRevision",
+        "page",
+        "pageSize",
+        "totalCount",
+        "fields",
+        "records",
+        "queryPlan",
+        "aggregates",
+        "temporalContracts"
+      ],
+      "omittedResponsePaths": [
+        "queryPlan",
+        "temporalContracts"
+      ],
+      "responseExcerpt": {
+        "entityCode": "skillContractProbe__c",
+        "metadataRevision": 1918466569,
+        "page": 1,
+        "pageSize": 1,
+        "totalCount": 3,
+        "fields": [
+          {
+            "apiName": "subject__c",
+            "label": "核验事项",
+            "type": "Text",
+            "required": false,
+            "masked": false,
+            "readOnly": false,
+            "options": null,
+            "referenceTargetEntityCode": "",
+            "maskingPolicy": "",
+            "allowRuntimeCreate": true,
+            "allowRuntimeUpdate": true,
+            "isSystemGenerated": false,
+            "sortable": true,
+            "presentation": {
+              "editor": {
+                "kind": "text",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "cell": {
+                "kind": "text",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "detail": {
+                "kind": "text",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              }
+            }
+          },
+          {
+            "apiName": "amount__c",
+            "label": "核验金额",
+            "type": "Money",
+            "required": false,
+            "masked": false,
+            "readOnly": false,
+            "options": null,
+            "referenceTargetEntityCode": "",
+            "precision": 18,
+            "scale": 2,
+            "numericStorage": "decimal",
+            "maskingPolicy": "",
+            "allowRuntimeCreate": true,
+            "allowRuntimeUpdate": true,
+            "isSystemGenerated": false,
+            "sortable": true,
+            "presentation": {
+              "editor": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "cell": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "detail": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              }
+            }
+          },
+          {
+            "apiName": "tags__c",
+            "label": "核验选项",
+            "type": "MultiPicklist",
+            "required": false,
+            "masked": false,
+            "readOnly": false,
+            "options": [
+              {
+                "value": "medium",
+                "label": "中",
+                "color": "blue"
+              },
+              {
+                "value": "low",
+                "label": "低",
+                "color": "default"
+              },
+              {
+                "value": "urgent",
+                "label": "紧急",
+                "color": "red"
+              },
+              {
+                "value": "high",
+                "label": "高",
+                "color": "orange"
+              }
+            ],
+            "referenceTargetEntityCode": "",
+            "maskingPolicy": "",
+            "allowRuntimeCreate": true,
+            "allowRuntimeUpdate": true,
+            "isSystemGenerated": false,
+            "sortable": true,
+            "presentation": {
+              "editor": {
+                "kind": "multiSelect",
+                "searchable": true,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "cell": {
+                "kind": "tags",
+                "searchable": null,
+                "maxVisibleItems": 3,
+                "expandable": true,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "detail": {
+                "kind": "tags",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": false,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              }
+            }
+          },
+          {
+            "apiName": "occurredAt__c",
+            "label": "核验时刻",
+            "type": "DateTime",
+            "required": false,
+            "masked": false,
+            "readOnly": false,
+            "options": null,
+            "referenceTargetEntityCode": "",
+            "maskingPolicy": "",
+            "allowRuntimeCreate": true,
+            "allowRuntimeUpdate": true,
+            "isSystemGenerated": false,
+            "sortable": true,
+            "presentation": {
+              "editor": {
+                "kind": "dateTime",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "cell": {
+                "kind": "dateTime",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "detail": {
+                "kind": "dateTime",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              }
+            },
+            "temporalContractId": "instant-us-v1"
+          }
+        ],
+        "records": [
+          {
+            "recordId": "<record-1>",
+            "entityCode": "skillContractProbe__c",
+            "createdAt": "2026-10-23T10:29:46.0610070Z",
+            "updatedAt": "2026-10-23T10:29:46.0610070Z",
+            "values": {
+              "subject__c": "合同核验 A",
+              "amount__c": "10.20",
+              "tags__c": [
+                "low",
+                "high"
+              ],
+              "occurredAt__c": "2026-10-23T01:00:00.123456Z"
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "alias": "totalAmount",
+            "field": "amount__c",
+            "function": "sum",
+            "value": "60.90"
+          }
+        ]
+      },
+      "sourceResponseSha256": "5cdc935c95bbdba72314c2cae32bc646b8a9d7870298ef62582a56313aae94e1"
+    },
+    {
+      "id": "record-count",
+      "observedAt": "2026-10-23T10:29:47.843Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:count",
+        "body": {
+          "filter": {
+            "field": "amount__c",
+            "op": "gte",
+            "value": "20.00"
+          }
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": 2,
+      "sourceResponseSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+    },
+    {
+      "id": "record-distinct",
+      "observedAt": "2026-10-23T10:29:47.843Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:distinct",
+        "body": {
+          "fields": [
+            "amount__c"
+          ]
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "sourceResponseKeys": [
+        "entityCode",
+        "metadataRevision",
+        "fields",
+        "rows",
+        "queryPlan"
+      ],
+      "omittedResponsePaths": [
+        "queryPlan"
+      ],
+      "responseExcerpt": {
+        "entityCode": "skillContractProbe__c",
+        "metadataRevision": 1918466569,
+        "fields": [
+          {
+            "apiName": "amount__c",
+            "label": "核验金额",
+            "type": "Money",
+            "required": false,
+            "masked": false,
+            "readOnly": false,
+            "options": null,
+            "referenceTargetEntityCode": "",
+            "precision": 18,
+            "scale": 2,
+            "numericStorage": "decimal",
+            "maskingPolicy": "",
+            "allowRuntimeCreate": true,
+            "allowRuntimeUpdate": true,
+            "isSystemGenerated": false,
+            "sortable": true,
+            "presentation": {
+              "editor": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "cell": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              },
+              "detail": {
+                "kind": "number",
+                "searchable": null,
+                "maxVisibleItems": null,
+                "expandable": null,
+                "collapsed": null,
+                "rows": null,
+                "format": null,
+                "currency": null,
+                "percentMode": null,
+                "minimum": null,
+                "maximum": null
+              }
+            }
+          }
+        ],
+        "rows": [
+          {
+            "values": {
+              "amount__c": "20.30"
+            }
+          },
+          {
+            "values": {
+              "amount__c": "10.20"
+            }
+          },
+          {
+            "values": {
+              "amount__c": "30.40"
+            }
+          }
+        ]
+      },
+      "sourceResponseSha256": "e4851f2efbf949296873f925041e87cf5c78cfec1176d0adee5cfcb6509e0ec6"
+    },
+    {
+      "id": "record-query-batch",
+      "observedAt": "2026-10-23T10:29:48.125Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/records:queryBatch",
+        "body": {
+          "queries": [
+            {
+              "entityCode": "skillContractProbe__c",
+              "query": {
+                "pageSize": 1,
+                "fields": [
+                  "subject__c"
+                ]
+              }
+            },
+            {
+              "entityCode": "skillContractProbe__c",
+              "query": {
+                "pageSize": 1,
+                "fields": [
+                  "amount__c"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "sourceResponseKeys": [
+        "results"
+      ],
+      "omittedResponsePaths": [
+        "results.*.result.fields",
+        "results.*.result.queryPlan",
+        "results.*.result.temporalContracts"
+      ],
+      "responseExcerpt": {
+        "results": [
+          {
+            "entityCode": "skillContractProbe__c",
+            "result": {
+              "entityCode": "skillContractProbe__c",
+              "metadataRevision": 1918466569,
+              "page": 1,
+              "pageSize": 1,
+              "totalCount": 0,
+              "records": [
+                {
+                  "recordId": "<record-2>",
+                  "entityCode": "skillContractProbe__c",
+                  "createdAt": "2026-10-23T10:29:47.0758220Z",
+                  "updatedAt": "2026-10-23T10:29:47.0758220Z",
+                  "values": {
+                    "subject__c": "合同核验 C"
+                  }
+                }
+              ],
+              "aggregates": []
+            }
+          },
+          {
+            "entityCode": "skillContractProbe__c",
+            "result": {
+              "entityCode": "skillContractProbe__c",
+              "metadataRevision": 1918466569,
+              "page": 1,
+              "pageSize": 1,
+              "totalCount": 0,
+              "records": [
+                {
+                  "recordId": "<record-2>",
+                  "entityCode": "skillContractProbe__c",
+                  "createdAt": "2026-10-23T10:29:47.0758220Z",
+                  "updatedAt": "2026-10-23T10:29:47.0758220Z",
+                  "values": {
+                    "amount__c": "30.40"
+                  }
+                }
+              ],
+              "aggregates": []
+            }
+          }
+        ]
+      },
+      "sourceResponseSha256": "3e7bf4d751fe190e8f99ea640710632f860757661651ecb990bfbe374ab375f2"
+    },
+    {
+      "id": "record-single-default",
+      "observedAt": "2026-10-23T10:29:47.845Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:singleOrDefault",
+        "body": {
+          "fields": [
+            "subject__c"
+          ],
+          "filter": {
+            "field": "subject__c",
+            "op": "eq",
+            "value": "不存在的合成值"
+          }
+        }
+      },
+      "status": 200,
+      "contentType": "application/json",
+      "bodyKind": "json",
+      "response": null,
+      "sourceResponseSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "id": "record-update-conflict",
+      "observedAt": "2026-10-23T10:29:51.109Z",
+      "request": {
+        "method": "PUT",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records/<record-1>",
+        "body": {
+          "values": {
+            "subject__c": "不应写入"
+          },
+          "expectedValues": {
+            "subject__c": "合同核验 A"
+          }
+        }
+      },
+      "status": 409,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "type": "https://docs.local/problems/platform.data.concurrency_conflict",
+        "title": "Runtime data request rejected",
+        "status": 409,
+        "errorCode": "platform.data.concurrency_conflict",
+        "message": "The record changed since it was read. Reload before saving again.",
+        "traceId": "<trace-id>"
+      },
+      "sourceResponseSha256": "2439b5a6cf053667bc137a56d8917afc52bad6555fa9f0179697b3b1cd9a53cf"
+    },
+    {
+      "id": "record-query-denied",
+      "observedAt": "2026-10-23T10:29:47.846Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:query",
+        "body": {
+          "fields": [
+            "subject__c"
+          ],
+          "pageSize": 1
+        }
+      },
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "type": "https://docs.local/problems/platform.security.permission_denied",
+        "title": "Runtime data request rejected",
+        "status": 403,
+        "errorCode": "platform.security.permission_denied",
+        "message": "Permission 'platform.entity.skillContractProbe__c.read' is required.",
+        "traceId": "<trace-id>"
+      },
+      "sourceResponseSha256": "badca18cd278436cdd6074bb15d3b4b272d60c9d8612bd3551471cb8f6bc26ad"
+    },
+    {
+      "id": "options-multi",
+      "observedAt": "2026-10-23T10:29:48.125Z",
+      "request": {
+        "method": "GET",
+        "path": "/api/data/v1/entities/skillContractProbe__c/fields/tags__c/options?page=1&pageSize=2"
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "page": 1,
+        "pageSize": 2,
+        "totalCount": 4,
+        "items": [
+          {
+            "value": "medium",
+            "label": "中",
+            "color": "blue"
+          },
+          {
+            "value": "low",
+            "label": "低",
+            "color": "default"
+          }
+        ]
+      },
+      "sourceResponseSha256": "f4b40598eb745ae50683c80c633255d028bd3b2b55d1b77d63135c0858a2359c"
+    },
+    {
+      "id": "options-person",
+      "observedAt": "2026-10-23T10:29:48.125Z",
+      "request": {
+        "method": "GET",
+        "path": "/api/data/v1/entities/skillContractProbe__c/fields/assigneeId__c/options?page=1&pageSize=2"
+      },
+      "status": 400,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "type": "https://docs.local/problems/platform.data.validation_failed",
+        "title": "Runtime data request rejected",
+        "status": 400,
+        "errorCode": "platform.data.validation_failed",
+        "message": "Options are available only for picklist fields.",
+        "traceId": "<trace-id>"
+      },
+      "sourceResponseSha256": "c3db807ef22aad10e8827718f16331eb227b7ba98a7cdea6ca98ee24f1dae671"
+    },
+    {
+      "id": "view-runtime-query",
+      "observedAt": "2026-10-23T10:31:57.067Z",
+      "request": {
+        "method": "GET",
+        "path": "/api/metadata/v1/entities/skillContractProbe__c/views/contractProbe/runtime-query"
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "entityCode": "skillContractProbe__c",
+        "entityApiName": "skillContractProbe__c",
+        "viewName": "contractProbe",
+        "selectedFields": [
+          "subject__c",
+          "amount__c",
+          "tags__c"
+        ],
+        "groupBy": null,
+        "filter": "amount__c >= '10'",
+        "query": {
+          "page": 1,
+          "pageSize": 25,
+          "search": null,
+          "fields": [
+            "subject__c",
+            "amount__c",
+            "tags__c"
+          ],
+          "filter": {
+            "field": "amount__c",
+            "op": "gte",
+            "value": 10,
+            "and": null,
+            "or": null
+          },
+          "sort": [
+            {
+              "field": "subject__c",
+              "direction": "asc"
+            }
+          ],
+          "includeTotalCount": false,
+          "aggregates": null,
+          "presentation": null,
+          "loadFieldOptions": true
+        },
+        "explain": [
+          "metadata list view 'contractProbe' maps to runtime entity 'skillContractProbe__c'.",
+          "filter 'amount__c >= '10'' is mapped to runtime query predicate 'amount__c gte'.",
+          "list view sort maps 1 ordered field(s) to the runtime query."
+        ]
+      },
+      "sourceResponseSha256": "a10c1f195c250303c5f553e92f9a74327a6e2c60d1ff565ce1f15fd97e6c3a06"
+    },
+    {
+      "id": "record-query-presentation",
+      "observedAt": "2026-10-23T10:33:36.228Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records:query",
+        "body": {
+          "page": 1,
+          "pageSize": 25,
+          "search": null,
+          "fields": [
+            "subject__c",
+            "amount__c",
+            "tags__c"
+          ],
+          "filter": {
+            "field": "amount__c",
+            "op": "gte",
+            "value": 10,
+            "and": null,
+            "or": null
+          },
+          "sort": [
+            {
+              "field": "subject__c",
+              "direction": "asc"
+            }
+          ],
+          "includeTotalCount": false,
+          "aggregates": null,
+          "presentation": {
+            "viewName": "contractProbe",
+            "viewRevision": 1135946773
+          },
+          "loadFieldOptions": true
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "sourceResponseKeys": [
+        "entityCode",
+        "metadataRevision",
+        "page",
+        "pageSize",
+        "totalCount",
+        "fields",
+        "records",
+        "queryPlan",
+        "aggregates",
+        "temporalContracts",
+        "cellStyles",
+        "viewRevision"
+      ],
+      "omittedResponsePaths": [
+        "fields",
+        "records",
+        "queryPlan",
+        "temporalContracts"
+      ],
+      "responseExcerpt": {
+        "entityCode": "skillContractProbe__c",
+        "metadataRevision": 1135946773,
+        "page": 1,
+        "pageSize": 25,
+        "totalCount": 0,
+        "aggregates": [],
+        "cellStyles": {
+          "<record-1>": {},
+          "<record-3>": {
+            "amount__c": "green"
+          },
+          "<record-2>": {
+            "amount__c": "green"
+          }
+        },
+        "viewRevision": 1135946773
+      },
+      "sourceResponseSha256": "197ec6c4065e88e98050f285d6e92dce8bc50b779aa5b80ecb15fea1e7390a07"
+    },
+    {
+      "id": "orchestration-query-debug",
+      "observedAt": "2026-10-23T10:31:59.120Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/orchestration/v1/debug",
+        "body": {
+          "source": "function execute(ctx) { const result = ctx.sdk.fn.invoke('runtime.records.query', {entityCode: 'skillContractProbe__c',query:{page:1,pageSize:1,includeTotalCount:true,fields:['subject__c','amount__c']}}); return {records: result.records, totalCount: result.totalCount}; }",
+          "input": {},
+          "inputFields": []
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "isSuccess": true,
+        "output": {
+          "records": [
+            {
+              "recordId": "<record-2>",
+              "entityCode": "skillContractProbe__c",
+              "createdAt": "2026-10-23T10:29:47.0758220Z",
+              "updatedAt": "2026-10-23T10:29:54.5768700Z",
+              "values": {
+                "subject__c": "合同核验 C 已更新",
+                "amount__c": "30.40"
+              }
+            }
+          ],
+          "totalCount": 3
+        },
+        "errorCode": null,
+        "errorMessage": null,
+        "console": [],
+        "consoleTruncated": false,
+        "statements": 24,
+        "allocatedBytes": 907008,
+        "sourceValid": true,
+        "supportsTrigger": false,
+        "contractIssues": [
+          "trigger_response_contract_invalid"
+        ]
+      },
+      "sourceResponseSha256": "3f0f9fc387442c0d2e8e865878051c5920ca9767f694615a7a3e1401c29e10cf"
+    },
+    {
+      "id": "day-range",
+      "observedAt": "2026-10-23T10:21:09.528Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/service/authen/v1/account/temporal/day-range",
+        "body": {
+          "date": "2026-11-01",
+          "timeZoneId": "America/New_York"
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "startUtc": "2026-11-01T04:00:00.0000000Z",
+        "endUtc": "2026-11-02T05:00:00.0000000Z"
+      },
+      "sourceResponseSha256": "c7a8e9fc9029caf54603e8d29f4be2d4067661a5c8bfcc0f1ddf88aefe4174d4"
+    },
+    {
+      "id": "temporal-resolve",
+      "observedAt": "2026-10-23T10:21:09.530Z",
+      "request": {
+        "method": "POST",
+        "path": "/api/service/authen/v1/account/temporal/resolve",
+        "body": {
+          "items": [
+            {
+              "key": "ordinary",
+              "localDateTime": "2026-10-23T09:00:00",
+              "timeZoneId": "Asia/Shanghai",
+              "temporalContractId": "instant-us-v1"
+            },
+            {
+              "key": "ambiguous",
+              "localDateTime": "2026-11-01T01:30:00",
+              "timeZoneId": "America/New_York",
+              "temporalContractId": "instant-us-v1"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": [
+        {
+          "key": "ordinary",
+          "utc": "2026-10-23T01:00:00.000000Z",
+          "errorCode": null,
+          "candidates": [
+            {
+              "utc": "2026-10-23T01:00:00.000000Z",
+              "offset": "+08:00"
+            }
+          ]
+        },
+        {
+          "key": "ambiguous",
+          "utc": null,
+          "errorCode": "temporal_ambiguous_local_time",
+          "candidates": [
+            {
+              "utc": "2026-11-01T05:30:00.000000Z",
+              "offset": "-04:00"
+            },
+            {
+              "utc": "2026-11-01T06:30:00.000000Z",
+              "offset": "-05:00"
+            }
+          ]
+        }
+      ],
+      "sourceResponseSha256": "5f7f215617dde7540e2dfc3138574ba019bea2e3134575c3aa38fd1757f21330"
+    },
+    {
+      "id": "agent-directory",
+      "observedAt": "2026-10-23T10:21:10.340Z",
+      "request": {
+        "method": "GET",
+        "path": "/api/xrain/v1/agents/directory"
+      },
+      "status": 409,
+      "contentType": "application/json; charset=utf-8",
+      "bodyKind": "json",
+      "response": {
+        "error": "agents.runtime_owned_catalog"
+      },
+      "sourceResponseSha256": "972d1e423a752a7bc1e6f9a37e7a830ce2cadb518a5382b7385d693eed2c3525"
+    },
+    {
+      "id": "setting-missing",
+      "observedAt": "2026-10-23T10:21:09.171Z",
+      "request": {
+        "method": "GET",
+        "path": "/api/tenant/v1/settings/skill-contract-probe/preferences"
+      },
+      "status": 404,
+      "contentType": null,
+      "bodyKind": "empty",
+      "response": "",
+      "sourceResponseSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+    },
+    {
+      "id": "record-delete",
+      "observedAt": "2026-10-23T10:35:07.347Z",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/data/v1/entities/skillContractProbe__c/records/<record-1>"
+      },
+      "status": 204,
+      "contentType": null,
+      "bodyKind": "empty",
+      "response": "",
+      "sourceResponseSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+    }
+  ]
+}
