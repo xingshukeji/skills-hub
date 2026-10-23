@@ -2,7 +2,7 @@
   "provenance": {
     "kind": "sanitized-live-http",
     "capturedOn": "2026-10-23",
-    "target": "铵帮使用的中央测试租户",
+    "target": "中央测试环境的业务租户",
     "notes": [
       "这些结构来自真实 HTTP 响应，不是 mock。",
       "20 位环境身份及 traceId 已替换为占位符；字段名、数据类型、状态码和合成业务值保持原样。",

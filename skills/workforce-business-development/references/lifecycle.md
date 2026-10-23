@@ -1,10 +1,10 @@
 # 模型变更、恢复与应用升级
 
-用于已有业务的字段调整、删除恢复、应用包升级和中断处理。新模型与制品构建见[建模](modeling.md)，包、宿主和应用启用的关系见[公共服务与应用交付](shared-services.md)。
+用于字段变更、删除恢复、包升级与中断接续；构建见[建模](modeling.md)，交付层次见[公共服务](shared-services.md)。
 
 ## 模型保存与实际可用状态
 
-普通模型不是默认的草稿/发布双态，但字段结构变更仍可能部署失败。管理描述的 `deployment` 用于判断变化是否真正可用：
+普通模型没有默认草稿/发布双态，结构变更仍可能失败。按 deployment 判断生效：
 
 | 属性 | 用途 |
 | --- | --- |
@@ -14,7 +14,7 @@
 | `failureCode/lastAttemptAt` | 定位失败及上次尝试 |
 | `canRetry/canRevise/canAbandon` | 当前允许哪些恢复动作，页面据此提供操作 |
 
-例如把文本长度由 160 缩成 80 时，现存值可能不满足新定义。保留原值并处理具体冲突；不能只因模型请求已经提交就按 80 字符的新协议写入，也不能自动截断旧业务数据。
+例如缩短文本长度须处理存量冲突，不能以已提交的 requestedDefinition 代替有效结构或自动截断旧值。
 
 以下用 fieldPath 表示 `/api/metadata/v1/entities/{entityCode}/fields/{fieldApiName}`，普通字段恢复入口为：
 
@@ -24,31 +24,27 @@
 | `PATCH {fieldPath}/failed-deployment` | 在允许修订时提交修正后的字段定义差量 |
 | `DELETE {fieldPath}/failed-deployment` | 在允许放弃时结束该失败变更；查看结果的 `fieldRemoved/field` |
 
-这些管理变更使用返回的 ETag 作为 `If-Match`，修订入口还支持原操作的 `Idempotency-Key` 语义；按目标合同保存和使用实际值。冲突后回读当前定义，不能用缺省 ETag 覆盖他人的新修改。新字段创建失败与已有字段修改失败的放弃结果可能不同，不能把 abandon 一律显示成“恢复旧字段”。
-
-若错误中带有应用包操作 `operationId`，继续追踪该操作；不要同时调用普通字段恢复和另一次包安装来竞争处理同一变化。业务页面只消费有效模型和 Runtime 可用状态，字段管理权限无需下放给录入者。
+管理变更使用实际 ETag/If-Match，修订沿原操作 Idempotency-Key；冲突后重读。放弃新建失败与修改失败的结果可能不同，读取 fieldRemoved/field。若带包 operationId，沿该操作恢复，不与普通字段恢复或新安装并行竞争。
 
 ## 删除影响与回收站
 
-对象与字段删除影响分别通过 `GET /api/metadata/v1/entities/{entityCode}/delete-impact`、`GET /api/metadata/v1/entities/{entityCode}/fields/{fieldApiName}/delete-impact` 读取。响应有 `metadataRevision/dependencies/requiresConfirmation/impactToken`；实际 DELETE 按目标要求带当前 `If-Match` 与 `X-Impact-Token`。影响令牌证明检查对应哪次变化，不是用户授权的替代品。
-
-普通对象/字段的结构删除可能删除实际表、列及数据，元数据的删除标记不保证这些数据能恢复。包管理的定义退出另有保留规则，不能把两者混用。
+对象/字段删除前，分别 GET `/api/metadata/v1/entities/{entityCode}/delete-impact` 或 `/api/metadata/v1/entities/{entityCode}/fields/{fieldApiName}/delete-impact`，读 metadataRevision/dependencies/requiresConfirmation/impactToken；DELETE 带当前 If-Match/X-Impact-Token。普通结构删除可能删除表、列和数据，不等于记录软删除；包资源退出另按管理策略。
 
 回收站基址为 `/api/service/recycle-bin/v1`：
 
 | 请求 | 结果与消费 |
 | --- | --- |
-| `GET /resources` | 当前支持的 `{resourceKey, label, deletedCount}` 列表 |
-| `GET /resources/{resourceKey}/items?page=1&pageSize=25&search=...` | 分页 `{items, page, pageSize, totalCount}`；项有 `itemId/displayName/code/deletedAt/deletedById` |
+| `GET /resources` | 当前有已删内容的受支持资源 `{resourceKey, label, deletedCount}` 列表；空数组不表示没有恢复能力 |
+| `GET /resources/{resourceKey}/items?page=1&pageSize=25&search=...` | 分页 `{items, page, pageSize, totalCount}`；项有 `resourceKey/itemId/displayName/code/deletedAt/deletedById` |
 | `POST /resources/{resourceKey}/items/{itemId}/restore` | 恢复指定资源，返回 `{resourceKey, itemId, displayName}` |
 
-resourceKey 从资源列表取得，不从对象 API 名拼造。当前回收站入口还要求对象设计管理与明确记录管理权限，不是所有业务用户都能恢复自己看过的数据。`recycle_bin.resource_not_supported` 表示没有该能力，`recycle_bin.restore_conflict` 表示恢复条件冲突；回读并处理当前名称、引用或状态，不能自动删除占用项来腾位置。
+resourceKey 从列表取并编码为单个 segment，普通记录实测为 `runtime-record:<entityCode>`。入口需对象设计及明确记录管理权；`recycle_bin.resource_not_supported` 表示不支持，`recycle_bin.restore_conflict` 表示条件冲突。冲突后核对名称/引用，不删除占用项来腾位置。
 
-恢复后重新检查资源及其业务引用。这里没有通用的“所有记录撤销删除”“一键恢复整库”或永久清理 API 承诺；需要哪类恢复，先用资源目录和对应资源合同确定。
+普通记录已实测软删后 GET 404、恢复后 200，保留 recordId/createdAt/Owner/父引用并产生删除/恢复历史。“归档/作废”仍是业务状态；恢复后核对引用与补偿，不等于重放通知或跨系统回滚。
 
 ## 先读资源的管理边界
 
-已安装包的管理 DTO 可附带 `management`：`origin/state/package/editableProperties/allowedActions/restrictions/policyVersion/revision`。配置表单按这个描述组织编辑，提交原资源接口允许的差量；`management` 是响应描述，不作为请求内容回传，也不是最终授权结论。
+管理 DTO 的 management 含 origin/state/package/editableProperties/allowedActions/restrictions/policyVersion/revision。按可编辑属性提交原接口差量，不回传 management 或以它代替最终授权。
 
 | 内容归属 | 升级时如何处理 |
 | --- | --- |
@@ -58,13 +54,11 @@ resourceKey 从资源列表取得，不从对象 API 名拼造。当前回收站
 | 租户本地子资源 | 保持本地来源，并校验父对象与引用继续有效，不按同名自动收编 |
 | 包初始化的业务数据 | 只初始化真正首次出现的身份，不重复覆盖、补建或复活已经修改/删除的业务记录 |
 
-允许隐藏的包视图在升级后继续保留隐藏状态；字段、权限或执行定义不能一概套用同一隐藏/保留规则。退役资源的“保留历史”也不等于仍能执行旧代码或继续授予旧权限。
-
-全员包权限集还有独立的租户授权选择：发布者维护 `assignmentAudience`，租户安装绑定保存 `allEmployeesEnabled`。升级、重试及同一安装重引入保留显式 false，不能用包默认值重新开启；首次启用和已启用集扩权会产生当前及未来员工的安全影响。协议、示例和固定集的区别见[初始化基础](initialized-platform.md)。
+可隐藏视图在升级后保留隐藏，其他资源按各自策略；保留历史不保证旧代码或授权仍有效。全员包集的 allEmployeesEnabled 保留显式 false，首次启用/扩权按[初始化合同](initialized-platform.md)确认。
 
 ## 安装与升级的公开操作
 
-包管理 API 基址为 `/api/application/v1`。安装、预览、查看组件和恢复等通常使用具备实际管理资格的租户登录态；`packages:build` 的 Token 准入例外不自动开放其余管理接口。
+包管理基址 `/api/application/v1`，使用有管理资格的租户登录态；packages:build 的 Token 准入例外不适用于其余管理入口。
 
 | 请求 | 用途 |
 | --- | --- |
@@ -82,7 +76,7 @@ resourceKey 从资源列表取得，不从对象 API 名拼造。当前回收站
 | `POST /operations/{operationId}/cancel` | 取消允许取消的 Pending/Waiting 操作 |
 | `DELETE /installations/{installationId}` | 受管卸载操作，不等于删除全部业务数据 |
 
-preview 与 install 使用同一请求形状，例如已存在安装的版本升级：
+preview/install 使用相同请求；已有安装升级示例：
 
 ```json
 {
@@ -94,11 +88,11 @@ preview 与 install 使用同一请求形状，例如已存在安装的版本升
 }
 ```
 
-revision 取自当前安装；绑定键、绑定值结构、确认的 `recordId/unit/token` 都从实际预览或操作详情取得，不拿旧环境的用户、变量或确认令牌照搬。空对象只是例子；目标有缺口时提交对应合法绑定。相同操作重试使用原 requestId，结果未知先查询安装及已有操作；不能每次网络重试创建新意图。
+revision 取当前安装；绑定结构与确认 recordId/unit/token 从实际预览取得。相同操作沿用 requestId，结果未知先查已有操作，不盲目重发。
 
-resolve 的 body 包含 `expectedRevision`，并按实际缺口提交 `tenantBindings/confirmations/resolutions/configurationChanges`。只修改服务端给出的可编辑属性；包身份或发布者控制属性冲突时，选择兼容版本或修正业务设计，不把全部冲突机械设成“采用租户值”。候选配置在操作成功生效前不作为当前运行定义。
+resolve 提交 expectedRevision 和当前缺口所需的 tenantBindings/confirmations/resolutions/configurationChanges，仅修改可编辑属性。身份或发布者属性冲突需兼容版本/业务修正；成功前不消费候选定义。
 
-旧安装若返回 `managed_policy_upgrade_required` 或来源控制待核对，按受管策略预览与转换入口处理其具体差异；不能把旧租户覆盖自动标记成合法新策略，也不能用同版本重装绕开控制。转换完成与业务数据修复是不同结果。
+managed_policy_upgrade_required 等旧安装提示按策略预览/转换处理，不以同版本重装绕过；策略转换不代替数据修复。
 
 ## 根据状态接续
 
@@ -111,8 +105,6 @@ resolve 的 body 包含 `expectedRevision`，并按实际缺口提交 `tenantBin
 | `Succeeded` | 操作已完成，再检查安装版本、组件及本次业务结果 |
 | `Cancelled` | 操作已取消，不据此宣称目标版本生效 |
 
-当前安装恢复是沿原操作继续完成，不能笼统承诺跨库回滚。Running/Finalizing 的网络或服务中断不代表“什么都没写”；保留 operationId，通过 continue 和管理入口恢复，避免直接写库、清除状态或重新初始化。
+Running/Finalizing 中断保留 operationId，通过 continue 接续，不能当作未写入或承诺跨库回滚。
 
-卸载会清除当前安装版本并处理实际自动化等资源的可用性，仍保留必要绑定、结构、变量、业务数据和历史；依赖冲突仍需处理。重装不重复初始化已处理过的业务种子。选择较旧版本也需要通过当前数据与结构兼容性校验，不是数据库时间点回滚。
-
-例如升级维修应用时，企业自定的列标签和允许的环境绑定应保留，新包业务逻辑随版本推进；旧数据不满足新增必填约束时，先采用兼容过渡版本或本次已授权的数据修复，再继续同一升级目标。交付结果分别说明包操作是否成功、宿主代码是否更新，以及哪些业务行为已实际验证。
+卸载退出当前版本并处理资源可用性，保留必要绑定、结构、变量、业务数据与历史；仍须处理依赖。重装不重复种子初始化，切旧版本也须通过当前结构/数据兼容性校验。

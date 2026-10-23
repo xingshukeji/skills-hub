@@ -1,42 +1,31 @@
 ---
 name: workforce-business-development
-description: 结合 XRain 与 Workforce 开发企业非标业务，复用平台资源和已有系统 API，完成元数据驱动的建模、授权与交互，以及业务逻辑、自动化、页面和智能体工具。
+description: 基于 XRain 与 Workforce 开发企业非标业务，复用平台能力和原系统 API，完成建模、授权、业务逻辑、自动化、页面与智能体工具。
 ---
 
 # Workforce 企业业务开发
 
-在当前项目中直接完成业务实现。可选择 XRain 原生建模、已有系统 API 接入或混合方案；接续已有需求、模型和技术选择。
+在当前项目实现业务，沿用已有需求、模型、身份与接入方式。按闭源条件使用交付文档、公共包导出、受支持 API 和企业代码；不依赖平台源码、内部导入路径或相邻仓库。示例采用通用业务名称和命名空间。
 
-按闭源平台的接入条件工作：使用交付文档、公共包的导出与类型、受支持的 API/管理入口及企业自己的代码。本 skill 独立可用，不依赖平台源码、内部导入路径、相邻仓库或平台构建产物。
+- 先将需求拆成平台已实现、需配置接入、需新增逻辑。复用标准字段、授权、分享、历史、恢复和原系统操作，只建独立业务事实。
+- 核对目标既有资源后增补，保留租户配置与稳定身份。全员能力、User 和默认选项见初始化基础。
+- 元数据要接到页面、工具或处理器；分别落实推荐呈现、服务端约束与业务规则。
+- 区分 HTTP、SDK、管理请求和包资源，使用实际合同。缺口明确标注，继续完成不依赖它的部分。
+- 验证受影响的数据、权限和交互；交付时区分模型生效、宿主加载和业务执行结果。
 
-按当前问题选读：
+只读取当前问题所需的专题：
 
-| 当前要解决的问题 | 参考 |
+| 问题 | 参考 |
 | --- | --- |
-| 接口选择、请求/返回、SDK 差异与实测范围 | [业务 API](references/business-api.md) |
-| 原生建模、原系统接入或混合实现 | [平台与业务](references/platform.md) |
-| 全员权限、User、标准字段、默认选项 | [初始化基础](references/initialized-platform.md) |
-| 权限声明、字段呈现、候选、视图与前端消费 | [元数据与前端](references/metadata-and-ui.md) |
-| 对象、字段、关联、查询与保存 | [建模](references/modeling.md) |
-| 批量写入、计数、去重、聚合与导出 | [数据操作](references/data-operations.md) |
-| 原系统用户身份、连接器与 HTTP 接口 | [系统集成](references/integration.md) |
-| 职责、权限集、记录范围与执行身份 | [业务授权](references/authorization.md) |
-| 人员、组织条件、人工分享与 Owner 交接 | [组织与协作](references/organization-and-collaboration.md) |
-| 变量、个人设置与 API Token | [运行配置](references/configuration-and-api.md) |
-| 函数、JavaScript 编排、Trigger 与 Routine | [自动化](references/automation.md) |
-| 页面、宿主、插件与智能体工具 | [业务接入](references/implementation.md) |
-| 智能体订阅、应用选用与使用资格 | [智能体选用](references/agent-access.md) |
-| 消息、文件、Task 与应用交付 | [公共服务](references/shared-services.md) |
-| 邮箱接入、检索、正文与草稿 | [个人邮箱](references/personal-email.md) |
-| 字段部署、删除、回收站与应用升级恢复 | [生命周期](references/lifecycle.md) |
-| 语言、显示时区、业务日期与调度 | [时间上下文](references/regional-context.md) |
-| 企业实践 | [铵帮案例](references/anbang.md) |
+| 需求复用与模型 | [对象自带能力](references/object-foundation.md)、[建模](references/modeling.md) |
+| 承载方式与预置资源 | [平台与业务](references/platform.md)、[初始化基础](references/initialized-platform.md) |
+| 接口与数据操作 | [业务 API](references/business-api.md)、[批量/统计/导出](references/data-operations.md) |
+| 权限与记录协作 | [授权](references/authorization.md)、[人员/组织/分享/交接](references/organization-and-collaboration.md) |
+| 外部系统与配置 | [集成](references/integration.md)、[变量/设置/Token](references/configuration-and-api.md) |
+| 自动执行与时间 | [函数/Trigger/Routine](references/automation.md)、[地区与日期](references/regional-context.md) |
+| 页面与智能体 | [元数据与前端](references/metadata-and-ui.md)、[宿主与工具](references/implementation.md)、[智能体选用](references/agent-access.md) |
+| 协作服务 | [消息/附件/Task](references/shared-services.md)、[个人邮箱](references/personal-email.md) |
+| 变更与恢复 | [模型和应用生命周期](references/lifecycle.md) |
+| 案例与验证依据 | [企业销售案例](references/enterprise-case.md)、[API 实测范围](references/api-verification.md) |
 
-- 从业务动作确定数据来源、规则、参与者和执行身份。复用原系统已有操作，按需建模新增事实；混合实现明确各系统的维护责任。
-- 主动复用已初始化资源，核对目标状态后增补。例如全员能力使用 `xrain-all-employees` 或包的全员贡献，人员字段引用受保护 User；保留租户已有配置。
-- 把元数据声明接到实际消费者，区分推荐呈现、服务端约束和业务处理器负责的行为。配置保存成功不代表页面、工具或业务动作已经实现。
-- 按目标 API 和项目所用公共包适配字段与响应；区分 HTTP、SDK、管理请求和包资源，不补造结构。缺少具体合同时说明缺口，并继续完成不依赖它的部分。
-
-沿用项目已有 SDK、管理入口或 CLI，以及稳定模型身份和配置来源。验证改动涉及的数据、权限与交互，交付实际修改、验证结果及具体缺口；分别说明模型资源、宿主加载和业务运行的完成状态。
-
-参考文件相对本 skill 目录读取；Workforce 中以加载结果的 `resourceBase.path` 为基准。
+相对路径以本 skill 目录为基准；Workforce 使用加载结果的 `resourceBase.path`。

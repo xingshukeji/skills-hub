@@ -1,6 +1,6 @@
 # 业务 API 与返回合同
 
-按业务动作选择下表接口，具体实现见各专题。HTTP、SDK、管理请求与包资源分别适配，各模块没有统一响应外层。[实测范围](api-verification.md)区分真实调用与合同核对；[响应样例](../assets/http-contract-samples.json)保留真实结构并替换环境标识，responseExcerpt 表示非完整摘录。
+按业务动作查接口，细节见各专题。HTTP、SDK、管理请求和包资源分别适配。[验证范围](api-verification.md)区分实测与合同核对；[响应样例](../assets/http-contract-samples.json)已替换环境标识，responseExcerpt 为摘录。
 
 ## 调用前确定三个身份
 
@@ -12,7 +12,7 @@
 | 对象 | 运行路径使用目录的 entityCode；自定义对象通常与 entityApiName 同值，User 实测为 runtime.User / User |
 | 资源和记录 | objectId、fieldId、recordId、应用 resourceId、functionId、versionId 分别使用；标签不是 ID |
 
-本次实测使用租户登录态，API Token 支持另看准入。入口权限不包含业务数据授权：普通成员可读查询能力和成员资料，查询未授权对象仍返回 403。
+实测使用租户登录态，API Token 另查准入。入口权限不包含数据授权：普通成员可读查询能力与人员资料，未授权对象仍返回 403。
 
 ## 记录、统计与协作
 
@@ -21,7 +21,7 @@
 | 业务动作 | HTTP 与输入 | 成功返回 |
 | --- | --- | --- |
 | 分页查询 | `POST R:query`；`{page, pageSize, fields, filter?, sort?, includeTotalCount?, aggregates?, presentation?}` | `{entityCode, metadataRevision, page, pageSize, totalCount, fields, records, queryPlan, aggregates, temporalContracts}`；使用视图呈现时另有 cellStyles/viewRevision |
-| 读取一条 | `GET R/{recordId}` | `{recordId, entityCode, createdAt, updatedAt, values}` |
+| 读取一条 | `GET R/{recordId}` | `{recordId, entityCode, createdAt, updatedAt, values}`；敏感显示值另在 maskedDisplayValues |
 | 新建 | `POST R`；`{values}` | HTTP 201，单条记录 |
 | 修改 | `PUT R/{recordId}`；`{values, expectedValues?}` | HTTP 200，更新后的单条记录 |
 | 删除 | `DELETE R/{recordId}` | HTTP 204，空正文 |
@@ -35,9 +35,12 @@
 | 授权导出 | `POST R:export`；分页查询 | 与查询同形的当前页 JSON；另检查 export 权限，不自动生成文件 |
 | 多对象/多条件一起读取 | `POST /api/data/v1/records:queryBatch`；`{queries: [{entityCode, query}, ...]}` | `{results: [{entityCode, result}, ...]}`，最多 8 项 |
 | 记录历史 | `GET R/{recordId}/history?page=1&pageSize=20` | `{page, pageSize, totalCount, items}`；项含 action、操作者和 changes |
+| 按需读取敏感原值 | `POST R/{recordId}/original-values`；`{fields: ["contact__c"]}` | `{recordId, values}`；按有效访问选择直接敏感字段，非敏感字段实测 400 |
 | Owner 交接 | `POST R/{recordId}:transferOwner`；`{ownerId}` | 合同为 `{recordId, ownerId}`；本次验证了无目标对象 Read 权限时的拒绝 |
 
 query 的条件叶子是 `{field, op, value}`，and/or 组成非空条件组；选项值、精确数值、日期时间遵守字段合同。实测金额 `"10.20"` 原样作为字符串返回，业务时刻的七位小数输入被规范为六位微秒 UTC。查询 pageSize 为 1、总记录数为 3 时，聚合仍返回完整筛选范围的 `"60.90"`，不能拿当前页代替汇总。
+
+关联字段可按目标支持的路径选取，例如 `parentId__c.name__c`；实测结果在 values 中使用同名点路径键，不返回自行猜测的嵌套 parent 对象。标准字段、敏感值和历史差异的消费见[对象基础](object-foundation.md)及[元数据与前端](metadata-and-ui.md)。
 
 人工分享的能力、候选、资格和已有分享分别读取 `R/{recordId}/shares/capability`、`/recipients`、`/eligibility?userId=...`、分享根路径；列表使用 `{page, pageSize, totalCount, items}`。capability 和 eligibility 都有独立 DTO，不能用一个通用 allowed 字段代替。分享写入、Owner 资格和历史旧值语义见[组织与协作](organization-and-collaboration.md)；批量事务、去重限制、聚合及导出见[数据操作](data-operations.md)。
 
@@ -55,9 +58,9 @@ query 的条件叶子是 `{field, op, value}`，and/or 组成非空条件组；�
 | 视图允许的字段路径 | `GET /api/metadata/v1/entities/{entityCode}/view-field-catalog` | `{entityCode, metadataRevision, fields}` |
 | 设计标准 | `GET /api/metadata/v1/standards/entity-design` | 类型、命名、呈现、筛选和时间合同；开发管理入口 |
 
-注意三个实测差异：describe 用 fieldApiName，查询字段描述用 apiName；describe 不提供 fields[].options；`/options` 仅支持选项类型，UserRef 实测 400。人员使用受控成员资料，Lookup 查询目标对象，写入时校验引用。
+实测：describe 用 fieldApiName，查询字段描述用 apiName；describe 无 fields[].options；`/options` 仅支持选项类型，UserRef 返回 400。人员读受控成员资料，Lookup 查询目标对象。
 
-视图转换实测返回 `query.presentation: null`。要取得视图显示覆盖与条件填色，添加 `{viewName, viewRevision: views.metadataRevision}` 到查询的 presentation；不能只传整份视图响应，也不能猜修订号。详细配置、保存差量、记录类型和前端消费见[元数据与前端](metadata-and-ui.md)。
+视图转换实测 `query.presentation: null`；显示覆盖与条件填色需在 presentation 中提交 `{viewName, viewRevision: views.metadataRevision}`。配置、保存差量、记录类型和前端消费见[元数据与前端](metadata-and-ui.md)。
 
 ## 当前用户、人员、设置与时间
 
@@ -107,7 +110,7 @@ debug 会真实执行动作；正式调用使用函数、接口或 Routine 入�
 
 ## 开发配置与交付接口
 
-创建字段、维护组织和安装资源包使用相应管理入口；业务调用消费已生效资源。
+管理入口维护配置，业务入口消费生效资源：
 
 | 配置能力 | 主要读取/操作入口 | 返回或边界 |
 | --- | --- | --- |
@@ -119,15 +122,15 @@ debug 会真实执行动作；正式调用使用函数、接口或 Routine 入�
 | 包、安装与组件 | `/api/application/v1/packages`；`/installations/{installationId}`、`/components`、`/operations` | 包为数组；安装为对象；组件有 items；操作列表用 hasMore |
 | 升级/安装操作状态 | `GET /api/application/v1/operations/{operationId}` | `{id, installationId, sourceVersionId, targetVersionId, sourceRevision, status, errorCode, details, createdAt, updatedAt}` |
 | 模型删除影响 | `/api/metadata/v1/entities/{entityCode}/delete-impact` | 当前 metadataRevision/impactToken；DELETE 使用 If-Match/X-Impact-Token |
-| 回收站能力 | `GET /api/service/recycle-bin/v1/resources` | 当前受支持资源数组；此次为空，未验证恢复 |
+| 回收站中有内容的资源 | `GET /api/service/recycle-bin/v1/resources` | `{resourceKey, label, deletedCount}` 数组；只列当前有已删内容的受支持资源，空数组不表示不支持恢复 |
 
 配置和交付细节见[初始化基础](initialized-platform.md)、[运行配置](configuration-and-api.md)和[生命周期](lifecycle.md)。应用包中的 `kind/values` 是资源序列化，不是这些 HTTP 接口的请求 DTO。
 
 ## HTTP、SDK 与错误解析
 
-Workforce 0.3.8 的两个方法已经过真实响应验证：`context()` 仅保留 tenantId/userId/effectivePermissions；`queryBatch()` 将 HTTP 的 results 包装解为查询结果数组。其他方法也按其公开导出和类型使用，不按 HTTP 路径猜方法名。
+实测 Workforce 0.3.8：`context()` 仅保留 tenantId/userId/effectivePermissions；`queryBatch()` 将 HTTP results 解为查询结果数组。其他方法查公开导出和类型，不按路由猜名称。
 
-HTTP 不存在统一 `{success, data, error}` 外层。先判断状态码和是否有正文，再按该接口处理 JSON。以下均来自本次真实返回：
+HTTP 无统一 `{success, data, error}` 外层；先判断状态码和正文，再按接口解析。以下均为实测：
 
 | 情况 | 状态与错误结构 | 业务处理 |
 | --- | --- | --- |
@@ -136,8 +139,10 @@ HTTP 不存在统一 `{success, data, error}` 外层。先判断状态码和是�
 | 视图修订变化 | 409，`errorCode: view_revision_conflict` | 重读视图及 metadataRevision |
 | 唯一查询命中多条 | 400，`errorCode: platform.data.query.multiple_records_matched` | 处理业务唯一性，不能静默取第一条 |
 | 非选项字段查询 options | 400，`errorCode: platform.data.validation_failed` | 改用对应目标对象/人员接口 |
+| 普通写入系统管理字段 | 403，`errorCode: platform.data.field_not_writable` | 按有效写入字段提交；Owner 使用专门转移入口 |
 | 助手应用上下文缺失 | 403，`{error: "agents.application_context_required"}` | 接续可信宿主的应用链路 |
 | 未配置个人设置 | 404，空正文 | 使用应用明确的缺省值 |
 | 目录扩展/OpenAPI 服务错误 | 500，`{message, details, traceId}` | 保留服务错误，使用已成功的 JSON 目录；不当成空列表 |
+| Text 超过声明长度 | 本次 25 字符写入长度 24 的字段返回 500，`{message, details, traceId}` | 保留服务错误并提示实际长度限制；不能假定所有字段校验均返回 400 |
 
 记录与元数据错误通常有 type/title/status/errorCode/message，部分含 traceId；智能体 error 则可能是字符串，按各自结构解析。未实测操作见[验证范围](api-verification.md)。

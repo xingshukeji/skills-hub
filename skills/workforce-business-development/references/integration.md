@@ -9,17 +9,17 @@
 | 一个动作组合平台记录与外部接口 | 平台业务编排或企业业务服务 | 各数据源保留自己的授权，组合操作还检查业务规则 |
 | 只需要在现有页面增加原系统数据 | 在已有服务适配层增加调用，页面或工具共用它 | 沿用已有会话与原系统接入，不因增加展示而复制数据模型 |
 
-“以用户身份调用”要求原系统实际识别该用户。添加 `X-User-Id`、传入一个用户名或拿 XRain 的 token 直接请求 ERP，不自动构成委托认证。使用原系统支持的单点登录、用户授权、令牌交换或受信代理协议；由可信会话关联原系统身份、租户和凭据。
+用户代理须使用原系统支持的单点登录、授权、令牌交换或受信代理协议，由可信会话关联原系统身份、租户和凭据。`X-User-Id`、用户名或 XRain token 本身不构成 ERP 委托认证。
 
-平台的原生 Connector 凭据按租户与连接器管理；受管 Connector 也可通过 `credentialVariableId` 绑定受保护变量。这些是集成凭据机制，不等于每个登录用户的 OAuth 凭据。接口模板中的 `system.actorId` 可用于约定的业务审计，但只有原系统明确认可相应受信协议时才具有代理用户的含义。
+Connector 凭据按租户与连接器管理，也可用 `credentialVariableId` 绑定受保护变量；它们不是个人 OAuth 凭据。模板 `system.actorId` 可用于审计，只有远端认可相应受信协议时才表示代理用户。
 
-变量创建与作用域、配置是否有值、当前用户设置，以及外部程序调用 XRain 的 Token 管理，见[运行配置与 API 访问](configuration-and-api.md)。连接器引用变量 ID，不能把变量列表当成明文秘密读取接口。
+变量、用户设置与 Token 见[运行配置](configuration-and-api.md)。连接器引用变量 ID，变量列表不返回秘密明文。
 
 ## 在企业宿主中转发用户请求
 
-把原系统 API 包装为具体业务操作，例如 `readErpOrder(orderId)`。页面和工具只提供业务参数，目标地址来自服务端配置，身份来自当前会话；原系统数据权限继续由原系统执行。原系统写入已有业务 API 时，保留其校验、版本条件和幂等约定。
+将原系统 API 包装为 `readErpOrder(orderId)` 等业务操作：页面和工具只提供业务参数，地址来自服务端配置，身份来自会话。保留原系统的授权、校验、版本条件和幂等约定。
 
-下面是企业宿主的 JavaScript 示例。`acquireUserCredential` 是业务项目需要接到原系统认证的适配函数，不是 XRain 内置方法。它根据可信 `context` 取得当前用户在该 ERP 租户的凭据租约，返回 `authorizationHeader` 和 `release()`；不能接受工具参数指定用户或凭据。示例假定原系统已提供返回 JSON 的 `GET /v1/orders/{orderId}`。
+宿主示例假定 ERP 已提供返回 JSON 的 `GET /v1/orders/{orderId}`。项目实现的 `acquireUserCredential` 根据可信 `context` 取得当前用户在 ERP 租户的凭据租约，返回 `authorizationHeader` 和 `release()`；用户和凭据不能由工具参数指定。
 
 ```js
 export function createErpOrderReader({ baseUrl, acquireUserCredential }) {
@@ -46,9 +46,9 @@ export function createErpOrderReader({ baseUrl, acquireUserCredential }) {
 }
 ```
 
-真实适配层把原系统的无权限、未找到、过期登录、限流等转换为可识别的业务结果；示例只展示凭据、固定路由、取消与释放。远端结果按页面和工具需要筛选，凭据不进入返回值、模型上下文或日志。它运行在企业宿主，不可直接粘贴到平台受控编排中使用 `fetch`。
+适配层还需映射无权限、未找到、登录过期和限流等结果，并筛选返回字段；凭据不得进入结果、模型上下文或日志。此代码运行在宿主，平台受控编排不能直接使用 `fetch`。
 
-已发布 Runtime 的根导出还提供 `LowCodeConnector` 和 `ExecutionBinding`：前者接收 `baseUrl`、可选的认证头名称 `authorizationHeader`、超时或 transport，后者提供 `active`、`invoke(operation, signal)`、`child()`、`release()`。operation 使用 `{method, path, headers?, body?}`，返回 `{status, body}`。绑定持有实际凭据，连接器按原值写入认证头，不自动补写 Bearer 前缀；操作参数不能覆盖该认证头。它们提供传输与执行绑定，不负责把 XRain 身份自动转换为任意 ERP 身份。已有绑定由可信宿主取得并管理；`XRainRuntimeClient.fromExecution(...)` 用于 XRain API，不能据此假设任意上游地址都已授权。
+Runtime 根导出的 `LowCodeConnector` 接收 `baseUrl`、可选认证头名称 `authorizationHeader`、超时或 transport；`ExecutionBinding` 提供 `active`、`invoke(operation, signal)`、`child()`、`release()`。operation 为 `{method, path, headers?, body?}`，返回 `{status, body}`。可信宿主管理绑定与凭据；认证头按原值写入，不补 Bearer 前缀，也不允许操作参数覆盖。此机制不转换 ERP 身份；`XRainRuntimeClient.fromExecution(...)` 仅用于 XRain API。
 
 ## XRain 的三类 HTTP 资源
 
@@ -58,9 +58,9 @@ export function createErpOrderReader({ baseUrl, acquireUserCredential }) {
 | HttpRequest | HTTP 方法、相对路径、query、headers、body 模板 |
 | HttpInterface | 对业务暴露的稳定入口、名称和执行权限；`raw` 关联请求，`orchestrated` 关联编排 |
 
-一个连接器可供多个请求复用；请求与对外接口有独立身份。管理目录 `GET /api/integration/v1/http-interfaces/catalog` 返回实际 `invokeMethod`、`invokePath`、`permissionName`、输入变量及目标信息。引用实际权限名，不从名称拼接；变量清单也不是完整的参数类型合同。
+连接器可供多个请求复用，请求与接口身份独立。`GET /api/integration/v1/http-interfaces/catalog` 返回 `invokeMethod`、`invokePath`、`permissionName`、输入变量与目标信息。使用返回的权限名；变量清单不等于完整参数类型合同。
 
-以下按已有管理权限创建资源，调用前复用当前环境的同用途资源。路径相对 XRain，示例域名不可连接。
+先复用同用途资源；确需创建时使用管理权限。以下路径相对 XRain，示例域名不可连接。
 
 创建 Connector：`POST /api/integration/v1/connectors`。
 
@@ -103,30 +103,30 @@ export function createErpOrderReader({ baseUrl, acquireUserCredential }) {
 }
 ```
 
-模板可读取 `input.*`、`credential.token`，以及 `system.invocationId`、`system.tenantId`、`system.actorId`、`system.timestampUtc`。整个 JSON 值为占位符时保留数字、布尔值或对象的类型；字符串内嵌替换则产生字符串。路径变量按 segment 编码，例如 `o/1001` 转为 `o%2F1001`。凭据 token 不可用于 path；在管理入口配置凭据引用，不把实际凭据写入模型包或业务参数。
+模板支持 `input.*`、`credential.token`、`system.invocationId`、`system.tenantId`、`system.actorId`、`system.timestampUtc`。整个 JSON 值为占位符时保留类型，字符串内嵌替换产生字符串。路径变量按 segment 编码，如 `o/1001` → `o%2F1001`。token 不可用于 path；凭据在管理入口绑定，不写入包或业务参数。
 
-网络协议、端口和可达地址由目标部署策略决定，开发时检查实际目标，不套用固定的“只能 HTTPS 443”规则。环境地址与凭据各自配置，迁移包时不要把测试地址当作生产配置。
+协议、端口和可达地址按部署策略检查，不套用固定 HTTPS 443 限制；环境地址与凭据分别配置，迁移时替换测试地址。
 
 ## 调用结果与编排组合
 
-普通运行入口是 `POST /api/integration/v1/http-interfaces/{interfaceId}`，body 直接为输入对象。例如：
+普通入口 `POST /api/integration/v1/http-interfaces/{interfaceId}` 的 body 直接为输入对象：
 
 ```json
 {"orderId": "o/1001", "dryRun": true, "amount": 1280.50}
 ```
 
-其返回结构包含 `{statusCode, isSuccess, headers, body}`；外层 HTTP 200 不保证远端调用成功。读取内部状态和业务结果，保留原系统的“受理中”“未完成”等含义。raw 调试入口可能返回原始响应字节，不可与普通运行入口的封装混用。
+返回 `{statusCode, isSuccess, headers, body}`；按内部状态和业务结果判断，HTTP 200 不保证远端成功。raw 调试入口可能返回原始字节，不能套用此封装。
 
-在编排中，通过 `ctx.sdk.fn.invoke(key, input)` 调用目录中的 raw 接口名称。当前行为是远端非 2xx 导致编排调用失败；JSON 成功响应返回解析后的 body，非 JSON 响应返回状态和响应头信息。它与直接调用接口的返回封装不同，不写一套假设两者同形的解析代码。已有编排可通过 `POST /api/integration/v1/http-interfaces/from-orchestration/{orchestrationId}`，携带 `label`、`name`、可选说明与启用状态，发布成 `orchestrated` 接口。
+编排通过 `ctx.sdk.fn.invoke(key, input)` 调用目录中的 raw 接口名称：远端非 2xx 导致调用失败；JSON 成功响应返回解析后的 body，非 JSON 返回状态和响应头，与直接调用不同。已有编排可用 `POST /api/integration/v1/http-interfaces/from-orchestration/{orchestrationId}`，携带 `label`、`name`、可选说明和启用状态，发布为 `orchestrated` 接口。
 
-直接调用 raw 接口检查其执行权限。通过 orchestrated 入口执行时，外层接口权限授权了该组合操作；其内部 raw 调用不要求逐一给调用者同样的接口权限，仍核对租户、启用与配置。平台记录调用继续受实际执行者的数据授权约束。设计外层接口的输入和能力时按完整业务动作授权，不把任意接口名或任意 URL 暴露成一个通用可执行参数。当前编排不能把另一个 orchestrated HTTP 接口当作 raw 子调用。
+直接 raw 调用检查其执行权限；orchestrated 入口按完整组合动作授权，内部 raw 调用不逐项要求调用者拥有同样权限，但仍检查租户、启用和配置。记录操作仍受执行者的数据授权约束。外层参数不得开放任意接口名或 URL；编排也不能将另一个 orchestrated HTTP 接口作为 raw 子调用。
 
 ## 混合系统的查询、写入与一致性
 
-原系统返回的记录无需先导入 XRain 才能展示。若要补充本地回访等信息，可按 `(sourceSystem, sourceTenant, sourceRecordId)` 关联。明确页面上哪些字段来自原系统、哪些可在本地编辑、哪些是某时刻的快照；外部时间、选项、金额单位和缺值由适配层映射。
+原系统记录可直接展示，本地补充信息按 `(sourceSystem, sourceTenant, sourceRecordId)` 关联。页面区分来源、可编辑字段和快照；适配层映射外部时间、选项、金额单位及缺值。
 
-多来源列表要保留各自分页或游标。只有来源支持所需筛选、排序、总数，或已有完整同步索引时，才能承诺统一分页和统计；不能把两页数据拼起来称为全量结果。平台原生关系查询和批量查询不自动跨 ERP 建立 join。管理端的 dblink 元数据浏览也不等于已提供任意外库虚拟表或跨库查询能力。
+多来源保留各自分页或游标；统一分页和统计须有来源支持的筛选、排序、总数或完整同步索引。原生关系/批量查询不跨 ERP join；dblink 元数据浏览也不等于外库虚拟表或跨库查询。
 
-原系统写成功、本地补充保存失败时，返回这两个实际状态，使用原系统单号接续修复；不要告诉用户整个动作已回滚。外部 HTTP 调用不在 XRain 记录事务中。需要可重复执行的业务使用原系统的幂等键、业务唯一键、结果查询或项目已有补偿机制；超时后先确认原请求结果，避免重复提交。缓存、索引和快照按实际业务需要引入，附带来源与时效，不额外复制原系统全部业务规则。
+外部 HTTP 不在 XRain 记录事务内。远端成功、本地失败时返回各自状态，用远端单号接续修复；重试使用幂等键、业务唯一键、结果查询或既有补偿，超时先确认原请求结果。缓存、索引和快照按需引入，记录来源与时效。
 
-验证集中在这次接入的关键行为：两个真实权限不同的测试主体能否得到对应结果、字段映射是否正确、分页是否完整表达、写入超时或部分失败能否接续。凭据续期和租户切换沿宿主已有会话机制，原系统拒绝时保留原因，不切到管理员身份绕过。
+验证不同权限主体、字段映射、分页、超时和部分失败恢复。续期与租户切换沿宿主会话机制；保留原系统拒绝原因，不改用管理员绕过。
