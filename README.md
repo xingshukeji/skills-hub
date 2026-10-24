@@ -9,15 +9,18 @@
 | --- | --- |
 | [cicd](skills/cicd/SKILL.md) | 查询、触发已有 Jenkins 流水线并跟踪构建、发布或部署；不编写流水线。 |
 | [workforce-agent-troubleshoot](skills/workforce-agent-troubleshoot/SKILL.md) | 排查 Workforce 智能体不回复、不跟进、工具失败、重复消息、会话混淆和接管后迟到写入。 |
-| [workforce-business-development](skills/workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 开发企业非标业务，复用平台能力和原系统 API，完成建模、授权、业务逻辑、自动化、页面与智能体工具。 |
+| [workforce-business-development](skills/workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 落地企业业务，先复用已确认的业务主线与差异，再完成所需模型、授权、逻辑、集成、页面和智能体工具。 |
 | [workforce-runtime](skills/workforce-runtime/SKILL.md) | 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面与慢会话。 |
 | [xrain-access-diagnosis](skills/xrain-access-diagnosis/SKILL.md) | 排查 XRain 登录后的 403、应用准入、角色与数据范围、执行身份和机器人权限；支持授权修复与撤权复测。 |
 | [xrain-app-operations](skills/xrain-app-operations/SKILL.md) | 处理 XRain 已发布应用的租户安装、升级、冲突、中断恢复、组件恢复和卸载；不构建服务镜像。 |
 | [xrain-auth](skills/xrain-auth/SKILL.md) | 通过 XRain 认证中心网页准备或恢复固定身份、激活登录、修复 OIDC 接入，并验证原应用登录。 |
+| [xrain-business-user-lifecycle](skills/xrain-business-user-lifecycle/SKILL.md) | 在 XRain/Workforce 落地业务人员接入、实际使用、协作与职责变更的完整业务主线，连接固定身份、租户成员、应用准入、业务授权和持续维护。单独登录、403 或权限定位使用对应诊断能力。 |
 | [xrain-cli](skills/xrain-cli/SKILL.md) | 用自带 CLI 连接 XRain 平台或应用市场，操作平台用户、权限、数据及应用包；认证中心账号由 xrain-auth 处理。 |
 <!-- skills:end -->
 
 每次只加载与当前任务相关的入口和参考。Workforce 从加载结果的 `resourceBase.path` 读取资源；skill 不增加员工工具权限。验收与测量已合入 workforce-runtime，旧安装中的 workforce-verify/workforce-performance 可在更新时移除。
+
+业务落地先找所属项目已确认的完整主线与差异。`xrain-business-user-lifecycle` 承载人员从接入到实际工作、协作和职责变更的通用主线；`workforce-business-development` 沿业务结果组织实现，其余专业能力按当前环节调用。具体业务的长主线及非通用决策仍由所属项目保存，单独诊断可直接进入对应技能。
 
 ## 安装与使用
 
