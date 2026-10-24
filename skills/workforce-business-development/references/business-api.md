@@ -99,7 +99,7 @@ debug 会真实执行动作；正式调用使用函数、接口或 Routine 入�
 | 应用准入 | `POST /api/xrain/v1/applications/{applicationId}/admission`，body `{}` | `{allowed, reason, applicationId, userId}` |
 | 应用消息资格 | 同应用路径 `/message-authorization`，POST `{}` | 可独立返回 403；应用 admission 成功不包含发送权 |
 | 应用选用的智能体 | 同应用路径 `/agents`，GET | `{bindings, defaultAgentId}`，不包含智能体完整定义 |
-| 个人/应用助手资格 | `GET /api/xrain/v1/agents/qualifications`，可选 applicationId | `{tenantId, userId, applicationId, items, defaultAgentId}`；应用资格需要可信宿主上下文 |
+| 个人/应用助手资格 | `GET /api/xrain/v1/agents/qualifications`，可选 applicationId | `{tenantId, userId, applicationId, items, defaultAgentId}`；应用只按既有准入返回选用项，无 applicationId 时读取本人订阅 |
 | 智能体定义目录 | `GET /api/xrain/v1/agents/directory` 或已交付的 Runtime 目录 | Runtime 负责目录时，XRain 返回 409 与 agents.runtime_owned_catalog |
 | 个人邮箱 | `/api/delivery/v1/email/me/providers`、`/accounts`；再按账号调用检索、正文、草稿入口 | 两个发现入口均返回数组；空 accounts 不证明检索/草稿已可用 |
 | 组织通知 | 已登记的 delivery.sms/email/feishu callable 或已配置的 HTTP 接口 | 通道状态、发送资格、受理和送达分别判断 |
@@ -140,7 +140,7 @@ HTTP 无统一 `{success, data, error}` 外层；先判断状态码和正文，�
 | 唯一查询命中多条 | 400，`errorCode: platform.data.query.multiple_records_matched` | 处理业务唯一性，不能静默取第一条 |
 | 非选项字段查询 options | 400，`errorCode: platform.data.validation_failed` | 改用对应目标对象/人员接口 |
 | 普通写入系统管理字段 | 403，`errorCode: platform.data.field_not_writable` | 按有效写入字段提交；Owner 使用专门转移入口 |
-| 助手应用上下文缺失 | 403，`{error: "agents.application_context_required"}` | 接续可信宿主的应用链路 |
+| 旧版本助手额外门槛 | 历史实测 403，`{error: "agents.application_context_required"}` | 现行规则已取消，核对运行制品与源码修复；不通过加客户端映射或个人订阅绕过 |
 | 未配置个人设置 | 404，空正文 | 使用应用明确的缺省值 |
 | 目录扩展/OpenAPI 服务错误 | 500，`{message, details, traceId}` | 保留服务错误，使用已成功的 JSON 目录；不当成空列表 |
 | Text 超过声明长度 | 本次 25 字符写入长度 24 的字段返回 500，`{message, details, traceId}` | 保留服务错误并提示实际长度限制；不能假定所有字段校验均返回 400 |

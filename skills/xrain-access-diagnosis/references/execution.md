@@ -1,6 +1,6 @@
 # 自动化与消息权限
 
-应用准入和顾客等业务操作已通过，但智能体目录失败时，分别核对 Runtime 定义、平台 qualifications、应用选用与可信客户端上下文。`GET /api/xrain/v1/agents/qualifications?applicationId=...` 仍要求匹配的调用客户端；仅在普通会话中附 applicationId 不能建立这种关系。保留外层 HTTP 状态、CONNECTOR_FORBIDDEN 等上游原因与原用户，不能把所有 503 都当作停机，或通过重建账号、重复选用和广授角色解决。管理员读取应用 bindings 只证明选用配置，不能替代原人调用成功。
+应用准入和顾客等业务操作已通过，但智能体目录失败时，分别核对 Runtime 定义、平台实际运行版本、应用选用和原调用身份。现行规则中，应用使用不再要求额外 caller_client、客户端映射或个人订阅；`GET /api/xrain/v1/agents/qualifications?applicationId=...` 沿用协议名称，只返回既有应用准入下的选用项。若返回旧 `agents.application_context_required`，查明是否仍运行旧实现，不通过补映射维持已取消的门槛。保留外层 HTTP 状态、CONNECTOR_FORBIDDEN、白名单 upstreamCode 等证据，不能把所有 503 都当作停机，或通过重建账号、重复选用和广授角色解决。管理员读取 bindings 不能替代原人调用成功；源码修复不证明共享环境已升级。
 
 GET /api/xrain/v1/applications/{applicationId}/execution-authorization，读 configurationSource/key、executionUserId/readinessReason、roles、permissionSets、messageRobot、capabilityChecks、unverifiedScopes。
 
