@@ -36,6 +36,9 @@ command('data update', [...api, 'entity', 'id', 'values', 'values-json', 'file']
 for (const action of ['ensure', 'show', 'path']) command('security tokens ' + action, [], [], 'Manage local test token aliases without printing token values.');
 for (const action of ['create', 'ensure']) command(`security user ${action}`, [...api, 'user', 'name', 'values', 'values-json', 'file'], [slot('user', ['name'])],
   action === 'ensure' ? 'Reuse an existing platform user unchanged, or create a missing user from JSON. Does not create an OIDC identity.' : 'Create a platform user from JSON; use ensure to reuse fixed test accounts. Does not create an OIDC identity.');
+command('security permissions catalog', api, [], 'Read the actual permission names before preparing a permission set.');
+for (const action of ['create', 'ensure']) command(`security permission-set ${action}`, [...api, 'permission-set', 'name', 'values', 'values-json', 'file'], [slot('permission-set', ['name'])],
+  action === 'ensure' ? 'Reuse an existing permission set unchanged, or create a missing set from JSON. Does not grant permissions.' : 'Create a permission set from JSON; permissions and user bindings are separate operations.');
 for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['permission-set']], ['permission-set', ['permission']]]) {
   command(`security ${kind} show`, [...api, kind, 'name'], [slot(kind, ['name'])], 'Read the selected security resource.');
   for (const member of members) for (const action of ['grant', 'revoke']) {
@@ -43,6 +46,9 @@ for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['
     command(`security ${kind} ${action}-${member}`, [...api, kind, 'name', names, 'names'], [slot(kind, ['name'])], `Change ${member} relationships; the server enforces authorization.`);
   }
 }
+const host = ['server', 'profile', 'timeout', ...credentials];
+command('host tenant member list', [...host, 'tenant-id', 'page', 'page-size', 'search'], [slot('tenant-id')], 'List one named tenant membership directory using an authorized Host login.');
+command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('tenant-id'), slot('user-id')], 'Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.');
 command('app login', [...target, 'exchange', 'no-browser'], [], 'Compatibility alias for auth login.');
 command('app logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Compatibility alias for auth logout.');
 command('app init', ['namespace', 'label', 'dir'], [], 'Create source.json without overwriting a file.');
@@ -98,7 +104,7 @@ export function validateCommand(args) {
     if (['query', 'query-json', 'file'].some(name => args.has(name)) && ['page', 'page-size', 'search', 'fields', 'filter', 'filter-json', 'sort', 'no-total'].some(name => args.has(name)))
       throw new CliError('A complete query JSON request cannot be combined with individual query options.', { code: 'invalid_arguments' });
   }
-  if (['data create', 'data update', 'security user create', 'security user ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
+  if (['data create', 'data update', 'security user create', 'security user ensure', 'security permission-set create', 'security permission-set ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
   if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
     if (spec.path !== 'app operation wait' && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))

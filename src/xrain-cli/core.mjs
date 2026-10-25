@@ -19,7 +19,7 @@ export function segment(value) {
 }
 
 const flags = new Set(['help', 'json', 'no-browser', 'no-total', 'check', 'wait', 'maintain-installed-version']);
-const valued = new Set(('server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval').split(' '));
+const valued = new Set(('server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval').split(' '));
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {

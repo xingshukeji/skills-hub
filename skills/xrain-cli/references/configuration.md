@@ -12,7 +12,9 @@ profile list/show 查询已有连接。profile set（别名 login）保存连接
 3. --token-name / XRAIN_TOKEN_NAME / profile tokenName。
 4. 目标、租户匹配且距过期至少一分钟的浏览器会话。
 
-管理接口使用 --auth session，忽略前三项，不与显式 bearer/token-name 混用；缺有效会话直接失败。API Token 仅用于目标开放的数据接口，不能代替管理会话。`--tenant` 不发送切租户 header，身份由服务端验证的 token 绑定。
+应用包管理命令使用 --auth session，忽略前三项，不与显式 bearer/token-name 混用；缺有效会话直接失败。其他命令也可用 --auth session 明确选择浏览器会话。API Token 仅用于目标开放的数据接口，不能代替真实用户管理会话。`--tenant` 不发送切租户 header，身份由服务端验证的 token 绑定。
+
+通用 metadata/data/security 命令也可显式使用正常原生登录返回的短期 Bearer，优先通过本终端 `XRAIN_TOKEN` 提供；它是登录凭据，不是 API Token，不写入浏览器会话文件。采用此路径时不指定 `--auth session`。Host 成员命令按 Host 登录合同验证资格，`--tenant-id` 只标识维护目标；应用包命令继续使用正式浏览器会话。
 
 security tokens ensure 只准备本地 admin/guest 别名，不在服务端建身份或授予权限；服务端须预配同值。show 只读。不要把本地凭据存在当远端可用。
 

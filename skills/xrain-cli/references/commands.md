@@ -20,7 +20,7 @@ profile show --profile <名称>
 auth logout --profile <名称>
 ```
 
-set/login 仅保存配置，auth login 才认证；管理操作用 --auth session。本地 tokens ensure 不创建服务端权限。优先级、回调与存储见[配置](configuration.md)。
+set/login 仅保存配置，auth login 才认证；应用包管理操作用 --auth session。通用 metadata/data/security 和 Host 成员命令也可按[配置](configuration.md)选择正常原生登录的短期 Bearer。本地 tokens ensure 不创建服务端权限。
 
 ## Runtime 数据
 
@@ -39,7 +39,7 @@ data delete <entity> <id>
 
 ## 用户、角色、权限集
 
-账号准备先读[账号与登录](login.md)。以下追加目标 --profile、--auth session、--json：
+账号准备先读[账号与登录](login.md)。以下追加目标 --profile、--json；浏览器会话另加 --auth session，正常原生登录的 Bearer 使用配置中的当前进程路径：
 
 ```text
 security user show --user <固定登录名>
@@ -49,9 +49,24 @@ security role show --role <角色>
 security role grant-permission-set --role <角色> --permission-sets <权限集>
 security permission-set show --permission-set <权限集>
 security permission-set grant-permission --permission-set <权限集> --permissions <真实权限ID>
+security permissions catalog
+security permission-set ensure --permission-set <固定权限集名> --values-json <创建资料.json>
 ```
 
 grant 对应 revoke；user 也支持直接 grant/revoke-permission-set。资源单/复数可互换，--names 支持逗号/分号列表、忽略大小写去重。创建用户 JSON 用平台字段（password/name/email/isAI 等），userName 若出现须与 --user 一致。ensure 仅在明确 user_not_found 时创建，现有用户不更新；原始 create 无查重保证。
+
+`security permissions catalog` 读取当前实际权限目录，不按名称拼造权限。权限集的 `create/ensure` 使用 `{name,label,helpText}`，`name` 必须与 `--permission-set` 一致。`ensure` 已存在返回 `{created:false,permissionSet}` 并保留名称、权限与绑定；只有明确 `404 / platform.authen.permission_set_not_found` 才按所给资料创建，返回 `created:true`。创建权限集不自动加权限或绑定用户，后续使用 grant 命令。
+
+### 既有全局人物加入租户
+
+以下命令需要已有且获准的 **Host 登录凭据**。`--tenant-id` 指定被维护的租户资源，不改变令牌绑定身份；不使用租户会话或 `--tenant` 代替 Host 资格。既有原生 Host 登录返回的 Bearer 可仅通过当前进程 `XRAIN_TOKEN` 提供，不保存到 profile。浏览器会话仍用 `--auth session` 明确选择其自身已获准范围。
+
+```text
+host tenant member list --tenant-id <租户ID> --profile <Host连接> --json
+host tenant member ensure --tenant-id <租户ID> --user-id <已有全局用户ID> --profile <Host连接> --json
+```
+
+`list` 支持 `--page/--page-size/--search`。`ensure` 按准确 userId 查完匹配分页；已存在返回 `{created:false,member}`，不恢复停用、不改角色或默认租户。确实没有成员关系时，把原 userId 加为普通成员，返回 `created:true`；不新建全局身份、不授管理员。查目录失败、响应不完整或创建冲突时保留错误，不改用其他身份或重放写入。
 
 按本次授权修改后回读。用户 show 的 permissionSets 含角色继承；撤销直接绑定不代表其他来源消失，不能为了拒绝测试删除无关角色。
 

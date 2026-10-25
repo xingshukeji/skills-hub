@@ -21,7 +21,7 @@ function segment(value) {
   return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "no-browser", "no-total", "check", "wait", "maintain-installed-version"]);
-var valued = new Set("server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval".split(" "));
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -436,8 +436,8 @@ function requireSuccess(response, hint = "") {
   if (response.ok) return response;
   throw responseError(response, hint);
 }
-async function apiValue(ctx, method, path, json) {
-  const profile = ctx.store.resolve(ctx.args, true);
+async function apiValue(ctx, method, path, json, { requireTenant = true } = {}) {
+  const profile = ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = ctx.store.credential(ctx.args, profile);
   if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching browser session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
@@ -450,8 +450,8 @@ async function apiValue(ctx, method, path, json) {
   if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
   return response.bytes.length ? result : null;
 }
-async function api(ctx, method, path, json) {
-  ctx.reporter.print(await apiValue(ctx, method, path, json));
+async function api(ctx, method, path, json, options) {
+  ctx.reporter.print(await apiValue(ctx, method, path, json, options));
   return 0;
 }
 
@@ -557,6 +557,7 @@ async function dataCommands(ctx) {
 async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
   const kind = args.command(1), action = args.command(2);
+  if (kind === "permissions" && action === "catalog") return api(ctx, "GET", "/api/service/authen/v1/security/permissions/catalog");
   if (kind === "tokens") {
     if (action === "path") {
       reporter.print(store.secretPath);
@@ -572,27 +573,31 @@ async function securityCommands(ctx) {
   const [resource, singular] = kinds[kind];
   const name = args.required(singular, args.value("name") ?? args.operand(3));
   const path = `/api/service/authen/v1/security/${resource}/${segment(name)}`;
-  if (singular === "user" && ["create", "ensure"].includes(action)) {
+  if (["user", "permission-set"].includes(singular) && ["create", "ensure"].includes(action)) {
+    const isUser = singular === "user", inputName = isUser ? "userName" : "name", resultName = isUser ? "user" : "permissionSet";
+    const label = isUser ? "User" : "Permission set";
     const values = await jsonInput(args, "values");
-    if (values !== void 0 && !isObject(values)) throw new CliError("User values JSON must be an object.", { code: "invalid_arguments" });
-    for (const [key, value] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value);
-    if (values && Object.hasOwn(values, "userName") && (typeof values.userName !== "string" || !equalIgnoreCase(values.userName, name)))
-      throw new CliError("userName in JSON must match --user.", { code: "invalid_arguments" });
+    if (values !== void 0 && !isObject(values)) throw new CliError(`${label} values JSON must be an object.`, { code: "invalid_arguments" });
+    if (isUser) {
+      for (const [key, value2] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value2);
+    }
+    if (values && Object.hasOwn(values, inputName) && (typeof values[inputName] !== "string" || !equalIgnoreCase(values[inputName], name)))
+      throw new CliError(`${inputName} in JSON must match --${singular}.`, { code: "invalid_arguments" });
     if (action === "ensure") {
       try {
-        const user2 = await apiValue(ctx, "GET", path);
-        reporter.print({ created: false, user: user2 });
+        const value2 = await apiValue(ctx, "GET", path);
+        reporter.print({ created: false, [resultName]: value2 });
         return 0;
       } catch (error) {
-        if (error.httpStatus !== 404 || error.serverCode !== "platform.authen.user_not_found") throw error;
+        if (error.httpStatus !== 404 || error.serverCode !== `platform.authen.${singular.replace("-", "_")}_not_found`) throw error;
       }
     }
-    if (!values) throw new CliError("User creation requires values JSON.", {
+    if (!values) throw new CliError(`${label} creation requires values JSON.`, {
       code: action === "ensure" ? "creation_input_required" : "invalid_arguments",
-      hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep the password out of command arguments."
+      hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments."
     });
-    const user = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, userName: name });
-    reporter.print(action === "ensure" ? { created: true, user } : user);
+    const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name });
+    reporter.print(action === "ensure" ? { created: true, [resultName]: value } : value);
     return 0;
   }
   if (action === "show") return api(ctx, "GET", path);
@@ -609,6 +614,34 @@ async function securityCommands(ctx) {
   if (!names.length) throw new CliError("At least one name is required.");
   const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match[2]];
   return api(ctx, match[1] === "grant" ? "POST" : "DELETE", path + "/" + suffix, { names });
+}
+async function hostCommands(ctx) {
+  const { args, reporter } = ctx;
+  const tenantId = args.required("tenant-id");
+  const root = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
+  const options = { requireTenant: false };
+  if (args.command(3) === "list") {
+    const query = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) });
+    if (args.has("search")) query.set("search", args.value("search"));
+    return api(ctx, "GET", `${root}?${query}`, void 0, options);
+  }
+  const userId = args.required("user-id");
+  for (let page = 1; ; page++) {
+    const query = new URLSearchParams({ search: userId, page: String(page), pageSize: "100" });
+    const value = await apiValue(ctx, "GET", `${root}?${query}`, void 0, options);
+    if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
+      throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
+    const member2 = value.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
+    if (member2) {
+      reporter.print({ created: false, member: member2 });
+      return 0;
+    }
+    if (page * value.pageSize >= value.totalCount) break;
+    if (!value.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
+  }
+  const member = await apiValue(ctx, "POST", root, { userId, isAdministrator: false }, options);
+  reporter.print({ created: true, member });
+  return 0;
 }
 
 // src/xrain-cli/app.mjs
@@ -1974,6 +2007,13 @@ for (const action of ["create", "ensure"]) command(
   [slot("user", ["name"])],
   action === "ensure" ? "Reuse an existing platform user unchanged, or create a missing user from JSON. Does not create an OIDC identity." : "Create a platform user from JSON; use ensure to reuse fixed test accounts. Does not create an OIDC identity."
 );
+command("security permissions catalog", api2, [], "Read the actual permission names before preparing a permission set.");
+for (const action of ["create", "ensure"]) command(
+  `security permission-set ${action}`,
+  [...api2, "permission-set", "name", "values", "values-json", "file"],
+  [slot("permission-set", ["name"])],
+  action === "ensure" ? "Reuse an existing permission set unchanged, or create a missing set from JSON. Does not grant permissions." : "Create a permission set from JSON; permissions and user bindings are separate operations."
+);
 for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["permission-set"]], ["permission-set", ["permission"]]]) {
   command(`security ${kind} show`, [...api2, kind, "name"], [slot(kind, ["name"])], "Read the selected security resource.");
   for (const member of members) for (const action of ["grant", "revoke"]) {
@@ -1981,6 +2021,9 @@ for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["
     command(`security ${kind} ${action}-${member}`, [...api2, kind, "name", names, "names"], [slot(kind, ["name"])], `Change ${member} relationships; the server enforces authorization.`);
   }
 }
+var host = ["server", "profile", "timeout", ...credentials];
+command("host tenant member list", [...host, "tenant-id", "page", "page-size", "search"], [slot("tenant-id")], "List one named tenant membership directory using an authorized Host login.");
+command("host tenant member ensure", [...host, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
 command("app login", [...target, "exchange", "no-browser"], [], "Compatibility alias for auth login.");
 command("app logout", ["server", "tenant", "profile", "exchange"], [], "Compatibility alias for auth logout.");
 command("app init", ["namespace", "label", "dir"], [], "Create source.json without overwriting a file.");
@@ -2036,7 +2079,7 @@ function validateCommand(args) {
     if (["query", "query-json", "file"].some((name) => args.has(name)) && ["page", "page-size", "search", "fields", "filter", "filter-json", "sort", "no-total"].some((name) => args.has(name)))
       throw new CliError("A complete query JSON request cannot be combined with individual query options.", { code: "invalid_arguments" });
   }
-  if (["data create", "data update", "security user create", "security user ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
+  if (["data create", "data update", "security user create", "security user ensure", "security permission-set create", "security permission-set ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
   if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
     if (spec.path !== "app operation wait" && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
@@ -2140,6 +2183,8 @@ async function dispatch(ctx) {
       return batchCommands(ctx);
     case "security":
       return securityCommands(ctx);
+    case "host":
+      return hostCommands(ctx);
     case "data":
       return dataCommands(ctx);
     case "app":

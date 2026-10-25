@@ -1,7 +1,7 @@
 import { Args, CliError, Reporter, segment } from './core.mjs';
 import { Store } from './store.mjs';
 import { api } from './http.mjs';
-import { dataCommands, profileCommands, securityCommands } from './commands.mjs';
+import { dataCommands, hostCommands, profileCommands, securityCommands } from './commands.mjs';
 import { appCommands } from './app.mjs';
 import { authCommands, doctor } from './diagnostics.mjs';
 import { batchCommands } from './batch.mjs';
@@ -19,6 +19,7 @@ async function dispatch(ctx) {
     case 'doctor': return doctor(ctx);
     case 'batch': return batchCommands(ctx);
     case 'security': return securityCommands(ctx);
+    case 'host': return hostCommands(ctx);
     case 'data': return dataCommands(ctx);
     case 'app': return appCommands(ctx);
     case 'health': {

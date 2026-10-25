@@ -97,6 +97,7 @@ export async function dataCommands(ctx) {
 export async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
   const kind = args.command(1), action = args.command(2);
+  if (kind === 'permissions' && action === 'catalog') return api(ctx, 'GET', '/api/service/authen/v1/security/permissions/catalog');
   if (kind === 'tokens') {
     if (action === 'path') { reporter.print(store.secretPath); return 0; }
     if (!['ensure', 'show'].includes(action)) throw new CliError('Use security tokens ensure, show or path.');
@@ -109,25 +110,27 @@ export async function securityCommands(ctx) {
   const [resource, singular] = kinds[kind];
   const name = args.required(singular, args.value('name') ?? args.operand(3));
   const path = `/api/service/authen/v1/security/${resource}/${segment(name)}`;
-  if (singular === 'user' && ['create', 'ensure'].includes(action)) {
+  if (['user', 'permission-set'].includes(singular) && ['create', 'ensure'].includes(action)) {
+    const isUser = singular === 'user', inputName = isUser ? 'userName' : 'name', resultName = isUser ? 'user' : 'permissionSet';
+    const label = isUser ? 'User' : 'Permission set';
     const values = await jsonInput(args, 'values');
-    if (values !== undefined && !isObject(values)) throw new CliError('User values JSON must be an object.', { code: 'invalid_arguments' });
-    for (const [key, value] of Object.entries(values ?? {})) if (key.toLowerCase() === 'password') reporter.secret(value);
-    if (values && Object.hasOwn(values, 'userName') && (typeof values.userName !== 'string' || !equalIgnoreCase(values.userName, name)))
-      throw new CliError('userName in JSON must match --user.', { code: 'invalid_arguments' });
+    if (values !== undefined && !isObject(values)) throw new CliError(`${label} values JSON must be an object.`, { code: 'invalid_arguments' });
+    if (isUser) for (const [key, value] of Object.entries(values ?? {})) if (key.toLowerCase() === 'password') reporter.secret(value);
+    if (values && Object.hasOwn(values, inputName) && (typeof values[inputName] !== 'string' || !equalIgnoreCase(values[inputName], name)))
+      throw new CliError(`${inputName} in JSON must match --${singular}.`, { code: 'invalid_arguments' });
     if (action === 'ensure') {
       try {
-        const user = await apiValue(ctx, 'GET', path);
-        reporter.print({ created: false, user });
+        const value = await apiValue(ctx, 'GET', path);
+        reporter.print({ created: false, [resultName]: value });
         return 0;
       } catch (error) {
-        if (error.httpStatus !== 404 || error.serverCode !== 'platform.authen.user_not_found') throw error;
+        if (error.httpStatus !== 404 || error.serverCode !== `platform.authen.${singular.replace('-', '_')}_not_found`) throw error;
       }
     }
-    if (!values) throw new CliError('User creation requires values JSON.', { code: action === 'ensure' ? 'creation_input_required' : 'invalid_arguments',
-      hint: 'Use --values-json FILE or pipe JSON with --values-json -. Keep the password out of command arguments.' });
-    const user = await apiValue(ctx, 'POST', `/api/service/authen/v1/security/${resource}`, { ...values, userName: name });
-    reporter.print(action === 'ensure' ? { created: true, user } : user);
+    if (!values) throw new CliError(`${label} creation requires values JSON.`, { code: action === 'ensure' ? 'creation_input_required' : 'invalid_arguments',
+      hint: 'Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments.' });
+    const value = await apiValue(ctx, 'POST', `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name });
+    reporter.print(action === 'ensure' ? { created: true, [resultName]: value } : value);
     return 0;
   }
   if (action === 'show') return api(ctx, 'GET', path);
@@ -141,4 +144,30 @@ export async function securityCommands(ctx) {
   if (!names.length) throw new CliError('At least one name is required.');
   const suffix = { role: 'roles', 'permission-set': 'permission-sets', permission: 'permissions' }[match[2]];
   return api(ctx, match[1] === 'grant' ? 'POST' : 'DELETE', path + '/' + suffix, { names });
+}
+
+export async function hostCommands(ctx) {
+  const { args, reporter } = ctx;
+  const tenantId = args.required('tenant-id');
+  const root = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
+  const options = { requireTenant: false };
+  if (args.command(3) === 'list') {
+    const query = new URLSearchParams({ page: String(args.integer('page', 1)), pageSize: String(args.integer('page-size', 20)) });
+    if (args.has('search')) query.set('search', args.value('search'));
+    return api(ctx, 'GET', `${root}?${query}`, undefined, options);
+  }
+  const userId = args.required('user-id');
+  for (let page = 1; ; page++) {
+    const query = new URLSearchParams({ search: userId, page: String(page), pageSize: '100' });
+    const value = await apiValue(ctx, 'GET', `${root}?${query}`, undefined, options);
+    if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
+      throw new CliError('Invalid tenant member page; no member was created.', { code: 'invalid_response' });
+    const member = value.items.find(item => typeof item?.userId === 'string' && equalIgnoreCase(item.userId, userId));
+    if (member) { reporter.print({ created: false, member }); return 0; }
+    if (page * value.pageSize >= value.totalCount) break;
+    if (!value.items.length) throw new CliError('Incomplete tenant member page; no member was created.', { code: 'invalid_response' });
+  }
+  const member = await apiValue(ctx, 'POST', root, { userId, isAdministrator: false }, options);
+  reporter.print({ created: true, member });
+  return 0;
 }
