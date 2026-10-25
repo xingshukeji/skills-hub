@@ -1,6 +1,6 @@
 ---
 name: workforce-runtime
-description: 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面与慢会话。
+description: 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面、慢登录、慢会话及实例资源增长。
 ---
 
 # Workforce 运行维护
@@ -11,6 +11,7 @@ description: 启动、恢复和验收 Workforce 环境，核对部署效果，�
 - 部署后效果不对：[部署核对](references/release.md)。
 - 完整使用验收、原问题复测：[验收](references/acceptance.md)。
 - 页面、登录、会话慢：[测量](references/measurement.md)。
+- 实例内存、连接、队列增长或退出未释放：[实例采样](references/stability.md)。
 
 开发使用项目当前登记入口；部署环境从实际实例核对，不能套用开发命令。健康检查后仍须验证原用户操作。已定位到认证、业务权限或任务执行时转对应排障，停止无关重启。
 

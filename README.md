@@ -10,7 +10,7 @@
 | [cicd](skills/cicd/SKILL.md) | 查询、触发已有 Jenkins 流水线并跟踪构建、发布或部署；不编写流水线。 |
 | [workforce-agent-troubleshoot](skills/workforce-agent-troubleshoot/SKILL.md) | 排查 Workforce 智能体不回复、不跟进、工具失败、重复消息、会话混淆和接管后迟到写入。 |
 | [workforce-business-development](skills/workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 落地企业业务，先复用已确认的业务主线与差异，再完成所需模型、授权、逻辑、集成、页面和智能体工具。 |
-| [workforce-runtime](skills/workforce-runtime/SKILL.md) | 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面与慢会话。 |
+| [workforce-runtime](skills/workforce-runtime/SKILL.md) | 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面、慢登录、慢会话及实例资源增长。 |
 | [xrain-access-diagnosis](skills/xrain-access-diagnosis/SKILL.md) | 排查 XRain 登录后的 403、应用准入、角色与数据范围、执行身份和机器人权限；支持授权修复与撤权复测。 |
 | [xrain-app-operations](skills/xrain-app-operations/SKILL.md) | 处理 XRain 已发布应用的租户安装、升级、冲突、中断恢复、组件恢复和卸载；不构建服务镜像。 |
 | [xrain-auth](skills/xrain-auth/SKILL.md) | 通过 XRain 认证中心网页准备或恢复固定身份、激活登录、修复 OIDC 接入，并验证原应用登录。 |
