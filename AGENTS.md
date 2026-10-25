@@ -1,5 +1,7 @@
 # Repository instructions
 
+- Team work starts from [Workforce](../xrain-workforce/AGENTS.md) and continues in this Local checkout under the same authorized chat. Shared collaboration methods live in Workforce; this repository remains the sole authoring source for the independent skills below. New recoverable work is registered only in Workforce.
+
 - Work in the saved Local checkout. Do not create or use worktrees unless the user explicitly requests one for this task.
 - This repository hosts independent skills in `skills/<name>/`. Install and update from the default branch; do not add skill versions, release tags, or a version catalog.
 - Every skill must work when only its own directory is copied. Never reference another local repository or require its build outputs.
