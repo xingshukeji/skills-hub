@@ -67,7 +67,9 @@ app publish --file "<文件.appkg>" --exchange <市场origin> --profile <市场>
 
 namespace 2–16 位，小写字母开头，仅小写字母/数字；label 1–256。source≤32 MiB、包≤16 MiB、根 manifest≤1 MiB。build 已服务端构建、校验并保存；只验证不保存才用 check，不先 check 再重复 build。输出已有则拒绝覆盖。
 
-平台和市场分别 auth login。publish 带已知发布版本防并发覆盖，不自动重试；未知结果先同目标/profile 的 status 查询。status 查询发布状态，不安装；CLI 没有 app install。
+平台和市场分别 auth login。publish 带已知发布版本防并发覆盖，不自动重试；未知结果先同目标/profile 的 status 查询。status 查询发布状态；安装状态使用 app installation show 或 app operation show。
+
+应用消费支持 app list、app versions、app import、app preview、app install 和 app operation 子命令。精确版本、请求输入、等待与恢复见[安装](installation.md)。app check 仍为构建验证，不检查已装应用的业务可用性。
 
 ## 批量
 

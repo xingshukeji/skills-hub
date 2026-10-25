@@ -5,6 +5,7 @@ import { CliError, isObject, nonempty, parseJson, randomId, readLimited, sha256 
 import { request, requireSuccess } from './http.mjs';
 import { browserLogin } from './auth.mjs';
 import { MAX_ARCHIVE, MAX_SOURCE, readManifest, validPackageId } from './archive.mjs';
+import { appManagementCommands } from './app-management.mjs';
 
 function client(ctx) {
   const market = ctx.args.has('exchange');
@@ -13,7 +14,8 @@ function client(ctx) {
   if (!token) throw new CliError(market ? 'Market login is required or expired. Run app login --exchange <url>.' : 'App login is required or expired. Run app login --server <url>.', {
     code: 'authentication_required', hint: 'Use auth status to inspect the session, then auth login for this target.' });
   return { root: market ? '/api/exchange/v1' : '/api/application/v1',
-    send: (method, path, options = {}) => request(new URL(path, profile.server), { ...options, method, token, timeout: ctx.args.timeout() }) };
+    send: (method, path, options = {}) => request(new URL(path, profile.server), { ...options, method, token,
+      timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) }) };
 }
 
 export function initApp(ctx) {
@@ -134,6 +136,6 @@ export async function appCommands(ctx) {
     case 'build': return buildApp(ctx, true);
     case 'publish': return publishApp(ctx);
     case 'status': return appStatus(ctx);
-    default: throw new CliError('Use app login, logout, init, check, build, publish or status.');
+    default: return appManagementCommands(ctx, () => client(ctx));
   }
 }

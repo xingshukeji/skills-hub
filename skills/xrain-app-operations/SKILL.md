@@ -13,6 +13,6 @@ description: 处理 XRain 已发布应用的租户安装、升级、冲突、中
 
 市场发布、平台导入、租户安装与用户可用是不同结果。通过原管理入口执行，保留 request/operation/revision；未知结果先查。额外删除、覆盖定制或扩大权限只处理已授权影响。
 
-核对安装版本、组件与原用户操作；历史版本存在不代表可回退。`xrain-cli` 没有 install 命令，不能虚构。
+核对安装版本、组件与原用户操作；历史版本存在不代表可回退。已提供 `xrain-cli` 时，使用其 app import/preview/install 和 app operation 命令；其他维护动作继续通过原管理入口执行。
 
 参考和 Node.js 22.12+ 脚本位于本 skill 目录（Workforce 的 `resourceBase.path`），只使用当前获准工具。

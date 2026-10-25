@@ -34,4 +34,4 @@ bindings 来自 requiredBindings；configuration 来自原 $configuration 的 ed
 
 每项已明确决定的影响才加入 confirmations 的 {recordId,unit}，工具取当前原响应 token，不自动全选。普通属性通用合并、组件退役、旧策略或 revision 变化回受管编辑/预检处理。
 
-输出新文件拒绝覆盖，stdout 只含方法/路径/数量。通过原管理入口提交一次并回读同一 operation；状态变化重新取回执，未知结果先查询，不重放文件。
+输出新文件拒绝覆盖，stdout 只含方法/路径/数量。已提供 xrain-cli 时，可用 app operation resolve --operation <原operationId> --request-json "<新请求.json>" --wait 提交；否则通过原管理入口执行。回读同一 operation；状态变化重新取回执，未知结果先查询，不重放文件。

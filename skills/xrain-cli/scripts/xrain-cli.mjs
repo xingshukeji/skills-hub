@@ -20,8 +20,8 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "no-browser", "no-total", "check"]);
-var valued = new Set("server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names".split(" "));
+var flags = /* @__PURE__ */ new Set(["help", "json", "no-browser", "no-total", "check", "wait", "maintain-installed-version"]);
+var valued = new Set("server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -141,14 +141,24 @@ var Reporter = class {
     this.secrets = /* @__PURE__ */ new Set();
     this.json = false;
     this.results = [];
+    this.visibleFields = /* @__PURE__ */ new WeakMap();
   }
   secret(value) {
     if (nonempty(value)) this.secrets.add(value);
     return value;
   }
+  // Only a command that owns a non-credential field may exempt its key. Known
+  // credential values are still removed by clean(), including from that field.
+  visibleField(object, key) {
+    if (!this.visibleFields.has(object)) this.visibleFields.set(object, /* @__PURE__ */ new Set());
+    this.visibleFields.get(object).add(key);
+  }
   clean(value) {
     if (Array.isArray(value)) return value.map((item) => this.clean(item));
-    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey.test(key) ? "[REDACTED]" : this.clean(item)]));
+    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      sensitiveKey.test(key) && !this.visibleFields.get(value)?.has(key) ? "[REDACTED]" : this.clean(item)
+    ]));
     if (typeof value !== "string") return value;
     let result = value;
     for (const secret of this.secrets) result = result.replaceAll(secret, "[REDACTED]");
@@ -728,23 +738,23 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
 
 // node_modules/jose/dist/webapi/util/base64url.js
 var invalid = "The input to be decoded is not correctly encoded.";
-function decode(input) {
+function decode(input2) {
   try {
-    return decodeBase64(typeof input == "string" ? input : decoder.decode(input), true);
+    return decodeBase64(typeof input2 == "string" ? input2 : decoder.decode(input2), true);
   } catch (cause) {
     throw new TypeError(invalid, { cause });
   }
 }
 
 // node_modules/jose/dist/webapi/lib/validate.js
-function isObject2(input) {
-  if (typeof input != "object" || input === null || Object.prototype.toString.call(input) !== "[object Object]")
+function isObject2(input2) {
+  if (typeof input2 != "object" || input2 === null || Object.prototype.toString.call(input2) !== "[object Object]")
     return false;
-  const prototype = Object.getPrototypeOf(input);
+  const prototype = Object.getPrototypeOf(input2);
   return prototype === null || Object.getPrototypeOf(prototype) === null;
 }
-function isJwkSet(input) {
-  return isObject2(input) && Array.isArray(input.keys) && Array.from(input.keys).every(isObject2);
+function isJwkSet(input2) {
+  return isObject2(input2) && Array.isArray(input2.keys) && Array.from(input2.keys).every(isObject2);
 }
 function isDisjoint(...headers) {
   const parameters = /* @__PURE__ */ new Set();
@@ -793,7 +803,7 @@ function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader,
     throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
   if (!protectedHeader || protectedHeader.crit === void 0)
     return [];
-  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input) => typeof input != "string" || input.length === 0))
+  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input2) => typeof input2 != "string" || input2.length === 0))
     throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
   const recognized = recognizedOption === void 0 ? recognizedDefault : { __proto__: null, ...recognizedOption, ...recognizedDefault };
   for (const parameter of protectedHeader.crit) {
@@ -1099,10 +1109,10 @@ function secs(str) {
   const value = parseFloat(matched[2]), numericDate2 = Math.round(value * multipliers[matched[3][0].toLowerCase()]);
   return Number.isFinite(numericDate2) || invalidDuration(), matched[1] === "-" || matched[4] === "ago" ? -numericDate2 : numericDate2;
 }
-function validateInput(label, input) {
-  if (!Number.isFinite(input))
+function validateInput(label, input2) {
+  if (!Number.isFinite(input2))
     throw new TypeError(`Invalid ${label} input`);
-  return input;
+  return input2;
 }
 var normalizeTyp = (value) => {
   const normalized = value.toLowerCase();
@@ -1499,6 +1509,247 @@ function readManifest(archive) {
   }
 }
 
+// src/xrain-cli/app-management.mjs
+import { setTimeout as delay } from "node:timers/promises";
+import { performance } from "node:perf_hooks";
+var activeStatuses = /* @__PURE__ */ new Set(["Pending", "Running", "Finalizing"]);
+var statuses = /* @__PURE__ */ new Set([...activeStatuses, "WaitingForResolution", "Succeeded", "Failed", "Cancelled"]);
+var installFields = ["versionId", "expectedRevision", "tenantBindings", "confirmations", "maintainInstalledVersion"];
+var requestFields = {
+  preview: installFields,
+  install: [...installFields, "requestId"],
+  resolve: ["expectedRevision", "resolutions", "tenantBindings", "confirmations", "configurationChanges"],
+  retry: ["requestId", "expectedRevision"]
+};
+var invalid2 = (message2) => new CliError(message2, { code: "invalid_arguments" });
+function exposeApplicationConfirmations(reporter, value) {
+  for (const container of [value, value?.details]) {
+    if (!Array.isArray(container?.requiredConfirmations)) continue;
+    for (const item of container.requiredConfirmations) {
+      if (isObject(item) && nonempty(item.recordId) && nonempty(item.unit) && nonempty(item.token))
+        reporter.visibleField(item, "token");
+    }
+  }
+}
+function output(ctx, value) {
+  exposeApplicationConfirmations(ctx.reporter, value);
+  ctx.reporter.print(value);
+  return 0;
+}
+async function input(args, action) {
+  const path = args.value("request-json") ?? args.value("file");
+  const value = path === void 0 ? {} : await readJsonInput(path, "Application request");
+  if (!isObject(value)) throw invalid2("Application request must be a JSON object.");
+  if (Object.keys(value).some((key) => !requestFields[action].includes(key)))
+    throw invalid2(`Unsupported ${action} request field. Allowed fields: ${requestFields[action].join(", ")}.`);
+  const body = { ...value };
+  for (const [option, field] of [
+    ["version-id", "versionId"],
+    ["expected-revision", "expectedRevision"],
+    ["request-id", "requestId"],
+    ["maintain-installed-version", "maintainInstalledVersion"]
+  ]) {
+    if (!args.has(option)) continue;
+    if (Object.hasOwn(body, field)) throw invalid2(`Supply ${field} in JSON or --${option}, not both.`);
+    const raw = args.value(option);
+    if (option === "expected-revision" && !/^[0-9]+$/.test(raw)) throw invalid2("--expected-revision must be a nonnegative integer.");
+    body[field] = option === "expected-revision" ? Number(raw) : raw;
+  }
+  if (["preview", "install"].includes(action) && !nonempty(body.versionId))
+    throw invalid2("An exact versionId is required via --version-id or --request-json. Use app versions to select it.");
+  if (body.expectedRevision != null && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0) || action === "resolve" && body.expectedRevision == null)
+    throw invalid2("expectedRevision must be a nonnegative safe integer; resolve requires the revision you inspected.");
+  if (body.requestId != null && (typeof body.requestId !== "string" || body.requestId.length !== 20 || !/^apo[A-Za-z0-9]{17}$/.test(body.requestId)))
+    throw invalid2("requestId must be a 20-character operation ID starting with apo.");
+  if (Object.hasOwn(body, "maintainInstalledVersion") && typeof body.maintainInstalledVersion !== "boolean")
+    throw invalid2("maintainInstalledVersion must be a boolean.");
+  for (const field of ["tenantBindings", "resolutions", "configurationChanges"])
+    if (body[field] != null && !isObject(body[field])) throw invalid2(`${field} must be a JSON object.`);
+  if (body.confirmations != null && (!Array.isArray(body.confirmations) || body.confirmations.some((item) => !isObject(item) || !nonempty(item.recordId) || !nonempty(item.unit) || !nonempty(item.token))))
+    throw invalid2("confirmations must contain the chosen server-provided {recordId,unit,token} entries.");
+  return body;
+}
+function operationResponse(value, expectedId, expectedVersion, previous) {
+  if (!isObject(value) || value.id !== expectedId || !nonempty(value.installationId) || !statuses.has(value.status) || expectedVersion !== void 0 && value.targetVersionId !== expectedVersion || previous && (value.installationId !== previous.installationId || value.targetVersionId !== previous.targetVersionId))
+    throw new CliError("The server returned an invalid or mismatched application operation.", { code: "invalid_response" });
+  return value;
+}
+function queryHint(id) {
+  return `Use app operation show --operation ${id} with the same target/profile before any further write.`;
+}
+function contextualError(error, context, operation) {
+  const needsQuery = !error.httpStatus || error.httpStatus >= 500;
+  const recovery = context.operationId ? queryHint(context.operationId) : `Use app versions --package ${context.packageId} with the same platform profile to check whether the import was accepted.`;
+  return new CliError(error instanceof CliError ? error.message : "Application request failed.", {
+    code: error.code ?? "operation_failed",
+    httpStatus: error.httpStatus,
+    serverCode: error.serverCode,
+    requestId: error.requestId,
+    hint: needsQuery && !error.code?.startsWith("operation_") ? [recovery, error.hint].filter(Boolean).join(" ") : error.hint,
+    details: { ...error.details, ...context, ...operation ? { operation } : {} }
+  });
+}
+function operationError(operation, code, message2, hint) {
+  return new CliError(message2, {
+    code,
+    serverCode: operation.errorCode ?? void 0,
+    hint,
+    details: { operationId: operation.id, installationId: operation.installationId, operation }
+  });
+}
+function checkOutcome(operation, cancel = false) {
+  if (operation.status === "WaitingForResolution") throw operationError(
+    operation,
+    "operation_requires_resolution",
+    "The operation requires input; installation has not completed.",
+    "Inspect requiredBindings, requiredConfirmations and conflicts, then use app operation resolve with the current expectedRevision and your choices."
+  );
+  if (operation.status === "Failed") throw operationError(
+    operation,
+    "operation_failed",
+    "The application operation failed.",
+    "Inspect errorCode and details. Correct the cause before an explicit retry; requiresResubmission needs the original change submitted again."
+  );
+  if (operation.status === "Cancelled" && !cancel) throw operationError(
+    operation,
+    "operation_cancelled",
+    "The application operation was cancelled.",
+    "Inspect the current installation before starting a new change."
+  );
+}
+function waitSettings(args, wait2) {
+  return {
+    deadline: wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0,
+    interval: args.integer("poll-interval", 2) * 1e3
+  };
+}
+function remaining(settings) {
+  return settings.deadline === void 0 ? void 0 : Math.max(1, Math.ceil(settings.deadline - performance.now()));
+}
+async function waitOperation(ctx, api3, operation, settings) {
+  let lastStatus;
+  while (activeStatuses.has(operation.status)) {
+    if (operation.status !== lastStatus) ctx.reporter.progress(`Operation ${operation.id}: ${operation.status}.`);
+    lastStatus = operation.status;
+    const left = settings.deadline - performance.now();
+    if (left <= 0) throw operationError(
+      operation,
+      "operation_wait_timeout",
+      "Stopped waiting; the server operation may still be running.",
+      `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
+    );
+    await delay(Math.min(settings.interval, left));
+    if (performance.now() >= settings.deadline) continue;
+    try {
+      const response = requireSuccess(await api3.send("GET", `${api3.root}/operations/${segment(operation.id)}`, { timeout: remaining(settings) }));
+      operation = operationResponse(response.json(), operation.id, void 0, operation);
+    } catch (error) {
+      if (error.code === "timeout" && performance.now() >= settings.deadline)
+        throw operationError(
+          operation,
+          "operation_wait_timeout",
+          "Stopped waiting; the server operation may still be running.",
+          `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
+        );
+      throw contextualError(error, { operationId: operation.id, installationId: operation.installationId }, operation);
+    }
+  }
+  return operation;
+}
+async function submit(ctx, api3, path, body, context, { cancel = false } = {}) {
+  const settings = waitSettings(ctx.args, ctx.args.has("wait"));
+  let operation;
+  ctx.reporter.progress(`Submitting operation ${context.operationId}. Keep this ID if the response is interrupted.`);
+  try {
+    const response = requireSuccess(await api3.send("POST", path, { ...body === void 0 ? {} : { json: body }, timeout: remaining(settings) }));
+    operation = operationResponse(response.json(), context.operationId, context.versionId);
+    if (ctx.args.has("wait")) operation = await waitOperation(ctx, api3, operation, settings);
+    checkOutcome(operation, cancel);
+    return output(ctx, operation);
+  } catch (error) {
+    const latest = error.details?.operation ?? operation;
+    exposeApplicationConfirmations(ctx.reporter, latest);
+    throw contextualError(error, context, latest);
+  }
+}
+async function appManagementCommands(ctx, createClient) {
+  const { args } = ctx;
+  const action = args.command(1);
+  if (action === "list" || action === "versions") {
+    const api3 = createClient();
+    const path = action === "list" ? "/packages" : `/packages/${segment(args.required("package"))}/versions`;
+    const result = requireSuccess(await api3.send("GET", api3.root + path)).json();
+    if (!Array.isArray(result)) throw new CliError("The server returned an invalid application list.", { code: "invalid_response" });
+    return output(ctx, result);
+  }
+  if (action === "import") {
+    const packageId = args.required("package"), versionId = args.required("version-id");
+    const api3 = createClient();
+    try {
+      const result = requireSuccess(await api3.send("POST", `${api3.root}/exchange/packages/${segment(packageId)}/versions/${segment(versionId)}:import`)).json();
+      if (result?.packageId !== packageId || result?.versionId !== versionId)
+        throw new CliError("The import response does not match the requested package version.", { code: "invalid_response" });
+      return output(ctx, result);
+    } catch (error) {
+      throw contextualError(error, { packageId, versionId });
+    }
+  }
+  if (action === "preview" || action === "install") {
+    const packageId = args.required("package");
+    const body = await input(args, action), api3 = createClient();
+    const path = `${api3.root}/packages/${segment(packageId)}/${action}`;
+    if (action === "preview") {
+      const result = requireSuccess(await api3.send("POST", path, { json: body })).json();
+      if (result?.targetVersionId !== body.versionId || typeof result.ready !== "boolean")
+        throw new CliError("The preview response does not match the requested version.", { code: "invalid_response" });
+      return output(ctx, result);
+    }
+    body.requestId ??= randomId("apo");
+    return submit(ctx, api3, path, body, { packageId, versionId: body.versionId, requestId: body.requestId, operationId: body.requestId });
+  }
+  if (action === "installation") {
+    const id = args.required("installation"), api3 = createClient();
+    const result = requireSuccess(await api3.send("GET", `${api3.root}/installations/${segment(id)}`)).json();
+    if (result?.id !== id) throw new CliError("The installation response does not match the requested ID.", { code: "invalid_response" });
+    return output(ctx, result);
+  }
+  if (action === "operation") {
+    const id = args.required("operation"), operationAction = args.command(2);
+    const body = requestFields[operationAction] ? await input(args, operationAction) : void 0;
+    if (operationAction === "retry") {
+      body.requestId ??= randomId("apo");
+      if (body.requestId === id) throw invalid2("Retry requires a new requestId, different from the failed operation ID.");
+    }
+    const api3 = createClient(), path = `${api3.root}/operations/${segment(id)}`;
+    if (operationAction === "show" || operationAction === "wait") {
+      const settings = waitSettings(args, operationAction === "wait");
+      let operation;
+      try {
+        operation = operationResponse(requireSuccess(await api3.send("GET", path, { timeout: remaining(settings) })).json(), id);
+        if (operationAction === "wait") {
+          operation = await waitOperation(ctx, api3, operation, settings);
+          checkOutcome(operation);
+        }
+        return output(ctx, operation);
+      } catch (error) {
+        const latest = error.details?.operation ?? operation;
+        exposeApplicationConfirmations(ctx.reporter, latest);
+        throw contextualError(error, { operationId: id }, latest);
+      }
+    }
+    const operationId = operationAction === "retry" ? body.requestId : id;
+    return submit(
+      ctx,
+      api3,
+      `${path}/${operationAction}`,
+      body,
+      { operationId, ...operationAction === "retry" ? { sourceOperationId: id, requestId: body.requestId } : {} },
+      { cancel: operationAction === "cancel" }
+    );
+  }
+  throw invalid2("Unknown application command. Run app --help.");
+}
+
 // src/xrain-cli/app.mjs
 function client(ctx) {
   const market = ctx.args.has("exchange");
@@ -1510,7 +1761,12 @@ function client(ctx) {
   });
   return {
     root: market ? "/api/exchange/v1" : "/api/application/v1",
-    send: (method, path, options = {}) => request(new URL(path, profile.server), { ...options, method, token, timeout: ctx.args.timeout() })
+    send: (method, path, options = {}) => request(new URL(path, profile.server), {
+      ...options,
+      method,
+      token,
+      timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity)
+    })
   };
 }
 function initApp(ctx) {
@@ -1536,12 +1792,12 @@ async function buildApp(ctx, save) {
   const source = readLimited(sourcePath, MAX_SOURCE, "Source JSON");
   const parsed = parseJson(source, "Source JSON");
   if (!isObject(parsed)) throw new CliError("Source JSON must be an object.");
-  let output = save && ctx.args.has("output") ? resolve2(ctx.args.value("output")) : void 0;
-  if (save && !output && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
-    output = join3(dirname2(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
-  if (output) {
-    if (existsSync2(output)) throw new CliError(`Output already exists: ${output}`, { code: "output_exists" });
-    accessSync(dirname2(output), constants.W_OK);
+  let output2 = save && ctx.args.has("output") ? resolve2(ctx.args.value("output")) : void 0;
+  if (save && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
+    output2 = join3(dirname2(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
+  if (output2) {
+    if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
+    accessSync(dirname2(output2), constants.W_OK);
   }
   const { send, root } = client(ctx);
   const response = requireSuccess(await send("POST", root + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
@@ -1557,16 +1813,16 @@ async function buildApp(ctx, save) {
     ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
     return 0;
   }
-  output ??= join3(dirname2(sourcePath), `${packageId}-${version}.appkg`);
-  if (existsSync2(output)) throw new CliError(`Output already exists: ${output}`, { code: "output_exists" });
-  const temporary = `${output}.${randomBytes4(8).toString("hex")}.part`;
+  output2 ??= join3(dirname2(sourcePath), `${packageId}-${version}.appkg`);
+  if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
+  const temporary = `${output2}.${randomBytes4(8).toString("hex")}.part`;
   try {
     writeFileSync2(temporary, response.bytes, { flag: "wx" });
-    copyFileSync(temporary, output, constants.COPYFILE_EXCL);
+    copyFileSync(temporary, output2, constants.COPYFILE_EXCL);
   } finally {
     if (existsSync2(temporary)) unlinkSync2(temporary);
   }
-  ctx.reporter.print({ output, sourceSha256: sourceHash, packageSha256: fileHash });
+  ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
   return 0;
 }
 async function published(send, root) {
@@ -1604,11 +1860,11 @@ async function appStatus(ctx) {
   const packages = await published(send, root);
   const filter = ctx.args.value("package");
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
-  const statuses = [];
+  const statuses2 = [];
   for (const item of selected) {
     const versions = requireSuccess(await send("GET", `${root}/packages/${encodeURIComponent(item.id)}/versions`)).json();
     if (!Array.isArray(versions)) throw new CliError("The server returned an invalid version list.");
-    statuses.push({
+    statuses2.push({
       id: item.id,
       namespace: item.namespace,
       label: item.label,
@@ -1616,7 +1872,7 @@ async function appStatus(ctx) {
       versions: versions.filter((v) => ctx.args.has("exchange") || v.publishedAt != null).map((v) => ({ id: v.id, version: v.version, digest: v.digest, publishedAt: v.publishedAt ?? v.createdAt }))
     });
   }
-  ctx.reporter.print(!ctx.reporter.json && statuses.length === 1 ? statuses[0] : statuses);
+  ctx.reporter.print(!ctx.reporter.json && statuses2.length === 1 ? statuses2[0] : statuses2);
   return 0;
 }
 async function appCommands(ctx) {
@@ -1640,7 +1896,7 @@ async function appCommands(ctx) {
     case "status":
       return appStatus(ctx);
     default:
-      throw new CliError("Use app login, logout, init, check, build, publish or status.");
+      return appManagementCommands(ctx, () => client(ctx));
   }
 }
 
@@ -1732,6 +1988,20 @@ command("app check", [...app, "source"], [], "Build and validate remotely withou
 command("app build", [...app, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
 command("app publish", [...app, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
 command("app status", [...app, "exchange", "package"], [], "Read published applications and version history. JSON mode always returns an array.");
+command("app list", [...app, "exchange"], [], "List visible platform packages, or browse the independent market with --exchange.");
+command("app versions", [...app, "exchange", "package"], [slot("package")], "List versions of an exact package ID; availability for installation is decided by the platform.");
+command("app import", [...app, "package", "version-id"], [slot("package")], "Import an exact version from the platform-configured market; does not install or publish. --version-id is required.");
+var installInput = ["package", "version-id", "expected-revision", "maintain-installed-version", "request-json", "file"];
+var wait = ["wait", "wait-timeout", "poll-interval"];
+command("app preview", [...app, ...installInput], [slot("package")], "Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.");
+command("app install", [...app, ...installInput, "request-id", ...wait], [slot("package")], "Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.");
+command("app installation show", [...app, "installation"], [slot("installation")], "Read the installed version, revision and active/latest operation IDs.");
+command("app operation show", [...app, "operation"], [slot("operation")], "Read the original operation, including required inputs; successful inspection does not mean installation succeeded.");
+command("app operation wait", [...app, "operation", "wait-timeout", "poll-interval"], [slot("operation")], "Poll the original operation until success, required input, failure, cancellation or timeout. Never writes.");
+command("app operation resolve", [...app, "operation", "request-json", "file", "expected-revision", ...wait], [slot("operation")], "Submit chosen bindings, configuration and impact confirmations to the original waiting operation. Current expectedRevision is required.");
+command("app operation retry", [...app, "operation", "request-json", "file", "expected-revision", "request-id", ...wait], [slot("operation")], "Retry a failed operation with a new request ID; the platform checks its original revision.");
+command("app operation continue", [...app, "operation", ...wait], [slot("operation")], "Explicitly resume an interrupted executing operation; --wait then tracks the same operation.");
+command("app operation cancel", [...app, "operation"], [slot("operation")], "Cancel a pending or waiting operation when the platform permits it.");
 command("batch", ["file"], [slot("file")], "Run a JSON array of command argument arrays in this process; stop at the first failure.");
 function words(args) {
   return args.commands.map((word, index) => {
@@ -1740,8 +2010,8 @@ function words(args) {
   });
 }
 function findCommand(args) {
-  const input = words(args);
-  return specs.filter((spec) => spec.words.every((word, i) => input[i] === word)).sort((a, b) => b.words.length - a.words.length)[0];
+  const input2 = words(args);
+  return specs.filter((spec) => spec.words.every((word, i) => input2[i] === word)).sort((a, b) => b.words.length - a.words.length)[0];
 }
 function validateCommand(args) {
   const spec = findCommand(args);
@@ -1767,6 +2037,13 @@ function validateCommand(args) {
       throw new CliError("A complete query JSON request cannot be combined with individual query options.", { code: "invalid_arguments" });
   }
   if (["data create", "data update", "security user create", "security user ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
+  if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
+  if (spec.options.includes("wait-timeout")) {
+    if (spec.path !== "app operation wait" && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
+      throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
+    for (const name of ["wait-timeout", "poll-interval"]) if (args.integer(name, 1) > 86400)
+      throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: "invalid_arguments" });
+  }
   if (spec.path.startsWith("security ") && / (?:grant|revoke)-/.test(spec.path)) exclusive(["names", "roles", "permission-sets", "permissions"]);
   if (args.has("exchange")) {
     exclusive(["server", "exchange"]);
@@ -1794,6 +2071,8 @@ function commandHelp(args) {
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
+  if (!exact || exact.options.includes("request-json")) lines.push("Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.");
+  if (!exact || exact.options.includes("wait-timeout")) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
     "auth login authenticates; login/profile set only save settings. Applications require browser authentication.",
     "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed."
@@ -1805,12 +2084,14 @@ function commandHelp(args) {
 async function batchCommands(ctx) {
   const plan = await readJsonInput(ctx.args.required("file"), "Batch JSON");
   if (!Array.isArray(plan)) throw new CliError("Batch JSON must be an array of command argument arrays.", { code: "invalid_arguments" });
+  const commands = [];
   for (const row of plan) {
     if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
     if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and browser login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
-    if (["file", "query-json", "values-json", "filter-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
+    if (["file", "query-json", "values-json", "filter-json", "request-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
       throw new CliError("Batch steps must use files or inline JSON instead of sharing stdin.", { code: "invalid_arguments" });
+    commands.push(spec.path);
   }
   const results = [];
   for (const [index, argv] of plan.entries()) {
@@ -1824,6 +2105,10 @@ async function batchCommands(ctx) {
       } }
     });
     const result = JSON.parse(stdout);
+    if (/^app (?:preview|install|operation)(?: |$)/.test(commands[index])) {
+      exposeApplicationConfirmations(ctx.reporter, result.data);
+      exposeApplicationConfirmations(ctx.reporter, result.error?.details?.operation);
+    }
     results.push({ index, ...result });
     if (stderr) ctx.reporter.progress(stderr.trimEnd());
     if (code !== 0) throw new CliError(`Batch stopped at step ${index + 1}.`, {

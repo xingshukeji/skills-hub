@@ -18,8 +18,8 @@ export function segment(value) {
   return encodeURIComponent(value);
 }
 
-const flags = new Set(['help', 'json', 'no-browser', 'no-total', 'check']);
-const valued = new Set(('server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names').split(' '));
+const flags = new Set(['help', 'json', 'no-browser', 'no-total', 'check', 'wait', 'maintain-installed-version']);
+const valued = new Set(('server tenant bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval').split(' '));
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {
@@ -124,11 +124,19 @@ const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[
 export class Reporter {
   constructor(stdout = process.stdout, stderr = process.stderr) {
     this.stdout = stdout; this.stderr = stderr; this.secrets = new Set(); this.json = false; this.results = [];
+    this.visibleFields = new WeakMap();
   }
   secret(value) { if (nonempty(value)) this.secrets.add(value); return value; }
+  // Only a command that owns a non-credential field may exempt its key. Known
+  // credential values are still removed by clean(), including from that field.
+  visibleField(object, key) {
+    if (!this.visibleFields.has(object)) this.visibleFields.set(object, new Set());
+    this.visibleFields.get(object).add(key);
+  }
   clean(value) {
     if (Array.isArray(value)) return value.map(item => this.clean(item));
-    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey.test(key) ? '[REDACTED]' : this.clean(item)]));
+    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+      sensitiveKey.test(key) && !this.visibleFields.get(value)?.has(key) ? '[REDACTED]' : this.clean(item)]));
     if (typeof value !== 'string') return value;
     let result = value;
     for (const secret of this.secrets) result = result.replaceAll(secret, '[REDACTED]');

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { cpSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fixture, mockServer, respond } from './helpers.mjs';
+import { fixture, mockServer, PACKAGE_ID, respond, VERSION_ID } from './helpers.mjs';
 
 function execute(script, args, cwd, env, input = '') {
   return new Promise((resolveResult, reject) => {
@@ -74,4 +74,57 @@ test('installed skill alone runs help, profile, token, HTTP and app-init command
   const appDir = join(f.directory, 'application');
   const app = await execute(script, ['app', 'init', '--namespace', 'myapp', '--label', 'Installed app', '--dir', appDir], f.directory, f.env);
   assert.equal(app.code, 0, app.stderr); assert.equal(JSON.parse(readFileSync(join(appDir, 'source.json'))).namespace, 'myapp');
+});
+
+test('standalone application commands import, preview, install and resolve with JSON stdin and reusable impact tokens', async t => {
+  const f = fixture(t);
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const installed = join(f.directory, 'application management skill');
+  cpSync(join(root, 'skills/xrain-cli'), installed, { recursive: true });
+  const script = join(installed, 'scripts/xrain-cli.mjs');
+  const installationId = 'api0123456789abcdefg';
+  const confirmation = { recordId: 'apr0123456789abcdefg', unit: '$security', token: 'synthetic-installed-impact-token' };
+  let operation;
+  const server = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers.authorization, 'Bearer synthetic-installed-app-session');
+    if (hit.url.endsWith(':import')) return respond(res, { packageId: PACKAGE_ID, versionId: VERSION_ID, alreadyExisted: false });
+    if (hit.url.endsWith('/preview')) {
+      assert.deepEqual(hit.json(), { versionId: VERSION_ID, expectedRevision: 0 });
+      return respond(res, { targetVersionId: VERSION_ID, ready: false, revision: 0, requiredConfirmations: [confirmation] });
+    }
+    if (hit.url.endsWith('/install')) {
+      operation = { id: hit.json().requestId, installationId, targetVersionId: VERSION_ID, sourceVersionId: null, sourceRevision: 0,
+        status: 'WaitingForResolution', details: { requiredConfirmations: [confirmation], requiredBindings: [], conflicts: [] } };
+      return respond(res, operation);
+    }
+    if (hit.url.endsWith('/resolve')) {
+      assert.equal(hit.url, `/api/application/v1/operations/${operation.id}/resolve`);
+      assert.deepEqual(hit.json(), { expectedRevision: 0, confirmations: [confirmation] });
+      operation = { ...operation, status: 'Succeeded', details: { requiredConfirmations: [] } };
+      return respond(res, operation);
+    }
+    if (hit.url.includes('/installations/')) return respond(res, { id: installationId, packageId: PACKAGE_ID,
+      installedVersionId: VERSION_ID, revision: 1, activeOperationId: null, latestOperationId: operation.id });
+    return respond(res, {}, 404);
+  });
+  f.profile(server.url);
+  f.store.saveSession('Demo', server.url, 'tenant-demo', 'synthetic-installed-app-session', Date.now() + 300000);
+  const run = (args, input) => execute(script, [...args, '--json'], f.directory, f.env, input);
+  const help = await run(['app', 'install', '--help']);
+  assert.equal(help.code, 0); assert.match(JSON.parse(help.stdout).data, /--wait/);
+  const imported = await run(['app', 'import', PACKAGE_ID, '--version-id', VERSION_ID]);
+  assert.equal(imported.code, 0, imported.stdout);
+  const preview = await run(['app', 'preview', PACKAGE_ID, '--request-json', '-'], JSON.stringify({ versionId: VERSION_ID, expectedRevision: 0 }));
+  assert.equal(preview.code, 0, preview.stdout);
+  assert.equal(JSON.parse(preview.stdout).data.requiredConfirmations[0].token, confirmation.token);
+  const submitted = await run(['app', 'install', PACKAGE_ID, '--version-id', VERSION_ID, '--wait']);
+  assert.equal(submitted.code, 1);
+  const waiting = JSON.parse(submitted.stdout).error.details.operation;
+  const resolved = await run(['app', 'operation', 'resolve', waiting.id, '--request-json', '-', '--wait'],
+    JSON.stringify({ expectedRevision: waiting.sourceRevision, confirmations: waiting.details.requiredConfirmations }));
+  assert.equal(resolved.code, 0, resolved.stdout); assert.equal(JSON.parse(resolved.stdout).data.status, 'Succeeded');
+  const installedResult = await run(['app', 'installation', 'show', installationId]);
+  assert.equal(installedResult.code, 0, installedResult.stdout); assert.equal(JSON.parse(installedResult.stdout).data.installedVersionId, VERSION_ID);
+  assert.equal(server.hits.filter(hit => hit.url.endsWith('/install')).length, 1);
+  assert.equal(existsSync(join(installed, 'node_modules')), false);
 });

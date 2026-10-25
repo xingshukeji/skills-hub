@@ -15,6 +15,10 @@
 
 导入是写操作，属于安装/导入授权范围，不与 Host 原包导入混用。
 
+已提供 xrain-cli 时，目录和版本使用 app list/versions；市场导入使用 app import；预检和提交使用 app preview/install。选择目标平台 profile，提供精确 packageId/versionId；安装自带服务端预检，无需为提交再重复一次 preview。app status 仍只查询发布状态。
+
+原操作使用 app operation show/wait/resolve/continue/retry/cancel；等待只查询，不自动执行恢复动作。CLI 提交前打印 requestId，结果未知先按该 ID 查询。--json 的读取结果在 data，写入或等待失败时的最近回执在 error.details.operation；使用回执工具前取出原对象。具体输入选项按该命令 --help 查询。
+
 ## 预检与状态
 
 使用实际 versionId、当前 expectedRevision、所需 tenantBindings/confirmations；安装可带 requestId。读 ready、requiredBindings、requiredConfirmations、conflicts、changes 及源/目标版本。确认项为原响应 {recordId,unit,token}，不造 token 或沿用过期影响。

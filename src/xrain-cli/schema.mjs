@@ -50,6 +50,20 @@ command('app check', [...app, 'source'], [], 'Build and validate remotely withou
 command('app build', [...app, 'source', 'output'], [], 'Build remotely, validate the returned package, and save it exclusively.');
 command('app publish', [...app, 'exchange', 'file'], [slot('file')], 'Publish an existing application package without automatic retries.');
 command('app status', [...app, 'exchange', 'package'], [], 'Read published applications and version history. JSON mode always returns an array.');
+command('app list', [...app, 'exchange'], [], 'List visible platform packages, or browse the independent market with --exchange.');
+command('app versions', [...app, 'exchange', 'package'], [slot('package')], 'List versions of an exact package ID; availability for installation is decided by the platform.');
+command('app import', [...app, 'package', 'version-id'], [slot('package')], 'Import an exact version from the platform-configured market; does not install or publish. --version-id is required.');
+const installInput = ['package', 'version-id', 'expected-revision', 'maintain-installed-version', 'request-json', 'file'];
+const wait = ['wait', 'wait-timeout', 'poll-interval'];
+command('app preview', [...app, ...installInput], [slot('package')], 'Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.');
+command('app install', [...app, ...installInput, 'request-id', ...wait], [slot('package')], 'Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.');
+command('app installation show', [...app, 'installation'], [slot('installation')], 'Read the installed version, revision and active/latest operation IDs.');
+command('app operation show', [...app, 'operation'], [slot('operation')], 'Read the original operation, including required inputs; successful inspection does not mean installation succeeded.');
+command('app operation wait', [...app, 'operation', 'wait-timeout', 'poll-interval'], [slot('operation')], 'Poll the original operation until success, required input, failure, cancellation or timeout. Never writes.');
+command('app operation resolve', [...app, 'operation', 'request-json', 'file', 'expected-revision', ...wait], [slot('operation')], 'Submit chosen bindings, configuration and impact confirmations to the original waiting operation. Current expectedRevision is required.');
+command('app operation retry', [...app, 'operation', 'request-json', 'file', 'expected-revision', 'request-id', ...wait], [slot('operation')], 'Retry a failed operation with a new request ID; the platform checks its original revision.');
+command('app operation continue', [...app, 'operation', ...wait], [slot('operation')], 'Explicitly resume an interrupted executing operation; --wait then tracks the same operation.');
+command('app operation cancel', [...app, 'operation'], [slot('operation')], 'Cancel a pending or waiting operation when the platform permits it.');
 command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument arrays in this process; stop at the first failure.');
 
 function words(args) {
@@ -85,6 +99,13 @@ export function validateCommand(args) {
       throw new CliError('A complete query JSON request cannot be combined with individual query options.', { code: 'invalid_arguments' });
   }
   if (['data create', 'data update', 'security user create', 'security user ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
+  if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
+  if (spec.options.includes('wait-timeout')) {
+    if (spec.path !== 'app operation wait' && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
+      throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });
+    for (const name of ['wait-timeout', 'poll-interval']) if (args.integer(name, 1) > 86400)
+      throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: 'invalid_arguments' });
+  }
   if (spec.path.startsWith('security ') && / (?:grant|revoke)-/.test(spec.path)) exclusive(['names', 'roles', 'permission-sets', 'permissions']);
   if (args.has('exchange')) {
     exclusive(['server', 'exchange']);
@@ -113,6 +134,8 @@ export function commandHelp(args) {
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
+  if (!exact || exact.options.includes('request-json')) lines.push('Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.');
+  if (!exact || exact.options.includes('wait-timeout')) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
   lines.push('auth login authenticates; login/profile set only save settings. Applications require browser authentication.',
     'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed.');
   return lines.join('\n') + '\n';
