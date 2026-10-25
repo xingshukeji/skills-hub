@@ -153,12 +153,23 @@ export async function prepareLab(output, repeats = 1) {
         if (row.seed) await writeJson(join(destination, 'observed.json'), row.seed.kind === 'publication' ? { applicationId: row.seed.applicationId, oldScreenshot: row.seed.oldScreenshot } : row.seed);
         for (const [name, value] of Object.entries(row.artifacts ?? {})) await writeJson(join(destination, name), value);
         if (row.projectFixture) {
-          const project = join(destination, 'demo project'); await mkdir(join(project, '.workforce'), { recursive: true });
+          const project = join(destination, 'demo project'); await mkdir(join(project, 'config'), { recursive: true });
           await mkdir(join(project, 'scripts')); await mkdir(join(project, 'tenant app/scripts'), { recursive: true });
           const command = 'node scripts/start-development.mjs';
           await writeJson(join(project, 'package.json'), { scripts: { start: command, dev: command, preview: command, debug: command } });
-          await writeJson(join(project, '.workforce/development-launch.json'), { applicationDirectory: 'tenant app', applicationConfiguration: 'application.json', connectionScript: 'connect.py', proxyScript: 'proxy.mjs', proxyTlsConfiguration: 'tls.json', applicationUrl: 'http://localhost:4870', browserUrl: 'https://localhost:9443' });
-          for (const file of ['scripts/start-development.mjs', 'connect.py', 'tenant app/application.json', 'tenant app/scripts/start-development.mjs', 'tls.json']) await writeFile(join(project, file), '{}\n');
+          await writeJson(join(project, 'config/development.json'), { applicationDirectory: 'tenant app', applicationConfiguration: 'application.json', connectionScript: 'connect.py', url: 'http://localhost:15380' });
+          await writeFile(join(project, 'scripts/development-configuration.mjs'), `
+            import { readFile } from 'node:fs/promises';
+            import { resolve } from 'node:path';
+            export async function developmentConfiguration(configuration, { root }) {
+              const input = JSON.parse(await readFile(resolve(root, configuration ?? 'config/development.json'), 'utf8'));
+              const applicationRoot = resolve(root, input.applicationDirectory);
+              return { applicationRoot, applicationConfig: resolve(applicationRoot, input.applicationConfiguration),
+                connectionScript: resolve(root, input.connectionScript), applicationUrl: new URL(input.url) };
+            }
+          `);
+          // The configured connector is deliberately absent in this repair case.
+          for (const file of ['scripts/start-development.mjs', 'tenant app/application.json', 'tenant app/scripts/start-development.mjs']) await writeFile(join(project, file), '{}\n');
         }
       }
       await writeJson(join(input, 'cases.json'), cases.map(({ id, request }) => ({ id, request, artifacts: 'artifacts/' + id })));

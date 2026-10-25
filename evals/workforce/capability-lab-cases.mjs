@@ -39,7 +39,7 @@ export const cases = [
     kind: 'publication', applicationId: 'app-sales', publication: { mode: 'selected', userIds: ['user-zhang', 'user-colleague'], departments: [{ orgTreeId: 'org-main', nodeId: 'dept-sales' }], revision: 4 },
     oldScreenshot: { mode: 'selected', userIds: ['user-zhang'], departments: [{ orgTreeId: 'org-main', nodeId: 'dept-sales' }], revision: 3 }
   } },
-  { id: 'l08', skill: 'workforce-runtime', request: '检查这份新机器接入包能否直接从统一入口启动。请实际解析登记文件，指出缺失项、宿主和浏览器入口；本轮不启动服务。', projectFixture: true },
+  { id: 'l08', skill: 'workforce-runtime', request: '检查这份新机器接入包能否直接从统一入口启动。请实际读取项目配置入口，指出缺失项和浏览器入口；本轮不启动服务。', projectFixture: true },
   { id: 'l09', skill: 'workforce-runtime', request: '分析性能采样，给出每组数量、失败、耗时与是否满足两秒预算。说明现有证据能否代表用户页面达标。',
     artifacts: { 'samples.json': { samples: [
       ...Array.from({ length: 19 }, (_, i) => ({ scenario: '打开订单', phase: 'warm', visibility: 'foreground', outcome: 'success', ms: 600 + i * 30, budgetMs: 2000 })),

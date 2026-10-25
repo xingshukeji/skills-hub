@@ -87,70 +87,95 @@ test('history handles V3, pagination, unresolved calls and consistent duplicate 
   assert.throws(() => summarizeHistory({ hasMore: false, records: [call, event(2, 'assistant/message', {})] }, 1));
   assert.throws(() => summarizeHistory({ records: [] }, 0));
 });
-test('launch inspector resolves registration bases, separates origins, and does not read app secrets', async t => {
+async function launchProject(t) {
   const root = await temporary(t);
-  await mkdir(join(root, '.workforce')); await mkdir(join(root, 'scripts'));
-  await mkdir(join(root, 'custom app/scripts'), { recursive: true });
+  await mkdir(join(root, 'config'));
+  await mkdir(join(root, 'scripts'));
+  await mkdir(join(root, 'app/scripts'), { recursive: true });
+  const config = { applicationDirectory: 'app', applicationConfiguration: 'settings.json', url: 'http://localhost:15380' };
+  const configuration = join(root, 'config/development.json');
+  await writeFile(configuration, JSON.stringify(config));
   const command = 'node scripts/start-development.mjs';
-  await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { start: command, dev: command, debug: command } }));
-  await writeFile(join(root, '.workforce/development-launch.json'), JSON.stringify({
-    applicationDirectory: 'custom app', applicationConfiguration: 'settings.json', connectionScript: 'connect.py', proxyScript: 'proxy.mjs', proxyTlsConfiguration: 'tls.json',
-    applicationUrl: 'http://localhost:4870/private?token=SYNTHETIC_QUERY', browserUrl: 'https://localhost:9443/browser#SYNTHETIC_FRAGMENT'
-  }));
-  for (const name of ['custom app/settings.json', 'custom app/scripts/start-development.mjs', 'connect.py', 'proxy.mjs', 'tls.json', 'scripts/start-development.mjs']) await writeFile(join(root, name), 'SYNTHETIC_APP_SECRET');
+  await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { start: command, dev: command } }));
+  // A synthetic project's public configuration export: the inspector must use
+  // its returned paths and never interpret this JSON independently.
+  await writeFile(join(root, 'scripts/development-configuration.mjs'), String.raw`
+    import { readFile } from 'node:fs/promises';
+    import { resolve } from 'node:path';
+    export async function developmentConfiguration(configuration, { root }) {
+      const input = JSON.parse((await readFile(resolve(root, configuration ?? 'config/development.json'), 'utf8')).replace(/^\uFEFF/u, ''));
+      return {
+        applicationRoot: resolve(root, input.applicationDirectory),
+        applicationConfig: resolve(root, input.applicationDirectory, input.applicationConfiguration),
+        connectionScript: input.connectionScript ? resolve(root, input.connectionScript) : null,
+        applicationUrl: new URL(input.url),
+        environment: { PRIVATE_VALUE: 'SYNTHETIC_CONFIGURATION_SECRET' },
+      };
+    }
+  `);
+  for (const name of ['scripts/start-development.mjs', 'app/scripts/start-development.mjs', 'app/settings.json'])
+    await writeFile(join(root, name), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
+  return { root, config, configuration };
+}
+
+test('launch inspector consumes the project export without requiring a connector, proxy or Markdown', async t => {
+  const { root } = await launchProject(t);
+  await mkdir(join(root, '.workforce'));
+  await writeFile(join(root, '.workforce/development-launch.json'), 'obsolete invalid configuration');
   const result = await inspectLaunch(root);
-  assert.equal(result.paths.applicationConfiguration.path, resolve(root, 'custom app/settings.json'));
-  assert.equal(result.applicationOrigin, 'http://localhost:4870'); assert.equal(result.browserOrigin, 'https://localhost:9443');
-  assert.equal(result.readyToInvoke, true); assert.equal(result.entry.aliasesMatch, true); assert.equal(result.runtimeHealth, 'not-checked');
-  assert.equal(result.connectionRuntime, 'python');
-  assert.equal(result.paths.startScript.path, resolve(root, 'scripts/start-development.mjs'));
+  assert.equal(result.paths.applicationConfiguration.path, resolve(root, 'app/settings.json'));
+  assert.equal(result.applicationOrigin, 'http://localhost:15380');
+  assert.equal(result.browserOrigin, result.applicationOrigin);
+  assert.equal(result.readyToInvoke, true);
+  assert.equal(result.connectionRuntime, 'not-configured');
+  assert.equal(result.runtimeHealth, 'not-checked');
+  assert.equal(Object.hasOwn(result.paths, 'proxyScript'), false);
+  assert.equal(Object.hasOwn(result.paths, 'connectionScript'), false);
   assert(!JSON.stringify(result).includes('SYNTHETIC_'));
-  await rm(join(root, 'connect.py'));
-  assert.equal((await inspectLaunch(root)).readyToInvoke, false);
 });
-test('launch inspector follows custom registration and Node entry without reading TLS or app secrets', async t => {
-  const root = await temporary(t);
-  await mkdir(join(root, 'config')); await mkdir(join(root, 'app/scripts'), { recursive: true });
+
+test('isolated launch inspector follows explicit configuration and reports a missing configured connector', async t => {
+  const { root, config } = await launchProject(t);
   const command = 'node "entry with spaces.mjs"';
   await writeFile(join(root, 'package.json'), JSON.stringify({ scripts: { start: command, 'start:local': command, 'start:ui': command } }));
-  const config = { applicationDirectory: 'app', applicationConfiguration: 'settings.json', connectionScript: 'connect.mjs', proxyScript: 'proxy.mjs', applicationUrl: 'http://localhost:4800', browserUrl: 'http://localhost:4900' };
+  await writeFile(join(root, 'entry with spaces.mjs'), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
+  Object.assign(config, { connectionScript: 'connect.py', url: 'https://localhost:9443/private?token=SYNTHETIC_QUERY#SYNTHETIC_FRAGMENT' });
   await writeFile(join(root, 'config/custom.json'), '\uFEFF' + JSON.stringify(config));
-  for (const name of ['entry with spaces.mjs', 'app/scripts/start-development.mjs', 'app/settings.json', 'connect.mjs', 'proxy.mjs']) await writeFile(join(root, name), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
-  const result = await inspectLaunch(root, 'config/custom.json');
-  assert.equal(result.readyToInvoke, true); assert.equal(result.connectionRuntime, 'node');
-  assert.equal(result.paths.applicationDirectory.path, join(root, 'app'));
-  assert.equal(result.paths.startScript.path, join(root, 'entry with spaces.mjs'));
-  assert(!Object.hasOwn(result.paths, 'proxyTlsConfiguration'));
+  const missing = await inspectLaunch(root, 'config/custom.json');
+  assert.equal(missing.readyToInvoke, false);
+  assert.equal(missing.paths.connectionScript.exists, false);
+  await writeFile(join(root, 'connect.py'), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
   const isolated = join(root, 'isolated inspector.mjs');
   await cp(new URL('../skills/workforce-runtime/scripts/inspect-launch.mjs', import.meta.url), isolated);
   const run = spawnSync(process.execPath, [isolated, root, 'config/custom.json'], { cwd: root, encoding: 'utf8', windowsHide: true });
-  assert.equal(run.status, 0, run.stderr); assert.equal(JSON.parse(run.stdout).readyToInvoke, true);
+  assert.equal(run.status, 0, run.stderr);
+  const result = JSON.parse(run.stdout);
+  assert.equal(result.readyToInvoke, true);
+  assert.equal(result.connectionRuntime, 'python');
+  assert.equal(result.browserOrigin, 'https://localhost:9443');
+  assert.equal(result.paths.startScript.path, join(root, 'entry with spaces.mjs'));
+  assert(!Object.hasOwn(result.paths, 'proxyTlsConfiguration'));
   assert(!run.stdout.includes('SYNTHETIC_'));
-  config.browserUrl = 'https://localhost:4900';
-  await writeFile(join(root, 'config/custom.json'), JSON.stringify(config));
-  const missingTls = await inspectLaunch(root, 'config/custom.json');
-  assert.equal(missingTls.readyToInvoke, false); assert.equal(missingTls.paths.proxyTlsConfiguration.exists, false);
 });
-test('launch inspector rejects legacy entry, unsupported connector, missing application entry and alias drift', async t => {
-  const root = await temporary(t);
-  await mkdir(join(root, '.workforce')); await mkdir(join(root, 'app/scripts'), { recursive: true });
-  const config = { applicationDirectory: 'app', applicationConfiguration: 'settings.json', connectionScript: 'connect.py', proxyScript: 'proxy.mjs', applicationUrl: 'http://localhost:4800', browserUrl: 'http://localhost:4900' };
-  const registration = join(root, '.workforce/development-launch.json');
-  await writeFile(registration, JSON.stringify(config));
-  for (const name of ['start.mjs', 'Start-Development.ps1', 'app/scripts/start-development.mjs', 'app/settings.json', 'connect.py', 'connect.ps1', 'proxy.mjs']) await writeFile(join(root, name), '');
+
+test('launch inspector rejects an obsolete entry, mismatched aliases and unsupported configured connectors', async t => {
+  const { root, config, configuration } = await launchProject(t);
   const packagePath = join(root, 'package.json');
   await writeFile(packagePath, JSON.stringify({ scripts: { start: 'pwsh -File Start-Development.ps1' } }));
   assert.equal((await inspectLaunch(root)).entry.registered, false);
-  await writeFile(packagePath, JSON.stringify({ scripts: { start: 'node start.mjs', 'start:ui': 'node obsolete.mjs' } }));
+  await writeFile(packagePath, JSON.stringify({ scripts: { start: 'node scripts/start-development.mjs', 'start:ui': 'node obsolete.mjs' } }));
   assert.equal((await inspectLaunch(root)).readyToInvoke, false);
-  await writeFile(packagePath, JSON.stringify({ scripts: { start: 'node start.mjs' } }));
-  config.connectionScript = 'connect.ps1'; await writeFile(registration, JSON.stringify(config));
+  await writeFile(packagePath, JSON.stringify({ scripts: { start: 'node scripts/start-development.mjs' } }));
+  config.connectionScript = 'connect.ps1';
+  await writeFile(configuration, JSON.stringify(config));
+  await writeFile(join(root, 'connect.ps1'), '');
   assert.equal((await inspectLaunch(root)).connectionRuntime, 'unsupported');
   assert.equal((await inspectLaunch(root)).readyToInvoke, false);
-  config.connectionScript = 'connect.py'; await writeFile(registration, JSON.stringify(config));
+  delete config.connectionScript;
+  await writeFile(configuration, JSON.stringify(config));
   await rm(join(root, 'app/scripts/start-development.mjs'));
   assert.equal((await inspectLaunch(root)).readyToInvoke, false);
-  assert.deepEqual(JSON.parse(await readFile(registration, 'utf8')), config);
+  assert.deepEqual(JSON.parse(await readFile(configuration, 'utf8')), config);
 });
 test('new helpers execute after isolated copies and reject invalid inputs without echoing contents', async t => {
   const root = await temporary(t);
