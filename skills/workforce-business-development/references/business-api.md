@@ -119,6 +119,7 @@ debug 会真实执行动作；正式调用使用函数、接口或 Routine 入�
 | 组织与共享规则 | `/api/service/authen/v1/security/org-trees`；`/api/metadata/v1/sharing-rules` 和 `/sharing-rule-formulas` | 租户目录可为空，不能补造系统记录 |
 | 平台变量 | `GET /api/variables/items` | 元信息数组；hasValue 表达是否配置，不返回明文 |
 | 对外 API 目录 | `GET /api/service/authen/v1/security/tenant-api-catalog?catalog=external` | `{baseUrl, generatedAtUtc, catalogExposure, items, temporalContracts}`；不覆盖所有业务模块 |
+| 完整租户 OpenAPI | `GET /api/service/authen/v1/security/tenant-api-catalog?catalog=directory&format=openapi` | OpenAPI 3.1；版本、业务分组、参数、响应与权限；租户管理员登录后可从“API 访问 → 接口文档”查阅，不含 Host 接口 |
 | 包、安装与组件 | `/api/application/v1/packages`；`/installations/{installationId}`、`/components`、`/operations` | 包为数组；安装为对象；组件有 items；操作列表用 hasMore |
 | 升级/安装操作状态 | `GET /api/application/v1/operations/{operationId}` | `{id, installationId, sourceVersionId, targetVersionId, sourceRevision, status, errorCode, details, createdAt, updatedAt}` |
 | 模型删除影响 | `/api/metadata/v1/entities/{entityCode}/delete-impact` | 当前 metadataRevision/impactToken；DELETE 使用 If-Match/X-Impact-Token |
@@ -142,7 +143,7 @@ HTTP 无统一 `{success, data, error}` 外层；先判断状态码和正文，�
 | 普通写入系统管理字段 | 403，`errorCode: platform.data.field_not_writable` | 按有效写入字段提交；Owner 使用专门转移入口 |
 | 旧版本助手额外门槛 | 历史实测 403，`{error: "agents.application_context_required"}` | 现行规则已取消，核对运行制品与源码修复；不通过加客户端映射或个人订阅绕过 |
 | 未配置个人设置 | 404，空正文 | 使用应用明确的缺省值 |
-| 目录扩展/OpenAPI 服务错误 | 500，`{message, details, traceId}` | 保留服务错误，使用已成功的 JSON 目录；不当成空列表 |
+| 旧版本目录扩展/OpenAPI 服务错误 | 历史实测 500，`{message, details, traceId}` | 核对部署版本和[验证记录](api-verification.md)，保留错误及 traceId；不当成空列表 |
 | Text 超过声明长度 | 本次 25 字符写入长度 24 的字段返回 500，`{message, details, traceId}` | 保留服务错误并提示实际长度限制；不能假定所有字段校验均返回 400 |
 
 记录与元数据错误通常有 type/title/status/errorCode/message，部分含 traceId；智能体 error 则可能是字符串，按各自结构解析。未实测操作见[验证范围](api-verification.md)。

@@ -1,6 +1,20 @@
 # API 验证依据与边界
 
-验证日期为 2026-10-23，目标为中央测试环境的业务租户，复用已登记维护者和普通成员。请求合同见[业务 API](business-api.md)，18 组首轮真实响应见[脱敏样例](../assets/http-contract-samples.json)。完整证据保存在忽略的本地验证目录，Skill 无此依赖。
+首轮验证日期为 2026-10-23；完整 OpenAPI 在 2026-10-26 补充验证。目标为中央测试环境的业务租户，复用已登记维护者和普通成员。请求合同见[业务 API](business-api.md)，18 组首轮真实响应见[脱敏样例](../assets/http-contract-samples.json)。完整证据保存在忽略的本地验证目录，Skill 无此依赖。
+
+## 完整 OpenAPI 补充验证
+
+2026-10-26，平台版本 `0.1.0-ci.20261026.31`、源码 `f1cde12097d302c2212212619623d11000507410`：
+
+| 内容 | 实际结果 |
+| --- | --- |
+| 完整租户规范 | `catalog=directory&format=openapi` 返回 200、OpenAPI 3.1.1，包含 386 个操作、29 个功能分组；`info.version` 与部署来源一致 |
+| 在线阅读 | “API 访问 → 接口文档”展示分组；中文搜索、接口直达链接及刷新通过，页面下载得到同一版本规范 |
+| 调用地址 | `servers`、生成的 cURL 和页面示例使用实际公开 HTTPS 入口；修正了目标遗漏的既有代理配置 |
+| 只读调用 | 从“业务数据”找到 `GET /api/data/v1/query-capabilities`，正常租户登录后调用返回 200，无重定向；响应含 `fieldTypes`、`operatorSets`、`operators`、`limits`，其中字段类型 12 项 |
+| 兼容子集 | `catalog=external&format=openapi` 返回 200，保留 31 个操作 |
+
+该轮未创建身份、变更业务权限或写入业务数据。完整规范不包含 Host 管理接口；导出成功不证明全部业务写入都已实跑。
 
 ## 两轮验证范围
 
@@ -36,9 +50,10 @@
 
 以下未完成端到端验证：成功跨人分享/Owner 转移、跨对象权限组合、原值审计存储回读、记录类型范围在业务端的执行、失败部署/破坏性迁移、设置 PUT、变量写入、Token 管理、文件服务、邮箱内容/草稿、外部投递、Trigger/Routine 运行、现有业务函数执行、应用安装升级恢复及跨系统补偿。
 
+历史目录错误：2026-10-23 的 external/internal JSON API 目录分别返回 31/35 项；当时 `catalog=directory`、`catalog=external&format=openapi` 返回 500。2026-10-26 的完整规范和兼容导出已按上表复验通过，历史响应保留作为旧制品证据。
+
 已知未修复服务错误：
 
-- external/internal JSON API 目录分别返回 31/35 项；`catalog=directory`、`catalog=external&format=openapi` 返回 500。
 - 长度 24 的 Text 写入 25 字符返回 500，未新增记录。
 
 以上 500 正文均为 `{message, details, traceId}`。目录条目数不代表平台全部 API，已通过读取也不代表对应写入或业务链路已验证。

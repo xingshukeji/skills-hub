@@ -43,13 +43,13 @@ API 访问要分别核对认证方式、接口准入和实际业务授权：
 
 | 层次 | 开发时如何消费 |
 | --- | --- |
-| 接口目录 | `/api/service/authen/v1/security/tenant-api-catalog?catalog=external` 返回登记的对外 API；internal/directory 与 `format=openapi` 按目标实际支持情况使用 |
+| 接口目录 | `/api/service/authen/v1/security/tenant-api-catalog?catalog=directory&format=openapi` 返回完整租户 OpenAPI 3.1；`catalog=external` 保留登记的对外接口子集 |
 | 认证方式 | 读取条目的 `admission`：`TenantApiToken`、`TenantLogin`、`HostLogin`、`Anonymous` 是不同入口要求 |
 | 接口调用资格 | 使用实际 `requiredPermission`、`requiredRole`、`callableInCurrentSession/unavailableReason` 及响应中的其他准入条件；目录不是授权引擎 |
 | 执行身份 | Token 的 `subjectUserId` 是调用主体；签发人的 `createdById` 不会替代它 |
 | 业务结果 | 对象、字段、记录范围、应用和业务状态继续独立检查 |
 
-管理目录权限与业务调用权限分别处理。目录不覆盖所有模块，可调用提示不替代授权响应；已知目录/OpenAPI 错误见[实测范围](api-verification.md)，业务入口见[API 索引](business-api.md)。
+租户管理员登录后，从“API 访问 → 接口文档”或 `/api-center?tab=documentation` 按功能分组、名称和路径查找，查看参数、响应及权限，复制接口直达链接或下载 JSON。规范 `info.version` 对应部署版本。完整租户规范不含 Host 管理接口；租户配置的业务 HTTP 接口从 HTTP 集成目录查询。管理目录需要租户登录会话，API Token 不能替代；可调用提示不替代业务授权响应。版本与真实验证见[实测范围](api-verification.md)，业务入口见[API 索引](business-api.md)。
 
 当前 API Token 管理基址为 `/api/service/authen/v1/security`：
 
