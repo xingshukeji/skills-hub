@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { existsSync, realpathSync } from 'node:fs';
 
 function assert(condition) { if (!condition) throw new Error('Invalid performance samples; see references/measurement.md.'); }
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -36,7 +37,7 @@ export function summarize(input) {
   });
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
   try {
     if (process.argv.length !== 3) throw new Error('Usage: node summarize.mjs samples.json');
     const rows = summarize(JSON.parse(await readFile(process.argv[2], 'utf8')));

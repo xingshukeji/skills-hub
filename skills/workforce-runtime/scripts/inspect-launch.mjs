@@ -1,6 +1,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { resolve, join, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { existsSync, realpathSync } from 'node:fs';
 
 async function exists(path, directory = false) {
   try { const value = await stat(path); return directory ? value.isDirectory() : value.isFile(); }
@@ -42,7 +43,7 @@ export async function inspectLaunch(directory, configuration) {
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
   try {
     if (process.argv.length !== 3 && process.argv.length !== 4) throw new Error('invalid arguments');
     const result = await inspectLaunch(process.argv[2], process.argv[3]);

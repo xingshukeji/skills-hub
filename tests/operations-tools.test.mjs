@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, cp, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, cp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -190,4 +190,42 @@ test('new helpers execute after isolated copies and reject invalid inputs withou
     const run = spawnSync(process.execPath, [join(installed, 'scripts', script), input, ...extra], { cwd: root, encoding: 'utf8', windowsHide: true, env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } });
     assert.equal(run.status, 2); assert.equal(run.stdout, ''); assert(!run.stderr.includes('SYNTHETIC_PRIVATE'));
   }
+});
+
+test('copied helpers execute through directory aliases instead of silently exiting', async t => {
+  const root = await temporary(t), actual = join(root, 'actual'), alias = join(root, 'directory alias');
+  await mkdir(actual);
+  await symlink(actual, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const input = join(actual, 'invalid.json');
+  await writeFile(input, 'SYNTHETIC_PRIVATE_INVALID_JSON');
+  const helpers = [
+    ['workforce-runtime', 'inspect-launch.mjs', []],
+    ['workforce-runtime', 'summarize.mjs', []],
+    ['xrain-app-operations', 'inspect-operation.mjs', []],
+    ['xrain-app-operations', 'prepare-resolution.mjs', ['--output', join(actual, 'output.json')]],
+    ['workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']]
+  ];
+  for (const skill of new Set(helpers.map(([skill]) => skill)))
+    await cp(new URL('../skills/' + skill + '/', import.meta.url), join(actual, skill), { recursive: true });
+  for (const [skill, script, args] of helpers) {
+    const run = spawnSync(process.execPath, [join(alias, skill, 'scripts', script), input, ...args], { cwd: root, encoding: 'utf8', windowsHide: true });
+    assert.equal(run.status, 2, `${script}: ${run.stdout} ${run.stderr}`);
+    assert.equal(run.stdout, '');
+    assert.ok(!run.stderr.includes('SYNTHETIC_PRIVATE'));
+  }
+});
+
+test('helper modules remain importable from stdin without invoking their CLI', () => {
+  const modules = [
+    'workforce-runtime/scripts/inspect-launch.mjs',
+    'workforce-runtime/scripts/summarize.mjs',
+    'xrain-app-operations/scripts/inspect-operation.mjs',
+    'xrain-app-operations/scripts/prepare-resolution.mjs',
+    'workforce-agent-troubleshoot/scripts/summarize-history.mjs'
+  ];
+  const input = modules.map(path => `await import(${JSON.stringify(new URL('../skills/' + path, import.meta.url).href)});`).join('\n') + '\nconsole.log("imported");';
+  const run = spawnSync(process.execPath, ['--input-type=module', '-'], { input, encoding: 'utf8', windowsHide: true });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout.trim(), 'imported');
+  assert.equal(run.stderr, '');
 });

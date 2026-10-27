@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { existsSync, realpathSync } from 'node:fs';
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const safeName = value => typeof value === 'string' && /^[\w.:-]{1,160}$/.test(value);
@@ -47,7 +48,7 @@ export function summarizeHistory(history, afterSeq) {
     failedCalls: [...calls.values()].filter(call => call.result === 'failed').length,
     businessVerified: false, requiresOriginalTaskReadback: true };
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
   try {
     assert(process.argv.length === 5 && process.argv[3] === '--after-seq' && /^\d+$/.test(process.argv[4]));
     const raw = await readFile(process.argv[2], 'utf8'); assert(raw.length <= 8 * 1024 * 1024);

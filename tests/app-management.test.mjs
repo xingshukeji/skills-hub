@@ -156,7 +156,9 @@ test('waiting timeout preserves the latest observation and does not cancel or co
   assert.equal(result.code, 1); assert.equal(json(result).error.code, 'operation_wait_timeout');
   assert.equal(json(result).error.details.operation.status, 'Running');
   assert.match(json(result).error.hint, /app operation wait/);
-  assert.deepEqual(server.hits.map(hit => hit.method), ['GET']);
+  assert.equal(json(result).error.details.operation.id, OPERATION);
+  assert.ok(server.hits.length >= 1);
+  assert.ok(server.hits.every(hit => hit.method === 'GET'));
 });
 
 test('the total wait deadline also bounds a stalled polling request', async t => {

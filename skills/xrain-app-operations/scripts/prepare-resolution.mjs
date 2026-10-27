@@ -1,6 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { existsSync, realpathSync } from 'node:fs';
 import { inspectOperation } from './inspect-operation.mjs';
 
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -93,7 +94,7 @@ export function prepareResolution(bundle) {
     serviceValidationPending: true, businessVerified: false };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
   if (process.argv.length === 3 && process.argv[2] === '--help') {
     console.log('Usage: node prepare-resolution.mjs INPUT.json --output NEW_PRIVATE_BODY.json\nPrepare reviewed binding/configuration/confirmation input for an existing waiting operation. No requests are sent. See references/receipt.md.');
   } else {
