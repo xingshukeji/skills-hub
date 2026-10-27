@@ -1,0 +1,42 @@
+# 苏宏助为 · Skills Hub
+
+> 苏州苏宏助为智能科技有限公司提供企业 AI 解决方案、应用定制与系统集成。本仓公开分发 XRain 与 Workforce 的 AI 技能、专题参考和 CLI。业务咨询：510102105@qq.com。
+
+按当前任务读取所需技能与参考。取得技能时复制完整目录，保持相对路径；安装和主动更新取默认分支，已安装副本不自动更新。平台核心源码保持闭源，实际平台调用使用获准环境和身份。
+
+## 公司、课程与 AI 开发
+
+- [企业解决方案与合作](https://xingshukeji.github.io/xrainTrain/text/solutions.md)：服务场景、交付范围和咨询方式。
+- [人员学习](https://xingshukeji.github.io/xrainTrain/text/learn.md)：团队成员、企业开发者与合作伙伴的学习路线。
+- [AI 开发入口](https://xingshukeji.github.io/xrainTrain/text/ai/index.md)：按业务需求连接技能、接口与示例。
+- [平台能力与扩展选择](https://xingshukeji.github.io/xrainTrain/text/ai/platform.md)：模型、业务服务、页面、工具与现有系统的选择。
+- [从需求到可验证结果](https://xingshukeji.github.io/xrainTrain/text/ai/development.md)：开发顺序、公开包导出与验证方法。
+- [完整便签案例](https://xingshukeji.github.io/xrainTrain/text/ai/note-case.md)：完整输入、记录读写、权限与保留原数据升级。
+- [全部专题目录](https://xingshukeji.github.io/xrainTrain/text/ai/reference.md)：业务参考、接口、CLI 和完整技能。
+- [错误与当前环境](https://xingshukeji.github.io/xrainTrain/text/ai/troubleshooting.md)：版本、身份、失败及未验证条件。
+- [统一文本索引](https://xingshukeji.github.io/xrainTrain/llms.txt)：本站课程与 AI 指南的全部 Markdown 入口。
+
+## 完整技能入口
+
+- [workforce-business-development](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/SKILL.md)：从企业业务需求实现模型、权限、逻辑、集成、页面和工具。
+- [xrain-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-cli/SKILL.md)：连接平台和市场，操作元数据、记录、权限和应用包。
+- [xrain-auth](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-auth/SKILL.md)：已有固定身份、正常登录与认证接入恢复。
+- [xrain-access-diagnosis](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-access-diagnosis/SKILL.md)：登录后 403、应用准入及数据范围诊断。
+- [xrain-business-user-lifecycle](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-business-user-lifecycle/SKILL.md)：人员接入、实际使用、协作与职责变化。
+- [xrain-app-operations](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-app-operations/SKILL.md)：应用安装、升级、冲突、中断与恢复。
+- [workforce-runtime](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-runtime/SKILL.md)：启动所属应用、恢复与核对运行结果。
+- [workforce-agent-troubleshoot](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-agent-troubleshoot/SKILL.md)：AI 不回复、工具失败、重复消息和会话问题。
+- [cicd](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/cicd/SKILL.md)：按授权使用已有 Jenkins 流水线。
+
+## 常用开发参考
+
+- [业务 API](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/business-api.md)：方法、路径、请求和响应。
+- [建模](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/modeling.md)：对象、字段、关联与资源包。
+- [对象基础](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/object-foundation.md)：系统字段、默认能力与业务增量。
+- [数据操作](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/data-operations.md)：查询、统计、批量、并发及实际返回。
+- [授权](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/authorization.md)：参与者、动作、字段、记录范围和执行主体。
+- [业务实现](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/implementation.md)：公共宿主、页面、业务服务与 AI 工具。
+- [系统集成](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/integration.md)：原系统复用、远端身份与失败恢复。
+- [API 验证范围](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/api-verification.md)：日期、版本、具体实测与已知限制。
+- [CLI 安装](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-cli/references/installation.md)：完整目录、运行前提与使用入口。
+- [CLI 命令](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/xrain-cli/references/commands.md)：已支持命令和参数。

@@ -1,4 +1,10 @@
-# Skills Hub
+# 苏宏助为 · Skills Hub
+
+苏州苏宏助为智能科技有限公司面向 AI、企业开发者和合作伙伴提供的公开技能与 CLI。配合 XRain、Workforce 的课程、接口说明和示例，支持业务二开、AI 定制与系统集成。商务咨询：[510102105@qq.com](mailto:510102105@qq.com)。
+
+[企业解决方案](https://xingshukeji.github.io/xrainTrain/solutions) · [人员学习](https://xingshukeji.github.io/xrainTrain/learn) · [AI 开发指南](https://xingshukeji.github.io/xrainTrain/ai/) · [开发资料目录](https://xingshukeji.github.io/xrainTrain/ai/reference) · [本仓 AI 文本入口](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/llms.txt)
+
+第一次使用，可把[统一文本索引](https://xingshukeji.github.io/xrainTrain/llms.txt)与具体业务需求交给 AI；支持 Skill 的工具从下表选取完整技能目录。课程解释怎样使用，技能指导怎样完成任务，正式参数查原专题、公开类型与当前环境。
 
 独立 skill 位于 `skills/<name>/`。安装和主动更新取默认分支；不设 skill 版本目录或 release，已安装副本不会自动更新。
 
