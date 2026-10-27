@@ -1,12 +1,20 @@
 # 苏宏助为 · Skills Hub
 
-苏州苏宏助为智能科技有限公司面向 AI、企业开发者和合作伙伴提供的公开技能与 CLI。配合 XRain、Workforce 的课程、接口说明和示例，支持业务二开、AI 定制与系统集成。商务咨询：[510102105@qq.com](mailto:510102105@qq.com)。
+苏州苏宏助为智能科技有限公司面向 AI、企业开发者和合作伙伴提供的官方技能与 CLI。配合 XRain、XRain Workforce 的产品说明、开发文档和示例，支持业务二开、AI 定制与系统集成。[联系我们](https://xingshukeji.github.io/xrainTrain/contact)。
 
-[企业解决方案](https://xingshukeji.github.io/xrainTrain/solutions) · [人员学习](https://xingshukeji.github.io/xrainTrain/learn) · [AI 开发指南](https://xingshukeji.github.io/xrainTrain/ai/) · [开发资料目录](https://xingshukeji.github.io/xrainTrain/ai/reference) · [本仓 AI 文本入口](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/llms.txt)
+[产品与技术](https://xingshukeji.github.io/xrainTrain/products/) · [官方开发文档](https://xingshukeji.github.io/xrainTrain/developers/) · [SDK](https://xingshukeji.github.io/xrainTrain/developers/sdk) · [人员学习](https://xingshukeji.github.io/xrainTrain/learn) · [AI 开发指南](https://xingshukeji.github.io/xrainTrain/ai/) · [本仓 AI 文本入口](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/llms.txt)
 
 第一次使用，可把[统一文本索引](https://xingshukeji.github.io/xrainTrain/llms.txt)与具体业务需求交给 AI；支持 Skill 的工具从下表选取完整技能目录。课程解释怎样使用，技能指导怎样完成任务，正式参数查原专题、公开类型与当前环境。
 
 独立 skill 位于 `skills/<name>/`。安装和主动更新取默认分支；不设 skill 版本目录或 release，已安装副本不会自动更新。
+
+## 产品、SDK 与技能的关系
+
+XRain 是业务应用平台，支持新业务建模，也支持对管理完善的已有系统使用业务编排转接接口，无需新增业务数据模型。XRain Workforce 是人与 AI 协作产品，接入这些业务操作和已有企业服务。
+
+SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI 是终端工具。SDK 按项目制品渠道取得，不能从本仓公开推断 SDK 已在公共 npm 发布。具体取得方式与版本见[官方 SDK 文档](https://xingshukeji.github.io/xrainTrain/developers/sdk)。
+
+本仓是下列技能、配套参考和 CLI 的唯一编写源。每项技能在元数据中保留维护公司、来源 URL、文档入口和关联产品，完整复制后仍可辨认出处；平台与 SDK 的实现、类型和版本由所属产品维护。本仓的产品专题是公开使用参考，不复制维护平台源码。
 
 ## Skills
 
@@ -15,7 +23,7 @@
 | --- | --- |
 | [cicd](skills/cicd/SKILL.md) | 查询、触发已有 Jenkins 流水线并跟踪构建、发布或部署；不编写流水线。 |
 | [workforce-agent-troubleshoot](skills/workforce-agent-troubleshoot/SKILL.md) | 排查 Workforce 智能体不回复、不跟进、工具失败、重复消息、会话混淆和接管后迟到写入。 |
-| [workforce-business-development](skills/workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 落地企业业务，先复用已确认的业务主线与差异，再完成所需模型、授权、逻辑、集成、页面和智能体工具。 |
+| [workforce-business-development](skills/workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 落地企业业务，按现状选择免建模的接口编排、新业务建模或混合接入，再完成所需授权、逻辑、页面与智能体工具。 |
 | [workforce-runtime](skills/workforce-runtime/SKILL.md) | 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面、慢登录、慢会话及实例资源增长。 |
 | [xrain-access-diagnosis](skills/xrain-access-diagnosis/SKILL.md) | 排查 XRain 登录后的 403、应用准入、角色与数据范围、执行身份和机器人权限；支持授权修复与撤权复测。 |
 | [xrain-app-operations](skills/xrain-app-operations/SKILL.md) | 处理 XRain 已发布应用的租户安装、升级、冲突、中断恢复、组件恢复和卸载；不构建服务镜像。 |

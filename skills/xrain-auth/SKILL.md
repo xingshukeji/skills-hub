@@ -2,6 +2,10 @@
 name: xrain-auth
 description: 通过 XRain 认证中心网页准备或恢复固定身份、激活登录、修复 OIDC 接入，并验证原应用登录。
 metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/xrain-auth
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain Auth
   runtime-requirements: Authorized browser access to the authentication center and original application.
 ---
 

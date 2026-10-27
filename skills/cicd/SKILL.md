@@ -1,6 +1,11 @@
 ---
 name: cicd
 description: 查询、触发已有 Jenkins 流水线并跟踪构建、发布或部署；不编写流水线。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/cicd
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain 项目交付
 ---
 
 # Jenkins 流水线

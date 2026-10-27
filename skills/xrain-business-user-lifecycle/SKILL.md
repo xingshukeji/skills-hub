@@ -1,6 +1,11 @@
 ---
 name: xrain-business-user-lifecycle
 description: 在 XRain/Workforce 落地业务人员接入、实际使用、协作与职责变更的完整业务主线，连接固定身份、租户成员、应用准入、业务授权和持续维护。单独登录、403 或权限定位使用对应诊断能力。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/xrain-business-user-lifecycle
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain, XRain Workforce
 ---
 
 # 业务人员接入、使用与职责变更

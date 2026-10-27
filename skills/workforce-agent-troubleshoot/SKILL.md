@@ -1,6 +1,11 @@
 ---
 name: workforce-agent-troubleshoot
 description: 排查 Workforce 智能体不回复、不跟进、工具失败、重复消息、会话混淆和接管后迟到写入。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/workforce-agent-troubleshoot
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain Workforce, XRain Agent Runtime
 ---
 
 # 智能体运行排障

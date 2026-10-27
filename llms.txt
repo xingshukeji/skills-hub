@@ -1,8 +1,21 @@
 # 苏宏助为 · Skills Hub
 
-> 苏州苏宏助为智能科技有限公司提供企业 AI 解决方案、应用定制与系统集成。本仓公开分发 XRain 与 Workforce 的 AI 技能、专题参考和 CLI。业务咨询：510102105@qq.com。
+> 苏州苏宏助为智能科技有限公司维护 XRain 与 XRain Workforce；本仓是官方 AI 技能、专题参考与 CLI 的公开分发源。
 
 按当前任务读取所需技能与参考。取得技能时复制完整目录，保持相对路径；安装和主动更新取默认分支，已安装副本不自动更新。平台核心源码保持闭源，实际平台调用使用获准环境和身份。
+
+XRain 支持新业务建模，也支持对管理完善的已有系统直接通过业务编排转接接口，无需新增业务数据模型。Workforce 提供人与 AI 协作入口。SDK 是应用代码开发包，Skill 是 AI 任务方法，CLI 是终端工具；SDK 通过项目制品渠道交付，不应假定公共 npm 可匿名安装。技能元数据保留公司、来源、官方文档与关联产品。
+
+## 产品、开发者与联系
+
+- [产品与技术](https://xingshukeji.github.io/xrainTrain/text/products/index.md)：产品定位、公司归属与开发工具关系。
+- [XRain](https://xingshukeji.github.io/xrainTrain/text/products/xrain.md)：业务应用、建模、编排和接口集成。
+- [XRain Workforce](https://xingshukeji.github.io/xrainTrain/text/products/workforce.md)：人与 AI 的沟通、协作与业务工具。
+- [官方开发者文档](https://xingshukeji.github.io/xrainTrain/text/developers/index.md)：从接入路线到 SDK、API、CLI 和示例。
+- [免建模的接口编排](https://xingshukeji.github.io/xrainTrain/text/developers/integration.md)：原系统保持数据与规则，编排提供统一业务接口。
+- [SDK 入门](https://xingshukeji.github.io/xrainTrain/text/developers/sdk.md)：取得、版本、完整读取示例与工具接入。
+- [官方 AI 技能](https://xingshukeji.github.io/xrainTrain/text/developers/skills.md)：技能选择、归属、安装和更新。
+- [联系我们](https://xingshukeji.github.io/xrainTrain/text/contact.md)：统一业务咨询、合作与 SDK 接入联系方式。
 
 ## 公司、课程与 AI 开发
 
@@ -30,6 +43,7 @@
 
 ## 常用开发参考
 
+- [Workforce SDK 参考](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/workforce-sdk.md)：公开导出、客户端调用、执行上下文和交付版本。
 - [业务 API](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/business-api.md)：方法、路径、请求和响应。
 - [建模](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/modeling.md)：对象、字段、关联与资源包。
 - [对象基础](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/workforce-business-development/references/object-foundation.md)：系统字段、默认能力与业务增量。

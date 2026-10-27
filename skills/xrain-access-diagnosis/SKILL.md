@@ -1,6 +1,11 @@
 ---
 name: xrain-access-diagnosis
 description: 排查 XRain 登录后的 403、应用准入、角色与数据范围、执行身份和机器人权限；支持授权修复与撤权复测。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/xrain-access-diagnosis
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain, XRain Workforce
 ---
 
 # XRain 业务权限

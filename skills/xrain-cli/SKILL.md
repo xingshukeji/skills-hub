@@ -2,6 +2,10 @@
 name: xrain-cli
 description: 用自带 CLI 连接 XRain 平台或应用市场，操作平台用户、权限、数据及应用包；认证中心账号由 xrain-auth 处理。
 metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/xrain-cli
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain
   runtime-requirements: Node.js 22.12+ and command execution; browser callback must reach the CLI host.
 ---
 

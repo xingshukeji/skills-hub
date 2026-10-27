@@ -1,6 +1,11 @@
 ---
 name: workforce-runtime
 description: 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面、慢登录、慢会话及实例资源增长。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/workforce-runtime
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain Workforce
 ---
 
 # Workforce 运行维护

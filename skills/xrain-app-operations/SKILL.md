@@ -1,6 +1,11 @@
 ---
 name: xrain-app-operations
 description: 处理 XRain 已发布应用的租户安装、升级、冲突、中断恢复、组件恢复和卸载；不构建服务镜像。
+metadata:
+  author: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/xrain-app-operations
+  documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
+  products: XRain
 ---
 
 # 租户应用操作
