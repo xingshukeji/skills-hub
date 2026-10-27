@@ -1,0 +1,6 @@
+interface:
+  display_name: "Workforce 独立应用接入"
+  short_description: "沿现有开发配置完成应用身份、统一登录、应用中心入口与真实验证"
+  default_prompt: "使用 $shzw-integrate-workforce-application 将目标独立应用接入 Workforce 应用中心，读取既有配置并只补齐实际缺项。"
+policy:
+  allow_implicit_invocation: true

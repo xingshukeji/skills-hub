@@ -4,7 +4,7 @@ import { cp, mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { summarize } from '../skills/workforce-runtime/scripts/summarize.mjs';
+import { summarize } from '../skills/shzw-workforce-runtime/scripts/summarize.mjs';
 
 const sample = (ms, extra = {}) => ({ scenario: '打开页面', phase: 'warm', visibility: 'foreground', outcome: 'success', ms, budgetMs: 2000, ...extra });
 test('performance samples preserve failures and do not report a small-sample p95 or false pass', () => {
@@ -36,7 +36,7 @@ test('performance helper runs from a copied skill with spaces, without dependenc
   const directory = await mkdtemp(join(tmpdir(), 'skills performance '));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const installed = join(directory, 'installed skill');
-  await cp(new URL('../skills/workforce-runtime/', import.meta.url), installed, { recursive: true });
+  await cp(new URL('../skills/shzw-workforce-runtime/', import.meta.url), installed, { recursive: true });
   const input = join(directory, 'samples.json');
   await writeFile(input, JSON.stringify({ samples: [sample(5000, { outcome: 'error' })] }));
   const run = () => spawnSync(process.execPath, [join(installed, 'scripts/summarize.mjs'), input], { cwd: directory, encoding: 'utf8', windowsHide: true, env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } });

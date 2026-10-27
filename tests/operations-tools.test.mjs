@@ -4,9 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, cp, rm, symlink } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { inspectLaunch } from '../skills/workforce-runtime/scripts/inspect-launch.mjs';
-import { inspectOperation } from '../skills/xrain-app-operations/scripts/inspect-operation.mjs';
-import { summarizeHistory } from '../skills/workforce-agent-troubleshoot/scripts/summarize-history.mjs';
+import { inspectLaunch } from '../skills/shzw-workforce-runtime/scripts/inspect-launch.mjs';
+import { inspectOperation } from '../skills/shzw-xrain-app-operations/scripts/inspect-operation.mjs';
+import { summarizeHistory } from '../skills/shzw-workforce-agent-troubleshoot/scripts/summarize-history.mjs';
 
 async function temporary(t) {
   const directory = await mkdtemp(join(tmpdir(), 'workforce operations '));
@@ -146,7 +146,7 @@ test('isolated launch inspector follows explicit configuration and reports a mis
   assert.equal(missing.paths.connectionScript.exists, false);
   await writeFile(join(root, 'connect.py'), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
   const isolated = join(root, 'isolated inspector.mjs');
-  await cp(new URL('../skills/workforce-runtime/scripts/inspect-launch.mjs', import.meta.url), isolated);
+  await cp(new URL('../skills/shzw-workforce-runtime/scripts/inspect-launch.mjs', import.meta.url), isolated);
   const run = spawnSync(process.execPath, [isolated, root, 'config/custom.json'], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(run.status, 0, run.stderr);
   const result = JSON.parse(run.stdout);
@@ -180,9 +180,9 @@ test('launch inspector rejects an obsolete entry, mismatched aliases and unsuppo
 test('new helpers execute after isolated copies and reject invalid inputs without echoing contents', async t => {
   const root = await temporary(t);
   for (const [skill, script, extra] of [
-    ['xrain-app-operations', 'inspect-operation.mjs', []],
-    ['workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']],
-    ['workforce-runtime', 'inspect-launch.mjs', []]
+    ['shzw-xrain-app-operations', 'inspect-operation.mjs', []],
+    ['shzw-workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']],
+    ['shzw-workforce-runtime', 'inspect-launch.mjs', []]
   ]) {
     const installed = join(root, skill);
     await cp(new URL('../skills/' + skill + '/', import.meta.url), installed, { recursive: true });
@@ -199,11 +199,11 @@ test('copied helpers execute through directory aliases instead of silently exiti
   const input = join(actual, 'invalid.json');
   await writeFile(input, 'SYNTHETIC_PRIVATE_INVALID_JSON');
   const helpers = [
-    ['workforce-runtime', 'inspect-launch.mjs', []],
-    ['workforce-runtime', 'summarize.mjs', []],
-    ['xrain-app-operations', 'inspect-operation.mjs', []],
-    ['xrain-app-operations', 'prepare-resolution.mjs', ['--output', join(actual, 'output.json')]],
-    ['workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']]
+    ['shzw-workforce-runtime', 'inspect-launch.mjs', []],
+    ['shzw-workforce-runtime', 'summarize.mjs', []],
+    ['shzw-xrain-app-operations', 'inspect-operation.mjs', []],
+    ['shzw-xrain-app-operations', 'prepare-resolution.mjs', ['--output', join(actual, 'output.json')]],
+    ['shzw-workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']]
   ];
   for (const skill of new Set(helpers.map(([skill]) => skill)))
     await cp(new URL('../skills/' + skill + '/', import.meta.url), join(actual, skill), { recursive: true });
@@ -217,11 +217,11 @@ test('copied helpers execute through directory aliases instead of silently exiti
 
 test('helper modules remain importable from stdin without invoking their CLI', () => {
   const modules = [
-    'workforce-runtime/scripts/inspect-launch.mjs',
-    'workforce-runtime/scripts/summarize.mjs',
-    'xrain-app-operations/scripts/inspect-operation.mjs',
-    'xrain-app-operations/scripts/prepare-resolution.mjs',
-    'workforce-agent-troubleshoot/scripts/summarize-history.mjs'
+    'shzw-workforce-runtime/scripts/inspect-launch.mjs',
+    'shzw-workforce-runtime/scripts/summarize.mjs',
+    'shzw-xrain-app-operations/scripts/inspect-operation.mjs',
+    'shzw-xrain-app-operations/scripts/prepare-resolution.mjs',
+    'shzw-workforce-agent-troubleshoot/scripts/summarize-history.mjs'
   ];
   const input = modules.map(path => `await import(${JSON.stringify(new URL('../skills/' + path, import.meta.url).href)});`).join('\n') + '\nconsole.log("imported");';
   const run = spawnSync(process.execPath, ['--input-type=module', '-'], { input, encoding: 'utf8', windowsHide: true });

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Backend Detailed Testing"
+  short_description: "Gather proportionate backend completion evidence"
+  default_prompt: "Use $shzw-backend-detailed-testing to gather the smallest sufficient Development evidence and stop before any broad SystemTest or Deployment activity."
+
+policy:
+  allow_implicit_invocation: true

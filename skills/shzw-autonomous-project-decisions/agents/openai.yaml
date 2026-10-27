@@ -1,0 +1,5 @@
+interface:
+  display_name: "用户默认处置政策"
+  short_description: "按具体默认选择完成跨项目任务，减少临时确认，仅对超出政策的实质影响升级"
+policy:
+  allow_implicit_invocation: true

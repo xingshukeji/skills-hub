@@ -1,0 +1,4 @@
+interface:
+  display_name: "Workforce 业务审查"
+  short_description: "沿 Workforce 当前业务、入口与状态变化审查实现，核对责任归属和验证证据"
+  default_prompt: "使用 $shzw-workforce-business-review 审查当前 Workforce 改动，先定位真实业务入口及正式判断规则，再沿源码、消费者与相邻反例形成结论。"

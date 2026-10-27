@@ -46,7 +46,7 @@ const server = origin(process.env.XRAIN_LIVE_SERVER ?? 'http://127.0.0.1:5410');
 const exchange = origin(process.env.XRAIN_LIVE_EXCHANGE ?? 'http://localhost:5380');
 for (const target of [server, exchange]) assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(target).hostname), 'Live verifier only accepts local development targets.');
 const reportPath = join(directory, 'report.json');
-const artifactSha256 = sha256(readFileSync(join(repository, 'skills/xrain-cli/scripts/xrain-cli.mjs')));
+const artifactSha256 = sha256(readFileSync(join(repository, 'skills/shzw-xrain-cli/scripts/xrain-cli.mjs')));
 const binding = { artifactSha256, targets: { server, exchange, tenant: 'tenant-xrain-demo' }, clean: value => reporter.clean(value) };
 const coordinatorPath = join(directory, 'orchestration.lock');
 if (['all', 'resume'].includes(phase)) {
@@ -89,7 +89,7 @@ function record(name, status, detail = {}) {
   reporter.print({ name, status, ...detail });
 }
 async function cli(argv, extraEnv = {}, interactive = false, input = '') {
-  const artifactPath = join(repository, 'skills/xrain-cli/scripts/xrain-cli.mjs');
+  const artifactPath = join(repository, 'skills/shzw-xrain-cli/scripts/xrain-cli.mjs');
   state.verifyArtifact(artifactPath);
   return new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, [artifactPath, ...argv], {

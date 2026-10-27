@@ -1,6 +1,0 @@
-interface:
-  display_name: "XRain Auth"
-  short_description: "准备统一认证测试账号，完成激活登录并修复已授权的应用接入问题"
-  default_prompt: "使用 $xrain-auth 在指定测试环境复用或创建固定认证中心账号，完成激活、必要的应用接入修复和原应用真实登录，并保护凭据。"
-policy:
-  allow_implicit_invocation: true

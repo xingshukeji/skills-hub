@@ -14,7 +14,7 @@ const jobPath = '/job/suite/job/unit%20name';
 
 async function setup(t, options = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'cicd-skill-'));
-  await cp(join(root, 'skills/cicd'), join(directory, 'installed skill'), { recursive: true });
+  await cp(join(root, 'skills/shzw-cicd'), join(directory, 'installed skill'), { recursive: true });
   const requests = [];
   const prefix = options.prefix ?? '';
   const server = createServer(async (request, response) => {

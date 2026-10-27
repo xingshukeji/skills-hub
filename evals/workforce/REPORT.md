@@ -1,5 +1,7 @@
 # Workforce 运行类 skill：问题依据、实现与验证
 
+以下记录保留原实验名称与结果；目录链接已随 shzw 命名更新，未重算历史指标。
+
 本页保留**首轮实验**的范围与结果。第二轮已经合并两个入口并补齐领域契约；当前目录、独立性判断与验证见 [能力边界复核](CAPABILITY-AUDIT.md)。本页九项及其分数不代表当前七项已经覆盖全部业务场景。
 
 本次在 skills-hub 的 Local checkout 优化原有 `cicd`、`xrain-auth`、`xrain-cli`，新增 6 个运行类 skill。重点是已有环境中“启动、登录、安装、操作、验证”的连续处理，减少重复询问、错误重试与没有业务证据的完成声明。没有修改六个业务项目、运行生产变更或安装到现有员工配置。
@@ -42,15 +44,15 @@
 
 | Skill | 解决后续处理中的什么问题 | 常用触发用语 |
 | --- | --- | --- |
-| [workforce-runtime](../../skills/workforce-runtime/SKILL.md)（新增） | 统一默认启动；沿浏览器、代理、宿主、Runtime、平台、认证和模型定位；核对部署制品与实际实例 | “启动开发环境”“调试一下”“服务就绪了还是不能用”“部署后还是旧效果” |
-| [xrain-access-diagnosis](../../skills/xrain-access-diagnosis/SKILL.md)（新增） | 区分身份、成员、准入、执行能力、对象/字段/记录权限；不以管理员绕过验收 | “登录后还是 403”“新用户为什么不能用”“消息机器人到底缺哪个权限” |
-| [xrain-app-operations](../../skills/xrain-app-operations/SKILL.md)（新增） | 区分市场上架与租户安装；处理预检、绑定、冲突、升级及断线后的原操作恢复 | “发布了怎么还在用旧版”“帮我安装这个应用”“升级卡住了”“安装超时继续处理” |
-| [workforce-agent-troubleshoot](../../skills/workforce-agent-troubleshoot/SKILL.md)（新增） | 关联任务、会话、工具和业务交付；处理等待输入、重复执行、切换不生效及接管后的旧执行 | “AI 怎么不回复”“任务没有继续跟进”“加载 skill 还不能执行命令”“人工接管了还在写” |
-| workforce-verify（首轮新增，现已合入 [runtime 验收](../../skills/workforce-runtime/references/acceptance.md)） | 从真实用户浏览器入口验证操作、持久结果和相关权限边界；分清未执行与通过 | “内置浏览器完整验收”“功能到底能不能用”“修复后继续测”“安装后完整跑一遍” |
-| workforce-performance（首轮新增，现已合入 [runtime 性能](../../skills/workforce-runtime/references/measurement.md)） | 测量用户可见耗时；分开冷热和前后台；保留失败样本，避免少量快请求得出达标结论 | “页面打开超过两秒”“新会话很慢”“切换智能体卡”“分析这份性能采样” |
-| [cicd](../../skills/cicd/SKILL.md)（优化） | 查询或触发真实已有流水线，跟踪本次回执、完整发布参数与终态；未知提交不盲重发 | “触发测试发布”“查这次构建结果”“刚才部署断线了继续跟踪” |
-| [xrain-auth](../../skills/xrain-auth/SKILL.md)（优化） | 原身份复用、激活和授权恢复；区分中心认证、客户端登记及原应用接入 | “固定账号登录不了”“需要激活”“invalid_client”“验证这个密码能否登录” |
-| [xrain-cli](../../skills/xrain-cli/SKILL.md)（优化） | 使用自带 CLI 完成受支持的查询、数据、权限与包操作；减少重复预检，保留租户和会话边界 | “用 CLI 查客户数据”“查看用户角色”“构建并发布这个应用包” |
+| [workforce-runtime](../../skills/shzw-workforce-runtime/SKILL.md)（新增） | 统一默认启动；沿浏览器、代理、宿主、Runtime、平台、认证和模型定位；核对部署制品与实际实例 | “启动开发环境”“调试一下”“服务就绪了还是不能用”“部署后还是旧效果” |
+| [xrain-access-diagnosis](../../skills/shzw-xrain-access-diagnosis/SKILL.md)（新增） | 区分身份、成员、准入、执行能力、对象/字段/记录权限；不以管理员绕过验收 | “登录后还是 403”“新用户为什么不能用”“消息机器人到底缺哪个权限” |
+| [xrain-app-operations](../../skills/shzw-xrain-app-operations/SKILL.md)（新增） | 区分市场上架与租户安装；处理预检、绑定、冲突、升级及断线后的原操作恢复 | “发布了怎么还在用旧版”“帮我安装这个应用”“升级卡住了”“安装超时继续处理” |
+| [workforce-agent-troubleshoot](../../skills/shzw-workforce-agent-troubleshoot/SKILL.md)（新增） | 关联任务、会话、工具和业务交付；处理等待输入、重复执行、切换不生效及接管后的旧执行 | “AI 怎么不回复”“任务没有继续跟进”“加载 skill 还不能执行命令”“人工接管了还在写” |
+| workforce-verify（首轮新增，现已合入 [runtime 验收](../../skills/shzw-workforce-runtime/references/acceptance.md)） | 从真实用户浏览器入口验证操作、持久结果和相关权限边界；分清未执行与通过 | “内置浏览器完整验收”“功能到底能不能用”“修复后继续测”“安装后完整跑一遍” |
+| workforce-performance（首轮新增，现已合入 [runtime 性能](../../skills/shzw-workforce-runtime/references/measurement.md)） | 测量用户可见耗时；分开冷热和前后台；保留失败样本，避免少量快请求得出达标结论 | “页面打开超过两秒”“新会话很慢”“切换智能体卡”“分析这份性能采样” |
+| [cicd](../../skills/shzw-cicd/SKILL.md)（优化） | 查询或触发真实已有流水线，跟踪本次回执、完整发布参数与终态；未知提交不盲重发 | “触发测试发布”“查这次构建结果”“刚才部署断线了继续跟踪” |
+| [xrain-auth](../../skills/shzw-xrain-auth/SKILL.md)（优化） | 原身份复用、激活和授权恢复；区分中心认证、客户端登记及原应用接入 | “固定账号登录不了”“需要激活”“invalid_client”“验证这个密码能否登录” |
+| [xrain-cli](../../skills/shzw-xrain-cli/SKILL.md)（优化） | 使用自带 CLI 完成受支持的查询、数据、权限与包操作；减少重复预检，保留租户和会话边界 | “用 CLI 查客户数据”“查看用户角色”“构建并发布这个应用包” |
 
 明确的业务 403 优先定位授权层；服务未监听优先运行排障；已有 operation 的安装问题优先恢复原操作。登录密码与 OIDC 失败由认证 skill 处理。只要求写文案或设计技术架构时，这组运行 skill 不应被误选。
 

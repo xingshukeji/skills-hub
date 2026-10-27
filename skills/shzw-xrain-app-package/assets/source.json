@@ -1,0 +1,21 @@
+{
+  "packageId": "apg00000000000000001",
+  "namespace": "demo",
+  "label": "示例选项集应用",
+  "versionId": "apv00000000000000001",
+  "version": "1.0.0",
+  "records": [
+    {
+      "id": "00600000000000000001",
+      "kind": "BizPicklist",
+      "values": {"name": "demoPriority", "label": "优先级", "isActive": true}
+    },
+    {
+      "id": "00700000000000000001",
+      "kind": "BizPicklistItem",
+      "values": {"name": "normal", "label": "普通", "isActive": true, "refPicklistId": "00600000000000000001"}
+    }
+  ]
+}
+
+

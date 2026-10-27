@@ -1,0 +1,7 @@
+interface:
+  display_name: "AiInfra Project Init"
+  short_description: "Scaffold new AiInfra.Abp backend projects"
+  default_prompt: "Use $shzw-aiinfra-project-init to scaffold a new AiInfra.Abp backend, verify restore/build/test, and update workspace docs/tasks."
+
+policy:
+  allow_implicit_invocation: true

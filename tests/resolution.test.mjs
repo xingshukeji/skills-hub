@@ -4,7 +4,7 @@ import { mkdtemp, cp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { prepareResolution } from '../skills/xrain-app-operations/scripts/prepare-resolution.mjs';
+import { prepareResolution } from '../skills/shzw-xrain-app-operations/scripts/prepare-resolution.mjs';
 import { request } from '../tools/capability-lab.mjs';
 import { cases } from '../evals/workforce/capability-lab-cases.mjs';
 
@@ -78,7 +78,7 @@ test('copied skill prepares private files without stdout secrets and refuses ove
   const root = await mkdtemp(join(tmpdir(), 'resolve skill '));
   t.after(() => rm(root, { recursive: true, force: true }));
   const skill = join(root, 'copied skill');
-  await cp(resolve('skills/xrain-app-operations'), skill, { recursive: true });
+  await cp(resolve('skills/shzw-xrain-app-operations'), skill, { recursive: true });
   const { bundle } = fixture();
   bundle.selections.bindings[0].value = 'SYNTHETIC_PRIVATE_BINDING';
   bundle.operation.details.requiredConfirmations = [{ recordId: 'apr-sec', unit: 'permissions', token: 'SYNTHETIC_PRIVATE_CONFIRMATION' }];

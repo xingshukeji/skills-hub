@@ -1,0 +1,3 @@
+interface:
+  display_name: "运行稳定性"
+  short_description: "为内存、延迟、积压及故障恢复选择可复现检查，给出有范围的证据与判定"

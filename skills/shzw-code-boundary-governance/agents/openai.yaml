@@ -1,0 +1,7 @@
+interface:
+  display_name: "Code Boundary Governance"
+  short_description: "Review only affected code and ownership boundaries"
+  default_prompt: "Use $shzw-code-boundary-governance in Development to trace only affected backend paths, assign ownership correctly, and stop before broad SystemTest or Deployment."
+
+policy:
+  allow_implicit_invocation: true

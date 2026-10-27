@@ -1,5 +1,7 @@
 # Workforce skill 能力边界复核
 
+以下记录保留原实验名称与结果；目录链接已随 shzw 命名更新，未重算历史指标。
+
 ## 2026-10-23 精简与架构校准
 
 保留七个独立入口，删除重复流程、通用提醒和命令全集；入口只保留任务选择、关键规则及按需参考。README 同步缩短。计数比较本次修改前后文件，使用相同 `o200k_base` 编码：
@@ -36,13 +38,13 @@
 
 | Skill / 独立用户目标 | 独有知识与执行支撑 | 完成依据 | 边界与拿掉后的缺口 |
 | --- | --- | --- | --- |
-| [cicd](../../skills/cicd/SKILL.md)：把指定源码送过已有流水线并取得本次结果 | Jenkins 作业参数、队列到构建的关联、提交结果未知、指定版本；自带可执行 Jenkins 客户端及回执 | 同一作业/参数/构建的终态、制品与部署证据 | 不承担流水线开发或产品修复。通用“运行构建”不能保证不重发或不跟错构建 |
-| [xrain-auth](../../skills/xrain-auth/SKILL.md)：让原身份通过正确客户端进入原应用 | 中心身份/本地凭据/外部主体/平台成员不同对象；激活与恢复影响；OIDC 类型、回调、scope/audience；管理页和受管接入契约 | 新授权请求完成回跳，用户与租户正确；验证密码时确实经过密码表单 | 登录后的业务授权单独定位。仅给 CLI 指令不能完成中心身份恢复和客户端登记 |
-| [xrain-cli](../../skills/xrain-cli/SKILL.md)：用 CLI 完成受支持的平台操作 | profile 与会话优先级、token 绑定租户、元数据和 CRUD 差异、包完整性、批量部分成功；独立打包客户端 | 命令及远端回读一致，包摘要/发布状态可核对 | 这是专用工具操作 skill。与领域 skill 的关系是执行手段可替换，不是让每个业务任务先加载 CLI |
-| [workforce-runtime](../../skills/workforce-runtime/SKILL.md)：把目标环境恢复到用户能使用并验证结果 | 实际登记入口与路径基准、宿主/浏览器/通道/依赖链、发布版本证据、可见操作计时；启动检查器、性能汇总器、验收场景 | 原入口和原操作恢复；未验证项、失败与性能条件明确 | 不替代确定的授权、安装或任务执行诊断。验收与性能是完成运行目标的专项方法，现阶段合并更合理 |
-| [xrain-access-diagnosis](../../skills/xrain-access-diagnosis/SKILL.md)：让业务访问符合职责，并能解释或调整有效授权 | 成员/准入/角色/权限集/数据范围；执行者与机器人；来源和影响摘要；受管诊断、授权、影响预览接口 | 原用户应允许/应拒绝动作相符，变更来源及影响可追溯 | CLI 能发 grant，但不能替用户判断该不该 grant、该改哪个来源。认证失败归身份流程 |
-| [xrain-app-operations](../../skills/xrain-app-operations/SKILL.md)：维护某租户已发布应用的完整生命周期 | 市场/导入/安装分离；版本、revision、operation；配置归属、绑定、策略迁移；状态恢复表、回执检查器和请求生成器 | 正确安装版本、组件状态与原用户动作一致；退出后的保留项可解释 | 不写应用源码，也不把发布等同安装。其状态机和恢复规则无法用通用部署步骤替代 |
-| [workforce-agent-troubleshoot](../../skills/workforce-agent-troubleshoot/SKILL.md)：恢复原员工/任务执行并核实实际交付 | 员工定义、会话绑定、工具策略、assignment/version、grant 失效、持久序号、模型/工具/业务三类结果；宿主查询入口与历史检查器 | 原任务当前分派与本轮历史、工具结果、业务状态一致；隔离边界仍成立 | 服务健康无法解释旧执行为何无权回写、旧回合为何不算本次完成。模型内容创作和架构设计不在范围 |
+| [cicd](../../skills/shzw-cicd/SKILL.md)：把指定源码送过已有流水线并取得本次结果 | Jenkins 作业参数、队列到构建的关联、提交结果未知、指定版本；自带可执行 Jenkins 客户端及回执 | 同一作业/参数/构建的终态、制品与部署证据 | 不承担流水线开发或产品修复。通用“运行构建”不能保证不重发或不跟错构建 |
+| [xrain-auth](../../skills/shzw-xrain-auth/SKILL.md)：让原身份通过正确客户端进入原应用 | 中心身份/本地凭据/外部主体/平台成员不同对象；激活与恢复影响；OIDC 类型、回调、scope/audience；管理页和受管接入契约 | 新授权请求完成回跳，用户与租户正确；验证密码时确实经过密码表单 | 登录后的业务授权单独定位。仅给 CLI 指令不能完成中心身份恢复和客户端登记 |
+| [xrain-cli](../../skills/shzw-xrain-cli/SKILL.md)：用 CLI 完成受支持的平台操作 | profile 与会话优先级、token 绑定租户、元数据和 CRUD 差异、包完整性、批量部分成功；独立打包客户端 | 命令及远端回读一致，包摘要/发布状态可核对 | 这是专用工具操作 skill。与领域 skill 的关系是执行手段可替换，不是让每个业务任务先加载 CLI |
+| [workforce-runtime](../../skills/shzw-workforce-runtime/SKILL.md)：把目标环境恢复到用户能使用并验证结果 | 实际登记入口与路径基准、宿主/浏览器/通道/依赖链、发布版本证据、可见操作计时；启动检查器、性能汇总器、验收场景 | 原入口和原操作恢复；未验证项、失败与性能条件明确 | 不替代确定的授权、安装或任务执行诊断。验收与性能是完成运行目标的专项方法，现阶段合并更合理 |
+| [xrain-access-diagnosis](../../skills/shzw-xrain-access-diagnosis/SKILL.md)：让业务访问符合职责，并能解释或调整有效授权 | 成员/准入/角色/权限集/数据范围；执行者与机器人；来源和影响摘要；受管诊断、授权、影响预览接口 | 原用户应允许/应拒绝动作相符，变更来源及影响可追溯 | CLI 能发 grant，但不能替用户判断该不该 grant、该改哪个来源。认证失败归身份流程 |
+| [xrain-app-operations](../../skills/shzw-xrain-app-operations/SKILL.md)：维护某租户已发布应用的完整生命周期 | 市场/导入/安装分离；版本、revision、operation；配置归属、绑定、策略迁移；状态恢复表、回执检查器和请求生成器 | 正确安装版本、组件状态与原用户动作一致；退出后的保留项可解释 | 不写应用源码，也不把发布等同安装。其状态机和恢复规则无法用通用部署步骤替代 |
+| [workforce-agent-troubleshoot](../../skills/shzw-workforce-agent-troubleshoot/SKILL.md)：恢复原员工/任务执行并核实实际交付 | 员工定义、会话绑定、工具策略、assignment/version、grant 失效、持久序号、模型/工具/业务三类结果；宿主查询入口与历史检查器 | 原任务当前分派与本轮历史、工具结果、业务状态一致；隔离边界仍成立 | 服务健康无法解释旧执行为何无权回写、旧回合为何不算本次完成。模型内容创作和架构设计不在范围 |
 
 独立不意味着每条任务必须同时加载七项。初始故障还不明确时先使用最贴近用户目标的入口，查到明确层再接续；各目录内包含完成本域工作所需资料，不要求安装其他 skill。
 
@@ -54,7 +56,7 @@
 
 ### cicd：6 个场景族
 
-主要支撑：[执行入口](../../skills/cicd/SKILL.md)、[Jenkins 客户端与回执](../../skills/cicd/references/jenkins.md)。
+主要支撑：[执行入口](../../skills/shzw-cicd/SKILL.md)、[Jenkins 客户端与回执](../../skills/shzw-cicd/references/jenkins.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -67,7 +69,7 @@
 
 ### xrain-auth：7 个场景族
 
-主要支撑：[固定身份](../../skills/xrain-auth/references/accounts.md)、[客户端接入](../../skills/xrain-auth/references/clients.md)、[首次接入](../../skills/xrain-auth/references/platform-access.md)。
+主要支撑：[固定身份](../../skills/shzw-xrain-auth/references/accounts.md)、[客户端接入](../../skills/shzw-xrain-auth/references/clients.md)、[首次接入](../../skills/shzw-xrain-auth/references/platform-access.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -81,7 +83,7 @@
 
 ### xrain-cli：7 个场景族
 
-主要支撑：[配置与认证](../../skills/xrain-cli/references/configuration.md)、[命令参考](../../skills/xrain-cli/references/commands.md)、自带独立可执行客户端。
+主要支撑：[配置与认证](../../skills/shzw-xrain-cli/references/configuration.md)、[命令参考](../../skills/shzw-xrain-cli/references/commands.md)、自带独立可执行客户端。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -95,7 +97,7 @@
 
 ### workforce-runtime：8 个场景族
 
-主要支撑：[启动与连接](../../skills/workforce-runtime/references/startup.md)、[版本证据](../../skills/workforce-runtime/references/release.md)、[验收](../../skills/workforce-runtime/references/acceptance.md)、[测量与定位](../../skills/workforce-runtime/references/measurement.md)。
+主要支撑：[启动与连接](../../skills/shzw-workforce-runtime/references/startup.md)、[版本证据](../../skills/shzw-workforce-runtime/references/release.md)、[验收](../../skills/shzw-workforce-runtime/references/acceptance.md)、[测量与定位](../../skills/shzw-workforce-runtime/references/measurement.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -110,7 +112,7 @@
 
 ### xrain-access-diagnosis：9 个场景族
 
-主要支撑：[权限定位](../../skills/xrain-access-diagnosis/references/access.md)、[授权来源与变更](../../skills/xrain-access-diagnosis/references/authorization.md)、[执行与消息能力](../../skills/xrain-access-diagnosis/references/execution.md)。
+主要支撑：[权限定位](../../skills/shzw-xrain-access-diagnosis/references/access.md)、[授权来源与变更](../../skills/shzw-xrain-access-diagnosis/references/authorization.md)、[执行与消息能力](../../skills/shzw-xrain-access-diagnosis/references/execution.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -126,7 +128,7 @@
 
 ### xrain-app-operations：12 个场景族
 
-主要支撑：[受管操作与恢复](../../skills/xrain-app-operations/references/operations.md)、[维护与退出](../../skills/xrain-app-operations/references/lifecycle.md)、[回执检查器](../../skills/xrain-app-operations/references/receipt.md)。
+主要支撑：[受管操作与恢复](../../skills/shzw-xrain-app-operations/references/operations.md)、[维护与退出](../../skills/shzw-xrain-app-operations/references/lifecycle.md)、[回执检查器](../../skills/shzw-xrain-app-operations/references/receipt.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -145,7 +147,7 @@
 
 ### workforce-agent-troubleshoot：9 个场景族
 
-主要支撑：[检查入口](../../skills/workforce-agent-troubleshoot/references/diagnosis.md)、[员工与会话](../../skills/workforce-agent-troubleshoot/references/agent-session.md)、[任务生命周期](../../skills/workforce-agent-troubleshoot/references/task-lifecycle.md)、[历史检查器](../../skills/workforce-agent-troubleshoot/references/history.md)。
+主要支撑：[检查入口](../../skills/shzw-workforce-agent-troubleshoot/references/diagnosis.md)、[员工与会话](../../skills/shzw-workforce-agent-troubleshoot/references/agent-session.md)、[任务生命周期](../../skills/shzw-workforce-agent-troubleshoot/references/task-lifecycle.md)、[历史检查器](../../skills/shzw-workforce-agent-troubleshoot/references/history.md)。
 
 | 编号 / 用户场景 | 关键处理与结束判据 |
 | --- | --- |
@@ -218,7 +220,7 @@ npm run check
 
 后续源代码复核发现，当前 `ApplicationPackageResourceCoordinator.PreflightAsync` 只接受当前管理策略，普通属性的通用 `resolutions` 会被拒绝。`BizListView` 的租户配置由策略保留；失效字段引用等 `$configuration` 冲突应根据 `editableProperties/editorContext` 提交 `configurationChanges`，每项使用 `{present:true,value:...}` 或 `{present:false}`。连接目标 `baseAddress` 属于 `BizConnector`。这比读取枚举名称更能决定实际请求能否成功。[本次契约指纹](results/resolution-contracts.json)保留了四个主要实现文件的摘要。
 
-已修正安装、维护资料及当前模拟场景，并增加[请求生成器](../../skills/xrain-app-operations/scripts/prepare-resolution.mjs)：复用原操作和当前 revision，检查绑定及可编辑属性，使用当前回执中的确认 token，将已决定的输入写入新的私有文件。它拒绝覆盖文件、未决定的影响、源 revision 变化、错误租户与不支持的旧式冲突；不会替用户选配置或发送请求。具体使用见[回执工具](../../skills/xrain-app-operations/references/receipt.md)。
+已修正安装、维护资料及当前模拟场景，并增加[请求生成器](../../skills/shzw-xrain-app-operations/scripts/prepare-resolution.mjs)：复用原操作和当前 revision，检查绑定及可编辑属性，使用当前回执中的确认 token，将已决定的输入写入新的私有文件。它拒绝覆盖文件、未决定的影响、源 revision 变化、错误租户与不支持的旧式冲突；不会替用户选配置或发送请求。具体使用见[回执工具](../../skills/shzw-xrain-app-operations/references/receipt.md)。
 
 同时补充历史工具的结果解释：`succeeded` 是工具协议层结果，原结果 `ok:false`、业务拒绝和异步接收仍须单独处理；代理回合 completed 不代表任务完成。
 

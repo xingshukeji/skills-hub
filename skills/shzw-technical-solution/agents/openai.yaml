@@ -1,0 +1,7 @@
+interface:
+  display_name: "Technical Solution"
+  short_description: "Create grounded technical plans and formal artifacts"
+  default_prompt: "Use $shzw-technical-solution to prepare the requested solution or controlled implementation plan, preserve established direction, and complete already authorized implementation without a separate approval round."
+
+policy:
+  allow_implicit_invocation: true

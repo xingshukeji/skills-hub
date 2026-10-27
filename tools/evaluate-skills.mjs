@@ -6,7 +6,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const names = ['cicd', 'xrain-auth', 'xrain-cli'];
+const names = ['shzw-cicd', 'shzw-xrain-auth', 'shzw-xrain-cli'];
+const historicalNames = names.map(name => name.replace(/^shzw-/, ''));
+const canonicalName = name => historicalNames.includes(name) ? 'shzw-' + name : name;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const json = path => readFile(path, 'utf8').then(JSON.parse);
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -48,7 +50,7 @@ export function grade(cases, response) {
   const answers = new Map();
   for (const answer of response.answers) {
     assert(answer && typeof answer.id === 'string' && !answers.has(answer.id), 'Invalid or duplicate case ID.');
-    assert(answer.skill === null || names.includes(answer.skill), 'Invalid selected skill.');
+    assert(answer.skill === null || names.includes(answer.skill) || historicalNames.includes(answer.skill), 'Invalid selected skill.');
     assert(Number.isInteger(answer.choice) && answer.choice >= 0 && answer.choice < 4, 'choice must be an integer from 0 to 3.');
     assert(typeof answer.reason === 'string' && answer.reason.trim(), 'Every answer needs a short reason.');
     answers.set(answer.id, answer);
@@ -56,7 +58,7 @@ export function grade(cases, response) {
   return cases.map(item => {
     const answer = answers.get(item.id);
     assert(answer, 'Missing answer for ' + item.id);
-    const routing = answer.skill === item.expected.skill;
+    const routing = canonicalName(answer.skill) === canonicalName(item.expected.skill);
     const decision = answer.choice === item.expected.choice;
     return { id: item.id, routing, decision, passed: routing && decision, actual: answer, expected: item.expected };
   });
@@ -77,11 +79,18 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
   await mkdir(output);
   const baseline = join(output, 'sources/baseline');
   const candidate = join(output, 'sources/candidate');
+  const baselineSourceNames = {};
   for (const name of names) {
-    const paths = execFileSync('git', ['ls-tree', '-r', '--name-only', baselineCommit, '--', 'skills/' + name], { cwd: root, encoding: 'utf8', windowsHide: true }).trim().split('\n').filter(Boolean);
-    assert(paths.includes('skills/' + name + '/SKILL.md'), 'Baseline skill is missing: ' + name);
+    let sourceName = name;
+    let paths = [];
+    for (const source of [name, name.replace(/^shzw-/, '')]) {
+      const found = execFileSync('git', ['ls-tree', '-r', '--name-only', baselineCommit, '--', 'skills/' + source], { cwd: root, encoding: 'utf8', windowsHide: true }).trim().split('\n').filter(Boolean);
+      if (found.includes('skills/' + source + '/SKILL.md')) { sourceName = source; paths = found; break; }
+    }
+    assert(paths.length, 'Baseline skill is missing: ' + name);
+    baselineSourceNames[name] = sourceName;
     for (const path of paths) {
-      const destination = join(baseline, path.slice('skills/'.length));
+      const destination = join(baseline, name, path.slice(('skills/' + sourceName + '/').length));
       await mkdir(dirname(destination), { recursive: true });
       await writeFile(destination, execFileSync('git', ['show', baselineCommit + ':' + path], { cwd: root, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }));
     }
@@ -97,7 +106,7 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
   await writeFile(join(output, 'cases.private.json'), privateText);
   const inputs = JSON.stringify(shuffled.map(({ expected, ...item }) => item), null, 2) + '\n';
   const manifest = {
-    format: 1, createdAt: new Date().toISOString(), baselineCommit, repeats, casesHash: hash(privateText),
+    format: 1, createdAt: new Date().toISOString(), baselineCommit, baselineSourceNames, repeats, casesHash: hash(privateText),
     snapshots: {
       baseline: { hash: await fingerprint(baseline), sizes: await sizes(baseline) },
       candidate: { hash: await fingerprint(candidate), sizes: await sizes(candidate) }
@@ -125,7 +134,7 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
         '只能读取本组目录，不读取父目录、其他组、仓库或旧对话。不要猜测哪版较新，不自行创建子代理。',
         '这是离线决策回放：不执行场景中的命令，不访问真实服务，不操作账号、浏览器或部署。已有事实视为本轮可信观测。',
         '从给出的选项选择最合适的下一步，choice 是从 0 开始的索引。每项给出一句理由。各案例相互独立。',
-        '只写本组 answers.json，格式：{"answers":[{"id":"c01","skill":"cicd","choice":0,"reason":"简短理由"}]}。',
+        '只写本组 answers.json，格式：{"answers":[{"id":"c01","skill":"shzw-cicd","choice":0,"reason":"简短理由"}]}。',
         'skill 只能是目录中的 skill 名或 null。必须覆盖所有案例。结束时告知文件位置，不自行打分。',
         ''
       ].join('\n');

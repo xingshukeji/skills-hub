@@ -29,7 +29,7 @@ async function files(directory) {
   return result;
 }
 for (const name of names) {
-  assert(name.length <= 64 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name), `Invalid skill directory: ${name}`);
+  assert(name.length <= 64 && /^shzw-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name), `Invalid Suhong Zhuwei skill directory: ${name}`);
   const directory = join(skillsRoot, name), path = join(directory, 'SKILL.md');
   const text = await readFile(path, 'utf8');
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]+)$/.exec(text);
@@ -39,7 +39,7 @@ for (const name of names) {
   assert(metadata && typeof metadata === 'object' && !Array.isArray(metadata), `Invalid frontmatter: ${path}`);
   assert(Object.keys(metadata).every(key => allowed.has(key)), `Unknown frontmatter field: ${path}`);
   assert(metadata.name === name, `Skill name must match its directory: ${path}`);
-  assert(typeof metadata.description === 'string' && metadata.description.trim().length > 0 && metadata.description.length <= 1024, `Invalid skill description: ${path}`);
+  assert(typeof metadata.description === 'string' && metadata.description.trim().length > 0 && metadata.description.length <= 500, `Skill description must fit the 500-character consumer catalog: ${path}`);
   assert(!metadata.compatibility || (typeof metadata.compatibility === 'string' && metadata.compatibility.length <= 500), `Invalid compatibility field: ${path}`);
   assert(text.split('\n').length <= 500, `Move detailed documentation into references: ${path}`);
   const uiPath = join(directory, 'agents/openai.yaml');
@@ -80,4 +80,12 @@ const expected = readme.replace(/<!-- skills:start -->[\s\S]*?<!-- skills:end --
 if (write) await writeFile(readmePath, expected);
 else if (requestedSkill) assert(index.split('\n').slice(3, -1).every(row => readme.includes(row)), 'README entry is stale for the selected skill. Update its generated index entry.');
 else assert(expected === readme, 'README skill index is stale. Run npm run index.');
+const llmsPath = join(root, 'llms.txt');
+const llms = await readFile(llmsPath, 'utf8');
+const llmsIndex = [start, ...entries.map(item => `- [${item.name}](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/${item.name}/SKILL.md)：${item.description.replaceAll('\n', ' ')}`), end].join('\n');
+assert(llms.includes(start) && llms.includes(end), 'llms.txt is missing skill index markers.');
+const expectedLlms = llms.replace(/<!-- skills:start -->[\s\S]*?<!-- skills:end -->/, llmsIndex);
+if (write) await writeFile(llmsPath, expectedLlms);
+else if (requestedSkill) assert(llmsIndex.split('\n').slice(1, -1).every(row => llms.includes(row)), 'llms.txt entry is stale for the selected skill.');
+else assert(expectedLlms === llms, 'llms.txt skill index is stale. Run npm run index.');
 console.log(`Validated ${entries.length} self-contained skill(s)${write ? ' and updated README index' : ''}.`);

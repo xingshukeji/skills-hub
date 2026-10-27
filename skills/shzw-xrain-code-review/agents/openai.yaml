@@ -1,0 +1,7 @@
+interface:
+  display_name: "XRain Code Review"
+  short_description: "审核 XRain 完整调用链；重复审核接续证据、反思漏审并定向补查"
+  default_prompt: "使用 $shzw-xrain-code-review 审核指定范围；重复审核接续证据、反思补查并改进方法。"
+
+policy:
+  allow_implicit_invocation: true

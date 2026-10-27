@@ -1,4 +1,0 @@
-interface:
-  display_name: "业务人员接入与持续使用"
-  short_description: "沿完整业务主线处理人员开通、实际工作、共享结果和职责变化"
-  default_prompt: "使用 $xrain-business-user-lifecycle，沿已有业务主线让指定人员完成实际工作，并核对日常协作、职责变化和恢复条件。"

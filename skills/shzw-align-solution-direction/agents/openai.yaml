@@ -1,0 +1,7 @@
+interface:
+  display_name: "Solution Direction Review"
+  short_description: "Check premises, preserve intent, and bound claims by evidence"
+  default_prompt: "Use $shzw-align-solution-direction to resolve the material uncertainty in this task's outcome, boundary, ownership or completion rule, reusing established decisions and continuing authorized work when the direction is clear. Check user and agent premises independently, correct errors with evidence, and surface consequential omissions, costs, and reasoning bias."
+
+policy:
+  allow_implicit_invocation: true

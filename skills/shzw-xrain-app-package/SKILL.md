@@ -1,0 +1,93 @@
+---
+name: shzw-xrain-app-package
+description: 在任意项目编写和离线校验 XRain .appkg 应用源码与制品，使用目标提供的统一构建端点生成服务端制品，并按明确授权导入、安装和恢复应用。不用于部署 XRain 服务镜像或任意程序二进制。
+metadata:
+  maintainer: 苏州苏宏助为智能科技有限公司
+  source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/SKILL.md
+---
+
+# XRain 应用安装包
+
+Resolve project entrypoints, source, documents and command working directories from the user's target project. Resolve this skill's `references/`, `scripts/` and `assets/` from its installed directory. Locate other responsible repositories through the target project's entrypoint; never infer the target from the skill installation path.
+
+本目录是可独立移动的 skill；不依赖原仓库、历史对话、其他 skill 或固定本机路径。命令中的 `<skill>` 指本文件所在目录的绝对路径，`<project>` 指用户当前项目。运行打包工具需 .NET 10 SDK，无第三方包、数据库或联网构建依赖。在 `<skill>/scripts` 目录执行命令，并为输入输出使用绝对路径，避免当前项目的 global.json 影响 SDK 选择。缺 SDK 时说明依赖，不修改项目 SDK 配置。
+
+## 源码、构建与制品归属
+
+完整 JSON 源码、项目构建入口、构建凭据和正式制品属于产生该应用的项目；本 skill 只拥有 application/v1 编写规则和共用离线工具。构建在应用项目的任务中完成，输入和输出都必须落到该项目选定的位置，不能把 skill 目录、个人技能安装目录或线上 XRain 当成应用源码或制品仓库。线上 XRain 只接收已经形成的 `.appkg`，既有导入和安装记录不承担源码及构建过程管理。
+
+项目已有 `package:build` 薄封装时，优先从项目根调用；它应把完整源码发送给获授权的 XRain 服务端构建端点，并保存返回的原始包和元信息，不得复制 ZIP、digest、kind 或引用校验实现。`package:check` 可继续调用本地离线 validate。没有 API 构建能力时保留 source 和离线检查结果，不调用已退役的独立本地 build 命令。一个项目包含多个应用时按 packageId 显式选择，不能递归扫描目录猜测本次输入。
+
+应用项目用 Git 保存可编辑 JSON 和组装清单。开发构建可使用未提交输入，但必须如实标记；正式交付构建必须固定全部输入的提交，并保存服务返回的原始 source SHA-256、package digest、文件 SHA-256、构建版本与构建程序集摘要。开发输出可以位于已忽略的 `.artifacts/`，正式原包必须连同完整输入快照及上述元信息保存到该项目已有的受管制品或发布入口。没有可取回的正式保存位置时只报告本地候选，不宣称版本已经长期保管。
+
+## 模式与边界
+
+用户仅要求生成包：只执行生成和离线检查。用户明确要求安装：另外读取 [安装与恢复](references/install.md)，确定命名目标和授权后才产生远端写入。不要从“包已生成”“测试通过”或 skill 的能力描述推断生产安装授权。
+
+本 skill 的包知识自包含，但环境地址、认证身份、租户、账户等是运行参数，不能凭空生成。先使用该项目已有的非秘密环境配置和安全登录会话；只有缺少必要目标或身份时才询问。不要求用户提供 Host/tenant 数据库连接；全部安装通过 XRain API。生成包和离线自测不需要任何服务或凭据。
+
+本协议对应 `application/v1`，依据包读取器、DTO、资源与操作契约整理。目标是否提供服务端构建端点，须以目标实际部署版本为准。离线校验、Host 导入成功、租户安装成功是三个不同结果；不得用其中一个代替另一个。目标不支持所用资源或返回恢复错误时停止，不补数据库、改服务或规避准入。
+
+## 生成
+
+1. 阅读 [包编写契约](references/authoring.md) 和 [23-kind 字段目录](references/kinds.json)。将当前项目需求转换成允许的 XRain 资源，不把源码目录、node_modules、镜像、DLL、SQL 或任意文件塞进包。
+2. 在应用项目自行选择的源码目录维护 `source.json`：`packageId,namespace,label,versionId,version,records` 六键；每条记录为 `id,kind,values`。从最小需要的 kind 组合开始，不必为 23 类都造记录。可以从 [示例](assets/source.json) 开始，替换其稳定身份和命名空间；示例 ID 不是供不同应用共用的身份。同一应用的记录增多后可以按业务职责分片，但必须由项目显式清单无损合成唯一完整 source；构建工具始终消费完整六键输入，分片不是新的包协议。
+3. 用工具分配稳定 ID，保存到源文件；同一应用跨项目和跨环境使用相同 packageId/recordId，新发布版本使用新 versionId。ID 生成键不能含租户或环境。对象 keyPrefix 的全局唯一性仍需目标导入/preflight 确认；冲突不能自动重新分配既有身份。
+4. 审查秘密和身份：包含请求头、URL、脚本、嵌套 JSON、模板、种子，不仅检查顶层字段。凭据只以已定义模板占位符引用；用户和角色的授权使用系统标准管理；必要账户、凭据与首次 Owner 在独立目标配置中提供，不进入 source.json 或 .appkg。共享规则日常编辑不走安装绑定。
+5. 目标提供统一构建端点时，使用获授权的 tenant 登录会话发送完整源码；不要由项目或 skill 再实现 ZIP/digest/kind 校验。新包需要 `platform.application.package.submit`；已有租户包需要原创建者同时具备 submit，或拥有该包的 `platform.application.package.{packageId}.maintain`。Host-scope sysadmin 可构建。review、安装和全局应用管理资格本身不允许构建。端点只构建并返回二进制，不保存包，不自动 submit、import、publish 或 install。
+
+```http
+POST /api/application/v1/packages:build
+Content-Type: application/json
+Authorization: Bearer <获授权的登录会话>
+```
+
+body 是 `source.json` 的原始 JSON 字节，不是 `{ source: ... }` 包装。请求不超过 32 MiB。成功返回 `application/octet-stream` `.appkg`，`Cache-Control: no-store`，并带下列元信息：
+
+| Header | 含义 |
+|---|---|
+| `X-Appkg-Package-Id`、`X-Appkg-Version-Id`、`X-Appkg-Version` | 源码声明的不可变应用与版本身份 |
+| `X-Appkg-Source-Sha256` | 完整原始 JSON 请求体的 SHA-256 |
+| `X-Appkg-Package-Digest` | 服务器读取器核对的规范包摘要 |
+| `X-Appkg-File-Sha256` | 返回 `.appkg` 二进制文件的 SHA-256 |
+| `X-Appkg-Builder-Version` | XRain.Application 程序集信息版本 |
+| `X-Appkg-Builder-Digest` | 实际构建程序集字节的 SHA-256 |
+| `X-Appkg-Record-Count` | 服务器读取器回读的记录数 |
+
+保存这些元信息后，若用户另外授权 submit，再把返回的原始 `.appkg` bytes 上传到 `/api/application/v1/packages:submit`。不能把 build 响应、submit 回执或 install operation 相互等同。部署的 CORS 响应策略需暴露 `X-Appkg-*` 及 `Content-Disposition`，否则浏览器不能读取对应响应头。
+
+错误为 JSON `{type,title,status,errorCode,message,sourcePosition?}`。源码诊断提供时，`lineNumber` 从 1 开始、`bytePositionInLine` 从 0 开始（0 是有效位置）；`jsonPath` 限于安全的固定结构路径。错误文本不回显源码值、脚本或任意属性名。常见状态码为 400（源码或包协议错误）、413（超过请求体大小限制）、415（不是 `application/json`）、401/403（会话或构建权限不足）。
+
+没有可用服务端构建端点时，不把旧 skill 生成器作为线上 XRain 的独立构建器。可以继续用本地工具分配稳定 ID、离线 validate、self-test 或互操作检查；本地离线检查不产出服务器构建制品，也不证明服务器准入。输出文件必须在项目内保存且不得覆盖已审批制品。
+
+```text
+dotnet run --project <skill>/scripts/Appkg.csproj -- id apg "publisher|application"
+dotnet run --project <skill>/scripts/Appkg.csproj -- id apv "publisher|application|1.0.0"
+dotnet run --project <skill>/scripts/Appkg.csproj -- id 004 "publisher|application|object|item"
+dotnet run --project <skill>/scripts/Appkg.csproj -- validate <project>/application-1.0.0.appkg
+dotnet run --project <skill>/scripts/Appkg.csproj -- self-test
+```
+
+字段协议使用唯一业务 `type` 和稀疏 `presentation`；不再接受 `fieldType/uiType/uiLength`。旧版源码可用 `convert-field-types <旧source.json> <新source.json> <新versionId> <新version>` 离线生成新版本源码，再将完整源码发送给服务端构建端点。转换要求新版本号及新版本 ID，不修改旧源码或 ZIP；未知、存储冲突或非空旧 uiLength 会指出字段并阻断，须人工核对，不能猜测映射。此工具能力不代表目标服务已升级；导入前核对目标协议。
+
+工具不执行安装，不把包内脚本作为本地代码运行。它检查容器、摘要、23-kind 顶层白名单/类型、ID、直接引用、基本身份规则、自定义权限声明与标准权限引用；不替代服务端脚本编译、嵌套 DTO 业务校验、权限、唯一性、反向依赖、真实数据/DDL 和供应商检查。复杂资源必须按编写契约审查并通过目标 preflight；不能宣称离线校验覆盖全部语义。
+
+## 安装、升级与交付
+
+严格按 [安装与恢复](references/install.md) 执行。开发、测试、生产使用同一不可变 .appkg；只更换目标配置、合法认证会话和 tenantBindings。不重新打包写入环境值。
+
+安装只消费应用项目交付的确定原包。若交付资料无法同时给出 packageId、versionId、SemVer、package digest、文件 SHA-256、完整源或其提交、工具版本/摘要及原包位置，先把缺口报告给应用项目；不要在安装任务中重建或替换制品。导入回执与租户 operation/installation 是线上实际状态，线下版本记录不能代替它们。
+
+升级前比较前一份已发布 source/manifest：recordId、kind、名称、API Name、父归属等身份不可变；编排版本源码不可原地改。若没有旧制品，先取已批准的发布资料；不要猜测并重发同版本。移除种子不等于删业务数据，卸载不等于物理回滚。
+
+交付分别报告：包路径、packageId/versionId/SemVer、包内 digest、文件 SHA-256、离线检查；实际安装时再报告目标、tenantId、operationId、终态与安装指针。省略秘密。仅 GET operation 为 Succeeded 且 GET installation 的 tenant/package/version/revision 一致时，才报告该租户安装成功。未实际访问目标就明确写“未安装”，不得承诺已具备生产可用性。
+
+## 本 skill 的维护
+
+凡变更会影响包作者应生成什么、离线工具接受什么、目标导入/安装接受什么，必须在同一任务同步本 skill：包括 kind/字段/类型、ID 与 keyPrefix 保留区间、命名/引用/权限、不可变身份、绑定、升级及恢复协议。核对并按需更新编写参考、字段目录、生成/校验脚本、示例、安装参考和回归用例；仓库维护副本与实际个人安装副本同步。纯内部重构且上述可观察合同不变时无需修改 skill。合法与非法样例须分别验证，服务器读取器互操作与离线自测分开举证。
+
+安装完成与可用性分开报告：安装指针一致只证明该版本已提交。支持管理查询的新目标可先调用只读 preview，安装后读取当前组件、安装配置和操作历史，再显式运行当前身份对象读取检查。检查必须带 tenant、version、revision、actor 和时间；管理员结果不代表普通成员业务流程通过，未检查的写入、Trigger、外部服务和成员流程明确保持未验证。具体路由与旧目标边界见 `references/install.md`。
+
+仓库维护副本与个人安装副本必须按文件内容核对，不能只看 SKILL.md 的日期。先核对目标读取器、字段目录、生成器及 install/resolve 绑定形状；将同一修复同步到实际使用的副本，并重新执行 self-test 和服务器读取器互操作。目标运行候选可能早于或晚于仓库源码，须明确其协议能力，不能仅凭某个本机副本支持 `unique` 或 `refPermissionName` 就向任意目标生成这些字段。不要把隔离候选中的修复误报成已合入仓库或已部署。
+
+更新协议时同时核对字段目录、脚本、编写与 API 参考，重新运行 self-test，并用对应服务器导入器做互操作验证；不能只更新文案。维护者有服务器程序集时，可运行 `dotnet run --project <skill>/scripts/Appkg.csproj -- interop <file.appkg> <XRain.Application.dll>`，程序集应来自 Host 构建/发布输出且同目录包含其依赖；单独 Application 项目的输出可能缺少依赖。该命令只调用读取器，不访问服务器或安装；这是可选维护测试，不是普通生成/安装的仓库依赖。所有依赖文件通过本目录相对路径访问。移动本目录后重建工具即可，不复制 bin/obj。

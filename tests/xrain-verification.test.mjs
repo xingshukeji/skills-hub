@@ -90,7 +90,7 @@ test('live report refuses historical receipts and incomplete runs instead of rep
   const legacy = await execute(f, ['report', '--dir', f.directory]);
   assert.equal(legacy.code, 1); assert.match(legacy.stderr, /does not match/); assert.deepEqual(readFileSync(path), historical);
   const dir = join(f.directory, 'fresh');
-  const state = new VerificationState(join(dir, 'report.json'), { artifactSha256: sha256(readFileSync(resolve('skills/xrain-cli/scripts/xrain-cli.mjs'))), targets });
+  const state = new VerificationState(join(dir, 'report.json'), { artifactSha256: sha256(readFileSync(resolve('skills/shzw-xrain-cli/scripts/xrain-cli.mjs'))), targets });
   state.record('help', 'passed');
   const partial = await execute(f, ['report', '--dir', dir]);
   assert.equal(partial.code, 1); assert.equal(JSON.parse(partial.stdout).status, 'failed');

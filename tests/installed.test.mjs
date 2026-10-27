@@ -21,7 +21,7 @@ test('installed skill alone runs help, profile, token, HTTP and app-init command
   const f = fixture(t);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const installed = join(f.directory, 'installed skill with spaces');
-  cpSync(join(root, 'skills/xrain-cli'), installed, { recursive: true });
+  cpSync(join(root, 'skills/shzw-xrain-cli'), installed, { recursive: true });
   assert.equal(existsSync(join(f.directory, 'node_modules')), false);
   assert.equal(existsSync(join(installed, 'src')), false);
   const script = join(installed, 'scripts/xrain-cli.mjs');
@@ -80,7 +80,7 @@ test('standalone application commands import, preview, install and resolve with 
   const f = fixture(t);
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const installed = join(f.directory, 'application management skill');
-  cpSync(join(root, 'skills/xrain-cli'), installed, { recursive: true });
+  cpSync(join(root, 'skills/shzw-xrain-cli'), installed, { recursive: true });
   const script = join(installed, 'scripts/xrain-cli.mjs');
   const installationId = 'api0123456789abcdefg';
   const confirmation = { recordId: 'apr0123456789abcdefg', unit: '$security', token: 'synthetic-installed-impact-token' };

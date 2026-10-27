@@ -1,0 +1,318 @@
+{
+  "BizConnector": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "label",
+      "name",
+      "baseAddress",
+      "isLocalCall"
+    ],
+    "prefix": "00r"
+  },
+  "BizObject": {
+    "optional": [
+      "description",
+      "searchFields",
+      "share2AllRoles",
+      "manualSharingEnabled",
+      "triggersEnabled",
+      "visibilityScope"
+    ],
+    "required": [
+      "keyPrefix",
+      "label",
+      "entityApiName"
+    ],
+    "prefix": "004"
+  },
+  "BizListView": {
+    "optional": [
+      "helpText",
+      "fieldLabelOverrides",
+      "fieldPresentationOverrides",
+      "conditions",
+      "sort",
+      "cellColorRules"
+    ],
+    "required": [
+      "label",
+      "name",
+      "refObjectId",
+      "fieldNames"
+    ],
+    "prefix": "00m"
+  },
+  "BizPicklist": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "label",
+      "name",
+      "isActive"
+    ],
+    "prefix": "006"
+  },
+  "RoutineTemplate": {
+    "optional": [
+      "executeTime",
+      "timeZoneId"
+    ],
+    "required": [
+      "name",
+      "refOrchestrationId",
+      "inputJson",
+      "scheduleType"
+    ],
+    "prefix": "apt"
+  },
+  "InfraSmsAliyunTemplateBinding": {
+    "optional": [
+      "remark"
+    ],
+    "required": [
+      "localTemplateKey",
+      "providerTemplateCode",
+      "signName"
+    ],
+    "prefix": "01v"
+  },
+  "BizHttpInterface": {
+    "optional": [
+      "refHttpRequestId",
+      "refOrchestrationId",
+      "helpText",
+      "orchestrationExecutionPolicyOverrides"
+    ],
+    "required": [
+      "kind",
+      "label",
+      "name",
+      "permissionName",
+      "supportsTrigger",
+      "isActive"
+    ],
+    "prefix": "01q"
+  },
+  "BizField": {
+    "optional": [
+      "description",
+      "searchable",
+      "sortable",
+      "length",
+      "scale",
+      "presentation",
+      "targetEntityDefinitionId",
+      "valuePicklistId",
+      "isSensitive",
+      "maskingPolicy",
+      "allowActorPolicyReference",
+      "unique"
+    ],
+    "required": [
+      "entityDefinitionId",
+      "label",
+      "fieldApiName",
+      "type",
+      "nullable"
+    ],
+    "prefix": "005"
+  },
+  "BizHttpRequest": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "refConnectorId",
+      "label",
+      "name",
+      "method",
+      "path",
+      "query",
+      "headers",
+      "body",
+      "isActive"
+    ],
+    "prefix": "01n"
+  },
+  "AuthenPermissionSet": {
+    "optional": [
+      "helpText",
+      "assignmentAudience"
+    ],
+    "required": [
+      "label",
+      "name",
+      "isMuted"
+    ],
+    "prefix": "00e"
+  },
+  "BizOrchestration": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "label",
+      "name",
+      "currentVersionId",
+      "isActive"
+    ],
+    "prefix": "01p"
+  },
+  "BizRecordType": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "label",
+      "name",
+      "isActive",
+      "refObjectId",
+      "picklistFields"
+    ],
+    "prefix": "008"
+  },
+  "BizOrchestrationFunction": {
+    "optional": [
+      "helpText",
+      "signature",
+      "contractJson"
+    ],
+    "required": [
+      "key",
+      "label",
+      "source",
+      "isActive"
+    ],
+    "prefix": "01s"
+  },
+  "BizPicklistItem": {
+    "optional": [
+      "helpText",
+      "color"
+    ],
+    "required": [
+      "label",
+      "name",
+      "isActive",
+      "refPicklistId"
+    ],
+    "prefix": "007"
+  },
+  "BizSharingRule": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "name",
+      "label",
+      "refObjectId",
+      "filterItems",
+      "subjectCondition",
+      "readable",
+      "updateable",
+      "deleteable"
+    ],
+    "prefix": "00p"
+  },
+  "InfraFeishuTemplate": {
+    "optional": [],
+    "required": [
+      "name",
+      "label",
+      "inputModel",
+      "messageType",
+      "contentTemplate",
+      "isActive"
+    ],
+    "prefix": "021"
+  },
+  "RuntimeRecord": {
+    "optional": [],
+    "required": [
+      "entityDefinitionId",
+      "fieldValues"
+    ],
+    "prefix": ""
+  },
+  "AuthenPermission": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "label",
+      "name",
+      "isMuted"
+    ],
+    "prefix": "00d",
+    "description": "Only custom.<group>.<capability> declarations. Object/field standard permissions are system-generated."
+  },
+  "BizSharingRuleFormula": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "name",
+      "label",
+      "value"
+    ],
+    "prefix": "00n"
+  },
+  "PermissionSetItem": {
+    "optional": [
+      "refPermissionId",
+      "refPermissionName"
+    ],
+    "required": [
+      "refPermissionSetId"
+    ],
+    "prefix": "00f",
+    "description": "Exactly one reference: package custom permission ID, generated standard ID, or standard/custom/registered tenant API permission name. Field export is retired."
+  },
+  "InfraEmailTemplate": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "name",
+      "label",
+      "inputModel",
+      "toRules",
+      "ccRules",
+      "bccRules",
+      "replyToRule",
+      "subjectTemplate",
+      "textBodyTemplate",
+      "htmlBodyTemplate",
+      "isActive"
+    ],
+    "prefix": "01y"
+  },
+  "BizTrigger": {
+    "optional": [
+      "helpText"
+    ],
+    "required": [
+      "refObjectId",
+      "label",
+      "name",
+      "triggerType",
+      "triggerOrder",
+      "refOrchestrationId",
+      "isActive"
+    ],
+    "prefix": "00s"
+  },
+  "BizOrchestrationVersion": {
+    "optional": [],
+    "required": [
+      "refOrchestrationId",
+      "versionNo",
+      "inputModel",
+      "source"
+    ],
+    "prefix": "01r"
+  }
+}
