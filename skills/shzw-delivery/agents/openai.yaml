@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "流水线与交付"
+  "short_description": "查询或执行已有流水线，沿明确制品和目标完成获准发布及部署核对"
+  "default_prompt": "使用 $shzw-delivery 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

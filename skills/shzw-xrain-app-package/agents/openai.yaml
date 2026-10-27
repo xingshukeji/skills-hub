@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "XRain 应用包"
+  "short_description": "按需要编写校验应用包，或接续原安装升级与恢复，核对真实业务结果"
+  "default_prompt": "使用 $shzw-xrain-app-package 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

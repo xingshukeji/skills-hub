@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "人员接入与访问权限"
+  "short_description": "沿同一业务人员的登录、租户、应用与权限定位缺口并复测允许及拒绝"
+  "default_prompt": "使用 $shzw-xrain-access 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

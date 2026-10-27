@@ -1,7 +1,0 @@
-interface:
-  display_name: "Service Starter"
-  short_description: "Run task-authorized local or test services"
-  default_prompt: "Use $shzw-service-starter to resolve the user-defined task purpose and operate only allowed workspace services through root package.json scripts; route formal deployment elsewhere."
-
-policy:
-  allow_implicit_invocation: true

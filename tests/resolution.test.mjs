@@ -4,7 +4,7 @@ import { mkdtemp, cp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { prepareResolution } from '../skills/shzw-xrain-app-operations/scripts/prepare-resolution.mjs';
+import { prepareResolution } from '../skills/shzw-xrain-app-package/modes/operations/scripts/prepare-resolution.mjs';
 import { request } from '../tools/capability-lab.mjs';
 import { cases } from '../evals/workforce/capability-lab-cases.mjs';
 
@@ -78,14 +78,14 @@ test('copied skill prepares private files without stdout secrets and refuses ove
   const root = await mkdtemp(join(tmpdir(), 'resolve skill '));
   t.after(() => rm(root, { recursive: true, force: true }));
   const skill = join(root, 'copied skill');
-  await cp(resolve('skills/shzw-xrain-app-operations'), skill, { recursive: true });
+  await cp(resolve('skills/shzw-xrain-app-package'), skill, { recursive: true });
   const { bundle } = fixture();
   bundle.selections.bindings[0].value = 'SYNTHETIC_PRIVATE_BINDING';
   bundle.operation.details.requiredConfirmations = [{ recordId: 'apr-sec', unit: 'permissions', token: 'SYNTHETIC_PRIVATE_CONFIRMATION' }];
   bundle.selections.confirmations = [{ recordId: 'apr-sec', unit: 'permissions' }];
   const input = join(root, 'private input.json'), output = join(root, 'private body.json');
   await writeFile(input, JSON.stringify(bundle));
-  const run = args => spawnSync(process.execPath, [join(skill, 'scripts/prepare-resolution.mjs'), ...args], { encoding: 'utf8', cwd: root });
+  const run = args => spawnSync(process.execPath, [join(skill, 'modes/operations/scripts/prepare-resolution.mjs'), ...args], { encoding: 'utf8', cwd: root });
   const first = run([input, '--output', output]); assert.equal(first.status, 0, first.stderr);
   assert(![first.stdout, first.stderr].join('').includes('SYNTHETIC_PRIVATE'));
   const written = await readFile(output, 'utf8'); assert(written.includes('SYNTHETIC_PRIVATE_CONFIRMATION'));

@@ -20,7 +20,7 @@ security user ensure --user <固定登录名> --values-json - --profile <目标>
 
 ## 原应用登录
 
-中心身份不能用 security user ensure 创建。需要统一认证时使用可用的 shzw-xrain-auth 或中心原网页：/admin/local-accounts 与 /admin/users 查重；已有主体“设置本地登录”，确实缺失才创建普通账号并在 /login/activate 激活，保留 MFA。原码失效后的“恢复密码与验证器”会撤销登录、清除验证器，须已有恢复授权。中心管理员网页不依赖 CLI 客户端。
+中心身份不能用 security user ensure 创建。需要统一认证时使用可用的 shzw-xrain-access 或中心原网页：/admin/local-accounts 与 /admin/users 查重；已有主体“设置本地登录”，确实缺失才创建普通账号并在 /login/activate 激活，保留 MFA。原码失效后的“恢复密码与验证器”会撤销登录、清除验证器，须已有恢复授权。中心管理员网页不依赖 CLI 客户端。
 
 CLI client_id 被拒：读 /api/application/v1/cli-config，按准确 client、回调、scope 核对中心登记；不重置用户密码。auth login 成功后管理命令用 --auth session 排除旧 Token。
 

@@ -13,11 +13,11 @@ async function fixture(t) {
     await rm(root, { recursive: true, force: true });
   });
   const installed = join(root, 'installed separately');
-  await cp(new URL('../skills/shzw-service-starter/', import.meta.url), installed, { recursive: true });
+  await cp(new URL('../skills/shzw-runtime-operations/', import.meta.url), installed, { recursive: true });
   const project = join(root, 'target project');
   const other = join(root, 'other working directory');
   await mkdir(project); await mkdir(other);
-  return { root, project, other, script: join(installed, 'scripts/run-service.mjs') };
+  return { root, project, other, script: join(installed, 'modes/services/scripts/run-service.mjs') };
 }
 function run(f, args, cwd = f.other) {
   return spawnSync(process.execPath, [f.script, ...args], { cwd, encoding: 'utf8', windowsHide: true });

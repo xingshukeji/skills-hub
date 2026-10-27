@@ -1,7 +1,0 @@
-interface:
-  display_name: "AiInfra Adoption"
-  short_description: "Adopt AiInfra infrastructure without rebuilding it"
-  default_prompt: "Use $shzw-aiinfra-adoption in Development to classify AiInfra reuse and gather scoped consumer evidence without automatically starting broad SystemTest or formal package deployment."
-
-policy:
-  allow_implicit_invocation: true

@@ -1,0 +1,602 @@
+{
+  "scope": "Owned task entry selection and bounded offline execution decisions. Historical excerpts contain only non-sensitive request text; source IDs stay outside the repository.",
+  "evidenceRules": [
+    "No keyword or option-index semantic grading.",
+    "Author checks, historical observations, structural integrity and independent model evidence are different evidence classes.",
+    "No claim of activation accuracy from historical file reads or these fixtures alone.",
+    "Each answer must distinguish actual actions, next steps and unverified completion."
+  ],
+  "cases": [
+    {
+      "id": "t01",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review"
+      ],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "确定时间范围与当前版本",
+        "从业务动作枚举实际入口和消费者",
+        "核对异步保存与身份恢复等受影响状态及后置条件",
+        "用触发、影响、责任和反证形成结论"
+      ],
+      "forbiddenBehavior": [
+        "只看 diff 文件名或首个调用者",
+        "直接修改产品",
+        "用测试数量宣称链路完整"
+      ]
+    },
+    {
+      "id": "t02",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        null
+      ],
+      "mode": "direct",
+      "requiredBehavior": [
+        "检查现有组件与页面",
+        "完成局部修改和相称验证"
+      ],
+      "forbiddenBehavior": [
+        "完整技术方案",
+        "活动计划",
+        "独立系统测试或完整安装包"
+      ]
+    },
+    {
+      "id": "t03",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review",
+        "shzw-solution",
+        null
+      ],
+      "mode": "discussion",
+      "requiredBehavior": [
+        "说明重复缺陷、职责和实际场景的关联",
+        "区分现象、假设和待核实的根因",
+        "保持讨论边界"
+      ],
+      "forbiddenBehavior": [
+        "修改代码",
+        "从复杂度或提交次数直接断言缺陷",
+        "将所有机制一概删除"
+      ]
+    },
+    {
+      "id": "t04",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review"
+      ],
+      "mode": "engineering",
+      "requiredBehavior": [
+        "继承已确认范围与只读授权",
+        "选 Workforce 业务和工程方法",
+        "以原场景、同类消费者、反证和实际影响校准结论"
+      ],
+      "forbiddenBehavior": [
+        "重新要求同意开展已确认审查",
+        "自动修复或全仓重构",
+        "将独立根因合并或夸大严重性"
+      ]
+    },
+    {
+      "id": "t05",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review"
+      ],
+      "mode": "workforce",
+      "requiredBehavior": [
+        "按当前业务、入口和正式规则解释每种文件的职责",
+        "检查实际配置消费与相关状态",
+        "保留用户覆盖要求并聚合有依据的问题"
+      ],
+      "forbiddenBehavior": [
+        "用通用清单替代平台事实",
+        "凭文件存在判断当前可达",
+        "把轮数当作完成证明",
+        "自动产品修复"
+      ]
+    },
+    {
+      "id": "t06",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review"
+      ],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "恢复范围、版本及有效证据",
+        "补查此前未闭合的消费者、状态与后置条件",
+        "区分原版本遗漏、新变更及证据缺口"
+      ],
+      "forbiddenBehavior": [
+        "把重复请求直接当漏审证据",
+        "只围绕首轮发现检查",
+        "无依据增加发现数量"
+      ]
+    },
+    {
+      "id": "t07",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-code-review",
+        null
+      ],
+      "mode": "authorized-repair",
+      "requiredBehavior": [
+        "沿用原问题和职责归属完成修复",
+        "检查同身份的全部受影响读取入口及页面生命周期",
+        "验证原触发与相邻合法路径"
+      ],
+      "forbiddenBehavior": [
+        "再次索取同一修复授权",
+        "修改无关共享框架",
+        "把旧测试或旧包当作新消费结果"
+      ]
+    },
+    {
+      "id": "t08",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-workspace-maintenance",
+        "shzw-skill-evolution"
+      ],
+      "mode": "evolution",
+      "requiredBehavior": [
+        "找到产生错误默认行为的实际规则所有者",
+        "核对路由与执行是否已经有规则但未落实",
+        "实施并验证最小的长期修正"
+      ],
+      "forbiddenBehavior": [
+        "只再写一段相同提醒",
+        "把产品个例变成所有项目门禁",
+        "另建治理服务或重复台账"
+      ]
+    },
+    {
+      "id": "t09",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-runtime-operations"
+      ],
+      "mode": "services",
+      "requiredBehavior": [
+        "通过根入口和 Runbook 确认启动命令",
+        "核对当前进程归属后执行已授权关闭",
+        "说明命令与实际停止结果"
+      ],
+      "forbiddenBehavior": [
+        "按技能安装位置选择 all_in_one 默认服务",
+        "杀死归属不明进程",
+        "删除状态或停止共享依赖"
+      ]
+    },
+    {
+      "id": "t10",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-solution"
+      ],
+      "mode": "design",
+      "requiredBehavior": [
+        "保留最低改动、中英文、客户端默认及用户选择优先的要求",
+        "找到当前配置、语言与呈现所有者",
+        "明确受影响入口及验证"
+      ],
+      "forbiddenBehavior": [
+        "仅因出现客户端就展开安装发布",
+        "直接写产品代码",
+        "增加其他语言或新的设置体系"
+      ]
+    },
+    {
+      "id": "t11",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-solution",
+        "shzw-aiinfra-development"
+      ],
+      "mode": "direction",
+      "requiredBehavior": [
+        "暂停被驳回方案的实施",
+        "查当前 AiInfra 合同、实现与消费者",
+        "据事实调整职责和方案"
+      ],
+      "forbiddenBehavior": [
+        "继续执行原方案",
+        "凭记忆认定公共能力存在",
+        "在产品重造事务或并发框架"
+      ]
+    },
+    {
+      "id": "t12",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-solution"
+      ],
+      "mode": "challenge",
+      "requiredBehavior": [
+        "核对原厂离线机制及镜像、插件、仓库各自职责",
+        "保留可后续更新的需求并比较维护成本",
+        "区分已知能力和待核实事实"
+      ],
+      "forbiddenBehavior": [
+        "因 Jenkins 关键词直接触发作业",
+        "写部署目标或上传制品",
+        "把首个实现想法当固定约束"
+      ]
+    },
+    {
+      "id": "t13",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-testing"
+      ],
+      "mode": "stability",
+      "requiredBehavior": [
+        "固定业务比例、数据、实际完成量与观察窗口",
+        "记录 CPU、内存、延迟及失败并核对预算来源",
+        "保留慢样本与恢复，结论限定本次场景"
+      ],
+      "forbiddenBehavior": [
+        "用短时健康检查宣称长期容量",
+        "丢弃未发出请求或失败样本",
+        "自动替换服务器或部署配置"
+      ]
+    },
+    {
+      "id": "t14",
+      "source": "historical-excerpt",
+      "split": "held-out",
+      "acceptablePrimary": [
+        "shzw-human-documentation"
+      ],
+      "mode": "human-guide",
+      "requiredBehavior": [
+        "核实真实启动入口与责任",
+        "选择现有人类文档位置并修复导航",
+        "图与事实一致、可读"
+      ],
+      "forbiddenBehavior": [
+        "为画图重启服务",
+        "复制整套内部治理到人类入口",
+        "凭空添加运行组件"
+      ]
+    },
+    {
+      "id": "t15",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-workforce-business-development"
+      ],
+      "mode": "business",
+      "requiredBehavior": [
+        "优先复用接口与必要编排",
+        "读取对应公开 API、SDK、权限和工具知识",
+        "明确数据归属并验证原用户操作"
+      ],
+      "forbiddenBehavior": [
+        "先克隆私有平台",
+        "为已有数据强制建一套对象",
+        "读取全部专题"
+      ]
+    },
+    {
+      "id": "t16",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-workforce-business-development"
+      ],
+      "mode": "integration",
+      "requiredBehavior": [
+        "查现有应用身份、客户端和配置差异",
+        "验证此应用及实际依赖的登录、打开、业务和恢复",
+        "根据实际影响选择组合行"
+      ],
+      "forbiddenBehavior": [
+        "自动全租户发布或扩权",
+        "把所有无关模块作为完成条件",
+        "为接入要求取得私有宿主源码"
+      ]
+    },
+    {
+      "id": "t17",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-access"
+      ],
+      "mode": "people",
+      "requiredBehavior": [
+        "复用稳定身份",
+        "区分中心、成员、应用准入和业务范围",
+        "用原人验证允许、禁止及撤权后的持续访问"
+      ],
+      "forbiddenBehavior": [
+        "重建管理员或按日期造人",
+        "覆盖无关授权",
+        "用管理员成功证明普通人可用"
+      ]
+    },
+    {
+      "id": "t18",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-app-package"
+      ],
+      "mode": "operations",
+      "requiredBehavior": [
+        "读取原回执与当前 revision",
+        "仅处理已授权冲突后接续并回读终态和安装指针",
+        "区分安装和业务可用"
+      ],
+      "forbiddenBehavior": [
+        "要求先安装 .NET SDK",
+        "重新打包或重复提交未知结果",
+        "覆盖未授权租户定制"
+      ]
+    },
+    {
+      "id": "t19",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-delivery"
+      ],
+      "mode": "pipeline",
+      "requiredBehavior": [
+        "跟踪同一构建并读取终态和制品",
+        "构建成功与目标业务可用分别报告"
+      ],
+      "forbiddenBehavior": [
+        "触发新作业",
+        "自动开启部署阶段",
+        "登记 Deployment"
+      ]
+    },
+    {
+      "id": "t20",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-cli"
+      ],
+      "mode": "cli",
+      "requiredBehavior": [
+        "使用自带完整 CLI 及现有身份",
+        "只执行相应查询",
+        "按实际返回报告"
+      ],
+      "forbiddenBehavior": [
+        "另做一套 HTTP 客户端",
+        "改权或建账号",
+        "把认证中心身份当平台用户创建"
+      ]
+    },
+    {
+      "id": "t21",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-aiinfra-development"
+      ],
+      "mode": "initialize",
+      "requiredBehavior": [
+        "核对目标脚手架与参数",
+        "使用现有生成入口",
+        "验证生成的实际包消费与启动入口"
+      ],
+      "forbiddenBehavior": [
+        "手写平行脚手架",
+        "把产品语义放进公共 provider 合同",
+        "从安装路径寻找相邻私有源码"
+      ]
+    },
+    {
+      "id": "t22",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-client-development"
+      ],
+      "mode": "managed-capability",
+      "requiredBehavior": [
+        "确认运行、更新和释放所有者",
+        "检查取消、切换、旧进程树及用户状态保留",
+        "验证实际候选上的原问题"
+      ],
+      "forbiddenBehavior": [
+        "发明第三方插件 ABI",
+        "新建一套更新系统",
+        "自动向 OSS 发布"
+      ]
+    },
+    {
+      "id": "t23",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-human-documentation"
+      ],
+      "mode": "human-guide",
+      "requiredBehavior": [
+        "核对真实前置、命令和结果",
+        "先最短成功路径，再日常修改",
+        "更新唯一人类入口并走查"
+      ],
+      "forbiddenBehavior": [
+        "复制产品契约",
+        "写未确认占位命令",
+        "把文档阅读变成程序启动条件"
+      ]
+    },
+    {
+      "id": "t24",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-human-documentation"
+      ],
+      "mode": "learning",
+      "requiredBehavior": [
+        "核对正确性与必要深度",
+        "减少重复并设计跳读与练习",
+        "保留有用的具体示例"
+      ],
+      "forbiddenBehavior": [
+        "当作普通代码 README",
+        "只压缩文字和改标题",
+        "把过程报告当学习成果"
+      ]
+    },
+    {
+      "id": "t25",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-upgrade-dsh"
+      ],
+      "mode": "explicit-upgrade",
+      "requiredBehavior": [
+        "按显式请求盘点依赖、协议和受影响行为",
+        "区分已知差异和待验证项"
+      ],
+      "forbiddenBehavior": [
+        "直接升级版本或发布",
+        "将本轮评估扩展为所有 Runtime 故障默认动作"
+      ]
+    },
+    {
+      "id": "t26",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-runtime-operations"
+      ],
+      "mode": "agents",
+      "requiredBehavior": [
+        "从原会话、工具结果和执行上下文定位失败阶段",
+        "核对业务结果与消息交付",
+        "保留状态并验证原问题"
+      ],
+      "forbiddenBehavior": [
+        "自动升级 DSH",
+        "用新空会话代替原场景",
+        "未知写入直接重放"
+      ]
+    },
+    {
+      "id": "t27",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        null
+      ],
+      "mode": "direct",
+      "requiredBehavior": [
+        "修改实际文案并做相称检查"
+      ],
+      "forbiddenBehavior": [
+        "完整方案、审计或活动计划",
+        "完整系统测试",
+        "改变按钮行为"
+      ]
+    },
+    {
+      "id": "t28",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-skill-evolution"
+      ],
+      "mode": "discussion",
+      "requiredBehavior": [
+        "按任务、知识和责任讨论",
+        "给有依据的合并方向及边界",
+        "保持只读"
+      ],
+      "forbiddenBehavior": [
+        "写工作空间文件或任务控制",
+        "迁移技能",
+        "提交或推送 Git"
+      ]
+    },
+    {
+      "id": "t29",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-workforce-business-development"
+      ],
+      "mode": "integration",
+      "requiredBehavior": [
+        "从已有邮箱、目标应用和开发配置核实接入差异",
+        "使用实际公开 SDK 与应用身份合同",
+        "验证原应用入口、授权和业务使用"
+      ],
+      "forbiddenBehavior": [
+        "照搬邮箱身份或配置",
+        "默认需要全部模块组合验证",
+        "将公开应用消费依赖私有宿主源码"
+      ]
+    },
+    {
+      "id": "t30",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-human-documentation"
+      ],
+      "mode": "learning",
+      "requiredBehavior": [
+        "从真实课程和目标读者理解不熟悉术语、重复与示例负担",
+        "核对实际平台知识并提出具体可理解的改进",
+        "遵守本轮只读范围"
+      ],
+      "forbiddenBehavior": [
+        "只缩短篇幅或机械套用操作手册",
+        "将课程尚未实跑的内容冒充成功",
+        "未经授权修改课程或发布"
+      ]
+    },
+    {
+      "id": "t31",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-workforce-business-development",
+        null
+      ],
+      "mode": "composition-readonly",
+      "requiredBehavior": [
+        "核对当前项目入口、装配合同及实际模块依赖",
+        "用现有证据回答能力与未验证边界",
+        "保持只读"
+      ],
+      "forbiddenBehavior": [
+        "直接重组宿主或修改配置",
+        "只因加载组合方法就要求完整浏览器矩阵",
+        "用模块名称推断全部能力已完成"
+      ]
+    }
+  ]
+}

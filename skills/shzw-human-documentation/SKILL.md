@@ -1,18 +1,28 @@
 ---
 name: shzw-human-documentation
-description: 规划、创建、改写或审阅面向人的中文开发文档时使用，包括单一人类文档入口、上手指南、日常开发闭环、系统测试指南、README，以及要求真实前置条件、明确值、无占位符、可观察结果和短步骤的发布、安装或部署指南；必须分开 Development、SystemTest、Deployment，不用于 ProductContract、CurrentDesign、Workflow、Runbook、AGENTS 或单纯的代码解释。
+description: 编写、改写或审阅供人学习和照做的中文内容，包括开发文档、上手指南、教程、教材和课程。用于“写个上手文档”“新人看不懂”“帮我系统学”“课程太浅或重复”。操作指南核实真实前提、命令与结果；教学内容按读者任务、知识深度和真实例子组织。AGENTS、正式契约与 Runbook 的治理进入工作空间维护。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
-  source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-human-documentation/SKILL.md
+  source: SKILL.md
 ---
 
 # 人类文档
 
 Resolve project entrypoints, source, documents and command working directories from the user's target project. Resolve this skill's `references/`, `scripts/` and `assets/` from its installed directory. Locate other responsible repositories through the target project's entrypoint; never infer the target from the skill installation path.
 
-为开发者写能够从唯一入口选择场景、照做并判断结果的中文文档。先确定读者、任务与事实所有者，再决定位置和结构；不要把正式契约、智能体治理或脚本索引复制成人类手册。
+为读者编写能够理解和使用的中文内容。先确定受众、任务与事实所有者，再决定位置和结构；操作指南应能从入口选择场景、照做并判断结果，课程应帮助读者理解和运用。不要把正式契约、智能体治理或脚本索引复制成人类手册。
+
+先确定用户要求理解、只读审阅还是编写修改。只有理解或审阅授权时不直接改课程、文档或发布；已授权的改写按原范围完成，不因选择课程模式再次要求确认。
+
+## 选择内容类型
+
+教程、教材或课程需要帮助读者理解概念、举一反三并形成判断时，读取[课程与学习内容](modes/learning/GUIDE.md)。按学习者和平台实际能力核对概念、难度、案例、练习与导航；下文面向执行命令的操作指南细则只在该课程确有相应操作时适用，不用 60 行或单步骤模板裁剪教学内容。
+
+README、上手和部署指南以可执行操作与可观察结果为主，沿下文从任务入口和真实运行合同写作。混合课程与参考手册时分别判断内容目的，链接同一事实来源，不复制一套 API 或产品规则。
 
 ## 判断放在哪里
+
+先用目标项目的 StructureContract 确定目录。下表中的 `/人类-文档/` 是已采用该布局的工作空间约定；xrainTrain 等已有课程站点继续使用自己的内容与导航目录，不为套模板另建一套。
 
 | 内容 | 位置 |
 |---|---|
@@ -37,9 +47,15 @@ Resolve project entrypoints, source, documents and command working directories f
 8. 更新导航。新增、移动、重命名或删除 `/人类-文档/` 内容时同步人类入口；不要把具体人类文档挂到 `AGENTS.md`。
 9. 验证后收口。检查命令、路径、语义链接和可观察结果，删除治理话术、重复背景、未经验证的捷径和无法执行的建议。
 
+## 按平台上的真实任务编写
+
+启动 Workforce 的指南核对根一键入口、实际业务应用、共享服务前提以及前后端各自的刷新/重启行为；不能把改了公共源码写成应用已经更新。业务应用开发指南从已交付 SDK、包导出和真实 API 开始，不要求读者取得平台私有仓库。账号接入指南分别解释统一登录、应用准入、租户成员和业务权限，用固定身份展示当前任务所需步骤。
+
+发布指南先辨别公共代码包、`.appkg`、服务镜像和客户端安装包的不同入口，再给该目标的操作。面向人的正文使用“对象、字段、记录、接口说明、参数、响应、权限、版本”等准确常用词；内部治理术语只留在事实所有者。示例从读者能完成的一次输入与可观察结果展开，不把整套平台配置当作每篇文档的起点。
+
 ## 写作规则
 
-- 新建或实质改写工作空间文档的技术正文时，遵循[共同语言约束](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-document-governance/SKILL.md#受控技术写作约束)；保留本技能的人类任务结构和验证要求。
+- 新建或实质改写工作空间文档的技术正文时，遵循[共同语言约束](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workspace-maintenance/modes/documents/GUIDE.md#受控技术写作约束)；保留本技能的人类任务结构和验证要求。
 - 默认使用中文。命令、代码标识、配置键、文件名和既有专有名词保持原文。
 - 标题回答“读者现在要做什么”，不要从系统模块、实现层次或脚本全集起笔。
 - 人类任务页的文件名去掉 `.md` 后与 H1 完全一致；`README.md` 只作为目录入口使用。
@@ -72,4 +88,4 @@ Resolve project entrypoints, source, documents and command working directories f
 - 对最短成功路径做一次静态 dry run：核对执行目录、全部前置条件、明确参数、真实输出、访问入口、日志、停止/重跑方式和高风险副作用。
 - 搜索并删除命令占位符、错误职责链接、智能体治理话术，以及没有实现证据的自动打开、热重载或发布成功声明。
 - 确认没有复制正式事实，没有创建空目录，也没有把人类文档加入智能体默认热路径。
-- 运行 `npm run check:docs`；若修改了文档校验或其他代码，再运行命中范围的测试。
+- 修改后按目标项目入口和实际工具链运行该内容需要的文档检查、测试与构建；只有项目提供并要求 `npm run check:docs` 时才运行该命令。课程按课程仓库自己的验证入口执行，不套用其他项目的脚本。

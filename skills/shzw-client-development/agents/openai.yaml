@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "客户端开发"
+  "short_description": "开发客户端、安装更新与应用自管能力，验证实际候选及用户状态保留"
+  "default_prompt": "使用 $shzw-client-development 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

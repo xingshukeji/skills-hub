@@ -1,7 +1,0 @@
-interface:
-  display_name: "System Testing"
-  short_description: "Run an explicitly requested independent test"
-  default_prompt: "Use $shzw-system-testing to classify control strength and persistence for an explicitly requested independent test, verify the identified subject without changing product code, and stop before deployment."
-
-policy:
-  allow_implicit_invocation: true

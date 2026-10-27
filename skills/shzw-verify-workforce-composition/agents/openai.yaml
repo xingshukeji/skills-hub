@@ -1,6 +1,0 @@
-interface:
-  display_name: "Workforce 装配功能验证"
-  short_description: "用组合矩阵与内置浏览器真实登录和业务操作核验装配及裁剪"
-  default_prompt: "Use $shzw-verify-workforce-composition to verify Workforce composition with dependency combinations, actual in-app browser login and business operations, failure recovery, and cleanup evidence."
-policy:
-  allow_implicit_invocation: true

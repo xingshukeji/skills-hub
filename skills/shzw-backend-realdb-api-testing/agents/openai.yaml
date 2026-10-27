@@ -1,7 +1,0 @@
-interface:
-  display_name: "Backend Real DB API Testing"
-  short_description: "Run assertion-backed real DB API tests"
-  default_prompt: "Use $shzw-backend-realdb-api-testing for the user-defined task to gather scoped real-database evidence, distinguish assertion and environment failures, and never infer SystemTest from the test technique."
-
-policy:
-  allow_implicit_invocation: true

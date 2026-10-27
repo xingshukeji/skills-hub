@@ -1,4 +1,0 @@
-interface:
-  display_name: "课程内容审计与重构"
-  short_description: "审查自学课程的正确性、深度、跳读结构、重复内容与入口密度"
-  default_prompt: "Use $shzw-audit-learning-content to audit and restructure this tutorial for dense, accurate self-study."

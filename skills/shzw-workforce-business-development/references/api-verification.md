@@ -1,5 +1,8 @@
 # API 验证依据与边界
 
+产品事实：XRain；公共基础设施由 AiInfra 维护，业务差异由目标项目维护。
+维护与适用：本专题由 skills-hub 维护，面向公开能力的业务使用；接口、示例与历史实测的原有适用条件继续有效。内部修改由目标项目入口定位源码与测试。
+
 首轮验证日期为 2026-10-23；完整 OpenAPI 在 2026-10-26 补充验证。目标为中央测试环境的业务租户，复用已登记维护者和普通成员。请求合同见[业务 API](business-api.md)，18 组首轮真实响应见[脱敏样例](../assets/http-contract-samples.json)。完整证据保存在忽略的本地验证目录，Skill 无此依赖。
 
 ## 完整 OpenAPI 补充验证
@@ -26,6 +29,8 @@
 共 168 次真实请求；非成功状态包括有意验证的拒绝、冲突、无结果和服务错误。未改既有账号、授权或业务数据，未升级应用或发送通知。样例替换环境身份与 traceId，保留类型和状态；responseExcerpt/omittedResponsePaths 标明摘录范围。
 
 早期 SDK 示例依据 `@xrain/workforce-application` 0.3.5、`@xrain/xrain-agent-runtime` 0.2.0；Workforce 0.3.8 的 context/queryBatch 已用公共导出实测。目标仍按安装版本判断。
+
+[数据操作](data-operations.md)中的 `allOrNone=false` 与文件导入/导出说明依据当前接口类型、端点和定向测试源码核对，未包含在上述历史远端实测中。使用前核对目标服务是否已提供对应合同；源码存在不证明共享环境已发布或原业务已验证。
 
 ## 已实测的关键行为
 

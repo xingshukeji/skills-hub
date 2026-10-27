@@ -21,60 +21,41 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 <!-- skills:start -->
 | Skill | 用途 |
 | --- | --- |
-| [shzw-aiinfra-adoption](skills/shzw-aiinfra-adoption/SKILL.md) | Use when an existing XRain or other .NET app should consume LLM_backend_packages / AiInfra.Abp.* instead of rebuilding shared infrastructure. Trigger for overlap audits or migrations involving DI, UoW, data access, query/runtime records, permissions, RBAC/ABAC, audit, object projection, providers, package feeds, Storage, RAG, or ChatHub. |
-| [shzw-aiinfra-project-init](skills/shzw-aiinfra-project-init/SKILL.md) | Use when creating a new greenfield .NET backend with LLM_backend_packages / AiInfra.Abp.*. Trigger for choosing the simple-api or layered-api scaffold, running the AiInfra scaffold CLI, wiring PostgreSQL and modules, validating package references, or adding the minimal workspace start/verify entry. Use shzw-aiinfra-adoption for an existing codebase. |
-| [shzw-align-solution-direction](skills/shzw-align-solution-direction/SKILL.md) | Align a requested solution direction or resolve a material uncertainty about outcome, boundary, ownership, invariants or completion. Use when competing interpretations or conflicting evidence could change those decisions. Clear routine implementation needs only a brief direction check, without loading this full method. Independently check user and agent premises, missing variables, costs, and reasoning bias. |
-| [shzw-audit-learning-content](skills/shzw-audit-learning-content/SKILL.md) | Audit, write or restructure self-study tutorials, textbooks, courses, learning paths and educational visuals for correctness, depth, navigation, duplication and information density. Use for 教程、课件、学习路线、自学、初学者、内容太浅或重复、可跳读、图解教学 and learner-facing content reviews. Exclude ordinary code docs, API references, release notes, pure copyediting and bug fixes unless instructional design is also requested. |
-| [shzw-autonomous-project-decisions](skills/shzw-autonomous-project-decisions/SKILL.md) | 用户跨项目默认处置政策。执行研发、测试、部署运维或文档任务时，遇到账号创建与复用、临时凭据、同目标修复复测、端口占用、依赖失败、兼容限制、资源清理或重复流程确认，按具体默认选择自主继续；仅对超出政策的实质影响升级决定。 |
-| [shzw-backend-detailed-testing](skills/shzw-backend-detailed-testing/SKILL.md) | Use for backend test evidence within a user-defined Development task, or as a scoped layer of an explicitly requested SystemTest task. Trigger for unit, integration, contract, isolated real-database, minimal real-host, smoke, missing coverage, or escaped regressions; choose the task type from the user's goal, never from the test technique or suite size. |
-| [shzw-backend-realdb-api-testing](skills/shzw-backend-realdb-api-testing/SKILL.md) | Use when a user-defined Development task or explicitly requested SystemTest task needs assertion-backed backend API evidence against an isolated real database rather than mocks. Trigger for provider/schema/transaction behavior, response plus side-effect checks, or escaped production bugs; never infer the task type, a broad campaign, or deployment from use of a real database. |
-| [shzw-challenge-solution](skills/shzw-challenge-solution/SKILL.md) | Use only when the user asks to challenge, rebut, stress-test or find flaws in an existing solution, architecture, migration, implementation or governance proposal. Review that exact artifact read-only for unsupported assumptions, scope expansion, ownership mistakes, missing evidence and avoidable complexity. Recommend the next step without rewriting, executing, persisting or treating the review as approval. |
-| [shzw-cicd](skills/shzw-cicd/SKILL.md) | 查询、触发已有 Jenkins 流水线并跟踪构建、发布或部署；不编写流水线。 |
-| [shzw-client-application-development](skills/shzw-client-application-development/SKILL.md) | Guide fast, bounded development of desktop, launcher, updater, native, mobile, and web clients. Use for Chinese requests about 技术选型、开发客户端、安装包、更新、版本、发布、签名、回滚、OSS or similar client delivery work. Keep reusable method rules here; load platform, distribution, and managed-runtime variants from references only when the request needs them. |
-| [shzw-code-boundary-governance](skills/shzw-code-boundary-governance/SKILL.md) | Use when reviewing or changing backend Repository, Manager, AppService, Controller, Endpoint, DI, Application.Contracts, data-access, or provider boundaries. Trigger for architecture reviews, refactors, dependency-injection issues, AiInfra-versus-app ownership, XRain runtime/metadata paths, or suspected duplicated shared infrastructure. |
-| [shzw-develop-managed-client-capability](skills/shzw-develop-managed-client-capability/SKILL.md) | Develop, debug, upgrade, package, release or review trusted application-managed client capabilities. Use when the application owns an internal extension’s executable, version, health, resources, lifecycle, tool declarations, artifacts, delivery, update UX or validation. Covers technology selection, doctor checks, installers, OSS distribution and official updates. Exclude ordinary app features, arbitrary third-party drop-ins, manager-only UI and unrelated installer work. |
-| [shzw-document-governance](skills/shzw-document-governance/SKILL.md) | Use for document governance, 文档治理, controlled technical writing when creating or materially revising workspace documents, user-controlled task execution-type and activity-plan alignment, AGENTS/Workflow/StructureContract control planes, deleting absorbed process documents or reports, reducing prompt hot paths, classifying document Kind, or aligning TASK_CONTROL with current facts. |
-| [shzw-engineering-boundaries](skills/shzw-engineering-boundaries/SKILL.md) | 审查并收敛工程职责、反复缺陷、文件消费边界、自建工具链和环境差异。用于复杂代码反复修补、历史热点审查、工程简化和跨层机制评审，以及新增启动、依赖、缓存、恢复或交付机制前的必要性判断；局部业务修改不触发整仓审计。 |
-| [shzw-evolve-document-driven-workflow](skills/shzw-evolve-document-driven-workflow/SKILL.md) | Evolve workspace governance from a requested workflow improvement or a durable future-facing agent/process correction such as 以后必须、一律、统一、不要再. Distinguish discussion from authorized implementation by user intent and scope, not message count. Keep one-off product requirements local. |
-| [shzw-git-closeout](skills/shzw-git-closeout/SKILL.md) | Use automatically after one independent task has a passing conclusion, required activity cleanup is finished, and file changes can be attributed exactly. Runs the only add/commit/fetch/push path in a child process, preserves unrelated changes, reports Git separately, and never treats a commit or push as SystemTest evidence or Deployment authorization. |
-| [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 规划、创建、改写或审阅面向人的中文开发文档时使用，包括单一人类文档入口、上手指南、日常开发闭环、系统测试指南、README，以及要求真实前置条件、明确值、无占位符、可观察结果和短步骤的发布、安装或部署指南；必须分开 Development、SystemTest、Deployment，不用于 ProductContract、CurrentDesign、Workflow、Runbook、AGENTS 或单纯的代码解释。 |
-| [shzw-integrate-workforce-application](skills/shzw-integrate-workforce-application/SKILL.md) | 在 XRain Workforce 开发环境将独立应用接入应用中心，或修复已有接入时使用。按既有配置完成独立应用身份、统一登录、目录贡献、启动与真实验证。普通页面修改、仅查看应用列表及正式部署不触发此技能。 |
-| [shzw-release-deployment](skills/shzw-release-deployment/SKILL.md) | Govern or execute an explicitly authorized Deployment of one approved artifact to one named target with verified admission evidence, rollback, and minimal post-deployment checks. Use for formal package publication, environment migration, release, rollout, cutover, rollback, or other target-environment changes; never trigger from development completion, test success, Git push, or artifact creation alone. |
-| [shzw-replicate-workspace](skills/shzw-replicate-workspace/SKILL.md) | Use when initializing or repairing a document-driven workspace control plane and its grounded human entry from an existing AGENTS.md/TASK_CONTROL/StructureContract/Workflow model. Trigger for 复刻工作空间, 初始化工作空间, 文档驱动开发, dual documentation surfaces, or control-plane upgrades. Do not infer product design, stack, APIs, source skeletons, services, or implementation directories. |
-| [shzw-runtime-stability](skills/shzw-runtime-stability/SKILL.md) | 为运行稳定性调查、资源释放审查及负载、长时间运行、故障恢复验证选择场景、指标和判定依据。用于内存持续增长、容量与延迟、积压、取消、生命周期及依赖故障；不因一次部署或普通局部修改自动展开全套测试。 |
-| [shzw-service-starter](skills/shzw-service-starter/SKILL.md) | Use when starting, stopping, restarting, checking, diagnosing, building, or locally verifying workspace services through root package.json scripts for a user-defined Development task or explicitly requested SystemTest task. Trigger for XRain or standalone frontend operations; formal publication, target migration, rollout, cutover, and rollback route to shzw-release-deployment instead. |
-| [shzw-system-testing](skills/shzw-system-testing/SKILL.md) | Run or govern a SystemTest task only when the user explicitly asks for an independent integration, system, full-suite, candidate-acceptance, release-gate, or regression result against existing code. Choose control strength and persistence independently; never infer authority from a candidate list, CI, a release gate, test tooling, or suite size. |
-| [shzw-technical-solution](skills/shzw-technical-solution/SKILL.md) | Produce a requested technical solution or the working plan for a controlled technical change under WF-0002. Preserve the established direction and proceed within explicit implementation authorization. Ordinary implementation does not require this skill. Explicit solution-artifact requests and read-only discussion retain their own delivery boundaries. |
-| [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异，在升级过程中验证受影响行为。不自动触发，不等待上线前。 |
-| [shzw-verify-workforce-composition](skills/shzw-verify-workforce-composition/SKILL.md) | 在 XRain Workforce 开发、修复或验收插件装配、重组、裁剪、门户组合及其生命周期时使用。执行依赖组合矩阵，并通过内置浏览器真实登录和业务操作核验；不以构建、模块注册或测试数量代替用户功能证据。 |
-| [shzw-workforce-agent-troubleshoot](skills/shzw-workforce-agent-troubleshoot/SKILL.md) | 排查 Workforce 智能体不回复、不跟进、工具失败、重复消息、会话混淆和接管后迟到写入。 |
-| [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 基于 XRain 与 Workforce 落地企业业务，按现状选择免建模的接口编排、新业务建模或混合接入，再完成所需授权、逻辑、页面与智能体工具。 |
-| [shzw-workforce-business-review](skills/shzw-workforce-business-review/SKILL.md) | 审查 XRain Workforce 的业务实现、工程职责与退役影响。按当前成员与租户、消息与 AI、Task、应用组合、业务资料和启动交付定位正式规则、真实入口、源码及验证证据。用于平台 review 和修复收口；局部问题只检查受影响业务链。 |
-| [shzw-workforce-runtime](skills/shzw-workforce-runtime/SKILL.md) | 启动、恢复和验收 Workforce 环境，核对部署效果，定位慢页面、慢登录、慢会话及实例资源增长。 |
-| [shzw-xrain-access-diagnosis](skills/shzw-xrain-access-diagnosis/SKILL.md) | 排查 XRain 登录后的 403、应用准入、角色与数据范围、执行身份和机器人权限；支持授权修复与撤权复测。 |
-| [shzw-xrain-app-operations](skills/shzw-xrain-app-operations/SKILL.md) | 处理 XRain 已发布应用的租户安装、升级、冲突、中断恢复、组件恢复和卸载；不构建服务镜像。 |
-| [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 在任意项目编写和离线校验 XRain .appkg 应用源码与制品，使用目标提供的统一构建端点生成服务端制品，并按明确授权导入、安装和恢复应用。不用于部署 XRain 服务镜像或任意程序二进制。 |
-| [shzw-xrain-auth](skills/shzw-xrain-auth/SKILL.md) | 通过 XRain 认证中心网页准备或恢复固定身份、激活登录、修复 OIDC 接入，并验证原应用登录。 |
-| [shzw-xrain-business-user-lifecycle](skills/shzw-xrain-business-user-lifecycle/SKILL.md) | 在 XRain/Workforce 落地业务人员接入、实际使用、协作与职责变更的完整业务主线，连接固定身份、租户成员、应用准入、业务授权和持续维护。单独登录、403 或权限定位使用对应诊断能力。 |
-| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 用自带 CLI 连接 XRain 平台或应用市场，操作平台用户、权限、数据及应用包；认证中心账号由 shzw-xrain-auth 处理。 |
-| [shzw-xrain-code-review](skills/shzw-xrain-code-review/SKILL.md) | 审核 XRain 前后端、diff 或 PR；项目级审核追踪完整调用链，重复审核自动反思并补查。不用于纯方案评审。 |
+| [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。用于“接入 AiInfra”“这段基础设施放哪”“新建后端”“别重复造轮子”；已有代码缺陷审查可按需读取这里的能力知识。 |
+| [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，处理安装包、启动器、更新、托管 Runtime 和应用自管能力。用于“开发客户端”“插件能力怎么接”“安装后起不来”“更新和回滚怎么做”。按实际产品确认界面、运行和交付所有者；一般业务页面小改不展开完整客户端交付。 |
+| [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查当前项目或指定提交、变更、功能实现中的缺陷、遗漏和职责问题。用于“review 一下”“最近提交有没有问题”“这次修复有没有漏”“为什么同类 bug 反复出现”，也处理指定范围的工程简化与退役检查。纯方案评审进入方案入口；一般运行故障先定位实际故障链。 |
+| [shzw-delivery](skills/shzw-delivery/SKILL.md) | 查询或触发现有 Jenkins 流水线，跟踪构建及制品，或按明确授权发布、部署和回滚。用于“看看构建结果”“运行这个流水线”“把这个制品部署到指定环境”。查询只读取，执行沿用已确认作业、操作和目标；构建成功、Git 推送及开发完成不自动触发发布部署。 |
+| [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅供人学习和照做的中文内容，包括开发文档、上手指南、教程、教材和课程。用于“写个上手文档”“新人看不懂”“帮我系统学”“课程太浅或重复”。操作指南核实真实前提、命令与结果；教学内容按读者任务、知识深度和真实例子组织。AGENTS、正式契约与 Runbook 的治理进入工作空间维护。 |
+| [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复或排查当前项目服务和 Workforce 运行问题。用于“启动服务”“页面打不开”“智能体不回复”“工具失败”“为什么还是旧效果”“登录或会话很慢”。结合前文与实际环境定位入口、版本和故障阶段；明确的登录、403 或人员授权问题进入访问权限入口。 |
+| [shzw-skill-evolution](skills/shzw-skill-evolution/SKILL.md) | 根据实际执行与用户纠偏诊断、修正或合并技能，判断技能选错、职责重叠、正文无效、知识或工具失配。用于“skill 没起作用”“为什么还要反复补充”“吸收这次经验”“技能太多合并一下”，以及项目已授权的主动技能改进。单次代码缺陷、环境失败或新需求不自动归因于技能。 |
+| [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较或评审技术方案，解决会改变目标、职责或验收的实质分歧。用于“给个方案”“这个设计合理吗”“找找方案漏洞”。普通实现与修复沿原任务执行；仅需恢复前文、补查事实或决定例行实现细节时，不重新规划。 |
+| [shzw-task-breakdown](skills/shzw-task-breakdown/SKILL.md) | 拆分或审查 XRain、Workforce 上面向人的业务项目任务。用于“按需求拆任务”“分配是不是太细”“哪些要开发、配置或只测试”“梳理依赖”。先确认当前需求，再分别核对基础产品与目标项目成果是否适用、是否被本期采用，按实际差距安排责任。用好坏示例校准判断，不把旧验证实现当作已交付，保留人的主动性。单项代码修复或智能体执行步骤使用对应入口。 |
+| [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
+| [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。仅在明确调用本技能时执行，不从一般 Runtime 故障或客户端修改自动推断升级。 |
+| [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、业务页面与智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
+| [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。用于“入口规则不一致”“文档放哪”“以后按这个流程”“复刻工作空间”“文档治理”。技能选错、职责重叠、正文无效及合并重写由技能进化入口处理；普通产品修复留在原任务。 |
+| [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、登录后 403、应用准入、业务角色与数据范围，以及人员接入、协作和职责变化。用于“登不进去”“登录了还是不能用”“让张三能做这项工作”“撤权后还能访问”。按原用户与具体业务动作定位责任层，保留已有身份和无关授权。 |
+| [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。 |
+| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。 |
 <!-- skills:end -->
 
-每次只加载与当前任务相关的入口和参考。Workforce 从加载结果的 `resourceBase.path` 读取资源；skill 不增加员工工具权限。验收与测量已合入 shzw-workforce-runtime，旧安装中的 workforce-verify/workforce-performance 可在更新时移除。
+每次根据自然请求和必要前文选择一个主任务入口，按需读取其中的模式与专题。Workforce 从加载结果的 `resourceBase.path` 读取资源；模式资源位于其 `modes/` 子目录。skill 不增加员工工具权限。
 
-业务落地先找所属项目已确认的完整主线与差异。`shzw-xrain-business-user-lifecycle` 承载人员从接入到实际工作、协作和职责变更的通用主线；`shzw-workforce-business-development` 沿业务结果组织实现，其余专业能力按当前环节调用。具体业务的长主线及非通用决策仍由所属项目保存，单独诊断可直接进入对应技能。
+业务落地先找所属项目已确认的完整主线与差异。`shzw-xrain-access` 处理人员接入、登录和访问权限；`shzw-workforce-business-development` 沿业务结果组织实现。具体业务规则、内部实现与运行合同由责任项目维护；[产品知识与责任项目](skills/shzw-workforce-business-development/references/knowledge-ownership.md)帮助选择公开能力资料。无私有源码的使用者仍可使用完整专题、API 和 SDK 知识，读取知识不启动另一整套任务。
+
+用户明确采纳的[默认处置政策](support/shzw-autonomous-project-decisions/GUIDE.md)与项目路由的[Git 收口动作](support/shzw-git-closeout/GUIDE.md)保留在 `support/`。它们按实际需要完整复制并由入口直接引用，退出普通任务技能选择；政策不会随分发授予账号或外部操作权限。DSH 升级继续仅接受显式调用。
 
 ## 安装与使用
 
 将所需 skill 整个目录复制到宿主 skills 目录，或通过安装器使用 `xingshukeji/skills-hub` 的 `skills/shzw-<name>` 路径。目录名、SKILL.md 的 name 与调用名保持一致。更新已有安装时替换完整目录并移除旧名称，避免同名旧副本继续参与发现。
 
-技能自带的参考、脚本和资源都随目录交付。项目开发类技能通过目标项目入口读取其源码、文档和命令；技能安装位置不决定目标项目。按条件使用其他方法时，读取已安装的 `shzw-*` 技能或所链接的本仓来源。个人默认处置政策只适用于明确采纳它的用户，不随安装转移账号或外部操作授权。
+技能自带的参考、脚本和资源都随目录交付。合并后的模式保留自己的完整资源目录；更新时整体替换选定任务目录并移除被替代的旧入口，不能只更新 SKILL.md。项目开发类技能通过目标项目入口读取其源码、文档和命令；技能安装位置不决定目标项目。按需读取其他入口中的具体知识或方法，不连带启动其全部流程。
 
 ```text
 node "<安装目录>/shzw-xrain-cli/scripts/xrain-cli.mjs" --help
 ```
 
-XRain CLI 和 JavaScript 辅助脚本需要 Node.js 22.12+，推荐 24；CLI 依赖已打包，使用端无需 npm install 或 .NET。`shzw-xrain-app-package` 的独立离线校验工具需要 .NET 10 SDK；开发类技能采用目标项目声明的工具链。当前 Workforce 开发宿主自身要求 Node.js 24；Windows CLI 会话保护仍使用系统 PowerShell。
+XRain CLI 和 JavaScript 辅助脚本需要 Node.js 22.12+，推荐 24；CLI 依赖已打包，使用端无需 npm install 或 .NET。`shzw-xrain-app-package` 的 `authoring` 模式离线校验工具需要 .NET 10 SDK；其安装与恢复模式直接消费已交付制品。开发类技能采用目标项目声明的工具链。当前 Workforce 开发宿主自身要求 Node.js 24；Windows CLI 会话保护仍使用系统 PowerShell。
 
 ## 维护与验证
 
@@ -90,5 +71,7 @@ npm run check
 index 同时生成上方目录与 llms.txt 的完整技能入口；check 核对制品、命名、独立目录、链接及模拟服务测试。validate -- --skill <name> 可单查一个入口，CI 仍查全部。应用包离线工具变更后运行 `npm run test:appkg`。合并同名技能时保留内容最后修改的完整版本，并核对脚本与参考，不能仅比较 SKILL.md 或目录复制时间。
 
 可选 `npm run verify:workforce -- --provider <真实加载器路径>` 检查独立复制后的加载，这是维护检查，不是 skill 使用依赖。离线场景及历史结果见 [能力复核](evals/workforce/CAPABILITY-AUDIT.md) 和 [首轮报告](evals/workforce/REPORT.md)；实验工具位于 tools/evaluate-skills.mjs、tools/capability-lab.mjs，运行材料放忽略目录 .local-validation。
+
+[任务原始输入](evals/task-scenarios/cases.json)与[分开的判定依据](evals/task-scenarios/rubric.json)用于本次归并后的选择和首次执行核验，包含历史请求摘录、未参与描述编写的请求及合成相邻场景。`prepare-tasks` 可将确定 Git 基线与当前目录配对；`verify-tasks` 只检查输入完整性与回答结构，语义仍需逐项评审。作者走查、协议测试和历史文件读取不能称为独立模型效果或实际激活率。
 
 真实服务检查 `npm run verify:live -- --help` 仅供明确授权的本机验证，必须先按目标生效账号规则核对配置与固定身份。脚本的历史回环默认值和旧验收不代表当前开发或部署架构；普通 check 不访问真实账号或租户。

@@ -35,7 +35,7 @@ try {
       assert.equal(resolve(loaded.resourceBase.path), resolve(installed));
       assert(loaded.content.trim().length > 0);
       assert.equal(warnings.length, 0, 'Provider ignored or warned about a skill.');
-      const references = [...loaded.content.matchAll(/\[[^\]]*\]\((references\/[^)#]+)(?:#[^)]*)?\)/g)].map(match => match[1]);
+      const references = [...loaded.content.matchAll(/\[[^\]]*\]\(((?:references|modes)\/[^)#]+)(?:#[^)]*)?\)/g)].map(match => match[1]);
       for (const reference of references) assert((await readFile(join(loaded.resourceBase.path, reference))).length > 0);
       results.push({ skill: entry.name, discovered: true, loaded: true, references: references.length });
     } finally { controller.abort(); await provider.dispose(); }

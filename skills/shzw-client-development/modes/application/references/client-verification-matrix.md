@@ -1,0 +1,31 @@
+# Client Verification Matrix
+
+Scale verification to the changed boundary. This matrix distinguishes Development evidence from separately requested SystemTest and Deployment evidence.
+
+| Changed boundary | Minimum Development evidence | Independent evidence only when requested |
+|---|---|---|
+| Contract, owner, or routing | source/formal-owner review and one positive/negative scope example | governance or system-wide audit |
+| Installer or package graph | clean-output build, package inspection, version/architecture/size/digest checks | clean-machine installation, repair, upgrade, uninstall |
+| Managed runtime | final-tree doctor, ABI/native-module load, readiness/health, bounded process cleanup | blank-machine bootstrap, source outage, recovery campaign |
+| Business Web surface | actual application loads the changed UI; save/read/re-entry and relevant failure or late-result behavior | full browser/desktop regression |
+| Native shell or loading boundary | changed installed client loads the owned product surface and preserves identity/state without duplicate UI/IPC | complete supported-platform regression |
+| Update and activation | staging preserves current, confirmation/drain boundary, activation health, selected recovery path | repeated upgrade matrix, long-run checks, candidate acceptance |
+| Publication | frozen candidate and local read-back verifier | configured source admission, deployment, rollback |
+
+## Positive And Nearby Negative Cases
+
+Choose positive and nearby failure cases for the changed behavior; the following examples apply only to their named artifact/update boundary:
+
+- A valid candidate reaches ready; a truncated, mismatched, or unhealthy candidate remains unactivated.
+- An owned UI loads; a shell-owned fallback page or duplicate interaction is absent.
+- A valid update stages and waits for the declared drain; active work is not forcibly interrupted.
+- A final installed executable starts; a worktree/debug-only result is not accepted as installed evidence.
+- A permitted source is read exactly; an outage produces a diagnosable failure without an undeclared fallback origin.
+
+## Managed Runtime Checks
+
+When the client owns a runtime, run checks against the final staged or archived tree. Do not rely only on dependency caches, a root-level package marker, readiness log timing, or a generic archive extractor. Verify the runtime's actual entrypoints, native modules, generated files, process tree, and post-staging paths.
+
+## Reporting
+
+Record the exact candidate or installed artifact, environment, versions, component source/outcome, current/staged state, health result, recovery mode/result, and remaining user action. Do not call these results a public release or deployment unless that task was explicitly established.

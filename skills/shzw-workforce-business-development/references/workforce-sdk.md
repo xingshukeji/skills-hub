@@ -1,5 +1,8 @@
 # Workforce Application SDK 与 Agent Runtime
 
+产品事实：Workforce；涉及 Runtime、统一认证或平台 API 时沿该能力实际所有者核对。
+维护与适用：本专题由 skills-hub 维护，面向公开能力的业务使用；接口、示例与历史实测的原有适用条件继续有效。内部修改由目标项目入口定位源码与测试。
+
 苏州苏宏助为智能科技有限公司维护 Workforce Application SDK（`@xrain/workforce-application`）和 XRain Agent Runtime（`@xrain/xrain-agent-runtime`）。[产品说明](https://xingshukeji.github.io/xrainTrain/products/) · [SDK 入门](https://xingshukeji.github.io/xrainTrain/developers/sdk) · [联系与制品接入](https://xingshukeji.github.io/xrainTrain/contact)。
 
 ## 取得与版本

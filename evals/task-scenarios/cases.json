@@ -1,0 +1,189 @@
+[
+  {
+    "id": "t01",
+    "request": "请review最近4天的提交",
+    "project": "all_in_one",
+    "context": "当前工作空间有 XRain 与 AiInfra 两个项目。用户要求只读审查，未授权产品修复。"
+  },
+  {
+    "id": "t02",
+    "request": "请仔细检查语言这里，过于丑陋，可以考虑右上角等，边缘化",
+    "project": "xrain-workforce",
+    "context": "已有页面和语言切换器，只调整布局及呈现，没有新的公共合同。"
+  },
+  {
+    "id": "t03",
+    "request": "代码的复杂度，带来改不完的bug, 从总是出错的文件、代码方法等，review, 我希望你能理解我的问题，告诉我你的理解",
+    "project": "xrain-workforce",
+    "context": "用户此轮要求解释理解，尚未要求实施审计或修复。"
+  },
+  {
+    "id": "t04",
+    "request": "正确，请执行",
+    "project": "xrain-workforce",
+    "context": "前文已确认：从反复出错的文件和方法开展只读工程审查，结合 Workforce 当前业务解释原因。用户没有授权修复。"
+  },
+  {
+    "id": "t05",
+    "request": "从更称职责 review 更多链路  20轮，最后聚合问题 --- 文件类型，这次深入聚焦每个文件，包含里面的配置",
+    "project": "xrain-workforce",
+    "context": "当前目标是 Workforce 既有实现的只读审查；用户保留逐文件、配置和轮次覆盖要求。"
+  },
+  {
+    "id": "t06",
+    "request": "我觉得还得从使用场景、职责、数据单项流动的场景上去好好review下",
+    "project": "all_in_one",
+    "context": "同一版本、相同审查范围已有一轮结论。当前用户要求补查，没有授权产品修复。"
+  },
+  {
+    "id": "t07",
+    "request": "请修复",
+    "project": "all_in_one",
+    "context": "紧接上一轮同范围只读审查：已确认保存结果可能干扰离开后的页面，以及代理身份恢复遗漏部分读取入口。当前请求授权修复这两个问题。"
+  },
+  {
+    "id": "t08",
+    "request": "请将这些经验吸收，我需要下次再新会话执行时不犯这些问题",
+    "project": "all_in_one",
+    "context": "前文已形成具体、可复用的流程遗漏与纠正办法。用户要求吸收到未来工作规则，没有要求再改产品。"
+  },
+  {
+    "id": "t09",
+    "request": "启动服务要执行的命令是什么，另外请关闭相关服务，我准备自行启动脚本",
+    "project": "xrain-workforce",
+    "context": "当前项目是 Workforce。只允许关闭已核实归属的相关受管服务，保留 Runtime、定义、会话及工作区。"
+  },
+  {
+    "id": "t10",
+    "request": "我发现当前并没有将多语言弄好，请出技术方案，最低程度调整，完成多语言支持，目前仅支持中英文多语言，默认用户客户端语言，用户切换后则用户切换后的语言",
+    "project": "xrain-workforce",
+    "context": "用户当前只要求方案。当前产品已有页面与用户设置；尚未授权功能实现。"
+  },
+  {
+    "id": "t11",
+    "request": "字段旧值条件更新：变更方案，尚未实施 --- 我记得 aiinfra 是按这个来的，请好好探索，当前方案驳回",
+    "project": "all_in_one",
+    "context": "已有方案已被用户驳回。用户要求先核实 AiInfra 当前公共能力和实际消费者。"
+  },
+  {
+    "id": "t12",
+    "request": "把这些插件预装进 Jenkins 镜像 --- 这个我就反对了，为什么预装，后续再装插件也不灵活。官方离线怎么弄的，哪些上传镜像哪些上传别的repository.  使用的是 nexus, 上面还可以上传其他的... 请好好理解",
+    "project": "xrain-workforce",
+    "context": "当前是交付设计讨论；用户反对既有打包选择，要求核实原厂离线方式与 Nexus 职责，未授权部署。"
+  },
+  {
+    "id": "t13",
+    "request": "现在重新完成  -- 分别压测  200  和2000 使用规模，评估资源消耗，包含内存、CPU等，后续我需要了解用什么服务器配置满足",
+    "project": "xrain-workforce",
+    "context": "前文已有明确的独立负载验证目标和环境；本轮要求按 200 与 2000 使用规模重新验证。仅有空数据读取不能代表此负载。"
+  },
+  {
+    "id": "t14",
+    "request": "启动链路图，请再人类文档中规划好位置放好。整个特别重要",
+    "project": "xrain-workforce",
+    "context": "用户要求把反映当前真实启动链路的图放入人类文档。源码和运行入口可按项目现有资料核实。"
+  },
+  {
+    "id": "t15",
+    "request": "用 XRain 和 Workforce 做一个客户资料查询与跟进页面，并让现有智能体能调用。",
+    "project": "business-app",
+    "context": "已有系统的数据和接口已管理完善。开发者没有平台私有源码。"
+  },
+  {
+    "id": "t16",
+    "request": "像已接入的邮箱一样，把这个独立应用接到应用中心。",
+    "project": "xrain-workforce",
+    "context": "应用已有页面和后端；本次只补公开 SDK 接入与开发配置，不修改公共加载合同。"
+  },
+  {
+    "id": "t17",
+    "request": "让张三在原租户完成顾客接待，职责交给李四后张三应失去相应访问。",
+    "project": "business-app",
+    "context": "已有两位固定测试人物与受管授权入口。只处理本次明确的职责范围。"
+  },
+  {
+    "id": "t18",
+    "request": "继续恢复这次应用安装，不要重建包。",
+    "project": "business-app",
+    "context": "已有确定包、原 operation 和 installation，操作等待冲突处理；原包编写环境不可用。"
+  },
+  {
+    "id": "t19",
+    "request": "看看这次 Jenkins 构建的结果和产物。",
+    "project": "delivery-project",
+    "context": "已有 queue/build 标识。用户只查询，没有要求重跑或部署。"
+  },
+  {
+    "id": "t20",
+    "request": "用 CLI 查询这几个业务对象的元数据和记录。",
+    "project": "business-app",
+    "context": "已有受管 profile 和明确对象范围；没有授权写数据或创建身份。"
+  },
+  {
+    "id": "t21",
+    "request": "基于现有 AiInfra 脚手架新建一个 .NET 产品后端。",
+    "project": "new-backend",
+    "context": "已交付受支持 CLI 和项目参数。公共包的事实由 AiInfra 维护。"
+  },
+  {
+    "id": "t22",
+    "request": "修复桌面客户端内置能力更新后旧进程不退出的问题。",
+    "project": "client-project",
+    "context": "应用拥有该能力的程序、版本和进程生命周期。只修复生命周期，没有发布请求。"
+  },
+  {
+    "id": "t23",
+    "request": "写一份新人能照着完成本机启动和修改验证的上手文档。",
+    "project": "xrain-workforce",
+    "context": "已有真实根入口、运行说明与人类文档导航。只写指南。"
+  },
+  {
+    "id": "t24",
+    "request": "这份自学教程太浅而且重复，请按初学者能跳读的方式重写并检查知识错误。",
+    "project": "learning-project",
+    "context": "已有教程内容和目标读者。只处理教学内容。"
+  },
+  {
+    "id": "t25",
+    "request": "请用 $shzw-upgrade-dsh 先评估这次 DSH 升级。",
+    "project": "runtime-project",
+    "context": "明确调用现有升级技能；只评估差异与影响，没有授权版本修改。",
+    "explicitSkill": "shzw-upgrade-dsh"
+  },
+  {
+    "id": "t26",
+    "request": "智能体工具调用失败了，请查原因。",
+    "project": "xrain-workforce",
+    "context": "原任务与原会话仍在，没有任何升级请求。"
+  },
+  {
+    "id": "t27",
+    "request": "把按钮里的“确 定”改成“确定”。",
+    "project": "xrain-workforce",
+    "context": "明确的局部文案调整，无行为变化。"
+  },
+  {
+    "id": "t28",
+    "request": "先讨论技能怎么合并，不要改文件。",
+    "project": "skills-hub",
+    "context": "已有技能目录；当前用户只讨论。"
+  },
+  {
+    "id": "t29",
+    "request": "请看当前系统应用中心插件，邮箱已经接入进去了，这是开发环境，请自行了解过程以及接入",
+    "project": "xrain-workforce",
+    "context": "目标是智能体定义独立应用；邮箱是已有参照，应用与接入的实际状态仍须核实。"
+  },
+  {
+    "id": "t30",
+    "request": "我自己在看这个培训课程，发现其中大量文本语言让人理解，用词也很多不符合这一行业的常见词语，负担更重了，还有其实感觉的很多冗余，示例也不是很好想半天的。。。",
+    "project": "xrainTrain",
+    "context": "用户指出已有平台课程的阅读体验，本轮仅要求理解和审查，没有授权修改。"
+  },
+  {
+    "id": "t31",
+    "request": "现状的模块边界与装配能做到什么程度呢？",
+    "project": "xrain-workforce",
+    "context": "用户只询问已有宿主能力和限制，未授权修改或启动环境。"
+  }
+]

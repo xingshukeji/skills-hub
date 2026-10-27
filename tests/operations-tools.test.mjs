@@ -4,9 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, cp, rm, symlink } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { inspectLaunch } from '../skills/shzw-workforce-runtime/scripts/inspect-launch.mjs';
-import { inspectOperation } from '../skills/shzw-xrain-app-operations/scripts/inspect-operation.mjs';
-import { summarizeHistory } from '../skills/shzw-workforce-agent-troubleshoot/scripts/summarize-history.mjs';
+import { inspectLaunch } from '../skills/shzw-runtime-operations/modes/workforce/scripts/inspect-launch.mjs';
+import { inspectOperation } from '../skills/shzw-xrain-app-package/modes/operations/scripts/inspect-operation.mjs';
+import { summarizeHistory } from '../skills/shzw-runtime-operations/modes/agents/scripts/summarize-history.mjs';
 
 async function temporary(t) {
   const directory = await mkdtemp(join(tmpdir(), 'workforce operations '));
@@ -146,7 +146,7 @@ test('isolated launch inspector follows explicit configuration and reports a mis
   assert.equal(missing.paths.connectionScript.exists, false);
   await writeFile(join(root, 'connect.py'), 'SYNTHETIC_NOT_EXECUTABLE_SECRET');
   const isolated = join(root, 'isolated inspector.mjs');
-  await cp(new URL('../skills/shzw-workforce-runtime/scripts/inspect-launch.mjs', import.meta.url), isolated);
+  await cp(new URL('../skills/shzw-runtime-operations/modes/workforce/scripts/inspect-launch.mjs', import.meta.url), isolated);
   const run = spawnSync(process.execPath, [isolated, root, 'config/custom.json'], { cwd: root, encoding: 'utf8', windowsHide: true });
   assert.equal(run.status, 0, run.stderr);
   const result = JSON.parse(run.stdout);
@@ -180,14 +180,14 @@ test('launch inspector rejects an obsolete entry, mismatched aliases and unsuppo
 test('new helpers execute after isolated copies and reject invalid inputs without echoing contents', async t => {
   const root = await temporary(t);
   for (const [skill, script, extra] of [
-    ['shzw-xrain-app-operations', 'inspect-operation.mjs', []],
-    ['shzw-workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']],
-    ['shzw-workforce-runtime', 'inspect-launch.mjs', []]
+    ['shzw-xrain-app-package', 'modes/operations/scripts/inspect-operation.mjs', []],
+    ['shzw-runtime-operations', 'modes/agents/scripts/summarize-history.mjs', ['--after-seq', '0']],
+    ['shzw-runtime-operations', 'modes/workforce/scripts/inspect-launch.mjs', []]
   ]) {
     const installed = join(root, skill);
     await cp(new URL('../skills/' + skill + '/', import.meta.url), installed, { recursive: true });
     const input = join(root, skill + '.json'); await writeFile(input, 'SYNTHETIC_PRIVATE_INVALID_JSON');
-    const run = spawnSync(process.execPath, [join(installed, 'scripts', script), input, ...extra], { cwd: root, encoding: 'utf8', windowsHide: true, env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } });
+    const run = spawnSync(process.execPath, [join(installed, script), input, ...extra], { cwd: root, encoding: 'utf8', windowsHide: true, env: { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' } });
     assert.equal(run.status, 2); assert.equal(run.stdout, ''); assert(!run.stderr.includes('SYNTHETIC_PRIVATE'));
   }
 });
@@ -199,16 +199,16 @@ test('copied helpers execute through directory aliases instead of silently exiti
   const input = join(actual, 'invalid.json');
   await writeFile(input, 'SYNTHETIC_PRIVATE_INVALID_JSON');
   const helpers = [
-    ['shzw-workforce-runtime', 'inspect-launch.mjs', []],
-    ['shzw-workforce-runtime', 'summarize.mjs', []],
-    ['shzw-xrain-app-operations', 'inspect-operation.mjs', []],
-    ['shzw-xrain-app-operations', 'prepare-resolution.mjs', ['--output', join(actual, 'output.json')]],
-    ['shzw-workforce-agent-troubleshoot', 'summarize-history.mjs', ['--after-seq', '0']]
+    ['shzw-runtime-operations', 'modes/workforce/scripts/inspect-launch.mjs', []],
+    ['shzw-runtime-operations', 'modes/workforce/scripts/summarize.mjs', []],
+    ['shzw-xrain-app-package', 'modes/operations/scripts/inspect-operation.mjs', []],
+    ['shzw-xrain-app-package', 'modes/operations/scripts/prepare-resolution.mjs', ['--output', join(actual, 'output.json')]],
+    ['shzw-runtime-operations', 'modes/agents/scripts/summarize-history.mjs', ['--after-seq', '0']]
   ];
   for (const skill of new Set(helpers.map(([skill]) => skill)))
     await cp(new URL('../skills/' + skill + '/', import.meta.url), join(actual, skill), { recursive: true });
   for (const [skill, script, args] of helpers) {
-    const run = spawnSync(process.execPath, [join(alias, skill, 'scripts', script), input, ...args], { cwd: root, encoding: 'utf8', windowsHide: true });
+    const run = spawnSync(process.execPath, [join(alias, skill, script), input, ...args], { cwd: root, encoding: 'utf8', windowsHide: true });
     assert.equal(run.status, 2, `${script}: ${run.stdout} ${run.stderr}`);
     assert.equal(run.stdout, '');
     assert.ok(!run.stderr.includes('SYNTHETIC_PRIVATE'));
@@ -217,11 +217,11 @@ test('copied helpers execute through directory aliases instead of silently exiti
 
 test('helper modules remain importable from stdin without invoking their CLI', () => {
   const modules = [
-    'shzw-workforce-runtime/scripts/inspect-launch.mjs',
-    'shzw-workforce-runtime/scripts/summarize.mjs',
-    'shzw-xrain-app-operations/scripts/inspect-operation.mjs',
-    'shzw-xrain-app-operations/scripts/prepare-resolution.mjs',
-    'shzw-workforce-agent-troubleshoot/scripts/summarize-history.mjs'
+    'shzw-runtime-operations/modes/workforce/scripts/inspect-launch.mjs',
+    'shzw-runtime-operations/modes/workforce/scripts/summarize.mjs',
+    'shzw-xrain-app-package/modes/operations/scripts/inspect-operation.mjs',
+    'shzw-xrain-app-package/modes/operations/scripts/prepare-resolution.mjs',
+    'shzw-runtime-operations/modes/agents/scripts/summarize-history.mjs'
   ];
   const input = modules.map(path => `await import(${JSON.stringify(new URL('../skills/' + path, import.meta.url).href)});`).join('\n') + '\nconsole.log("imported");';
   const run = spawnSync(process.execPath, ['--input-type=module', '-'], { input, encoding: 'utf8', windowsHide: true });

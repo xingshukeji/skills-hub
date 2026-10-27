@@ -1,6 +1,6 @@
 interface:
   display_name: "XRain CLI"
   short_description: "Manage XRain platform accounts, data and applications"
-  default_prompt: "Use $shzw-xrain-cli to connect to the requested XRain platform, complete browser authentication, prepare platform users when needed, and perform the requested operation without exposing credentials. Use the authentication center's own management entry for its accounts and client registration."
+  default_prompt: "使用 $shzw-xrain-cli，复用目标平台、profile 和有效会话完成所请求操作；仅在需要时恢复浏览器认证。账号准备遵循固定身份和当前授权，认证中心身份及客户端登记使用其自身管理入口，不输出凭据。"
 policy:
   allow_implicit_invocation: true

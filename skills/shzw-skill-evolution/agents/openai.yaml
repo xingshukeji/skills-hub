@@ -1,0 +1,6 @@
+interface:
+  display_name: "技能诊断与进化"
+  short_description: "从真实执行和用户纠偏判断技能失效原因，完成有依据的改进与行为验证"
+  default_prompt: "使用 $shzw-skill-evolution 诊断当前技能问题，沿用原任务与授权，修正实际责任方并验证行为。"
+policy:
+  allow_implicit_invocation: true

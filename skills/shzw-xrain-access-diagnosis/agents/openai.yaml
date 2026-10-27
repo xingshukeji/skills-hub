@@ -1,3 +1,0 @@
-interface:
-  display_name: "XRain 业务权限排障"
-  short_description: "定位业务授权来源，处理准入、执行能力、撤权影响并复测原用户"

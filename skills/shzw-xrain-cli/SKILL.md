@@ -1,9 +1,9 @@
 ---
 name: shzw-xrain-cli
-description: 用自带 CLI 连接 XRain 平台或应用市场，操作平台用户、权限、数据及应用包；认证中心账号由 shzw-xrain-auth 处理。
+description: 使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
-  source: https://github.com/xingshukeji/skills-hub/tree/main/skills/shzw-xrain-cli
+  source: SKILL.md
   documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
   products: XRain
   runtime-requirements: Node.js 22.12+ and command execution; browser callback must reach the CLI host.
@@ -24,7 +24,7 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 数据、权限、应用包、批量：[命令参考](references/commands.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。
 
-管理操作选 `--auth session`，避免旧 API Token 抢先；租户由 token 绑定，`--tenant` 不能换身份。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。批量失败保留此前写入，不能整批重放。
+管理操作选 `--auth session`，避免旧 API Token 抢先；租户由 token 绑定，`--tenant` 不能换身份。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。记录操作按目标服务实际返回判断。
 
 安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
 

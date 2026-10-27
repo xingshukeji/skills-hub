@@ -28,6 +28,23 @@ async function files(directory) {
   }
   return result;
 }
+async function validateResources(directory) {
+  for (const file of await files(directory)) {
+    const rel = relative(directory, file);
+    assert(!/(^|[\\/])(node_modules|\.git|\.env|profiles\.json|local-test-secrets\.json)([\\/]|$)/.test(rel), `Unexpected dependency or private state inside directory: ${file}`);
+    if (!file.endsWith('.md')) continue;
+    const markdown = await readFile(file, 'utf8');
+    for (const link of markdown.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
+      const href = link[1];
+      if (/^(?:https?:|mailto:|#)/.test(href)) continue;
+      assert(!isAbsolute(href), `Resource references an absolute local path: ${file}`);
+      const destination = resolve(dirname(file), href.split('#')[0]);
+      const within = relative(directory, destination);
+      assert(within !== '..' && !within.startsWith('..' + (process.platform === 'win32' ? '\\' : '/')) && !isAbsolute(within), `Resource link escapes its directory: ${file}`);
+      assert((await stat(destination)).isFile(), `Missing resource reference: ${destination}`);
+    }
+  }
+}
 for (const name of names) {
   assert(name.length <= 64 && /^shzw-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name), `Invalid Suhong Zhuwei skill directory: ${name}`);
   const directory = join(skillsRoot, name), path = join(directory, 'SKILL.md');
@@ -54,22 +71,17 @@ for (const name of names) {
     // Product-specific metadata is optional; implicit invocation defaults to true.
     if (ui.policy?.allow_implicit_invocation !== undefined) assert(typeof ui.policy.allow_implicit_invocation === 'boolean', `Invocation policy must be a boolean: ${uiPath}`);
   }
-  for (const file of await files(directory)) {
-    const rel = relative(directory, file);
-    assert(!/(^|[\\/])(node_modules|\.git|\.env|profiles\.json|local-test-secrets\.json)([\\/]|$)/.test(rel), `Unexpected dependency or private state inside skill: ${file}`);
-    if (!file.endsWith('.md')) continue;
-    const markdown = await readFile(file, 'utf8');
-    for (const link of markdown.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
-      const href = link[1];
-      if (/^(?:https?:|mailto:|#)/.test(href)) continue;
-      assert(!isAbsolute(href), `Skill references an absolute local path: ${file}`);
-      const destination = resolve(dirname(file), href.split('#')[0]);
-      const within = relative(directory, destination);
-      assert(within !== '..' && !within.startsWith('..' + (process.platform === 'win32' ? '\\' : '/')) && !isAbsolute(within), `Skill link escapes its directory: ${file}`);
-      assert((await stat(destination)).isFile(), `Missing skill reference: ${destination}`);
-    }
-  }
+  await validateResources(directory);
   entries.push({ name, description: metadata.description });
+}
+if (!requestedSkill) {
+  for (const entry of await readdir(join(root, 'support'), { withFileTypes: true })) {
+    assert(entry.isDirectory() && /^shzw-[a-z0-9-]+$/.test(entry.name), `Invalid support directory: ${entry.name}`);
+    const directory = join(root, 'support', entry.name);
+    assert((await readFile(join(directory, 'GUIDE.md'), 'utf8')).trim(), `Missing support guide: ${entry.name}`);
+    assert(!(await files(directory)).some(file => file.endsWith('SKILL.md')), `Support must remain outside task discovery: ${entry.name}`);
+    await validateResources(directory);
+  }
 }
 const readmePath = join(root, 'README.md');
 const readme = await readFile(readmePath, 'utf8');

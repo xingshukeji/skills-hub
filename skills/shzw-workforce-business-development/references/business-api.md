@@ -1,5 +1,8 @@
 # 业务 API 与返回合同
 
+产品事实：XRain；公共基础设施由 AiInfra 维护，业务差异由目标项目维护。
+维护与适用：本专题由 skills-hub 维护，面向公开能力的业务使用；接口、示例与历史实测的原有适用条件继续有效。内部修改由目标项目入口定位源码与测试。
+
 按业务动作查接口，细节见各专题。HTTP、SDK、管理请求和包资源分别适配。[验证范围](api-verification.md)区分实测与合同核对；[响应样例](../assets/http-contract-samples.json)已替换环境标识，responseExcerpt 为摘录。
 
 ## 调用前确定三个身份
@@ -37,6 +40,8 @@
 | 记录历史 | `GET R/{recordId}/history?page=1&pageSize=20` | `{page, pageSize, totalCount, items}`；项含 action、操作者和 changes |
 | 按需读取敏感原值 | `POST R/{recordId}/original-values`；`{fields: ["contact__c"]}` | `{recordId, values}`；按有效访问选择直接敏感字段，非敏感字段实测 400 |
 | Owner 交接 | `POST R/{recordId}:transferOwner`；`{ownerId}` | 合同为 `{recordId, ownerId}`；本次验证了无目标对象 Read 权限时的拒绝 |
+
+表中批量返回是原子调用的默认形态。支持双模式的目标可在上述请求增加 `allOrNone`；false 返回逐项结果而非原记录数组/204，必须检查每项错误和 commitState。先核对目标实际合同，详见[批量与文件操作](data-operations.md)。文件导入/导出也先查目标能力入口，不从普通 `:export` 的 JSON 返回推断没有 XLSX 能力。
 
 query 的条件叶子是 `{field, op, value}`，and/or 组成非空条件组；选项值、精确数值、日期时间遵守字段合同。实测金额 `"10.20"` 原样作为字符串返回，业务时刻的七位小数输入被规范为六位微秒 UTC。查询 pageSize 为 1、总记录数为 3 时，聚合仍返回完整筛选范围的 `"60.90"`，不能拿当前页代替汇总。
 

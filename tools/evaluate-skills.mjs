@@ -6,9 +6,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const names = ['shzw-cicd', 'shzw-xrain-auth', 'shzw-xrain-cli'];
-const historicalNames = names.map(name => name.replace(/^shzw-/, ''));
-const canonicalName = name => historicalNames.includes(name) ? 'shzw-' + name : name;
+const names = ['shzw-delivery', 'shzw-xrain-access', 'shzw-xrain-cli'];
+// Keep historical responses intact; normalize task identity only when grading.
+const sourceNames = {
+  'shzw-delivery': ['shzw-cicd', 'cicd'],
+  'shzw-xrain-access': ['shzw-xrain-auth', 'xrain-auth'],
+  'shzw-xrain-cli': ['xrain-cli']
+};
+const aliases = Object.fromEntries(Object.entries(sourceNames).flatMap(([name, prior]) => prior.map(alias => [alias, name])));
+const canonicalName = name => aliases[name] ?? name;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const json = path => readFile(path, 'utf8').then(JSON.parse);
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -50,7 +56,7 @@ export function grade(cases, response) {
   const answers = new Map();
   for (const answer of response.answers) {
     assert(answer && typeof answer.id === 'string' && !answers.has(answer.id), 'Invalid or duplicate case ID.');
-    assert(answer.skill === null || names.includes(answer.skill) || historicalNames.includes(answer.skill), 'Invalid selected skill.');
+    assert(answer.skill === null || names.includes(canonicalName(answer.skill)), 'Invalid selected skill.');
     assert(Number.isInteger(answer.choice) && answer.choice >= 0 && answer.choice < 4, 'choice must be an integer from 0 to 3.');
     assert(typeof answer.reason === 'string' && answer.reason.trim(), 'Every answer needs a short reason.');
     answers.set(answer.id, answer);
@@ -71,7 +77,7 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
   const ids = new Set();
   for (const item of cases) {
     assert(!ids.has(item.id) && item.options.length === 4 && Number.isInteger(item.expected.choice) && item.expected.choice >= 0 && item.expected.choice < 4, 'Invalid evaluation case.');
-    assert(item.expected.skill === null || names.includes(item.expected.skill), 'Invalid expected skill.');
+    assert(item.expected.skill === null || names.includes(canonicalName(item.expected.skill)), 'Invalid expected skill.');
     ids.add(item.id);
   }
   // Reserve a new run. Never overwrite prior snapshots or responses.
@@ -83,7 +89,7 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
   for (const name of names) {
     let sourceName = name;
     let paths = [];
-    for (const source of [name, name.replace(/^shzw-/, '')]) {
+    for (const source of [name, ...sourceNames[name]]) {
       const found = execFileSync('git', ['ls-tree', '-r', '--name-only', baselineCommit, '--', 'skills/' + source], { cwd: root, encoding: 'utf8', windowsHide: true }).trim().split('\n').filter(Boolean);
       if (found.includes('skills/' + source + '/SKILL.md')) { sourceName = source; paths = found; break; }
     }
@@ -247,6 +253,98 @@ export async function verifyForward(output) {
   return { inputIntegrity: true, structuralCompleteness: true, semanticReview: 'required', groups: result };
 }
 
+// Natural task inputs are deliberately separate from coaching and the rubric.
+// This prepares a reproducible review; it does not infer semantic success from words.
+export async function prepareTaskReplay({ output, baselineRef = 'HEAD', repeats = 1 }) {
+  assert(Number.isInteger(repeats) && repeats >= 1 && repeats <= 3, 'repeats must be 1–3.');
+  const cases = await json(join(root, 'evals/task-scenarios/cases.json'));
+  const rubric = await readFile(join(root, 'evals/task-scenarios/rubric.json'), 'utf8');
+  const ids = cases.map(item => item.id);
+  assert(new Set(ids).size === cases.length && cases.length > 0, 'Duplicate or missing task case.');
+  const allowedFields = new Set(['id', 'request', 'project', 'context', 'explicitSkill']);
+  for (const item of cases) {
+    assert(Object.keys(item).every(key => allowedFields.has(key)), 'Expected answers or coaching must not enter task inputs.');
+    for (const field of ['id', 'request', 'project', 'context']) assert(typeof item[field] === 'string' && item[field].trim(), 'Invalid raw task input.');
+  }
+  const expectedIds = JSON.parse(rubric).cases.map(item => item.id);
+  assert(expectedIds.length === ids.length && ids.every(id => expectedIds.includes(id)), 'Task rubric does not match inputs.');
+  const baselineCommit = execFileSync('git', ['rev-parse', '--verify', baselineRef + '^{commit}'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+  await mkdir(dirname(output), { recursive: true });
+  await mkdir(output); // Never overwrite a previous run or its responses.
+  await writeFile(join(output, 'rubric.private.json'), rubric);
+  const sourceRoot = join(output, 'sources');
+  const baseline = join(sourceRoot, 'baseline'), candidate = join(sourceRoot, 'candidate');
+  const tracked = execFileSync('git', ['ls-tree', '-r', '--name-only', baselineCommit, '--', 'skills', 'support'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim().split('\n').filter(Boolean);
+  assert(tracked.some(path => path.endsWith('/SKILL.md')), 'Baseline has no task skills.');
+  for (const path of tracked) {
+    const destination = join(baseline, path);
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, execFileSync('git', ['show', baselineCommit + ':' + path], { cwd: root, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }));
+  }
+  const filter = path => !['node_modules', 'bin', 'obj', '__pycache__'].includes(path.replaceAll('\\', '/').split('/').at(-1));
+  await cp(join(root, 'skills'), join(candidate, 'skills'), { recursive: true, filter });
+  await cp(join(root, 'support'), join(candidate, 'support'), { recursive: true, filter });
+  const inputText = JSON.stringify(cases, null, 2) + '\n';
+  const manifest = { format: 'task-replay-1', createdAt: new Date().toISOString(), baselineCommit, ids,
+    casesHash: hash(inputText), rubricHash: hash(rubric), sourceHashes: { baseline: await fingerprint(baseline), candidate: await fingerprint(candidate) }, groups: [] };
+  for (let repeat = 1; repeat <= repeats; repeat++) {
+    const variants = randomInt(2) ? ['baseline', 'candidate'] : ['candidate', 'baseline'];
+    for (const [index, variant] of variants.entries()) {
+      const id = 'task-' + repeat + '-' + (index + 1), input = join(output, id, 'input');
+      await cp(join(sourceRoot, variant), input, { recursive: true });
+      const catalog = [];
+      for (const name of (await readdir(join(input, 'skills'))).sort()) {
+        const directory = join(input, 'skills', name);
+        const content = await readFile(join(directory, 'SKILL.md'), 'utf8');
+        const meta = parse(/^---\r?\n([\s\S]*?)\r?\n---/.exec(content)[1]);
+        let implicit = true;
+        try { implicit = parse(await readFile(join(directory, 'agents/openai.yaml'), 'utf8')).policy?.allow_implicit_invocation ?? true; }
+        catch (error) { if (error.code !== 'ENOENT') throw error; }
+        catalog.push({ name: meta.name, description: meta.description, allowImplicitInvocation: implicit, resourceBase: { kind: 'directory', path: directory } });
+      }
+      await writeFile(join(input, 'catalog.json'), JSON.stringify(catalog, null, 2) + '\n');
+      await writeFile(join(input, 'cases.json'), inputText);
+      await writeFile(join(input, 'instructions.md'), [
+        '# 原始任务选择与首次执行检查', '',
+        '按 cases.json 的自然请求和必要前文，选择 catalog.json 中一个主任务；普通小改或不需技能时可选 null。显式调用政策按 catalog 和 explicitSkill 判断。',
+        '只读本组 input 中的材料；只在本组 input 之外写回答。不要读父目录的评分资料、其他组、旧对话或当前仓库。不要新建子代理。',
+        '这是离线选择与执行决定核验，不连接真实平台、不改产品、不操作账号、不触发流水线或部署，不执行 Git 写入。按需读取技能和具体知识；所需项目事实未提供时明确缺口。',
+        '给出当前范围下的具体下一步、首次应覆盖的入口和失败分支、实际已有证据及未完成的验证。不得把下一步写成已经完成。',
+        '不要从技能名、数量或文体猜哪版较新。不要自行评分。',
+        '回答写 ../answers.json，格式为 {"provenance":"author-check 或 independent-model","answers":[{"id":"t01","skill":"名称或 null","nextSteps":["具体动作"],"evidence":["实际观察，未执行须说明"],"completion":"覆盖及缺口"}]}。覆盖全部案例。', ''
+      ].join('\n'));
+      manifest.groups.push({ id, repeat, variant, inputHash: await fingerprint(input), skillNames: catalog.map(item => item.name) });
+    }
+  }
+  await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  return { output, baselineCommit, cases: ids.length, groups: manifest.groups.map(group => group.id) };
+}
+
+export async function verifyTaskReplay(output) {
+  const manifest = await json(join(output, 'manifest.json'));
+  assert(manifest.format === 'task-replay-1', 'Invalid task replay manifest.');
+  assert(hash(await readFile(join(output, 'rubric.private.json'))) === manifest.rubricHash, 'Task rubric changed.');
+  const groups = [];
+  for (const group of manifest.groups) {
+    const directory = join(output, group.id), input = join(directory, 'input');
+    assert(await fingerprint(input) === group.inputHash, 'Task inputs changed: ' + group.id);
+    assert(hash(await readFile(join(input, 'cases.json'))) === manifest.casesHash, 'Paired task inputs changed.');
+    const response = await readFile(join(directory, 'answers.json'), 'utf8');
+    const { provenance, answers } = JSON.parse(response);
+    assert(['author-check', 'independent-model', 'protocol-fixture'].includes(provenance), 'Task response must declare its provenance.');
+    assert(Array.isArray(answers) && answers.length === manifest.ids.length, 'Missing or extra task answers.');
+    assert(new Set(answers.map(item => item.id)).size === manifest.ids.length, 'Duplicate task answer.');
+    for (const answer of answers) {
+      assert(manifest.ids.includes(answer.id), 'Unknown task case.');
+      assert(answer.skill === null || group.skillNames.includes(answer.skill), 'Unknown task skill.');
+      for (const field of ['nextSteps', 'evidence']) assert(Array.isArray(answer[field]) && answer[field].length && answer[field].every(value => typeof value === 'string' && value.trim()), 'Missing task evidence or next steps.');
+      assert(typeof answer.completion === 'string' && answer.completion.trim(), 'Missing task completion boundary.');
+    }
+    groups.push({ id: group.id, variant: group.variant, declaredProvenance: provenance, responseHash: hash(response), answers: answers.length });
+  }
+  return { inputIntegrity: true, structuralCompleteness: true, semanticReview: 'required', independence: 'not-established-by-this-verifier', groups };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const [command, ...args] = process.argv.slice(2);
@@ -255,10 +353,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       assert(['--output', '--baseline', '--repeats'].includes(args[i]) && args[i + 1] && !options[args[i]], 'Invalid evaluation argument.');
       options[args[i]] = args[i + 1];
     }
-    assert(['prepare', 'score', 'prepare-forward', 'verify-forward'].includes(command), 'Usage: node tools/evaluate-skills.mjs prepare|score|prepare-forward|verify-forward --output DIRECTORY [--baseline REF] [--repeats 2]');
+    assert(['prepare', 'score', 'prepare-forward', 'verify-forward', 'prepare-tasks', 'verify-tasks'].includes(command), 'Usage: node tools/evaluate-skills.mjs prepare|score|prepare-forward|verify-forward|prepare-tasks|verify-tasks --output DIRECTORY [--baseline REF] [--repeats 2]');
     assert(options['--output'], '--output is required.');
     const output = resolve(options['--output']);
-    if (command === 'prepare-forward') console.log(JSON.stringify(await prepareForward({ output, repeats: options['--repeats'] === undefined ? 2 : Number(options['--repeats']) }), null, 2));
+    if (command === 'prepare-tasks') console.log(JSON.stringify(await prepareTaskReplay({ output, baselineRef: options['--baseline'], repeats: options['--repeats'] === undefined ? 1 : Number(options['--repeats']) }), null, 2));
+    else if (command === 'verify-tasks') console.log(JSON.stringify(await verifyTaskReplay(output), null, 2));
+    else if (command === 'prepare-forward') console.log(JSON.stringify(await prepareForward({ output, repeats: options['--repeats'] === undefined ? 2 : Number(options['--repeats']) }), null, 2));
     else if (command === 'verify-forward') console.log(JSON.stringify(await verifyForward(output), null, 2));
     else if (command === 'prepare') console.log(JSON.stringify(await prepare({ output, baselineRef: options['--baseline'], repeats: options['--repeats'] === undefined ? 2 : Number(options['--repeats']) }), null, 2));
     else {

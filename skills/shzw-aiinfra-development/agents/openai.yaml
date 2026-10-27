@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "AiInfra 后端开发"
+  "short_description": "复用 AiInfra 公共能力，处理后端初始化、分层职责与实际包消费验证"
+  "default_prompt": "使用 $shzw-aiinfra-development 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

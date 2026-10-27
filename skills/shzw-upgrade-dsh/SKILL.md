@@ -1,9 +1,9 @@
 ---
 name: shzw-upgrade-dsh
-description: 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异，在升级过程中验证受影响行为。不自动触发，不等待上线前。
+description: 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。仅在明确调用本技能时执行，不从一般 Runtime 故障或客户端修改自动推断升级。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
-  source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-upgrade-dsh/SKILL.md
+  source: SKILL.md
 ---
 
 # DSH 升级
@@ -24,6 +24,8 @@ Resolve project entrypoints, source, documents and command working directories f
 ## 查事实，定目标
 
 从项目入口找到实际依赖、源码与测试；区分声明/锁定版本、复制来源和实际运行版本。按需盘点四类：**包及相关传递依赖、复制源码/资源、装配协议、外部 Runtime**。每类记录本地消费者、基线与上游位置；无来源写未知。
+
+Workforce 的 DSH 消费同时可能包含前端包、复制的 UI/资源和 Cordis 插件接缝；Harness 拥有 Runtime 执行侧，业务应用还通过公共包及自己的根锁文件消费。按 RUN-0002 的当前索引逐项定位，不能只更新 Workforce 的依赖就声称铵帮或外部 Runtime 已升级。先证明包导出和实际应用消费，再更新命中的复制来源与兼容说明；不在技能内保存版本快照。
 
 用户给了目标就验证它，包括明确指定的预发布版本；未给目标则核对官方发布及 npm 可得性后推荐，不擅自选择预发布。固定包版本、目标完整 SHA、包完整性及 peer/engine 约束；Git tag 存在不证明包已发布。
 

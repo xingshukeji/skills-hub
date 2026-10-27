@@ -1,0 +1,26 @@
+[
+  {
+    "id": "review-consumers",
+    "request": "请 review 当前客户资料页与记录查看功能，结合使用场景、职责和数据流检查遗漏。只审查，不修改。",
+    "context": "当前项目的实际入口、业务合同、源码和已有测试都在工作目录中。此次审查当前实现，不要求发布。",
+    "workspace": "fixtures/review-consumers"
+  },
+  {
+    "id": "continue-business",
+    "request": "正确，请执行，完成后直接告诉我结果。",
+    "context": "前文已批准：在现有客户资料页完成手机号编辑、保存、回读及再次进入，保持客户身份和其他资料；复用现有接口与权限。只修改本目录的页面模型和必要定向测试。无需设计新的对象、表、角色、后端服务或部署。",
+    "workspace": "fixtures/continue-business"
+  },
+  {
+    "id": "diagnose-skills",
+    "request": "这两次使用 skill 的效果不好，请检查原因，把确实有问题的技能调整好。",
+    "context": "执行记录保存在 observations.md，来源技能、消费副本和各自职责在项目入口中。只处理技能及必要路由，不修改产品实现，不操作远端。",
+    "workspace": "fixtures/diagnose-skills"
+  },
+  {
+    "id": "understand-first",
+    "request": "我觉得这些 skill 还是没让我少解释，尤其继续对话的时候。先告诉我你的理解，不要修改。",
+    "context": "前文在讨论技能职责与执行连续性，此轮尚未授权任何调整。当前目录中有一个待评估技能。",
+    "workspace": "fixtures/understand-first"
+  }
+]

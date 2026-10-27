@@ -1,3 +1,0 @@
-interface:
-  display_name: "Workforce 运行维护"
-  short_description: "处理环境启动、依赖与版本故障，定位慢登录和资源增长并核对恢复"

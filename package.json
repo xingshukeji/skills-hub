@@ -11,7 +11,7 @@
     "index": "node tools/skills.mjs --write",
     "validate": "node tools/skills.mjs",
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
-    "test:appkg": "dotnet run --project skills/shzw-xrain-app-package/scripts/Appkg.csproj -- self-test",
+    "test:appkg": "dotnet run --project skills/shzw-xrain-app-package/modes/authoring/scripts/Appkg.csproj -- self-test",
     "eval:prepare": "node tools/evaluate-skills.mjs prepare",
     "eval:score": "node tools/evaluate-skills.mjs score",
     "eval:forward": "node tools/evaluate-skills.mjs prepare-forward",

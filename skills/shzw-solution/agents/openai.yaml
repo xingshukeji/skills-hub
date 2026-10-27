@@ -1,0 +1,6 @@
+"interface":
+  "display_name": "方案制定与评审"
+  "short_description": "制定、比较或评审方案，核实关键依据与职责，并延续已确认目标和授权"
+  "default_prompt": "使用 $shzw-solution 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
+"policy":
+  "allow_implicit_invocation": true

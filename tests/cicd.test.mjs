@@ -4,7 +4,7 @@ import { cp, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -14,7 +14,7 @@ const jobPath = '/job/suite/job/unit%20name';
 
 async function setup(t, options = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'cicd-skill-'));
-  await cp(join(root, 'skills/shzw-cicd'), join(directory, 'installed skill'), { recursive: true });
+  await cp(join(root, 'skills/shzw-delivery'), join(directory, 'installed skill'), { recursive: true });
   const requests = [];
   const prefix = options.prefix ?? '';
   const server = createServer(async (request, response) => {
@@ -70,7 +70,7 @@ async function setup(t, options = {}) {
 
 function invoke(directory, args, env = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [join(directory, 'installed skill/scripts/jenkins.mjs'), ...args], {
+    const child = spawn(process.execPath, [join(directory, 'installed skill/modes/pipeline/scripts/jenkins.mjs'), ...args], {
       cwd: directory, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PATH: '', NODE_PATH: '', NODE_OPTIONS: '', JENKINS_USER: 'synthetic-user', JENKINS_TOKEN: mockToken, JENKINS_URL: '', CICD_CREDENTIAL_REF: '', ...env }
     });
@@ -104,6 +104,28 @@ test('copied skill lists and inspects jobs with Node alone, including folders an
   for (const privateValue of ['synthetic-job-password', 'synthetic-api-key', 'synthetic-private-default']) assert(!inspect.stdout.includes(privateValue));
   assert.equal(JSON.parse(inspect.stdout).lastBuild.number, 18);
   assert(requests.every(request => request.method === 'GET'));
+});
+
+test('copied helper accepts the configured non-loopback HTTP Jenkins endpoint', async t => {
+  const { directory, requests } = await setup(t);
+  const preload = join(directory, 'configured-http.mjs');
+  await writeFile(preload, `
+    import assert from 'node:assert/strict';
+    globalThis.fetch = async (url, options) => {
+      assert.equal(url, 'http://jenkins.project.invalid/team/api/json?tree=jobs[name,color,url]');
+      assert.equal(options.method, 'GET');
+      assert.equal(options.headers.get('Authorization'),
+        'Basic ' + Buffer.from('synthetic-user:synthetic-cicd-test-token').toString('base64'));
+      return Response.json({ jobs: [{ name: 'configured-http-job' }] });
+    };
+  `);
+  const result = await invoke(directory, ['jobs', '--url', 'http://jenkins.project.invalid/team'], {
+    NODE_OPTIONS: `--import=${pathToFileURL(preload).href}`,
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { jobs: [{ name: 'configured-http-job' }] });
+  assert(!result.stdout.includes(mockToken));
+  assert.equal(requests.length, 0);
 });
 
 test('trigger follows its own build after queue expiry and keeps a reusable private receipt', async t => {
@@ -233,7 +255,7 @@ test('invalid inputs and incomplete credentials are rejected before requests wit
   const { directory, requests, url } = await setup(t);
   const run = join(directory, 'run.json');
   for (const args of [
-    ['jobs', '--url', 'http://example.invalid'], ['jobs', '--url', `https://user:${mockToken}@example.invalid`],
+    ['jobs', '--url', 'file:///unsupported-jenkins'], ['jobs', '--url', `https://user:${mockToken}@example.invalid`],
     ['inspect', '--url', url, '--job', '../escape'], ['trigger', '--url', url, '--job', job],
     ['status', '--url', url, '--job', job, '--build', '1.2'], ['jobs', '--url', url, '--token', mockToken],
   ]) {

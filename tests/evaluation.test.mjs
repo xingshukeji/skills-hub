@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { grade, prepare, score, prepareForward, verifyForward } from '../tools/evaluate-skills.mjs';
+import { grade, prepare, score, prepareForward, verifyForward, prepareTaskReplay, verifyTaskReplay } from '../tools/evaluate-skills.mjs';
 
 const cases = [{ id: 'a', expected: { skill: 'shzw-cicd', choice: 1 } }, { id: 'b', expected: { skill: null, choice: 0 } }];
 const answer = (id, skill, choice) => ({ id, skill, choice, reason: 'Test fixture only.' });
@@ -42,7 +42,7 @@ test('A/B scoring preserves paired cases, refuses overwrite and detects evidence
   // Synthetic responses validate only the scorer; never used as skill evaluation evidence.
   for (const group of manifest.groups) await writeFile(join(directory, group.id, 'answers.json'), JSON.stringify({ answers: privateCases.map(item => answer(item.id, item.expected.skill, item.expected.choice)) }));
   assert.equal((await score(directory)).totals.candidate.passed, privateCases.length);
-  const skill = join(directory, manifest.groups[0].id, 'skills/shzw-cicd/SKILL.md');
+  const skill = join(directory, manifest.groups[0].id, 'skills/shzw-delivery/SKILL.md');
   const original = await readFile(skill);
   await writeFile(skill, 'changed');
   await assert.rejects(score(directory), /snapshot changed/);
@@ -65,4 +65,28 @@ test('forward verification requires complete evidence and never claims a semanti
   await writeFile(file, JSON.stringify({ answers }));
   await writeFile(join(directory, 'group-1/input/artifacts/performance.json'), '{}');
   await assert.rejects(verifyForward(directory), /inputs changed/);
+});
+
+test('natural task replay pairs raw requests without leaking coaching and keeps semantic judgment separate', async t => {
+  const directory = join(await temporary(t), 'tasks');
+  await prepareTaskReplay({ output: directory, baselineRef: 'HEAD', repeats: 1 });
+  await assert.rejects(prepareTaskReplay({ output: directory, repeats: 1 }));
+  const manifest = JSON.parse(await readFile(join(directory, 'manifest.json')));
+  const inputs = await Promise.all(manifest.groups.map(group => readFile(join(directory, group.id, 'input/cases.json'), 'utf8')));
+  assert.equal(inputs[0], inputs[1]);
+  const cases = JSON.parse(inputs[0]);
+  assert(cases.every(item => !Object.hasOwn(item, 'expected') && !Object.hasOwn(item, 'requiredBehavior')));
+  for (const group of manifest.groups) {
+    await assert.rejects(readFile(join(directory, group.id, 'input/rubric.json')));
+    // Protocol-only fixtures must never be presented as observed skill behavior.
+    await writeFile(join(directory, group.id, 'answers.json'), JSON.stringify({ provenance: 'protocol-fixture', answers: cases.map(item => ({
+      id: item.id, skill: null, nextSteps: ['Fixture only'], evidence: ['No model or product execution'], completion: 'Not tested'
+    })) }));
+  }
+  const result = await verifyTaskReplay(directory);
+  assert.equal(result.semanticReview, 'required');
+  assert.equal(result.independence, 'not-established-by-this-verifier');
+  const group = manifest.groups[0];
+  await writeFile(join(directory, group.id, 'input/cases.json'), '[]');
+  await assert.rejects(verifyTaskReplay(directory), /inputs changed/);
 });
