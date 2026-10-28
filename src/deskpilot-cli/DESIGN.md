@@ -77,71 +77,57 @@ Windows 通过 UIA/Win32 绑定操作控件；macOS 通过系统辅助功能及�
 
 客户端不安装或调用 pip、uv、conda、npm、brew、apt，也不连接软件包索引。本地安装脚本只处理随包的确定文件，不实现依赖解析器、下载器或另一个包管理器。完整 Skill 已取得且系统前置条件满足后，本地构建、初始化、命令注册和桌面/OCR 操作均可离线完成；访问目标网站所需网络另行处理。
 
-现有 Python 辅助脚本按前述职责逐函数筛选，不整体迁入消息或微信业务模块。Node.js Flow 的通用执行、检查和 handoff，以及 dsh 的进程协议适配按实际保留消费者迁移；网站场景、群聊策略和固定模型规则不随适配代码进入。安装、构建与直接使用 Python 核心不依赖可选宿主。语言选择已确定，不再保留改用 Node.js 核心的待选项。
+现有 Python 辅助脚本按前述职责逐函数筛选，需要的确定性操作并入同一 Python 工具包。原 Node.js Flow 不作为另一套执行器随 Skill 迁入；批处理、等待、结果检查和向 Agent 返回偏差由 Python 工具统一提供。dsh 等宿主通过公开进程协议接入，适配在实际消费者的源码归属中完成，不成为 DeskPilot 的内置子项目。语言选择已确定。
 
 核心不通过 `pythonnet`、PowerShell `Add-Type` 或旧 `win-agent.exe` 取得桌面能力。其他 Skills 的既有运行要求不属于本次移除范围，例如 XRain 应用包校验器的 .NET 依赖不由本方案变更。
 
 ## 源码与交付目录
 
-下面是目标布局。只在对应能力实施时创建文件，不先提交空目录或不可运行的 Skill。
+仓库保留一个工具源码包和一个完整 Skill。前者维护代码，后者交付使用知识、生成的工具源码和实际运行资源。三平台差异在同一 Python 包内部处理。
 
 ```text
 skills-hub/
-  src/
-    xrain-cli/                         现有 CLI，保持其独立职责
-    deskpilot-cli/                     新实现的唯一维护源
-      DESIGN.md                       本方案
-      pyproject.toml                  Python 源码元数据与维护端配置
-      dependencies.json               固定依赖来源、文件、摘要、许可和平台/ABI
-      distribution/                   安装、构建、启动与移除脚本维护源
-      deskpilot/
-        protocol/                     argv、NDJSON、错误和能力诊断
-        session/                      会话、观察引用、批处理与取消
-        browser/                      CDP、Chrome 启动和目标绑定
-        desktop/                      Windows、macOS、Linux 实现
-        ocr/                          离线识别与几何定位
-      operations/                     按需提取的确定性辅助操作与数据算法
-      integrations/
-        flow/                         经筛选的可选通用流程执行代码
-        dsh/                          可选薄插件与定向测试
-      tests/                          契约、平台与本地 fixture
-  skills/
-    shzw-xrain-cli/                    现有完整交付目录
-    shzw-deskpilot-cli/                新的完整交付目录
-      SKILL.md                        唯一任务发现入口
-      agents/openai.yaml              宿主展示信息
-      scripts/
-        install.py                    客户端构建、初始化、命令与 PATH 注册
-        build.py                      仅用标准库构建本项目程序
-        run.py                        用已登记解释器启动本地构建结果
-        uninstall.py                  移除本工具拥有的命令与 PATH 片段
-        source/                       从维护源生成的完整 Python 工具源码
-        flow/                         随包的可选 Node.js 流程宿主
-        dependencies.json             固定交付清单，不在客户端解析或下载依赖
-        THIRD_PARTY_NOTICES.txt
-      vendor/                         完整第三方代码、平台原生库及其许可
-      assets/                         已选定且许可允许分发的离线模型及样例
-      references/
-        installation.md                依赖、权限、诊断和恢复
-        commands.md                    公共调用与结果语义
-        browser.md                    页面连接、操作和恢复
-        desktop.md                    控件、输入、截图及平台差异
-        flows.md                      短批次与按需保存调用方流程的方法
-        messaging.md                  可见候选采集、证据局限与操作核验
-        testing.md                    明确测试请求时的用法
-        apps/
-          wechat-windows.md           微信窗口、菜单与转写操作知识
-  tools/build-deskpilot.mjs            维护端汇集源码、脚本与固定资源
-  tests/deskpilot-installed.test.mjs   独立复制与宿主启动验证
+  src/deskpilot-cli/                   代码唯一维护源
+    DESIGN.md                         本方案，供维护者评审
+    install.py                        唯一本机安装入口的源码
+    deskpilot/                        一个可执行 Python 包
+      __main__.py                     命令入口
+      cli.py                          argv、NDJSON 与错误返回
+      session.py                      会话、引用、批处理、等待和取消
+      browser.py                      Chrome/CDP 操作
+      screen.py                       截图、OCR 与定位证据
+      platforms/                      Windows、macOS、Linux 系统实现
+    tests/                            Python 定向测试和本地夹具
+
+  skills/shzw-deskpilot-cli/           整体安装与交付的唯一边界
+    SKILL.md                          简短方法与参考路由
+    agents/openai.yaml                现有技能目录要求的展示信息
+    references/                       安装、命令、桌面、浏览器等使用知识
+    scripts/
+      install.py                      从 src 生成；构建、注册与移除入口
+      deskpilot/                      从 src 生成的完整 Python 包源码
+    vendor/                           实际采用的第三方代码、原生文件和许可
+      manifest.json                   一份依赖文件、平台/ABI、来源与摘要清单
+    assets/                           实际采用的离线 OCR 模型
+
+  tools/build.mjs                     扩展现有入口，同步上述两项代码副本
+  tests/deskpilot-installed.test.mjs   接入现有检查，验证独立 Skill 的使用
 ```
 
-`src/deskpilot-cli/` 中的工具实现、测试和协议是代码维护源。维护端从这里生成 Skill 的安装脚本和源码副本，不手工维护第二份实现。客户端只使用已安装 Skill 中的 `scripts/source/`、`vendor/` 与 `assets/` 完成本地构建。使用知识直接在 Skill 的 `SKILL.md` 与 `references/` 维护；需要机械工具时链接随包脚本和调用参数，不复制脚本正文或在工具内嵌另一份操作手册。dsh 插件仍是按需宿主接入，通过宿主机制加载同一完整 Skill，不维护另一套业务指令。
+维护关系只有两条：
 
-目录只表示职责位置，不要求为每个应用创建 adapter、状态机或脚本。`operations/` 仅在通用原语不足以消除重复机械处理时增加具体实现；应用过程可以由 Agent 按 references 组合公开原语完成。通用交付没有 `adapters/messaging/`、`adapters/wechat_windows/` 或内置演示业务场景目录。
+1. 工具代码只改 `src/deskpilot-cli/install.py` 和 `src/deskpilot-cli/deskpilot/`；维护端将它们确定性同步到 Skill 的 `scripts/`。后者是交付副本，不是第二个编写源。维护端不为 Python 再建立独立打包工程，也不生成用户机器的运行环境。
+2. 使用知识直接改 Skill 的 `SKILL.md`、`references/`；第三方文件、模型和许可直接在完整 Skill 中维护。它们不再在 `src/` 放第二套。参考按实际使用需要增加专题，不预建业务目录或复制旧项目文档树。
 
-所有 Skill 自有资源链接和执行资源都能在完整目录内解析。安装后的程序不得定位 skills-hub 的 `src/`、相邻的 window10GUI 或维护者的固定磁盘路径。交付目录不包含用户机器上的构建缓存、安装记录、日志、截图、Chrome profile 或聊天内容。客户端在用户可写位置构建，Skill 自身可以只读；运行产物与安装记录不写回 Git。
+源码包内先按上述少量模块组织；文件过大或存在独立平台职责时再拆分。不预设 `operations/`、业务 adapters、Flow 执行子项目或 dsh 插件子项目。具体应用的操作知识可以成为参考专题，确定性函数按实际职责进入现有模块。
 
-`dependencies.json` 只声明本次完整交付实际包含的文件、来源、许可、平台、架构、Python ABI 和摘要。第三方依赖链也必须完整随包，不依靠开发机器已安装的 Python 包。没有匹配原生文件或许可不允许随包交付时，该组合不得标为可用；不能以自动安装依赖作为隐藏兜底。
+客户端只需取得 `skills/shzw-deskpilot-cli/`。`scripts/install.py` 从同目录下的 `deskpilot/` 构建本机应用归档，按 `vendor/manifest.json` 选择随包原生文件，并注册用户命令和 PATH；更新及 `--uninstall` 也复用此入口。构建是安装过程中的函数，不另设 `build.py`；后续执行使用已返回的命令路径，不另设 `run.py`。CLI 直接由包内 `__main__.py` 启动。
+
+本机应用归档、原生文件准备结果、安装记录和命令入口放在用户可写目录；原 Skill 可以只读。它们属于客户端派生结果，不加入源码或 Skill 目录。浏览器 profile、业务文件与聊天状态继续属于调用方。
+
+`vendor/manifest.json` 只维护一份，列出实际随包依赖及其传递依赖的文件、来源、许可、平台、架构、Python ABI 和摘要。代码同步检查与它共用实际输入，不再维护另一份依赖清单。没有匹配原生文件或许可不允许交付时，该组合不能标为可用；客户端不依靠开发机器已有包或联网补装。
+
+独立安装验证只复制完整 Skill，从另一个工作目录完成构建与调用；不提供 `src/`、旧仓库或维护者固定路径。实现时才创建真实文件，当前不提交空骨架。
 
 目前 skills-hub 没有 `文档/WORKSPACE_STRUCTURE.md`。本方案以 `Kind: Decision` 放在目标源码旁，由根 AGENTS 和 README 明确路由；不为这一个方案复制旧仓库的文档控制面。未来需要恢复的实施任务按仓库入口登记到 Workforce，本次方案不创建实施活动或候选项。
 
@@ -160,7 +146,7 @@ deskpilot doctor --format json
 deskpilot exec --stdin --format ndjson
 ```
 
-示例中的 `python` 表示客户端已识别的受支持解释器，实际启动记录其绝对路径。安装脚本返回构建结果、短命令绝对路径、PATH 登记结果和当前进程是否能解析该命令。当前宿主尚未继承新 PATH 时，直接使用返回的绝对路径，或执行 `python "<skill目录>/scripts/run.py" doctor --format json`；不能要求每轮任务重装工具。
+示例中的 `python` 表示客户端已识别的受支持解释器，实际启动记录其绝对路径。安装脚本返回构建结果、短命令绝对路径、PATH 登记结果和当前进程是否能解析该命令。当前宿主尚未继承新 PATH 时，直接使用返回的命令绝对路径；不能要求每轮任务重装工具。
 
 ### 客户端构建与 PATH 行为
 
@@ -172,11 +158,11 @@ deskpilot exec --stdin --format ndjson
 
 安装记录只保存 Skill 来源目录、解释器、构建输入摘要、运行目录、命令入口及 PATH 片段归属。重复安装复用未变化的构建，不重复添加 PATH；源文件更新后重新构建并更新本工具拥有的入口。已有无关同名命令不得覆盖，安装器须返回冲突位置和可用的直接调用路径。
 
-`uninstall.py` 只删除本工具拥有的命令、安装记录和所加 PATH 片段；若同一命令目录仍被其他工具使用，则保留该目录的 PATH 项。用户 Chrome profile、消息状态和其他应用配置不属于卸载对象。PATH 写入失败与构建失败分别报告，不能因为程序可由绝对路径运行就宣称 PATH 已配置。
+`install.py --uninstall` 只删除本工具拥有的命令、安装记录和所加 PATH 片段；若同一命令目录仍被其他工具使用，则保留该目录的 PATH 项。用户 Chrome profile、消息状态和其他应用配置不属于卸载对象。PATH 写入失败与构建失败分别报告，不能因为程序可由绝对路径运行就宣称 PATH 已配置。
 
-Agent 默认保持一个进程会话，执行“观察 → 已知动作与检查组成短批次 → 读取结果 → 根据新状态继续”。首次任务不要求先生成完整流程文件。用户确实需要重复操作时，才使用随包交付的可选 Flow 宿主和纯 JSON 场景。
+Agent 默认保持一个进程会话，执行“观察 → 已知动作与检查组成短批次 → 读取结果 → 根据新状态继续”。需要重复操作时，由调用方保存参数和步骤并调用同一公开协议；完整场景文件不是首次操作前置条件，Skill 不再额外交付 Node.js Flow 执行器。
 
-Agent 只有在任务涉及对应应用时读取 `references/apps/`。微信的窗口、引用菜单和语音入口知识限定 Windows 及实际验证过的布局；群聊参与、人设和审批规则由具体业务入口按授权提供。通用安装和启动只准备工具，不打开群聊、创建草稿、发言、启动监控或更新技能。语音转写接受应用原生能力或调用方显式提供的 ASR 工具；没有转写来源时返回不可用，工具不依据转写内容决定回复。
+Agent 按当前任务读取 `references/` 中对应的使用专题。微信的窗口、引用菜单和语音入口知识限定 Windows 及实际验证过的布局；群聊参与、人设和审批规则由具体业务入口按授权提供。通用安装和启动只准备工具，不打开群聊、创建草稿、发言、启动监控或更新技能。语音转写接受应用原生能力或调用方显式提供的 ASR 工具；没有转写来源时返回不可用，工具不依据转写内容决定回复。
 
 ## 保留的行为与平台实现
 
@@ -216,17 +202,17 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 
 | 当前来源（window10GUI） | skills-hub 中的归属 | 迁移要求 |
 |---|---|---|
-| `src/WindowsAgent.Cli/Program.cs`、`AutomationEngine.cs` | `src/deskpilot-cli/deskpilot/protocol/`、`session/` | 用 Python 重写，保留公开结果和错误语义 |
-| `NativeMethods.cs`、Activity/Overlay | `deskpilot/desktop/` | 按三平台实现与测试，移除 WinForms/.NET 运行依赖 |
-| `ChromeCdp.cs` | `deskpilot/browser/` 与平台桌面实现 | 保留页面行为，拆出 Chrome 查找、profile 与系统窗口绑定 |
-| `DesktopTextRecognition.cs`、`OfflineTextRecognition.cs` | `deskpilot/ocr/` 与 Skill 模型资源 | 保留离线、几何和身份语义，完成模型及许可核验 |
-| `src/DeskPilot.Flow/` 的通用 transport、检查、执行与 handoff | 可选 `src/deskpilot-cli/integrations/flow/` | 筛选实际保留机制并验证；不复制业务场景或把完整 JSON 变成首次操作前置条件 |
+| `src/WindowsAgent.Cli/Program.cs`、`AutomationEngine.cs` | `deskpilot/__main__.py`、`cli.py`、`session.py` | 用 Python 重写，保留公开结果和错误语义 |
+| `NativeMethods.cs`、Activity/Overlay | `deskpilot/platforms/` | 按三平台实现与测试，移除 WinForms/.NET 运行依赖 |
+| `ChromeCdp.cs` | `deskpilot/browser.py` 与 `platforms/` | 保留页面行为，拆出 Chrome 查找、profile 与系统窗口绑定 |
+| `DesktopTextRecognition.cs`、`OfflineTextRecognition.cs` | `deskpilot/screen.py` 与 Skill 模型资源 | 保留离线、几何和身份语义，完成模型及许可核验 |
+| `src/DeskPilot.Flow/` 的通用 transport、检查、执行与 handoff | Python 工具的会话、批处理与结果协议；实际宿主的调用代码 | 只提取必要机制到同一工具包，宿主调用公开协议；不复制另一个执行器、编译层或旧 Flow 格式 |
 | `src/DeskPilot.Flow/scenarios/xrain*.json` | 原业务所有者或旧仓历史 | 不进入通用交付与默认验收；需要重用时由业务任务重新核对数据和副作用 |
 | `deskpilot-core`、`browser`、`flow-evolution`、`testing` 的使用知识 | 新 Skill 的主入口与按需参考 | 重写相关内容，去掉旧仓引用、固定模型委派和旧治理要求；测试专题仅用于明确测试请求 |
-| `deskpilot-messaging` 的候选处理、转写和采集脚本 | 筛选后的 `operations/` 代码及 `references/messaging.md` | 算法与机械调用保留为代码；采集方法归参考；去掉对个人风格、草稿审批及完整聊天状态的强制依赖 |
-| `deskpilot-wechat-assistant` 的窗口/菜单/语音操作知识与机械函数 | `references/apps/wechat-windows.md`，必要工具另行提取 | 不复制整个 `run_group_wave.py`；具体布局须核对，参与策略、身份前缀、发言计数和自动进化不进入通用交付 |
+| `deskpilot-messaging` 的候选处理、转写和采集脚本 | Python 包中对应的观察/输入模块及使用参考 | 提取需要的函数，采集方法归参考；不另建消息模块层或强制依赖个人风格、草稿审批及完整聊天状态 |
+| `deskpilot-wechat-assistant` 的窗口/菜单/语音操作知识与机械函数 | 有实际使用需要时增加 `references/wechat-windows.md`，必要函数进入现有工具模块 | 不复制整个 `run_group_wave.py`；具体布局须核对，参与策略、身份前缀、发言计数和自动进化不进入通用交付 |
 | `cheng-zhang` 的风格、场景和逐稿审批 | 原独立 Skill | 不合并进通用 DeskPilot，也不成为 GUI 操作必读项 |
-| `dsh-plugin/` 的进程与工具接口 | 可选 `integrations/dsh/` | 核实消费者后接入新命令和完整 Skill；移除旧便携 exe、.NET 自举与 ZIP 下载链，避免重复维护方法正文 |
+| `dsh-plugin/` 的进程与工具接口 | 实际保留的 dsh 消费者源码归属 | 仅按已启用入口适配新命令与完整 Skill；不预设 DeskPilot 内置插件工程，旧便携 exe、.NET 自举与下载链退出新运行路径 |
 | 本地 fixture、工具测试与使用说明 | 对应源码测试与 Skill 参考 | 按新职责改写，不能把旧策略测试直接当作兼容要求；固定业务账号、站点和记录留给业务所有者 |
 | 原生启动器、.NET 安装脚本、便携 ZIP/OSS 发布链 | 完成切换后退出新产品 | 新默认交付走完整 Skill；不继续维护依赖旧仓库的隐藏下载路径 |
 
@@ -234,9 +220,9 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 
 ## 构建、检查与完成条件
 
-维护端沿用 skills-hub 的 `npm run build`、`build:check`、`index` 和 `check` 入口。新增分支汇集本项目源码、标准库安装/构建脚本、固定第三方文件、模型与许可，不改变 XRain 的既有打包结果。这些维护命令不进入用户客户端安装流程。
+维护端沿用 skills-hub 的 `npm run build`、`build:check`、`index` 和 `check` 入口。扩展现有代码同步入口，校验完整 Skill 中的固定第三方文件、模型与许可，不改变 XRain 的既有打包结果。这些维护命令不进入用户客户端安装流程。
 
-客户端构建由 Skill 自带 `build.py` 和 CPython 标准库执行，不使用打包前端、依赖解析或在线安装。维护端检查源码副本与输入清单一致，并在独立目录实际执行客户端安装脚本。随包文件过期、缺文件、引用逃逸、缺少传递依赖或依赖旧仓库时检查失败。
+客户端构建由 Skill 的 `install.py` 内部使用 CPython 标准库完成，不使用打包前端、依赖解析或在线安装。维护端检查 `scripts/install.py`、`scripts/deskpilot/` 与唯一维护源一致，校验 `vendor/manifest.json` 对应文件，并在独立目录实际执行安装脚本。随包文件过期、缺文件、引用逃逸、缺少传递依赖或依赖旧仓库时检查失败。
 
 现有 CI 已覆盖 Ubuntu、Windows、macOS 的 Node 检查。实施时为新核心补 Python 契约与独立安装验证；普通 CI 通过不证明屏幕权限、原生控件和交互桌面可用。真实平台检查属于交付该迁移所需的 Development 验证，本方案不自动建立另一项 SystemTest 或部署任务。
 
@@ -250,7 +236,7 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 | 工具可独立组合 | 本地合成页面和可见文本 fixture 可完成读取、明确输入、结果回读；无需人设版本、草稿审批业务状态或特定群聊。目标不明、旧引用及派发后未知结果仍返回真实状态 | 未实施 |
 | 原有关键语义保留 | 请求配对、超时/取消、旧引用拒绝、批次部分成功/结果不明、截图与 OCR 身份核对的定向测试 | 未实施 |
 | 三平台操作成立 | 在上述核定矩阵的真实交互桌面完成网页表单、原生控件、中文输入、截图/OCR、取消和清理；记录具体未支持项 | 未实施 |
-| 保留消费者能使用，退出项有归属 | 经筛选的 Flow 和实际保留 dsh 入口启动新核心；保留的机械辅助工具通过定向验证；旧群聊策略/状态不成为核心安装条件，用户数据去向明确 | 未实施 |
+| 保留消费者能使用，退出项有归属 | 实际保留宿主通过公开协议启动 Python 工具；必要批次、检查与偏差返回可用，无需旧 Flow 执行器；旧业务状态不成为核心安装条件，用户数据去向明确 | 未实施 |
 | Skill 的发现与执行有效 | 从普通自然语言任务选中正确入口，按实际观察完成操作；区分结构检查、作者走查与真实 Agent 执行证据 | 未实施 |
 | 可持续维护 | 本地构建可重现，完整目录更新不删除用户状态；随包依赖缺失、ABI 不匹配、权限拒绝、PATH 写入失败和未知动作结果分别报告并可恢复 | 未实施 |
 | 旧仓库可以归档 | 保留消费者已迁移，退出的业务工作流已明确处置；使用知识、代码与资源在新归属中完整，运行不依赖旧仓，历史来源和用户数据入口明确 | 未实施 |
@@ -260,7 +246,7 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 ## 实施顺序与归档条件
 
 1. 按上述迁移表完成职责取舍和实际消费者核对，移除旧业务策略的默认承诺。在 skills-hub 建立 Python 工具及完整 Skill，固定公开协议与随包依赖。先证明客户端仅凭受支持 Python 和随包文件，能完成本地构建、命令注册与 PATH 接入；同时验证三平台/ABI 文件能独立加载。
-2. 实现通用协议与 Chrome、Windows 控件、OCR、提示和取消能力；同步整理 Skill 主入口与按需参考。机械算法逐函数提取，Flow/dsh 只迁入选定的通用机制和消费者接口；不整体复制消息/微信脚本或旧业务场景。
+2. 在同一 Python 包实现通用协议与 Chrome、Windows 控件、OCR、提示和取消能力；同步整理 Skill 主入口与按需参考。提取必要机械算法，核对实际宿主的新协议接入；不新建 Flow、dsh 或消息业务子项目。
 3. 实现并验证 macOS 与 Linux 的平台后端。分别处理 X11、Wayland 和系统权限；证据不足的组合不标成支持。
 4. 在实际保留的消费者中验证完整 Skill，补齐安装、PATH、更新/卸载、恢复和模型许可说明。验证工具无需旧人设/审批状态或演示站即可使用；需要应用知识时可由新 Skill 完成任务。更新对应完整目录，由客户端重建并更新命令入口。
 5. 核对保留消费者完成、退出项有明确归属、文档与运行资源独立后，在旧仓入口注明新维护地址与使用入口，保留 Git 历史，再归档旧仓。用户数据不随归档删除。
