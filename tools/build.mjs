@@ -1,5 +1,6 @@
 import { build } from 'esbuild';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,3 +24,69 @@ for (const [path, text] of outputs) {
   } else { await mkdir(dirname(path), { recursive: true }); await writeFile(path, text); }
 }
 console.log(`${check ? 'Verified' : 'Built'} standalone XRain CLI (${Buffer.byteLength(result.outputFiles[0].text).toLocaleString('en-US')} bytes; only Node built-in runtime imports).`);
+
+// DeskPilot is delivered as source plus fixed resources. Client builds use only Python.
+const deskpilot = join(root, 'skills/shzw-deskpilot-cli');
+const source = join(root, 'src/deskpilot-cli');
+async function walk(directory, prefix = '') {
+  const paths = [];
+  for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (entry.name === '__pycache__' || entry.name.endsWith('.pyc')) continue;
+    if (entry.isSymbolicLink()) throw new Error(`Bundled input cannot be a symlink: ${join(directory, entry.name)}`);
+    const path = prefix + entry.name;
+    if (entry.isDirectory()) paths.push(...await walk(join(directory, entry.name), path + '/'));
+    else paths.push(path);
+  }
+  return paths;
+}
+const digest = content => createHash('sha256').update(content).digest('hex');
+const generated = [['install.py', await readFile(join(source, 'install.py'))]];
+for (const path of await walk(join(source, 'deskpilot'))) {
+  if (!path.endsWith('.py')) throw new Error(`Unexpected DeskPilot source: ${path}`);
+  generated.push(['deskpilot/' + path, await readFile(join(source, 'deskpilot', path))]);
+}
+const scripts = join(deskpilot, 'scripts');
+if (check) {
+  const expected = new Set(generated.map(([path]) => path));
+  for (const path of await walk(scripts)) if (!expected.has(path)) throw new Error(`Unexpected generated DeskPilot source: ${path}`);
+}
+if (!check) {
+  await mkdir(scripts, { recursive: true });
+  const expected = new Set(generated.map(([path]) => path));
+  for (const path of await walk(scripts)) if (!expected.has(path)) await rm(join(scripts, path));
+}
+for (const [path, content] of generated) {
+  const target = join(scripts, path);
+  if (check) {
+    let actual;
+    try { actual = await readFile(target); } catch {}
+    if (!actual?.equals(content)) throw new Error(`Generated DeskPilot source is stale: ${path}`);
+  } else {
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, content);
+  }
+}
+const manifestPath = join(deskpilot, 'vendor/manifest.json');
+const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+const fixed = manifest.files.filter(item => !item.path.startsWith('scripts/'));
+const declared = new Set();
+for (const item of fixed) {
+  if (declared.has(item.path) || !/^(?:vendor|assets)\//.test(item.path) || item.path.includes('..') || item.path.includes('\\'))
+    throw new Error(`Invalid or duplicate fixed resource: ${item.path}`);
+  declared.add(item.path);
+  const content = await readFile(join(deskpilot, item.path));
+  if (content.length !== item.bytes || digest(content) !== item.sha256) throw new Error(`Fixed resource changed: ${item.path}`);
+  if (!item.source || !item.license) throw new Error(`Fixed resource lacks provenance or license: ${item.path}`);
+}
+for (const directory of ['vendor', 'assets']) for (const path of await walk(join(deskpilot, directory))) {
+  if (directory === 'vendor' && path === 'manifest.json') continue;
+  if (!declared.has(directory + '/' + path)) throw new Error(`Unlisted fixed resource: ${directory}/${path}`);
+}
+const expectedManifest = { ...manifest, files: [...fixed, ...generated.map(([path, content]) => ({
+  path: 'scripts/' + path, bytes: content.length, sha256: digest(content), component: 'DeskPilot source', license: 'repository', source: 'src/deskpilot-cli/' + path,
+}))].sort((a, b) => a.path.localeCompare(b.path)) };
+const expectedText = JSON.stringify(expectedManifest, null, 2) + '\n';
+if (check) {
+  if (await readFile(manifestPath, 'utf8') !== expectedText) throw new Error('DeskPilot source manifest is stale. Run npm run build.');
+} else await writeFile(manifestPath, expectedText);
+console.log(`${check ? 'Verified' : 'Prepared'} complete DeskPilot Skill (${generated.length} Python source files; ${fixed.length} fixed resources).`);

@@ -7,7 +7,7 @@ Use this reference only when the client owns a dense settings, management, form,
 - Text inputs and textareas use the caret as the primary focus cue. Do not add a rounded outer focus ring, halo, shadow, or boundary shift except for real error, disabled, or read-only semantics; keep keyboard focus indicators for buttons, links, selects, checkboxes, and radios.
 - Audit shared input primitives and route-local controls together. Remove decorative outline, `box-shadow`, and `focus-within` effects without weakening semantic states or accessibility.
 - Search growing collections only after the user enters a non-empty term. Do not prefetch candidates when a picker opens or while the query is empty; keep the placeholder as the primary instruction and use one centered visual for the pre-search empty state.
-- A modal's close action owns the top-right safe area. Remove duplicate headings and keep search, empty, loading, and result content clear of it. Add a focused contract test and recheck representative form, search, modal, chat, profile, model, channel, auth, and list surfaces at desktop and narrow widths.
+- A modal's close action owns the top-right safe area. Keep search, empty, loading, and result content clear of it. Recheck affected consumers when a shared control changes; select tests and viewport checks according to the changed behavior.
 
 ## Scope And Precedence
 
@@ -21,6 +21,14 @@ Before using these checks, identify the actual UI owner and load the project's o
 A generic recommendation never outranks an owned product rule. If sources conflict, trace the decision to one owner and fix or clarify that owner. Do not satisfy both documents by adding another container, component variant, or exception.
 
 Treat each check as one of three strengths: an **invariant** protects product responsibility, state truth, accessibility, or a shared owner; a **default** is the smallest proven structure and may yield to an owned product decision with evidence; a **heuristic** is taste-level guidance and cannot justify adding UI or workflow. Keep only invariants and evidence-backed defaults in durable project guidance.
+
+## 按截图和反馈修订
+
+截图、圈注或多次纠正涉及多个位置时，先把每处位置、期望变化和需保留的行为写在本次工作记录中。查看原图、实际界面及对应源码；需要参考其他产品的行为时，先查其真实定义或实现，不凭外观猜测设置和取值。
+
+按记录实施，并复用现有组件与数据合同。只有视觉调整授权时，保留字段值、保存及原有业务行为。对确无依据的可见设置，按用户要求和产品事实处理；无法判断的部分单独标明。
+
+完成后，在实际页面逐项对照原图与工作记录。核对受影响的选择、保存和再次进入；相关弹层及窄屏仅在本次改动影响时检查。无法打开实际页面时报告未复验位置，不用源码或静态测试代替视觉证据。单项简单文案修改无需额外建立核对表。
 
 ## Decision Contract
 
@@ -63,14 +71,14 @@ Treat ProductContract, CurrentDesign, and technical boundaries as design inputs 
 
 ## Evidence Contract
 
-Every retained rule needs evidence:
+Choose evidence for the affected rule and behavior:
 
 | Rule | Evidence |
 |---|---|
-| Title/action ownership, control grouping, count/status semantics | Focused source or contract test |
-| Visibility basis, user-facing copy, and forbidden internal explanations | String/source contract test plus review of every rendered state and overlay |
+| Title/action ownership, control grouping, count/status semantics | Inspect the affected source and rendered surface; test a changed behavioral contract when needed |
+| Visibility basis, user-facing copy, and forbidden internal explanations | Review the affected visible text, states, sample data and overlays in the rendered surface |
 | Boundary count, sparse density, spacing, and hierarchy | Browser screenshot or computed-style check |
 | Responsive wrapping and no overflow | Desktop and named narrow-width browser smoke |
 | Destructive mutation, pending, failure, and focus return | Focused interaction test |
 
-Review at a supported desktop width and a named narrow width such as `390 x 844` when the product supports it. Do not report a surface as finished when a required gate is only described and has no matching source, test, or browser evidence. Do not create a new permanent artifact just to manufacture evidence; route unresolved facts to the product or component owner.
+Review the affected supported viewport and, when the change affects responsive behavior, a named narrow width such as `390 x 844`. Do not report a surface as finished when required evidence is missing. Do not create a permanent artifact solely for evidence; route unresolved facts to the product or component owner.

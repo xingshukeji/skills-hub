@@ -34,7 +34,8 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。 |
 | [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。 |
 | [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，包括工程简化、退役及反复缺陷。纯方案评审走方案入口；运行故障先定位故障链。 |
-| [shzw-delivery](skills/shzw-delivery/SKILL.md) | 查询或执行现有 Jenkins 流水线、跟踪构建及制品；仅按明确授权发布、部署或回滚。查询只读取，执行沿用已确认作业、操作和目标；构建、Git 推送及开发完成不自动发布或部署。 |
+| [shzw-delivery](skills/shzw-delivery/SKILL.md) | 发布责任项目的公共包，或查询和执行已有流水线、部署及回滚。公共包支持成员凭据直接发布，无需 CI 仓库；真正发布或部署沿用明确制品、目标与授权，构建和 Git 推送不自动授权发布。 |
+| [shzw-deskpilot-cli](skills/shzw-deskpilot-cli/SKILL.md) | 通过本机 Python 工具观察和操作桌面窗口、原生控件与 Chrome 页面，支持截图、离线中文 OCR、输入、短批次与取消。用于明确要求操作本机应用或网页的任务。优先使用已有业务 API；本技能不决定聊天人设、发言策略或业务授权。Windows 10 和 Ubuntu 22.04 GNOME/X11 已有操作证据，macOS 尚待实测，Wayland 桌面操作尚不可用。 |
 | [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅面向人的中文开发文档、上手指南、教程、教材与课程，包括过浅或重复的教学内容。操作指南核对前提、命令与结果；教学内容按任务、深度和实例组织。AGENTS、正式契约与 Runbook 治理走工作空间维护。 |
 | [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复或排查项目服务与 Workforce 运行问题，包括页面、智能体、工具、旧版本及登录或会话缓慢。结合前文和实际环境定位入口、版本与故障阶段；明确的登录、403 或人员授权问题走访问权限入口。 |
 | [shzw-skill-evolution](skills/shzw-skill-evolution/SKILL.md) | 根据实际执行与用户纠偏诊断、修正或合并技能，判断技能选错、职责重叠、正文无效、知识或工具失配。用于“skill 没起作用”“为什么还要反复补充”“吸收这次经验”“技能太多合并一下”，以及项目已授权的主动技能改进。单次代码缺陷、环境失败或新需求不自动归因于技能。 |
@@ -73,7 +74,7 @@ XRain CLI 和 JavaScript 辅助脚本需要 Node.js 22.12+，推荐 24；CLI 依
 
 源码在 src/xrain-cli，生成制品与第三方声明在 skills/shzw-xrain-cli/scripts，不手工修改生成文件。
 
-DeskPilot 的跨平台迁移与完整 Skill 交付见 [方案](src/deskpilot-cli/DESIGN.md)。已确定采用 Python：操作知识放在 Skill 及 references，确定性工具维护为代码；旧群聊策略、个人风格和演示业务场景不整体迁入。完整 Skill 自带工具源码与固定依赖，由客户端完成本地构建及 PATH 接入，不使用客户端包管理器。迁移验证完成后归档 window10GUI；当前尚未交付新的 DeskPilot CLI 或 Skill。
+DeskPilot 的 [完整 Skill](skills/shzw-deskpilot-cli/SKILL.md) 自带 Python 工具源码、固定依赖和离线 Tiny OCR 模型，由客户端使用 CPython 3.13 完成本地构建及 PATH 接入，无需客户端包管理器或 .NET。操作知识在 Skill 及 references 中维护，群聊人设、参与策略和演示业务不进入通用工具。平台实测范围与旧仓迁移条件见[设计及验收表](src/deskpilot-cli/DESIGN.md)；未验证组合不能算作旧仓归档依据。
 
 ```text
 npm ci

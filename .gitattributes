@@ -1,2 +1,4 @@
 * text=auto eol=lf
 *.appkg binary
+skills/shzw-deskpilot-cli/vendor/** -text
+skills/shzw-deskpilot-cli/assets/** -text

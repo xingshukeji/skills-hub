@@ -10,3 +10,5 @@ coverage/
 .local-validation/
 skills/**/bin/
 skills/**/obj/
+__pycache__/
+*.pyc

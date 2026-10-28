@@ -1,17 +1,17 @@
 # DeskPilot 迁入 Skills Hub 与跨平台 Skill 交付方案
 
-Status: Proposed
+Status: Active
 Kind: Decision
 Scope: skills-hub / deskpilot-cli / shzw-deskpilot-cli
 Owner: skills-hub 维护者
-Updated: 2026-10-28
+Updated: 2026-10-29
 Depends On:
 - ../../AGENTS.md
 - ../../tools/build.mjs
 - ../../tests/installed.test.mjs
 - ../../skills/shzw-xrain-cli/scripts/install-cli.mjs
 
-本方案是 DeskPilot 新实现与迁移的唯一设计入口。当前只交付方案；下文的目录、命令和支持矩阵均为拟实施设计，不表示新 CLI、Skill 或三平台支持已经交付。本文由 skills-hub 维护，后续实施在此更新设计，不在 window10GUI 建立另一套新实现。
+本文是 DeskPilot 新实现与迁移的唯一设计入口。Python 工具、安装入口与完整 Skill 已在本仓实现；Windows 10 和 Ubuntu 22.04 GNOME/X11 已有独立目录操作证据。macOS 仍缺真实桌面验证，Wayland Portal 未实现，不能宣称三平台全部可用或旧仓已经退役。实际进度由验收表区分；不在 window10GUI 建立另一套实现。
 
 ## 交付决定
 
@@ -20,11 +20,11 @@ Depends On:
 | 像 xrain-cli 一样由 Skills Hub 交付 | XRain 源码在 `src/xrain-cli/`，构建制品在完整 Skill 目录，独立复制测试不依赖源码仓 | 新源码放 `src/deskpilot-cli/`，完整交付目录放 `skills/shzw-deskpilot-cli/` | skills-hub 同时拥有源码、构建、使用知识和维护；宿主安装完整目录 | 不新增业务数据库 |
 | 彻底移除 .NET | Windows 核心依赖 .NET 10、UIA、Win32、WinForms 和 Windows OCR | 已确定用 Python 重写核心，通过各系统原生接口执行；最终运行链路不调用旧 exe、CLR 或 .NET 自举程序 | CLI 提供统一命令与 JSON/NDJSON；Python 为用户已确认的实现语言 | 原会话引用本就短期有效，不迁移进程内 ID |
 | Windows、macOS、Linux 使用同一 Skill | 现有实现只承诺 Windows 10 x64 | 一个入口按能力探测选择平台实现，浏览器与通用协议共用 | Agent 使用同一方法；平台后端负责真实系统差异 | 平台权限由系统持有；Chrome profile 和显式消息状态仍在用户侧 |
-| 用户安装后可以独立使用 | 旧便携包和技能引用包外 `bin/win-agent.exe`；新 Hub 中尚无 DeskPilot | 完整 Skill 自带本项目源码、安装/构建脚本、固定依赖文件与模型；客户端从这些文件构建程序并注册命令 | 从安装后的 Skill 启动；安装脚本完成本地构建与用户级 PATH 接入，不调用包管理器 | 只新增构建缓存和安装归属记录；业务状态留在调用方目录 |
+| 用户安装后可以独立使用 | 旧便携包引用包外 `bin/win-agent.exe`；新完整 Skill 已能在独立目录构建 | 完整 Skill 自带本项目源码、安装/构建脚本、固定依赖文件与模型；客户端从这些文件构建程序并注册命令 | 从安装后的 Skill 启动；安装脚本完成本地构建与用户级 PATH 接入，不调用包管理器 | 只新增构建缓存和安装归属记录；业务状态留在调用方目录 |
 | 保留可用能力并修正职责 | 旧仓同时包含通用执行、使用方法、应用操作与具体群聊/演示业务规则 | 按职责重新组织：操作知识随 Skill，确定性工具维护为代码，具体业务策略不进入通用交付 | Agent 读取按需参考作判断，工具执行明确请求；业务规则归对应业务 Skill 或当前任务 | 通用工具不建立群聊业务状态；实际保留消费者的状态单独核对 |
 | 完成后归档当前项目 | window10GUI 仍是现有实现来源，本机旧入口仍存在 | 在完整 Skill 独立使用和保留消费者切换通过后，将旧仓库设为只读历史来源 | 用户以后从 skills-hub 获取与更新 | 不删除用户 profile、消息状态或已安装环境来完成归档 |
 
-已确认的目标是 Python 实现、三平台、无 .NET、源码与用户交付均进入 skills-hub，以及迁移完成后归档旧项目。完整 Skill 包含用户端构建所需内容，客户端完成本地构建、初始化和 PATH 接入；客户端不使用包管理器。迁移按下面的职责取舍重新设计，不能因为旧目录、脚本或测试已经存在就整体继承。本次授权结果是修订方案，不包含实施、修改当前机器 PATH、替换用户安装或立即归档仓库。
+已确认 Python、三平台、无 .NET、源码与用户交付均进入 skills-hub，以及迁移完成后归档旧项目。完整 Skill 包含用户端构建所需内容，客户端完成本地构建、初始化和 PATH 接入，不使用包管理器。用户已明确要求实施，并授权在原共享 dev 主机准备图形桌面完成 Linux 验证；这不授权删除保留数据或用未验证平台结果提前归档旧仓。
 
 ## Skill、工具与业务规则的归属
 
@@ -127,9 +127,9 @@ skills-hub/
 
 `vendor/manifest.json` 只维护一份，列出实际随包依赖及其传递依赖的文件、来源、许可、平台、架构、Python ABI 和摘要。代码同步检查与它共用实际输入，不再维护另一份依赖清单。没有匹配原生文件或许可不允许交付时，该组合不能标为可用；客户端不依靠开发机器已有包或联网补装。
 
-独立安装验证只复制完整 Skill，从另一个工作目录完成构建与调用；不提供 `src/`、旧仓库或维护者固定路径。实现时才创建真实文件，当前不提交空骨架。
+独立安装验证只复制完整 Skill，从另一个工作目录完成构建与调用，不提供 `src/`、旧仓库或维护者固定路径。对应的 [独立安装测试](../../tests/deskpilot-installed.test.mjs) 已接入仓库检查；原生交互验证按平台显式执行。
 
-目前 skills-hub 没有 `文档/WORKSPACE_STRUCTURE.md`。本方案以 `Kind: Decision` 放在目标源码旁，由根 AGENTS 和 README 明确路由；不为这一个方案复制旧仓库的文档控制面。未来需要恢复的实施任务按仓库入口登记到 Workforce，本次方案不创建实施活动或候选项。
+skills-hub 没有 `文档/WORKSPACE_STRUCTURE.md`，本文以 `Kind: Decision` 放在目标源码旁，由根 AGENTS 和 README 路由。可恢复的实施进度按仓库入口在 Workforce 同一个活动登记，不复制旧仓控制面。
 
 ## 用户如何使用
 
@@ -137,7 +137,7 @@ skills-hub/
 
 首次使用由客户端调用 Skill 自带的 `install.py`，完成本机环境识别、本地构建、无桌面副作用的启动检查、命令注册和用户级 PATH 接入。系统辅助功能、屏幕访问等权限按平台实际要求由用户授予。构建或启动失败时保留原可用安装，不发送桌面业务请求，也不通过重放业务请求恢复。
 
-以下为拟交付命令，当前尚不可执行。`<skill目录>` 由宿主提供的安装路径或 `resourceBase.path` 解析：
+以下命令已经实现；平台是否可用仍以实际诊断和验收为准。`<skill目录>` 由宿主提供的安装路径或 `resourceBase.path` 解析：
 
 ```text
 python "<skill目录>/scripts/install.py" --json
@@ -178,13 +178,13 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 
 继续使用 CDP 处理 Chrome 页面导航、查询、填值、点击与等待。浏览器路径、profile 位置、窗口激活和 target 与系统窗口的绑定转为平台适配，不能只移植 WebSocket 代码就宣称浏览器迁移完成。保留已连接 target、精确 endpoint 失败处理、浏览器与 helper 独立生命周期，以及结果回读。
 
-建议的首批验证基线如下。操作系统最低版本、CPU 架构、Python ABI 和固定依赖文件需要在实施前通过独立加载与真实设备核定；本表是建议范围，不是已验证兼容声明。
+当前随包 ABI 是 64 位、标准 GIL 的 CPython 3.13，资源清单覆盖 Windows x64、macOS arm64/x64 和 Linux x64。下表分别记录已有证据和未验证组合；建议版本不构成已经完成的兼容声明。
 
 | 平台 | 建议验证基线 | 执行路线 | 必须单独确认的行为 |
 |---|---|---|---|
-| Windows | 现有 Windows 10 build 19041+ x64，并覆盖 Windows 11 x64 | Python UIA/Win32 绑定；原生键鼠、截图和窗口管理 | 中文输入、DPI、多屏、瞬态弹层、管理员窗口边界、提示与前台恢复 |
-| macOS | macOS 14+，Apple Silicon 与 Intel 各有实际证据 | PyObjC 对接辅助功能、Quartz、AppKit 与截屏接口 | 辅助功能/屏幕权限、坐标缩放、应用控件可见性、合成输入与提示 |
-| Linux | Ubuntu 24.04 x64 的 GNOME，分别覆盖 X11 与 Wayland | AT-SPI；X11 输入/截图；Wayland 使用桌面提供的 Portal 等接口 | 控件读取、屏幕与窗口归属、输入授权、窗口激活差异和桌面后端可用性 |
+| Windows | Windows 10 build 19045 x64 已有证据；Windows 11 尚未验证 | comtypes/UIA 与 ctypes/Win32；原生键鼠、截图和窗口管理 | DPI、多屏、瞬态弹层、管理员窗口边界和真实应用仍按实际证据判断 |
+| macOS | 14+ 为待核定建议范围；Apple Silicon、Intel 均缺真实桌面证据 | ctypes 直接对接辅助功能、Quartz、AppKit；不依赖 PyObjC 安装 | 辅助功能/屏幕权限、坐标缩放、应用控件、合成输入、截图与提示均待实测 |
+| Linux | Ubuntu 22.04 x64、GNOME Flashback/Metacity/Xvfb 的 X11 会话已验证；其他组合未验证 | AT-SPI、D-Bus、X11/XTest；Wayland Portal 会话尚未实现 | 已覆盖控件、中文、可信截图/OCR、遮挡拒绝和 Chrome；状态面板与动作轨迹尚未对齐 |
 
 不能用 X11 结果代表 Wayland，也不能把 Ubuntu 一种桌面环境的结果外推为所有 Linux 发行版。未验证组合显示为未验证；缺少真实桌面证据时，该平台不能计入“完成后三平台可用”的归档条件。锁屏、服务会话和安全桌面不在原产品能力内，也不因迁移变成承诺。
 
@@ -228,18 +228,18 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 
 | 验收项 | 必要证据 | 当前状态 |
 |---|---|---|
-| 独立目录可构建与使用 | 把完整 Skill 复制到含空格的临时目录，从另一个工作目录执行安装、本地构建、help、doctor、NDJSON 和本地表单；不提供两个源码仓；同时覆盖只读 Skill 与用户可写构建目录 | 未实施 |
-| 无客户端包管理器 | 在仅具备受支持 Python 和系统前置条件、无第三方 Python 安装且无法调用包管理器的环境中，断开软件包下载网络后完成首次构建和操作；核查没有包管理器子进程或隐藏联网补装 | 未实施 |
-| PATH 与安装生命周期 | 三平台用户级 PATH 正确接入，新终端可解析短命令；当前客户端使用绝对路径立即调用；重复安装不重复写入，路径含空格可用，冲突不覆盖，更新失败保留旧结果，卸载只回收本工具内容 | 未实施 |
-| 无 .NET 依赖 | 新进程树、依赖和构建均不需要 .NET；验证机缺少 .NET 时实际完成目标操作；没有自动回退旧 exe | 未实施 |
-| 知识与代码职责正确 | 从完整 Skill 能找到安装、操作、平台和失败恢复知识，执行无需读取旧仓维护文档；工具代码无固定人设、群聊参与分类/默认发言限制、演示租户或业务数据。仅安装和启动不会发起场景操作 | 未实施 |
-| 工具可独立组合 | 本地合成页面和可见文本 fixture 可完成读取、明确输入、结果回读；无需人设版本、草稿审批业务状态或特定群聊。目标不明、旧引用及派发后未知结果仍返回真实状态 | 未实施 |
-| 原有关键语义保留 | 请求配对、超时/取消、旧引用拒绝、批次部分成功/结果不明、截图与 OCR 身份核对的定向测试 | 未实施 |
-| 三平台操作成立 | 在上述核定矩阵的真实交互桌面完成网页表单、原生控件、中文输入、截图/OCR、取消和清理；记录具体未支持项 | 未实施 |
-| 保留消费者能使用，退出项有归属 | 实际保留宿主通过公开协议启动 Python 工具；必要批次、检查与偏差返回可用，无需旧 Flow 执行器；旧业务状态不成为核心安装条件，用户数据去向明确 | 未实施 |
-| Skill 的发现与执行有效 | 从普通自然语言任务选中正确入口，按实际观察完成操作；区分结构检查、作者走查与真实 Agent 执行证据 | 未实施 |
-| 可持续维护 | 本地构建可重现，完整目录更新不删除用户状态；随包依赖缺失、ABI 不匹配、权限拒绝、PATH 写入失败和未知动作结果分别报告并可恢复 | 未实施 |
-| 旧仓库可以归档 | 保留消费者已迁移，退出的业务工作流已明确处置；使用知识、代码与资源在新归属中完整，运行不依赖旧仓，历史来源和用户数据入口明确 | 未实施 |
+| 独立目录可构建与使用 | 完整只读 Skill、含空格及 `% ! &` 的路径、不同工作目录；实际安装、help、doctor、NDJSON、原生窗口和浏览器表单，不提供源码仓 | Windows、Linux 已有安装后证据；macOS 待验证。最终源码修正后补受影响路径 |
+| 无客户端包管理器 | 只使用受支持 Python、系统前置条件和随包文件；核查安装入口、构建子进程及运行资源，无依赖解析、下载和包管理调用 | 已实现；独立进程使用 `-I -S -B`，Windows/Linux 从固定文件构建并操作。未进行整机断网测量 |
+| PATH 与安装生命周期 | 用户级 PATH、新进程解析、重复安装、特殊路径、冲突、更新失败和有归属的卸载 | Windows 注册表及新 PowerShell、Linux 新登录 bash 已验证；bash/zsh/fish 配置失败恢复有定向检查。macOS 的实际 shell 生命周期待验证 |
+| 无 .NET 依赖 | 工具源码、构建和运行不调用 CLR、旧 exe 或 .NET 自举 | 新运行链为 Python、系统接口和随包原生库；Windows/Linux 独立安装操作不依赖旧仓或旧 exe。没有无 .NET 的 Windows 机器证据 |
+| 知识与代码职责正确 | 完整 Skill 的安装、命令、桌面、浏览器及按需应用知识可独立读取；不含旧人设、参与策略、演示业务或聊天数据库 | 已按该归属交付；安装与启动不发起业务场景 |
+| 工具可独立组合 | 合成页面、原生控件和可见文字可读取、输入、回读；目标不明、旧引用及未知结果仍准确返回 | Windows/Linux 合成窗口和 Chrome 已有证据；Windows Electron/React 的单次语义赋值、拒绝输入、中文键盘回读及同流前台恢复已通过独立安装验证 |
+| 原有关键语义保留 | 请求配对、预算、并发取消及排队拒绝、旧引用、批次已完成前缀/未知结果、可信截图和 OCR 身份 | 已有定向检查；安装后的 Linux 进程取消、截图清理和遮挡拒绝也已通过。最终源码检查随构建核对 |
+| 三平台操作成立 | 各核定桌面完成网页、控件、中文、截图/OCR、取消和清理，并明确未支持项 | Windows 10 和上述 Linux X11 组合已有证据；macOS 未验证，Wayland 未实现。Linux 只有目标边框，提示面板和轨迹未对齐 |
+| 保留消费者能使用，退出项有归属 | 实际消费者通过公开协议操作；退出的旧 Flow、插件与业务状态有明确归属，不批量改未知 profile | 新 CLI 已被实际桌面任务使用；Windows 修复已安装，实际客户端已回读页面地址并恢复前台。外来工具覆盖仍被拒绝；覆盖窗口消失后，同一已安装构建的可信截图、中文 OCR 和真实遮挡拒绝均已补验通过。本机旧 dsh profile 未发现启用项；`D:\win-agent` 和调用方原状态保留，未宣称全部切换 |
+| Skill 的发现与执行有效 | 自然语言选入口、按当前观察执行；结构检查与作者走查不当作独立模型测量 | 已有结构检查、作者执行及实际消费反馈；没有独立的入口选择或模型效果测量 |
+| 可持续维护 | 确定性同步、固定资源摘要与许可、完整目录更新；缺失资源、ABI、PATH 和未知动作结果有明确恢复 | 构建、清单和生命周期检查已接入；macOS 实机与后续源码的最终受影响复验仍待补齐 |
+| 旧仓库可以归档 | 三平台及保留消费者满足上述条件，知识、源码、资源和用户数据入口均有归属 | 未满足。window10GUI、Git 历史、旧安装和调用方数据保留 |
 
 同一来源和版本的有效证据可以复用；改动影响了哪条路径，就补验证哪条路径。测试数量、编译成功和文档校验不替代用户实际安装后的操作结果。依赖文件、许可、目标设备或原生能力存在阻断时，先完成独立部分，并明确保留缺口。
 
@@ -253,7 +253,7 @@ CLI 不新增模型规划、后台调度服务、MCP Server 或业务数据库�
 
 归档条件是迁移实施与消费验证完成，不是本方案完成。当前任务不会设置 GitHub 归档状态、归档聊天、删除 checkout、覆盖 `D:\win-agent`、发布包或修改用户宿主配置。
 
-Python、客户端不使用包管理器、完整源码与依赖随 Skill 交付、客户端本地构建及 PATH 接入均已确认。三平台版本表仍是首批建议基线；具体 Python ABI、原生文件可分发性、模型许可/体积和真实 macOS/Linux 桌面证据需要在实施时核定。这些缺口不能通过 Windows 模拟测试、仅复制 Python 源码或恢复在线安装依赖来代替。
+Python、客户端不使用包管理器、完整源码与依赖随 Skill 交付、客户端本地构建及 PATH 接入均已确认。当前固定资源约 186 MB，来源、原生 ABI、逐文件 SHA-256 与许可位于 `vendor/manifest.json`。Windows 和 Linux 的实际证据按上述范围保留；真实 macOS、Wayland 与活动提示缺口不能用模拟测试或在线补依赖代替。
 
 ## 依据
 
@@ -261,4 +261,5 @@ Python、客户端不使用包管理器、完整源码与依赖随 Skill 交付�
 - 旧实现基线：[window10GUI / 9221d6c9270a8cf66f2fd5a2ffb84280d2f9dc72](https://github.com/chengzhang0528/window10GUI/tree/9221d6c9270a8cf66f2fd5a2ffb84280d2f9dc72)。本次查阅了产品契约、当前设计、C# 源码、Flow、dsh 插件及桌面消息相关完整资源目录。该链接是历史依据，不是用户运行依赖。
 - [pywinauto](https://github.com/pywinauto/pywinauto) 提供 Windows Win32/UIA 接入；[PyObjC 框架绑定](https://pyobjc.readthedocs.io/en/latest/notes/framework-wrappers.html)提供 macOS 系统框架访问；[AT-SPI](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/index.html)提供 Linux 辅助功能接口。现成接口存在不代表本项目已经适配。
 - [XDG RemoteDesktop Portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.RemoteDesktop.html)定义会话、用户授予的输入设备与屏幕协作接口。Wayland 支持需按实际桌面后端核验。
-- Python 标准库 [zipapp](https://docs.python.org/3/library/zipapp.html)支持从本地 Python 目录创建可执行归档；原生扩展必须放在文件系统中，并匹配目标架构。[ctypes](https://docs.python.org/3/library/ctypes.html)提供系统共享库调用，[winreg](https://docs.python.org/3/library/winreg.html)提供 Windows 注册表访问。上述机制支持所提本地构建与接入路线，具体依赖文件组合和三平台安装行为尚未实现或验证。
+- Python 标准库 [zipapp](https://docs.python.org/3/library/zipapp.html)支持从本地 Python 目录创建可执行归档；原生扩展放在文件系统中并匹配目标架构。[ctypes](https://docs.python.org/3/library/ctypes.html)提供系统共享库调用，[winreg](https://docs.python.org/3/library/winreg.html)提供 Windows 注册表访问；实际组合和安装证据以上表与源码检查为准。
+- Linux 命名目标、图形生命周期及原始回执由 xrain-cicd 的 [RUN-0019](../../../xrain-cicd/文档/运行/RUN-0019-DeskPilotLinux验证桌面.md)和[验证记录](../../../xrain-cicd/records/2026-10-29-dev-32618-deskpilot-gui.json)持有，Skill 使用者不需要读取这些内部环境资料。

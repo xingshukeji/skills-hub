@@ -1,0 +1,4 @@
+interface:
+  display_name: "DeskPilot 桌面与浏览器操作"
+  short_description: "观察本机窗口和网页，执行明确操作并回读结果，支持离线中文识别"
+  default_prompt: "使用 $shzw-deskpilot-cli 观察当前目标应用，完成我的操作并核对实际结果。"
