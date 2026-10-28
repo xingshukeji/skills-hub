@@ -1,6 +1,6 @@
 ---
 name: shzw-workforce-business-development
-description: 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、业务页面与智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。
+description: 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、记录文件导入导出与业务编排、业务页面和智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
@@ -35,7 +35,7 @@ metadata:
 | 业务落地、长主线复用及跨环节衔接 | [业务主线](references/business-mainlines.md) |
 | 需求复用与模型 | [对象自带能力](references/object-foundation.md)、[建模](references/modeling.md) |
 | 承载方式与预置资源 | [平台与业务](references/platform.md)、[初始化基础](references/initialized-platform.md) |
-| 接口与数据操作 | [业务 API](references/business-api.md)、[批量/统计/导出](references/data-operations.md) |
+| 接口、数据及文件导入导出 | [业务 API](references/business-api.md)、[批量/统计/文件操作](references/data-operations.md) |
 | 权限与记录协作 | [授权](references/authorization.md)、[人员/组织/分享/交接](references/organization-and-collaboration.md) |
 | 外部系统与配置 | [集成](references/integration.md)、[变量/设置/Token](references/configuration-and-api.md) |
 | 自动执行与时间 | [函数/Trigger/Routine](references/automation.md)、[地区与日期](references/regional-context.md) |

@@ -13,6 +13,8 @@
 
 编排使用结构化输入与受控 JavaScript；Routine 选择编排、固定输入和调度。人工审批用原系统流程或业务状态/操作与 Task 协作实现，不将其当作拖拽审批流或自主智能体。
 
+导入 XLSX 时也可绑定现有业务编排，用于来源转换、身份规范化、候选准备及批次校验。导入使用受限执行 profile，不能照搬下方普通编排的写入和投递调用；阶段、文件入口和回导边界见[导入中的业务编排](data-operations.md#导入中的业务编排)。
+
 ## 编排的调用模型
 
 `GET /api/orchestration/v1/callables` 返回数组，含 key/source/label/helpText/signature/implementation。signature/implementation 可为 null，需结合 helpText 与合同，不保证存在完整 JSON Schema。使用实际 key：

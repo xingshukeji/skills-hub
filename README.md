@@ -12,6 +12,16 @@
 
 XRain 是业务应用平台，支持新业务建模，也支持对管理完善的已有系统使用业务编排转接接口，无需新增业务数据模型。XRain Workforce 是人与 AI 协作产品，接入这些业务操作和已有企业服务。
 
+XRain 已实现下列业务数据能力，可在建设应用时优先考虑复用：
+
+| 需要完成的事 | 平台能力与参考 |
+| --- | --- |
+| 用文件导入或维护业务记录 | 在线生成 XLSX 模板，预览新增、修改和删除，再提交整批并查询结果；详见[文件导入与导出](skills/shzw-workforce-business-development/references/data-operations.md#文件导入与导出) |
+| 按业务规则整理来源数据 | 导入时可绑定业务编排，对来源行做转换、拆合、身份规范化和批次校验；见[导入中的业务编排](skills/shzw-workforce-business-development/references/data-operations.md#导入中的业务编排) |
+| 导出并继续维护记录 | 按权限导出筛选结果或选中记录，区分可重新导入的维护文件和仅用于阅读的展示文件；见[文件导入与导出](skills/shzw-workforce-business-development/references/data-operations.md#文件导入与导出) |
+
+这些是 XRain 平台能力；使用前需核对目标环境的服务、组件版本和当前用户权限。CLI 和 SDK 可用的方法以各自版本为准。
+
 SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI 是终端工具。SDK 按项目制品渠道取得，不能从本仓公开推断 SDK 已在公共 npm 发布。具体取得方式与版本见[官方 SDK 文档](https://xingshukeji.github.io/xrainTrain/developers/sdk)。
 
 本仓是下列技能、配套参考和 CLI 的唯一编写源。每项技能在元数据中保留维护公司和来源 URL；产品技能另列文档入口与关联产品。Workforce、all_in_one 和个人目录按实际需要安装完整消费副本，修改在本仓完成。平台、SDK 的实现和项目事实仍由所属项目维护。
@@ -32,7 +42,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-task-breakdown](skills/shzw-task-breakdown/SKILL.md) | 拆分或审查 XRain、Workforce 上面向人的业务项目任务。用于“按需求拆任务”“分配是不是太细”“哪些要开发、配置或只测试”“梳理依赖”。先确认当前需求，再分别核对基础产品与目标项目成果是否适用、是否被本期采用，按实际差距安排责任。用好坏示例校准判断，不把旧验证实现当作已交付，保留人的主动性。单项代码修复或智能体执行步骤使用对应入口。 |
 | [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
 | [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户明确要求评估、制定计划或实施 DSH 升级时使用：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。普通 Runtime 故障、客户端修改或发现新版本不自动构成升级请求。 |
-| [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、业务页面与智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
+| [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、记录文件导入导出与业务编排、业务页面和智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
 | [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。用于“入口规则不一致”“文档放哪”“以后按这个流程”“复刻工作空间”“文档治理”。技能选错、职责重叠、正文无效及合并重写由技能进化入口处理；普通产品修复留在原任务。 |
 | [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、登录后 403、应用准入、业务角色与数据范围，以及人员接入、协作和职责变化。用于“登不进去”“登录了还是不能用”“让张三能做这项工作”“撤权后还能访问”。按原用户与具体业务动作定位责任层，保留已有身份和无关授权。 |
 | [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。 |
