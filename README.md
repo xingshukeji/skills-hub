@@ -73,7 +73,7 @@ XRain CLI 和 JavaScript 辅助脚本需要 Node.js 22.12+，推荐 24；CLI 依
 
 源码在 src/xrain-cli，生成制品与第三方声明在 skills/shzw-xrain-cli/scripts，不手工修改生成文件。
 
-DeskPilot 的跨平台迁移与完整 Skill 交付见 [方案](src/deskpilot-cli/DESIGN.md)。已确定采用 Python，完整 Skill 自带源码与固定依赖，由客户端完成本地构建及 PATH 接入，不使用客户端包管理器。迁移验证完成后归档 window10GUI；当前尚未交付新的 DeskPilot CLI 或 Skill。
+DeskPilot 的跨平台迁移与完整 Skill 交付见 [方案](src/deskpilot-cli/DESIGN.md)。已确定采用 Python：操作知识放在 Skill 及 references，确定性工具维护为代码；旧群聊策略、个人风格和演示业务场景不整体迁入。完整 Skill 自带工具源码与固定依赖，由客户端完成本地构建及 PATH 接入，不使用客户端包管理器。迁移验证完成后归档 window10GUI；当前尚未交付新的 DeskPilot CLI 或 Skill。
 
 ```text
 npm ci
