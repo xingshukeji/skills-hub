@@ -30,9 +30,9 @@ python "<实际 Skill 目录>/scripts/install.py" --uninstall --json
 |---|---|---|
 | Windows x64 | CPython 3.13、comtypes、Pillow、ONNX Runtime、Tiny 模型 | Win32/UIA；Windows 10 build 19045 合成窗口及 Chrome 已验证，含中文、截图和 OCR。Windows 11 尚未验证 |
 | macOS arm64 / x64 | CPython 3.13、Pillow、ONNX Runtime、Tiny 模型 | AX/Quartz/AppKit 实现；需要辅助功能、输入和屏幕录制权限，尚缺真实 macOS 桌面验证 |
-| Linux x64，X11 | CPython 3.13、Pillow、ONNX Runtime、Tiny 模型 | Ubuntu 22.04 的 GNOME Flashback/Metacity/Xvfb 图形会话已验证独立只读 Skill、GTK 控件、中文、可信截图/OCR、Chrome 表单、遮挡拒绝、取消与清理。其他桌面未验证 |
+| Linux x64，X11 | CPython 3.13、Pillow、ONNX Runtime、Tiny 模型 | Ubuntu 22.04 的 GNOME Flashback/Metacity/Xvfb 图形会话已验证独立只读 Skill、GTK 控件、中文、可信截图/OCR、Chrome 表单、活动提示、遮挡拒绝、取消与清理。其他桌面未验证 |
 | Linux Wayland | 可运行通用协议与 Chrome/CDP | Portal 桌面会话尚未实现；桌面输入与截图返回 `WAYLAND_PORTAL_REQUIRED`，不能按 X11 使用 |
 
-Linux 的 AT-SPI、D-Bus、X11/XTest 属于系统前置条件，工具不自动安装。无桌面、缺库、权限不足与不支持分开报告。macOS 建议 14+；Linux 原生文件需 glibc 2.27+，实际系统库与桌面组合仍以 doctor 和实测为准。其他 CPU、Python ABI 组合不能靠重命名原生文件启用。
+Linux 的 AT-SPI、D-Bus、X11/XTest 属于系统前置条件；活动提示另需 libXext 和 X11 Shape 1.1 输入区域，工具不自动安装这些系统组件。doctor 分别报告桌面、输入、截图和提示能力的缺项。macOS 建议 14+；Linux 原生文件需 glibc 2.27+，实际系统库与桌面组合仍以 doctor 和实测为准。其他 CPU、Python ABI 组合不能靠重命名原生文件启用。
 
 Chrome 浏览器由机器已有安装提供；CDP 能力独立于原生桌面后端。模型和第三方文件来源、版本、许可及 SHA-256 在 [vendor/manifest.json](../vendor/manifest.json) 中。平台文件齐全不代表真实桌面验证已经通过。

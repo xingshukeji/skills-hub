@@ -38,6 +38,6 @@ Windows 遮挡错误的 `details.blockers` 返回最多 8 个覆盖窗口的进�
 
 缺少系统库或权限先修复对应前置条件；`STALE_OBSERVATION` 要重新观察；`WINDOW_CAPTURE_UNTRUSTED` 要先解决遮挡、离屏或身份变化。不要用 `allow_unobserved` 绕过普通操作的观察步骤。
 
-在同一流发送 `interaction.cancel`，等待原请求的最终响应。已派发输入不会自动撤销。`interaction.end` 关闭活动提示并尝试恢复原前台；`close` 释放会话、OCR、辅助窗口与连接。Linux 当前仅有目标边框，状态面板和动作轨迹尚未对齐；以 doctor 的活动提示状态为准。
+在同一流发送 `interaction.cancel`，等待原请求的最终响应。已派发输入不会自动撤销。`interaction.end` 关闭活动提示并尝试恢复原前台；`close` 释放会话、OCR、辅助窗口与连接。Linux X11 的目标边框、状态面板和动作位置提示使用透明输入区域，不抢焦点或截获点击；截图时隐藏自身提示并在完成后恢复。状态面板使用简短英文操作说明；以 doctor 的活动提示状态为准。
 
 `restored_original_window: false` 只说明没有确认恢复原前台，可能没有保存的窗口、窗口已关闭或系统拒绝；它不说明其他 GUI 工具已结束，也不证明目标页面或登录状态发生了变化。
