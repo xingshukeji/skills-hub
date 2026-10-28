@@ -17,14 +17,14 @@ metadata:
 node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 ```
 
-复用已知目标、profile 和有效会话，直接执行所需命令并用 `--json` 回读；不必先跑整套诊断。
+先从当前请求、任务上下文和责任项目配置确定预期平台、租户及执行主体；身份查询和后续操作使用相同目标，优先显式指定预期 `--server` 与命令支持的 `--tenant`，若依赖默认值，先用本地 `auth status --json` 核对解析的服务地址。访问平台业务前用 `auth whoami --json` 按后续操作实际采用的目标和凭据核对服务器认出的身份。对照实际服务地址、tenantId、userId 和作用域；不一致或预期无法确定时先定位并恢复已授权连接，不从活动 profile 名称猜测，也不创建身份或扩大权限。同一任务上下文未变化时复用判断；目标、凭据或登录身份改变后重新核对。只查本地帮助或配置无需连接服务器。
 
 - 连接、401、回调：[配置与认证](references/configuration.md)。
 - 平台账号准备：[账号与登录](references/login.md)。
 - 数据、权限、应用包、批量：[命令参考](references/commands.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。
 
-管理操作选 `--auth session`，避免旧 API Token 抢先；租户由 token 绑定，`--tenant` 不能换身份。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。记录操作按目标服务实际返回判断。
+管理操作选 `--auth session`，避免旧 API Token 抢先；应用包命令检查身份也选 `--auth session`，与其实际凭据一致。租户由 token 绑定，`--tenant` 不能换身份；Host 身份的 tenantId 为 null，目标租户由操作参数单独确定。身份查询不证明具体业务权限，检查后会话若被并发替换也不构成强绑定。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。记录操作按目标服务实际返回判断。
 
 安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
 

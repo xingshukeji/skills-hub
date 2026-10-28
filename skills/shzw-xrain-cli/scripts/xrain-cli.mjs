@@ -1942,6 +1942,45 @@ async function authCommands(ctx) {
     reporter.print(store.authStatus(args, profile, market));
     return 0;
   }
+  if (args.command(1) === "whoami") {
+    const { token, source } = store.credential(args, profile, { createSecrets: false });
+    const details = { profile: profile.name, server: profile.server, credentialSource: source };
+    if (!token) throw new CliError("No usable credential is selected.", {
+      code: "authentication_required",
+      hint: "Run auth status and use the authorized credential for this target.",
+      details
+    });
+    let response;
+    try {
+      response = await request(new URL("/api/service/authen/v1/account/context", profile.server), {
+        token,
+        timeout: args.timeout(),
+        limit: 1024 * 1024
+      });
+    } catch (error) {
+      if (error instanceof CliError) error.details = details;
+      throw error;
+    }
+    if (!response.ok) throw responseError(response, "", details);
+    let value;
+    try {
+      value = response.json();
+    } catch {
+      throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
+    }
+    if (!isObject(value) || !nonempty(value.userId) || !Object.hasOwn(value, "tenantId") || !["tenant", "host"].includes(value.scope) || (value.scope === "tenant" ? !nonempty(value.tenantId) : value.tenantId !== null)) {
+      throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
+    }
+    reporter.print({
+      ...details,
+      configuredTenant: profile.tenant ?? null,
+      userId: value.userId,
+      tenantId: value.tenantId,
+      scope: value.scope,
+      remoteValidation: "identity_confirmed"
+    });
+    return 0;
+  }
   store.deleteSession(profile.name);
   reporter.print(reporter.json ? { profile: profile.name, authenticated: false } : `Logged out of app profile '${profile.name}'.`);
   return 0;
@@ -1959,10 +1998,10 @@ async function doctor(ctx) {
     if (error instanceof CliError) error.details = { authentication: report };
     throw error;
   }
-  report.probe = { method: "GET", path, httpStatus: response.status, scope: "This probe does not certify access to other endpoints or operations." };
+  report.probe = { method: "GET", path, httpStatus: response.status, scope: market ? "This probe does not certify access to other endpoints or operations." : "Readiness can be public and does not validate the selected identity or business access." };
   if (!response.ok) throw responseError(response, "", { authentication: report });
   if (!credential.token) throw new CliError("The server is reachable, but no usable credential is selected.", { code: "authentication_required", hint: "Run auth login or configure an already authorized API credential.", details: report });
-  report.remoteValidation = "accepted_by_probe";
+  report.remoteValidation = market ? "accepted_by_probe" : "not_checked";
   reporter.print(report);
   return 0;
 }
@@ -1988,6 +2027,7 @@ command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), 
 command("profile path", [], [], "Show the profile store path.");
 command("auth login", [...target, "exchange", "no-browser"], [], "Authenticate in the browser for platform or independent market commands.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
+command("auth whoami", api2, [], "Read the server-verified XRain identity and tenant using the selected credential.");
 command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the browser session, keeping the platform profile.");
 command("doctor", [...api2, "exchange"], [], "Check the selected connection and credential with a read-only probe.");
 command("health", api2, [], "Probe readiness.");

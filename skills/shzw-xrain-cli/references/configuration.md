@@ -37,6 +37,8 @@ auth login（兼容 app login）使用目标 cli-config、已登记 public clien
 
 显式路径优先；文件不放 Git。profile bearer/旧测试令牌仍是明文，DPAPI 只保护浏览器会话，诊断不展示文件内容。
 
-auth status --json 只查本地，remoteValidation=not_checked；valid 不证明远端接受。doctor --json 用实际凭据探测平台 /health/ready 或市场 /api/exchange/v1/my-published，只证明该接口结果，不证明完整业务权限。无需每次操作前运行两者。
+auth status --json 只查本地，remoteValidation=not_checked；valid 不证明远端接受。auth whoami --json 使用本次选中的平台地址和凭据调用 XRain 当前身份接口，返回 profile、server、configuredTenant、credentialSource，以及服务器认出的 userId、tenantId、scope；不返回令牌或权限全集。configuredTenant 是本地目标，tenantId 是服务器实际身份，两者可能不同；Host scope 的实际 tenantId 为 null。查询前优先显式提供预期 --server 及命令支持的 --tenant；若依赖默认值，先用本地 auth status --json 核对解析的服务地址，避免向错误地址发送凭据。后续业务使用相同的目标和认证方式；应用包操作应给身份查询指定 --auth session。它只用于 XRain 平台，不适用于独立市场。身份查询及后续命令是两次执行，并发替换同名会话后不能当作强绑定。
+
+doctor --json 的平台 /health/ready 可能无需认证，成功只说明该接口可访问，remoteValidation 仍为 not_checked；市场 /api/exchange/v1/my-published 的成功只证明该接口接受对应市场会话。两者都不证明完整业务权限。无需每次操作前运行整套诊断。
 
 401 查来源/过期及认证方式；authentication_method_not_allowed 不能靠加角色解决。403 查原用户成员和授权；TLS/网络查目标与信任，不关闭校验。HTTP 默认 100 秒，--timeout 为正整数秒，上限一天；登录各请求固定 30 秒。缺身份或原应用登录失败读[账号与登录](login.md)。

@@ -8,6 +8,6 @@
 
 市场发布、平台导入、租户安装与用户可用是不同结果。通过原管理入口执行，保留 request/operation/revision；未知结果先查。额外删除、覆盖定制或扩大权限只处理已授权影响。
 
-核对安装版本、组件与原用户操作；历史版本存在不代表可回退。已提供 `shzw-xrain-cli` 时，使用其 app import/preview/install 和 app operation 命令；其他维护动作继续通过原管理入口执行。
+核对安装版本、组件与原用户操作；历史版本存在不代表可回退。已提供 `shzw-xrain-cli` 时，先读取该技能入口，按后续操作的目标平台、租户和管理会话核对服务器身份，再使用其 app import/preview/install 和 app operation 命令；其他维护动作继续通过原管理入口执行。
 
 参考和 Node.js 22.12+ 脚本位于本模式目录（Workforce 的 `resourceBase.path + "/modes/operations"`），只使用当前获准工具。

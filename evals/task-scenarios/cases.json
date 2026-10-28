@@ -197,5 +197,23 @@
     "request": "DSH 出了新版本，先排查原智能体工具为什么失败。",
     "project": "xrain-workforce",
     "context": "原会话和工具失败仍可查询，用户本次只要求排查。"
+  },
+  {
+    "id": "t34",
+    "request": "用 XRain CLI 查看当前业务项目的客户数据。",
+    "project": "xrain-workforce",
+    "context": "本次任务已明确当前项目的共享测试平台与租户；CLI 当前活动 profile 指向另一套目标。"
+  },
+  {
+    "id": "t35",
+    "request": "请看一下 XRain CLI 的数据查询命令怎么用。",
+    "project": "skills-hub",
+    "context": "用户只需要命令帮助，没有要求连接或操作任何服务。"
+  },
+  {
+    "id": "t36",
+    "request": "请把已发布的应用安装到项目的测试租户。",
+    "project": "xrain-workforce",
+    "context": "目标平台、测试租户和已授权管理身份已明确；已提供 XRain CLI，当前管理会话属于其他租户。"
   }
 ]

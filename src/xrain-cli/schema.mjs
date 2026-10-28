@@ -21,6 +21,7 @@ command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), 
 command('profile path', [], [], 'Show the profile store path.');
 command('auth login', [...target, 'exchange', 'no-browser'], [], 'Authenticate in the browser for platform or independent market commands.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
+command('auth whoami', api, [], 'Read the server-verified XRain identity and tenant using the selected credential.');
 command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the browser session, keeping the platform profile.');
 command('doctor', [...api, 'exchange'], [], 'Check the selected connection and credential with a read-only probe.');
 command('health', api, [], 'Probe readiness.');

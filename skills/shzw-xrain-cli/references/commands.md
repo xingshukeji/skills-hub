@@ -14,13 +14,15 @@ JSON 首选 --values-json/--query-json/--filter-json 的文件或 -（stdin）�
 auth login --server <平台origin> --tenant <租户> --profile <名称>
 auth login --exchange <市场origin> --profile <名称>
 auth status --profile <名称> --json
+auth whoami --profile <名称> --json
+auth whoami --profile <名称> --auth session --json
 doctor --profile <名称> --auth session --json
 profile list
 profile show --profile <名称>
 auth logout --profile <名称>
 ```
 
-set/login 仅保存配置，auth login 才认证；应用包管理操作用 --auth session。通用 metadata/data/security 和 Host 成员命令也可按[配置](configuration.md)选择正常原生登录的短期 Bearer。本地 tokens ensure 不创建服务端权限。
+set/login 仅保存配置，auth login 才认证；whoami 查询服务器认出的平台身份，与后续操作采用相同目标和凭据；应用包管理及其身份查询用 --auth session。通用 metadata/data/security 和 Host 成员命令也可按[配置](configuration.md)选择正常原生登录的短期 Bearer。本地 tokens ensure 不创建服务端权限。
 
 ## Runtime 数据
 

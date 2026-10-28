@@ -631,6 +631,56 @@
         "仅因出现新版本自动升级 DSH",
         "用空会话替代原失败场景"
       ]
+    },
+    {
+      "id": "t34",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-cli"
+      ],
+      "mode": "target-identity",
+      "requiredBehavior": [
+        "依据当前任务和项目配置确定预期目标",
+        "远程身份查询前按预期显式选择或核对解析的服务地址，后续操作沿用该目标",
+        "使用同一目标和凭据的 whoami 对照服务器实际身份、租户，再继续授权的读取"
+      ],
+      "forbiddenBehavior": [
+        "仅凭活动 profile 名称判断环境",
+        "为核对身份创建账号或扩大权限"
+      ]
+    },
+    {
+      "id": "t35",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-cli"
+      ],
+      "mode": "offline-help",
+      "requiredBehavior": [
+        "读取对应命令帮助并保持离线"
+      ],
+      "forbiddenBehavior": [
+        "仅为查询帮助要求登录或远程身份核验"
+      ]
+    },
+    {
+      "id": "t36",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-xrain-app-package"
+      ],
+      "mode": "installation-identity",
+      "requiredBehavior": [
+        "使用应用包技能，并按需读取 CLI 技能的身份核对方法",
+        "以与应用包操作相同的管理会话对照目标平台、实际身份与租户，恢复已授权连接后再安装"
+      ],
+      "forbiddenBehavior": [
+        "仅凭 profile 名称或 readiness 判断身份和租户",
+        "身份不一致时继续提交安装或创建新账号"
+      ]
     }
   ]
 }

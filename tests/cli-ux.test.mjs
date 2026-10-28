@@ -76,13 +76,97 @@ test('auth status is read only and explicit session selection bypasses stale env
   const selected = await f.run(['health', '--auth', 'session', '--json']);
   assert.equal(selected.code, 0, selected.stdout); assert.equal(json(selected).data.ready, true);
   const diagnosed = await f.run(['doctor', '--auth', 'session', '--json']);
-  assert.equal(diagnosed.code, 0, diagnosed.stdout); assert.equal(json(diagnosed).data.remoteValidation, 'accepted_by_probe');
+  assert.equal(diagnosed.code, 0, diagnosed.stdout); assert.equal(json(diagnosed).data.remoteValidation, 'not_checked');
   assert.equal(json(diagnosed).data.credentialSource, 'application-session');
   const before = service.hits.length;
   const incompatible = await f.run(['health', '--auth', 'session', '--token-name', 'admin', '--json']);
   assert.equal(incompatible.code, 1); assert.equal(service.hits.length, before);
   assert.ok(!(status.stdout + selected.stdout + diagnosed.stdout).includes(session));
   assert.ok(!status.stdout.includes(f.env.XRAIN_TOKEN));
+});
+
+test('whoami reports the server identity using the same effective target and credential as business commands', async t => {
+  const f = fixture(t), envToken = 'synthetic-env-credential', sessionToken = 'synthetic-browser-credential';
+  const handler = (hit, res) => {
+    if (hit.url === '/api/service/authen/v1/account/context') {
+      const session = hit.headers.authorization === 'Bearer ' + sessionToken;
+      return respond(res, { userId: session ? 'user-session' : 'user-env', tenantId: session ? 'tenant-demo' : 'tenant-other',
+        scope: 'tenant', effectivePermissions: ['sensitive.permission'], access_token: 'server-echo-secret' });
+    }
+    if (hit.url.endsWith('/my-published')) return respond(res, []);
+    return respond(res, { objects: [] });
+  };
+  const savedTarget = await mockServer(t, handler), envTarget = await mockServer(t, handler);
+  f.profile(savedTarget.url, 'tenant-demo', 'synthetic-profile-credential');
+  f.env.XRAIN_SERVER = envTarget.url; f.env.XRAIN_TENANT = 'tenant-expected'; f.env.XRAIN_TOKEN = envToken;
+  f.store.saveSession('Demo', savedTarget.url, 'tenant-demo', sessionToken, Date.now() + 300000);
+  const auto = await f.run(['auth', 'whoami', '--profile', 'Demo', '--json']);
+  assert.equal(auto.code, 0, auto.stdout);
+  assert.deepEqual(json(auto).data, { profile: 'Demo', server: envTarget.url, credentialSource: 'environment:XRAIN_TOKEN',
+    configuredTenant: 'tenant-expected', userId: 'user-env', tenantId: 'tenant-other', scope: 'tenant', remoteValidation: 'identity_confirmed' });
+  const data = await f.run(['metadata', 'entities', '--profile', 'Demo', '--json']);
+  assert.equal(data.code, 0, data.stdout);
+  assert.deepEqual(envTarget.hits.map(hit => [hit.method, hit.url, hit.headers.authorization]), [
+    ['GET', '/api/service/authen/v1/account/context', 'Bearer ' + envToken],
+    ['GET', '/api/metadata/v1/objects', 'Bearer ' + envToken],
+  ]);
+  const target = ['--profile', 'Demo', '--server', savedTarget.url, '--tenant', 'tenant-demo'];
+  const session = await f.run(['auth', 'whoami', ...target, '--auth', 'session', '--json']);
+  assert.equal(session.code, 0, session.stdout);
+  assert.equal(json(session).data.userId, 'user-session'); assert.equal(json(session).data.tenantId, 'tenant-demo');
+  assert.equal(json(session).data.credentialSource, 'application-session');
+  const app = await f.run(['app', 'status', ...target, '--json']);
+  assert.equal(app.code, 0, app.stdout);
+  assert.deepEqual(savedTarget.hits.map(hit => hit.headers.authorization), ['Bearer ' + sessionToken, 'Bearer ' + sessionToken]);
+  for (const value of [envToken, sessionToken, 'server-echo-secret', 'sensitive.permission']) assert.ok(!auto.stdout.includes(value) && !session.stdout.includes(value));
+});
+
+test('whoami reports host scope and rejects unverified or malformed identities without creating credentials', async t => {
+  const f = fixture(t); let response = { userId: 'host-user', tenantId: null, scope: 'host' }, status = 200;
+  const service = await mockServer(t, (_hit, res) => respond(res, response, status));
+  f.profile(service.url, 'tenant-configured', 'synthetic-host-token');
+  const host = await f.run(['auth', 'whoami', '--json']);
+  assert.equal(host.code, 0, host.stdout); assert.equal(json(host).data.scope, 'host');
+  assert.equal(json(host).data.tenantId, null); assert.equal(json(host).data.configuredTenant, 'tenant-configured');
+  for (const invalid of [{ tenantId: 'tenant-a', scope: 'tenant' }, { userId: 'x', tenantId: null, scope: 'tenant' },
+    { userId: 'x', tenantId: 'tenant-a', scope: 'host' }, { userId: 'x', tenantId: 'tenant-a', scope: 'unknown' },
+    { userId: 'x', scope: 'host' }]) {
+    response = invalid;
+    const result = await f.run(['auth', 'whoami', '--json']);
+    assert.equal(result.code, 1); assert.equal(json(result).error.code, 'invalid_response');
+  }
+  status = 401; response = { errorCode: 'platform.authen.unauthorized', authorization: 'synthetic-host-token' };
+  const rejected = await f.run(['auth', 'whoami', '--json']);
+  assert.equal(rejected.code, 1); assert.equal(json(rejected).error.code, 'authentication_failed');
+  assert.ok(!rejected.stdout.includes('synthetic-host-token'));
+  const before = service.hits.length;
+  const mismatch = await f.run(['auth', 'whoami', '--auth', 'session', '--json']);
+  assert.equal(mismatch.code, 1); assert.equal(json(mismatch).error.code, 'authentication_required');
+  const market = await f.run(['auth', 'whoami', '--exchange', service.url, '--json']);
+  assert.equal(market.code, 1); assert.equal(json(market).error.code, 'invalid_arguments');
+  assert.equal(service.hits.length, before);
+  const config = f.store.load(); config.profiles.Demo.bearerToken = undefined; config.profiles.Demo.tokenName = 'guest'; f.store.save(config);
+  const missing = await f.run(['auth', 'whoami', '--json']);
+  assert.equal(missing.code, 1); assert.equal(json(missing).error.code, 'authentication_required');
+  assert.equal(existsSync(f.store.secretPath), false); assert.equal(service.hits.length, before);
+});
+
+test('doctor distinguishes a public readiness probe from an authenticated market probe', async t => {
+  const f = fixture(t), fakeToken = 'synthetic-not-validated';
+  const service = await mockServer(t, (_hit, res) => respond(res, { ready: true }));
+  f.profile(service.url, 'tenant-demo', fakeToken);
+  const readiness = await f.run(['doctor', '--json']);
+  assert.equal(readiness.code, 0, readiness.stdout); assert.equal(json(readiness).data.probe.httpStatus, 200);
+  assert.equal(json(readiness).data.remoteValidation, 'not_checked');
+  assert.match(json(readiness).data.probe.scope, /does not validate/);
+  const args = f.context(['doctor', '--exchange', service.url, '--profile', 'Market']).args;
+  const marketProfile = f.store.market(args), marketToken = 'synthetic-market-session';
+  f.store.saveSession(marketProfile.name, service.url, '', marketToken, Date.now() + 300000);
+  const market = await f.run(['doctor', '--exchange', service.url, '--profile', 'Market', '--json']);
+  assert.equal(market.code, 0, market.stdout); assert.equal(json(market).data.remoteValidation, 'accepted_by_probe');
+  assert.equal(service.hits.at(-1).url, '/api/exchange/v1/my-published');
+  assert.equal(service.hits.at(-1).headers.authorization, 'Bearer ' + marketToken);
+  assert.ok(!readiness.stdout.includes(fakeToken) && !market.stdout.includes(marketToken));
 });
 
 test('auth diagnostics distinguish unavailable sessions and never generate test tokens', async t => {

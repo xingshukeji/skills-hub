@@ -26,12 +26,17 @@ test('installed skill alone runs help, profile, token, HTTP and app-init command
   assert.equal(existsSync(join(installed, 'src')), false);
   const script = join(installed, 'scripts/xrain-cli.mjs');
   assert.equal((await execute(script, ['--help'], f.directory, f.env)).code, 0);
-  const server = await mockServer(t, (hit, res) => respond(res, { tenant: 'tenant-demo', received: hit.body.length ? hit.json() : null, authorization: hit.headers.authorization }));
+  const server = await mockServer(t, (hit, res) => respond(res, hit.url === '/api/service/authen/v1/account/context'
+    ? { userId: 'installed-user', tenantId: 'tenant-demo', scope: 'tenant', effectivePermissions: [] }
+    : { tenant: 'tenant-demo', received: hit.body.length ? hit.json() : null, authorization: hit.headers.authorization }));
   const login = await execute(script, ['login', '--server', server.url, '--tenant', 'tenant-demo', '--token-name', 'admin'], f.directory, f.env);
   assert.equal(login.code, 0, login.stderr);
   assert.equal((await execute(script, ['security', 'tokens', 'ensure'], f.directory, f.env)).code, 0);
   const shown = await execute(script, ['profile', 'show'], f.directory, f.env);
   assert.equal(JSON.parse(shown.stdout).tokenSource, 'local-secret-store:admin');
+  const identity = await execute(script, ['auth', 'whoami', '--json'], f.directory, f.env);
+  assert.equal(identity.code, 0, identity.stdout); assert.equal(JSON.parse(identity.stdout).data.userId, 'installed-user');
+  assert.equal(JSON.parse(identity.stdout).data.tenantId, 'tenant-demo');
   const query = await execute(script, ['data', 'query', 'customer', '--page-size', '5'], f.directory, f.env);
   assert.equal(query.code, 0, query.stderr); assert.equal(JSON.parse(query.stdout).received.pageSize, 5);
   assert.equal(JSON.parse(query.stdout).authorization, '[REDACTED]');
@@ -65,7 +70,7 @@ test('installed skill alone runs help, profile, token, HTTP and app-init command
   const discovery = await execute(script, ['metadata', 'describe', 'customer', '--json'], f.directory, f.env);
   assert.equal(discovery.code, 0, discovery.stdout); assert.equal(server.hits.at(-1).url, '/api/metadata/v1/entities/customer/describe');
   const diagnosed = await execute(script, ['doctor', '--json'], f.directory, f.env);
-  assert.equal(diagnosed.code, 0, diagnosed.stdout); assert.equal(JSON.parse(diagnosed.stdout).data.remoteValidation, 'accepted_by_probe');
+  assert.equal(diagnosed.code, 0, diagnosed.stdout); assert.equal(JSON.parse(diagnosed.stdout).data.remoteValidation, 'not_checked');
   const invalidCalls = server.hits.length;
   const invalidDelete = await execute(script, ['data', 'delete', 'customer', 'r1', '--filter', '{}', '--json'], f.directory, f.env);
   assert.equal(invalidDelete.code, 1); assert.equal(JSON.parse(invalidDelete.stdout).error.code, 'invalid_arguments'); assert.equal(server.hits.length, invalidCalls);
