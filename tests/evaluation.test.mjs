@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -72,6 +73,16 @@ test('natural task replay pairs raw requests without leaking coaching and keeps 
   await prepareTaskReplay({ output: directory, baselineRef: 'HEAD', repeats: 1 });
   await assert.rejects(prepareTaskReplay({ output: directory, repeats: 1 }));
   const manifest = JSON.parse(await readFile(join(directory, 'manifest.json')));
+  const skill = 'skills/shzw-deskpilot-cli';
+  const resources = JSON.parse(await readFile(join(directory, 'sources/baseline', skill, 'vendor/manifest.json')));
+  const largest = [...resources.files].sort((a, b) => b.bytes - a.bytes)[0];
+  const baselineGroup = manifest.groups.find(group => group.variant === 'baseline');
+  // Native files exceed the former child-process output buffer. Both snapshots must retain exact bytes.
+  for (const prefix of ['sources/baseline', baselineGroup.id + '/input']) {
+    const content = await readFile(join(directory, prefix, skill, largest.path));
+    assert.equal(content.length, largest.bytes);
+    assert.equal(createHash('sha256').update(content).digest('hex'), largest.sha256);
+  }
   const inputs = await Promise.all(manifest.groups.map(group => readFile(join(directory, group.id, 'input/cases.json'), 'utf8')));
   assert.equal(inputs[0], inputs[1]);
   const cases = JSON.parse(inputs[0]);

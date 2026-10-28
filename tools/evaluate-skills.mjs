@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash, randomInt } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, open, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
@@ -18,6 +18,17 @@ const canonicalName = name => aliases[name] ?? name;
 const hash = value => createHash('sha256').update(value).digest('hex');
 const json = path => readFile(path, 'utf8').then(JSON.parse);
 function assert(condition, message) { if (!condition) throw new Error(message); }
+
+async function copyGitBlob(commit, path, destination) {
+  const output = await open(destination, 'wx');
+  try {
+    execFileSync('git', ['show', commit + ':' + path], {
+      cwd: root, windowsHide: true, stdio: ['ignore', output.fd, 'pipe']
+    });
+  } finally {
+    await output.close();
+  }
+}
 
 async function files(directory) {
   const result = [];
@@ -98,7 +109,7 @@ export async function prepare({ output, baselineRef = 'HEAD', repeats = 2 }) {
     for (const path of paths) {
       const destination = join(baseline, name, path.slice(('skills/' + sourceName + '/').length));
       await mkdir(dirname(destination), { recursive: true });
-      await writeFile(destination, execFileSync('git', ['show', baselineCommit + ':' + path], { cwd: root, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }));
+      await copyGitBlob(baselineCommit, path, destination);
     }
     await cp(join(root, 'skills', name), join(candidate, name), { recursive: true });
   }
@@ -279,7 +290,7 @@ export async function prepareTaskReplay({ output, baselineRef = 'HEAD', repeats 
   for (const path of tracked) {
     const destination = join(baseline, path);
     await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, execFileSync('git', ['show', baselineCommit + ':' + path], { cwd: root, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }));
+    await copyGitBlob(baselineCommit, path, destination);
   }
   const filter = path => !['node_modules', 'bin', 'obj', '__pycache__'].includes(path.replaceAll('\\', '/').split('/').at(-1));
   await cp(join(root, 'skills'), join(candidate, 'skills'), { recursive: true, filter });
