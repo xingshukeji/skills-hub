@@ -185,5 +185,17 @@
     "request": "现状的模块边界与装配能做到什么程度呢？",
     "project": "xrain-workforce",
     "context": "用户只询问已有宿主能力和限制，未授权修改或启动环境。"
+  },
+  {
+    "id": "t32",
+    "request": "DSH 已经有更新了，请做升级计划。",
+    "project": "xrain-workforce",
+    "context": "当前项目使用 DSH；用户请求计划，尚未要求修改依赖。"
+  },
+  {
+    "id": "t33",
+    "request": "DSH 出了新版本，先排查原智能体工具为什么失败。",
+    "project": "xrain-workforce",
+    "context": "原会话和工具失败仍可查询，用户本次只要求排查。"
   }
 ]

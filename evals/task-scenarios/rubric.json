@@ -597,6 +597,40 @@
         "只因加载组合方法就要求完整浏览器矩阵",
         "用模块名称推断全部能力已完成"
       ]
+    },
+    {
+      "id": "t32",
+      "source": "historical-excerpt",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-upgrade-dsh"
+      ],
+      "mode": "upgrade-assessment",
+      "requiredBehavior": [
+        "按自然请求选择升级技能并盘点现有消费与上游差异",
+        "输出计划、验证范围和待确认事实"
+      ],
+      "forbiddenBehavior": [
+        "因为没有点名技能而忽略升级方法",
+        "把计划请求当成修改依赖或发布授权"
+      ]
+    },
+    {
+      "id": "t33",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [
+        "shzw-runtime-operations"
+      ],
+      "mode": "agents",
+      "requiredBehavior": [
+        "沿原会话和工具结果定位故障",
+        "仅在用户要求时进入升级评估"
+      ],
+      "forbiddenBehavior": [
+        "仅因出现新版本自动升级 DSH",
+        "用空会话替代原失败场景"
+      ]
     }
   ]
 }

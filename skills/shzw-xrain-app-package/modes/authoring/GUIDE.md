@@ -6,7 +6,7 @@
 
 ## 源码、构建与制品归属
 
-完整 JSON 源码、项目构建入口、构建凭据和正式制品属于产生该应用的项目；本 skill 只拥有 application/v1 编写规则和共用离线工具。构建在应用项目的任务中完成，输入和输出都必须落到该项目选定的位置，不能把 skill 目录、个人技能安装目录或线上 XRain 当成应用源码或制品仓库。线上 XRain 只接收已经形成的 `.appkg`，既有导入和安装记录不承担源码及构建过程管理。
+完整 JSON 源码、项目构建入口、构建凭据和正式制品属于产生该应用的项目；本 skill 只拥有 application/v1 编写规则和共用离线工具。构建在应用项目的任务中完成，输入和输出都必须落到该项目选定的位置，不能把 skill 目录、个人技能安装目录或线上 XRain 当成应用源码或制品仓库。XRain 的统一构建端点临时接收源码并返回 `.appkg`，不保存源码或构建记录；发布和安装记录不承担源码及制品保管。
 
 项目已有 `package:build` 薄封装时，优先从项目根调用；它应把完整源码发送给获授权的 XRain 服务端构建端点，并保存返回的原始包和元信息，不得复制 ZIP、digest、kind 或引用校验实现。`package:check` 可继续调用本地离线 validate。没有 API 构建能力时保留 source 和离线检查结果，不调用已退役的独立本地 build 命令。一个项目包含多个应用时按 packageId 显式选择，不能递归扫描目录猜测本次输入。
 
@@ -14,9 +14,9 @@
 
 ## 模式与边界
 
-用户仅要求生成包：只执行生成和离线检查。用户明确要求安装：另外读取 [安装与恢复](references/install.md)，确定命名目标和授权后才产生远端写入。不要从“包已生成”“测试通过”或 skill 的能力描述推断生产安装授权。
+用户仅要求生成包：使用目标支持的服务端构建并做离线检查，不自动发布或安装。用户明确要求安装：另外读取 [安装与恢复](references/install.md)，确定命名目标和授权后才产生远端写入。不要从“包已生成”“测试通过”或 skill 的能力描述推断生产安装授权。
 
-本 skill 的包知识自包含，但环境地址、认证身份、租户、账户等是运行参数，不能凭空生成。先使用该项目已有的非秘密环境配置和安全登录会话；只有缺少必要目标或身份时才询问。不要求用户提供 Host/tenant 数据库连接；全部安装通过 XRain API。生成包和离线自测不需要任何服务或凭据。
+本 skill 的包知识自包含，但环境地址、认证身份、租户、账户等是运行参数，不能凭空生成。先使用该项目已有的非秘密环境配置和安全登录会话；只有缺少必要目标或身份时才询问。不要求用户提供 Host/tenant 数据库连接；全部安装通过 XRain API。本地源码编写、稳定 ID 分配与离线工具自测无需服务或凭据；生成实际 `.appkg` 需要支持构建端点的 XRain 服务和有构建权限的登录会话。
 
 本协议对应 `application/v1`，依据包读取器、DTO、资源与操作契约整理。目标是否提供服务端构建端点，须以目标实际部署版本为准。离线校验、Host 导入成功、租户安装成功是三个不同结果；不得用其中一个代替另一个。目标不支持所用资源或返回恢复错误时停止，不补数据库、改服务或规避准入。
 
@@ -26,7 +26,7 @@
 2. 在应用项目自行选择的源码目录维护 `source.json`：`packageId,namespace,label,versionId,version,records` 六键；每条记录为 `id,kind,values`。从最小需要的 kind 组合开始，不必为 23 类都造记录。可以从 [示例](assets/source.json) 开始，替换其稳定身份和命名空间；示例 ID 不是供不同应用共用的身份。同一应用的记录增多后可以按业务职责分片，但必须由项目显式清单无损合成唯一完整 source；构建工具始终消费完整六键输入，分片不是新的包协议。
 3. 用工具分配稳定 ID，保存到源文件；同一应用跨项目和跨环境使用相同 packageId/recordId，新发布版本使用新 versionId。ID 生成键不能含租户或环境。对象 keyPrefix 的全局唯一性仍需目标导入/preflight 确认；冲突不能自动重新分配既有身份。
 4. 审查秘密和身份：包含请求头、URL、脚本、嵌套 JSON、模板、种子，不仅检查顶层字段。凭据只以已定义模板占位符引用；用户和角色的授权使用系统标准管理；必要账户、凭据与首次 Owner 在独立目标配置中提供，不进入 source.json 或 .appkg。共享规则日常编辑不走安装绑定。
-5. 目标提供统一构建端点时，使用获授权的 tenant 登录会话发送完整源码；不要由项目或 skill 再实现 ZIP/digest/kind 校验。新包需要 `platform.application.package.submit`；已有租户包需要原创建者同时具备 submit，或拥有该包的 `platform.application.package.{packageId}.maintain`。Host-scope sysadmin 可构建。review、安装和全局应用管理资格本身不允许构建。端点只构建并返回二进制，不保存包，不自动 submit、import、publish 或 install。
+5. 目标提供统一构建端点时，使用获授权的 tenant 登录会话发送完整源码；不要由项目或 skill 再实现 ZIP/digest/kind 校验。新包需要 `platform.application.package.submit`；已有租户包需要同发布租户的原创建者，或具有该包的 `platform.application.package.{packageId}.maintain` 权限。Host-scope sysadmin 可构建。review、安装和全局应用管理资格本身不允许构建。端点只构建并返回二进制，不保存包，不自动 submit、import、publish 或 install。
 
 ```http
 POST /api/application/v1/packages:build
@@ -46,7 +46,7 @@ body 是 `source.json` 的原始 JSON 字节，不是 `{ source: ... }` 包装�
 | `X-Appkg-Builder-Digest` | 实际构建程序集字节的 SHA-256 |
 | `X-Appkg-Record-Count` | 服务器读取器回读的记录数 |
 
-保存这些元信息后，若用户另外授权 submit，再把返回的原始 `.appkg` bytes 上传到 `/api/application/v1/packages:submit`。不能把 build 响应、submit 回执或 install operation 相互等同。部署的 CORS 响应策略需暴露 `X-Appkg-*` 及 `Content-Disposition`，否则浏览器不能读取对应响应头。
+保存这些元信息后，若用户明确授权向目标平台发布，按目标项目的发布入口将原始 `.appkg` 上传到 `/api/application/v1/packages:publish`；这会发布到平台目录，不能从仅构建或提交的授权推断发布授权。已有版本按目标契约携带当前发布版本的并发条件；结果未知时先查询原目标状态，不盲目重试。旧 `packages:submit` 已退役。独立应用市场使用其自身发布入口。构建、发布和安装结果分别核对。部署的 CORS 响应策略需暴露 `X-Appkg-*` 及 `Content-Disposition`，否则浏览器不能读取对应响应头。
 
 错误为 JSON `{type,title,status,errorCode,message,sourcePosition?}`。源码诊断提供时，`lineNumber` 从 1 开始、`bytePositionInLine` 从 0 开始（0 是有效位置）；`jsonPath` 限于安全的固定结构路径。错误文本不回显源码值、脚本或任意属性名。常见状态码为 400（源码或包协议错误）、413（超过请求体大小限制）、415（不是 `application/json`）、401/403（会话或构建权限不足）。
 

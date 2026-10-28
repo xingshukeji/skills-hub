@@ -8,7 +8,7 @@
 
 先区分公开接入与公共宿主维护：
 
-- 使用已交付 SDK 开发或接入独立应用时，读取公开的 [SDK 用法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/workforce-sdk.md)与[业务宿主接线](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/implementation.md)，核对安装包公开类型和目标已提供的管理入口。读取专题不启动整套业务开发。目标缺少公开接入能力时报告具体缺口，不通过私有导入或新注册器绕过。
+- 使用已交付 SDK 开发或接入独立应用时，读取公开的 [SDK 用法](../../references/workforce-sdk.md)与[业务宿主接线](../../references/implementation.md)，核对安装包公开类型和目标已提供的管理入口。读取专题不启动整套业务开发。目标缺少公开接入能力时报告具体缺口，不通过私有导入或新注册器绕过。
 - 修改 Workforce 公共宿主或维护其开发接入配置时，才读取下面的内部入口。外部应用开发不要求取得这些私有文档或源码；实际命令和配置仍由其自身项目与交付说明确定。
 
 Workforce 维护者的固定入口：

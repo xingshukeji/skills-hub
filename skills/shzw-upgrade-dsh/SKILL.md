@@ -1,6 +1,6 @@
 ---
 name: shzw-upgrade-dsh
-description: 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。仅在明确调用本技能时执行，不从一般 Runtime 故障或客户端修改自动推断升级。
+description: 用户明确要求评估、制定计划或实施 DSH 升级时使用：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。普通 Runtime 故障、客户端修改或发现新版本不自动构成升级请求。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
@@ -12,11 +12,11 @@ Resolve project entrypoints, source, documents and command working directories f
 
 ## 先定动作
 
-仅在用户调用 `$shzw-upgrade-dsh` 或明确要求使用本技能时启动；发现新版本、CI、普通开发或准备上线均不触发。保持 `allow_implicit_invocation: false`。
+用户明确提出评估、制定计划或升级 DSH 时启动，可直接用自然语言或调用 `$shzw-upgrade-dsh`；单独发现新版本、CI、普通开发或准备上线均不触发。评估或计划不自动授权修改版本。
 
 | 用户要求 | 行动 |
 |---|---|
-| 检查、评估，或只调用技能未给动作 | 只读调查，输出建议，不修改依赖 |
+| 检查、评估、制定升级计划，或只调用技能未给动作 | 只读调查，输出评估或升级计划，不修改依赖 |
 | 明确升级或回移修复 | 在授权项目和目标内完成修改、验证；不重复确认已授权动作 |
 
 升级不以发布制品为前提。按项目既有规则工作；不自行建 worktree，不动无关修改。部署、灰度、线上监控、自动回滚和定时任务不在范围内。

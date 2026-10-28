@@ -31,7 +31,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较或评审技术方案，解决会改变目标、职责或验收的实质分歧。用于“给个方案”“这个设计合理吗”“找找方案漏洞”。普通实现与修复沿原任务执行；仅需恢复前文、补查事实或决定例行实现细节时，不重新规划。 |
 | [shzw-task-breakdown](skills/shzw-task-breakdown/SKILL.md) | 拆分或审查 XRain、Workforce 上面向人的业务项目任务。用于“按需求拆任务”“分配是不是太细”“哪些要开发、配置或只测试”“梳理依赖”。先确认当前需求，再分别核对基础产品与目标项目成果是否适用、是否被本期采用，按实际差距安排责任。用好坏示例校准判断，不把旧验证实现当作已交付，保留人的主动性。单项代码修复或智能体执行步骤使用对应入口。 |
 | [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
-| [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户主动调用的 DSH 升级评估与实施：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。仅在明确调用本技能时执行，不从一般 Runtime 故障或客户端修改自动推断升级。 |
+| [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户明确要求评估、制定计划或实施 DSH 升级时使用：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。普通 Runtime 故障、客户端修改或发现新版本不自动构成升级请求。 |
 | [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、业务页面与智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
 | [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。用于“入口规则不一致”“文档放哪”“以后按这个流程”“复刻工作空间”“文档治理”。技能选错、职责重叠、正文无效及合并重写由技能进化入口处理；普通产品修复留在原任务。 |
 | [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、登录后 403、应用准入、业务角色与数据范围，以及人员接入、协作和职责变化。用于“登不进去”“登录了还是不能用”“让张三能做这项工作”“撤权后还能访问”。按原用户与具体业务动作定位责任层，保留已有身份和无关授权。 |
@@ -43,7 +43,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 
 业务落地先找所属项目已确认的完整主线与差异。`shzw-xrain-access` 处理人员接入、登录和访问权限；`shzw-workforce-business-development` 沿业务结果组织实现。具体业务规则、内部实现与运行合同由责任项目维护；[产品知识与责任项目](skills/shzw-workforce-business-development/references/knowledge-ownership.md)帮助选择公开能力资料。无私有源码的使用者仍可使用完整专题、API 和 SDK 知识，读取知识不启动另一整套任务。
 
-用户明确采纳的[默认处置政策](support/shzw-autonomous-project-decisions/GUIDE.md)与项目路由的[Git 收口动作](support/shzw-git-closeout/GUIDE.md)保留在 `support/`。它们按实际需要完整复制并由入口直接引用，退出普通任务技能选择；政策不会随分发授予账号或外部操作权限。DSH 升级继续仅接受显式调用。
+用户明确采纳的[默认处置政策](support/shzw-autonomous-project-decisions/GUIDE.md)与项目路由的[Git 收口动作](support/shzw-git-closeout/GUIDE.md)保留在 `support/`。它们按实际需要完整复制并由入口直接引用，退出普通任务技能选择；政策不会随分发授予账号或外部操作权限。DSH 升级由用户明确提出评估、计划或升级时触发，不从普通开发或发现新版本自动推断。
 
 ## 安装与使用
 
