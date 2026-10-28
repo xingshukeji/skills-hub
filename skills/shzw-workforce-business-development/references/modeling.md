@@ -59,7 +59,7 @@ BizField.targetEntityDefinitionId → 目标 BizObject
 }
 ```
 
-包内 Lookup 使用 `targetEntityDefinitionId`，选项字段使用 `valuePicklistId`。UserRef 可引用固定 User `00457d0cb59a8281762b`，见[初始化基础](initialized-platform.md)；该例外不允许任意跨包引用。
+对象关联由 Lookup 字段元数据表达：设计接口使用 `targetEntityApiName`，包资源使用目标对象的稳定 `targetEntityDefinitionId`；选项字段使用 `valuePicklistId`，无需另建关系表。UserRef 可引用固定 User `00457d0cb59a8281762b`，见[初始化基础](initialized-platform.md)。包外 Lookup 须分别核对目标身份、租户有效定义和包安装预检；不能把包预检限制说成平台没有元数据关联能力。实际限制与离线检查见[应用包编写说明](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/modes/authoring/references/authoring.md)。
 
 跨环境交付沿用包资源身份，改标签不换 API 名。类型、关联目标或必填等约束变化需处理存量值；新增字段明确 nullable 与补数据方式。以实际 effectiveDefinition/deployment 判断生效，结构删除与恢复见[生命周期](lifecycle.md)。
 

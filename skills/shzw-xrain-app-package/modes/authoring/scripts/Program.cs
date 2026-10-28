@@ -16,8 +16,13 @@ try
             Console.Error.WriteLine("Standalone package builds are retired. Use the authorized XRain POST /api/application/v1/packages:build endpoint.");
             return 2;
         case "validate" when args.Length == 2:
-            var validated = Appkg.Validate(File.ReadAllBytes(args[1]));
-            Console.WriteLine(JsonSerializer.Serialize(new { result = "offline-valid", packageId = (string?)validated["packageId"], versionId = (string?)validated["versionId"], digest = (string?)validated["digest"], note = "Server import, tenant preflight and successful operation remain required." })); break;
+            var validated = Appkg.Validate(File.ReadAllBytes(args[1]), out var unresolvedLookupTargets);
+            Console.WriteLine(JsonSerializer.Serialize(new {
+                result = unresolvedLookupTargets.Count == 0 ? "offline-valid" : "offline-valid-with-unresolved-lookup",
+                packageId = (string?)validated["packageId"], versionId = (string?)validated["versionId"], digest = (string?)validated["digest"],
+                unresolvedLookupTargets,
+                note = "External Lookup targets are not verified offline. Server import, tenant preflight and successful operation remain required."
+            })); break;
         case "self-test": Appkg.SelfTest(); break;
         case "convert-field-types" when args.Length == 5:
             var converted = Appkg.ConvertFieldTypes(Appkg.Parse(File.ReadAllBytes(args[1])).AsObject(), args[3], args[4]);
@@ -281,11 +286,18 @@ static class Appkg
             {
                 if (values[property] is null) continue;
                 var id = Text(values[property]); CheckId(id, (string)Kinds[targetKind]!["prefix"]!);
-                var local = byId.TryGetValue(id, out var target) && Text(target["kind"]) == targetKind;
+                if (byId.TryGetValue(id, out var target))
+                {
+                    Need(Text(target["kind"]) == targetKind, "Wrong-kind reference: " + property);
+                    continue;
+                }
                 var protectedUserRef = kind == "BizField" && property == "targetEntityDefinitionId" &&
                     Text(values["type"]) == "UserRef" && id == ProtectedUserObjectId;
-                // The protected tenant User object is the single reviewed fixed-definition exception.
-                Need(local || protectedUserRef, "Missing/wrong-kind reference: " + property);
+                var unresolvedLookup = kind == "BizField" && property == "targetEntityDefinitionId" &&
+                    Text(values["type"]) == "Lookup" && id != ProtectedUserObjectId;
+                // The archive cannot establish whether an external Lookup target is valid
+                // for a tenant. Report it separately; installation preflight remains required.
+                Need(protectedUserRef || unresolvedLookup, "Missing/wrong-kind reference: " + property);
             }
             if (kind == "BizOrchestration") Need(Text(byId[Text(values["currentVersionId"])]["values"]!["refOrchestrationId"]) == Text(record["id"]), "Current version belongs to another orchestration.");
             if (kind == "RuntimeRecord") CheckId(Text(record["id"]), Text(byId[Text(values["entityDefinitionId"])]["values"]!["keyPrefix"]));
@@ -351,7 +363,8 @@ static class Appkg
         var entry = zip.CreateEntry(name, CompressionLevel.Optimal); entry.LastWriteTime = new DateTimeOffset(1980,1,1,0,0,0,TimeSpan.Zero);
         using var output = entry.Open(); output.Write(bytes);
     }
-    public static JsonObject Validate(byte[] bytes)
+    public static JsonObject Validate(byte[] bytes) => Validate(bytes, out _);
+    public static JsonObject Validate(byte[] bytes, out JsonArray unresolvedLookupTargets)
     {
         Need(bytes.Length <= ArchiveLimit, "Archive exceeds 16 MiB.");
         using var zip = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
@@ -380,6 +393,14 @@ static class Appkg
         Need(files.Count == 0, "Unindexed entries.");
         Need(PackageDigest(manifest,records) == Text(manifest["digest"]), "Manifest digest mismatch.");
         var source = manifest.DeepClone().AsObject(); source["records"] = new JsonArray(records.Select(r => (JsonNode)r.DeepClone()).ToArray()); CheckRecords(source);
+        var localIds = records.Select(record => Text(record["id"])).ToHashSet(StringComparer.Ordinal);
+        unresolvedLookupTargets = new JsonArray(records.Where(record => Text(record["kind"]) == "BizField" &&
+            Text(record["values"]!["type"]) == "Lookup" &&
+            !localIds.Contains(Text(record["values"]!["targetEntityDefinitionId"])))
+            .Select(record => (JsonNode)new JsonObject {
+                ["recordId"] = Text(record["id"]), ["fieldApiName"] = Text(record["values"]!["fieldApiName"]),
+                ["targetEntityDefinitionId"] = Text(record["values"]!["targetEntityDefinitionId"])
+            }).ToArray());
         return manifest;
     }
     public static void SelfTest()
@@ -437,6 +458,16 @@ static class Appkg
         var protectedUserLookup = protectedUserReference.DeepClone().AsObject();
         protectedUserLookup["records"]![1]!["values"]!["type"] = "Lookup";
         Reject(() => Build(protectedUserLookup));
+        var externalLookup = protectedUserLookup.DeepClone().AsObject();
+        externalLookup["records"]![1]!["values"]!["targetEntityDefinitionId"] = Id("004", "external|customer");
+        Validate(Build(externalLookup), out var unresolvedLookups);
+        Pass(unresolvedLookups.Count == 1 && Text(unresolvedLookups[0]!["recordId"]) == Id("005", "demo|assignee") &&
+            Text(unresolvedLookups[0]!["targetEntityDefinitionId"]) == Id("004", "external|customer"));
+        externalLookup["records"]![1]!["values"]!["targetEntityDefinitionId"] = Id("004", "demo|object");
+        Validate(Build(externalLookup), out var localLookups);
+        Pass(localLookups.Count == 0);
+        externalLookup["records"]![1]!["values"]!["targetEntityDefinitionId"] = Id("005", "external|wrong-prefix");
+        Reject(() => Build(externalLookup));
         var legacy = uniqueSample.DeepClone().AsObject();
         var legacyField = legacy["records"]![1]!["values"]!.AsObject();
         legacyField.Remove("type"); legacyField["fieldType"] = "varchar"; legacyField["uiType"] = "Text";

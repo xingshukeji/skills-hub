@@ -24,7 +24,7 @@ required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyT
 
 | 资源组 | 必须遵守 |
 |---|---|
-| BizObject / BizField | 对象由服务器固定为自定义 runtime business、trackable、非 alwaysHardDelete，不把这些固定字段放 values。标准 id/tenant/owner/审计字段由 runtime 提供。type 是唯一业务类型，支持 Text/LongText/Number/Decimal/Money/Date/DateTime/Boolean/Picklist/MultiPicklist/UserRef/Lookup；物理存储由平台派生。Text 配 length，Lookup/UserRef 配 targetEntityDefinitionId，Picklist/MultiPicklist 配 valuePicklistId。`UserRef` 只能引用受保护租户 `User` 对象，固定 `targetEntityDefinitionId=00457d0cb59a8281762b`；这是唯一允许的包外对象引用。presentation 仅保存显式覆盖，省略时继承服务端默认 editor/cell/detail；列表 fieldPresentationOverrides 只覆盖 cell。拒绝旧 fieldType/uiType/uiLength。unique=true 仅支持 Text、length 1–255，创建覆盖软删除行的数据库唯一索引（NULL 可重复，必填另设 nullable=false）；重复存量数据阻止升级。仍不支持 indexed/computed 或默认值迁移；新增必填字段会因存量数据进入 Waiting，不静默补 0/空串。 |
+| BizObject / BizField | 对象由服务器固定为自定义 runtime business、trackable、非 alwaysHardDelete，不把这些固定字段放 values。标准 id/tenant/owner/审计字段由 runtime 提供。type 是唯一业务类型，支持 Text/LongText/Number/Decimal/Money/Date/DateTime/Boolean/Picklist/MultiPicklist/UserRef/Lookup；物理存储由平台派生。Text 配 length，Lookup/UserRef 配 targetEntityDefinitionId，Picklist/MultiPicklist 配 valuePicklistId。`UserRef` 引用受保护租户 `User` 对象，固定 `targetEntityDefinitionId=00457d0cb59a8281762b`；包外 Lookup 的结构检查与安装准入分别判断，见下方引用与权限。presentation 仅保存显式覆盖，省略时继承服务端默认 editor/cell/detail；列表 fieldPresentationOverrides 只覆盖 cell。拒绝旧 fieldType/uiType/uiLength。unique=true 仅支持 Text、length 1–255，创建覆盖软删除行的数据库唯一索引（NULL 可重复，必填另设 nullable=false）；重复存量数据阻止升级。仍不支持 indexed/computed 或默认值迁移；新增必填字段会因存量数据进入 Waiting，不静默补 0/空串。 |
 | BizListView | fieldNames 为字段名字符串数组，fieldLabelOverrides 为字段名到标签映射；conditions、sort、cellColorRules 分别整体处理。安装不会自动公开视图；Owner 属于绑定。 |
 | BizPicklist / BizPicklistItem | 子项 refPicklistId 指向包内父项。选项 name 不变；颜色、标签、active 是业务值。 |
 | BizRecordType | picklistFields 为 `{fieldId,usesAllActiveOptions,enabledOptionIds}` 数组；布尔 usesAllActiveOptions、选项 ID 数组，字段必须属于 refObjectId，选项必须属于该字段关联 picklist。 |
@@ -59,7 +59,11 @@ required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyT
 
 ## 引用与权限
 
-默认生成完全包内闭包：对象/字段/视图/记录类型/Trigger/共享规则指向包内对象；选项指向包内 picklist；版本和 Routine 指向包内编排；请求指向包内 connector；接口指向包内请求/编排；PermissionSetItem 指向包内 set/permission。唯一对象例外是 `BizField.type=UserRef` 指向固定受保护 `User` 对象 `00457d0cb59a8281762b`；`Lookup`、其他对象 ID 和跨包资源仍必须拒绝。系统标准权限不属于包记录：`refPermissionName` 可引用本包有效对象/字段/HTTP 接口派生的标准权限、包内 `custom.*` 权限或包引用白名单中的业务数据/元数据 API 与成员资料读取权限；安全目录和身份、角色、权限、令牌管理不在许可范围；引用不携带环境 ID，也不会复制权限实体。`refPermissionId` 仅用于包内自定义权限；系统标准权限必须按名称引用。固定 `UserRef` 例外不能泛化为任意现有 ID，不通过关闭校验绕过。
+关联是字段元数据：设计接口使用 `type=Lookup` 和 `targetEntityApiName`，包的 `BizField` 使用 `targetEntityDefinitionId` 指向目标对象的稳定元数据 ID。包内对象使用本包的对象记录；引用其他包时先核对目标对象身份在各环境是否稳定、当前租户是否有效以及实际用户权限。不要额外创建关系表、复制目标对象或把名称冒充 ID。离线工具对包外 Lookup 返回 `unresolvedLookupTargets`；它不知道目标是否存在，不把该结果解释为可以安装。
+
+包读取器、租户安装预检和普通字段设计是不同入口：读取器能检查 ID 格式与包内同 ID 的类型，但包外目标是否可解析取决于目标版本的安装预检。当前已核查的安装实现只在本包候选集合与允许的固定定义中解析，其他已安装包的自定义对象仍会被拒绝；以实际目标版本和预检回执为准。遇到此限制应保留正确的字段模型及待验证源码，继续不依赖该关联的授权工作，并由平台维护者核对有效元数据、安装和反向引用检查；不得改用管理员身份或关闭校验。包对象下新增本地字段也须通过其实际候选预检，不能假定它绕过此限制。
+
+其他引用默认保持包内闭包：对象/字段/视图/记录类型/Trigger/共享规则指向包内对象；选项指向包内 picklist；版本和 Routine 指向包内编排；请求指向包内 connector；接口指向包内请求/编排；PermissionSetItem 指向包内 set/permission。`UserRef` 的固定受保护 `User` 引用是独立例外，不能泛化成任意人员对象。系统标准权限不属于包记录：`refPermissionName` 可引用本包有效对象/字段/HTTP 接口派生的标准权限、包内 `custom.*` 权限或包引用白名单中的业务数据/元数据 API 与成员资料读取权限；安全目录和身份、角色、权限、令牌管理不在许可范围；引用不携带环境 ID，也不会复制权限实体。`refPermissionId` 仅用于包内自定义权限；系统标准权限必须按名称引用。
 
 标准权限由系统从有效元数据生成：`platform.entity.<entityApiName>.<action>`（read/create/edit/delete/export）；业务字段 `platform.field.<entityApiName>.<fieldApiName>.<action>`（read/create/edit；敏感性及脱敏方式是字段属性，普通响应始终脱敏，单记录显式原值读取要求对象/记录可读与字段 read，不要求 edit）；标准字段只有 read。ID=`00d`+SHA-256(lowercase(packageId+`|derived-permission|`+permissionName)) 前 17 位。包内 `AuthenPermission` 只允许 `custom.<分组>.<能力>`，例如 `custom.orders.approve`；引用标准权限时只声明 PermissionSetItem，不声明对应 AuthenPermission。
 
