@@ -1,6 +1,6 @@
 ---
 name: shzw-delivery
-description: 查询或触发现有 Jenkins 流水线，跟踪构建及制品，或按明确授权发布、部署和回滚。用于“看看构建结果”“运行这个流水线”“把这个制品部署到指定环境”。查询只读取，执行沿用已确认作业、操作和目标；构建成功、Git 推送及开发完成不自动触发发布部署。
+description: 查询或执行现有 Jenkins 流水线、跟踪构建及制品；仅按明确授权发布、部署或回滚。查询只读取，执行沿用已确认作业、操作和目标；构建、Git 推送及开发完成不自动发布或部署。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-delivery/SKILL.md
@@ -24,9 +24,7 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 读取作业参数、触发已有阶段和跟踪原 queue/build | [读取作业参数、触发已有阶段和跟踪原 queue/build](modes/pipeline/GUIDE.md) |
-| 将一个确定制品发布到命名目标或按原授权回滚 | [将一个确定制品发布到命名目标或按原授权回滚](modes/deployment/GUIDE.md) |
+- [读取作业参数、触发已有阶段和跟踪原 queue/build](modes/pipeline/GUIDE.md)
+- [将一个确定制品发布到命名目标或按原授权回滚](modes/deployment/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

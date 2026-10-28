@@ -1,6 +1,6 @@
 ---
 name: shzw-workspace-maintenance
-description: 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。用于“入口规则不一致”“文档放哪”“以后按这个流程”“复刻工作空间”“文档治理”。技能选错、职责重叠、正文无效及合并重写由技能进化入口处理；普通产品修复留在原任务。
+description: 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workspace-maintenance/SKILL.md
@@ -22,10 +22,8 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 正式文档归属、语言约束、入口和生命周期 | [正式文档归属、语言约束、入口和生命周期](modes/documents/GUIDE.md) |
-| 将已授权的长期纠偏落实到现有规则 | [将已授权的长期纠偏落实到现有规则](modes/evolution/GUIDE.md) |
-| 初始化或修复另一工作空间的控制面 | [初始化或修复另一工作空间的控制面](modes/initialize/GUIDE.md) |
+- [正式文档归属、语言约束、入口和生命周期](modes/documents/GUIDE.md)
+- [将已授权的长期纠偏落实到现有规则](modes/evolution/GUIDE.md)
+- [初始化或修复另一工作空间的控制面](modes/initialize/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

@@ -1,6 +1,6 @@
 ---
 name: shzw-aiinfra-development
-description: 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。用于“接入 AiInfra”“这段基础设施放哪”“新建后端”“别重复造轮子”；已有代码缺陷审查可按需读取这里的能力知识。
+description: 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-aiinfra-development/SKILL.md
@@ -18,10 +18,8 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 新建后端且需要现有脚手架 | [新建后端且需要现有脚手架](modes/initialize/GUIDE.md) |
-| 现有应用选择公共能力、薄适配或上游增强 | [现有应用选择公共能力、薄适配或上游增强](modes/reuse/GUIDE.md) |
-| 处理后端分层、DI 和公共包职责 | [处理后端分层、DI 和公共包职责](modes/boundaries/GUIDE.md) |
+- [新建后端且需要现有脚手架](modes/initialize/GUIDE.md)
+- [现有应用选择公共能力、薄适配或上游增强](modes/reuse/GUIDE.md)
+- [处理后端分层、DI 和公共包职责](modes/boundaries/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

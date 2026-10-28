@@ -31,11 +31,9 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 选择后端单元、契约、集成或局部真实宿主证据 | [选择后端单元、契约、集成或局部真实宿主证据](modes/backend/GUIDE.md) |
-| 需要真实数据库的事务、provider 或副作用断言 | [需要真实数据库的事务、provider 或副作用断言](modes/real-database/GUIDE.md) |
-| 用户明确要求对已有实现独立形成测试结论 | [用户明确要求对已有实现独立形成测试结论](modes/system/GUIDE.md) |
-| 调查或验证内存、容量、延迟、释放及故障恢复 | [调查或验证内存、容量、延迟、释放及故障恢复](modes/stability/GUIDE.md) |
+- [选择后端单元、契约、集成或局部真实宿主证据](modes/backend/GUIDE.md)
+- [需要真实数据库的事务、provider 或副作用断言](modes/real-database/GUIDE.md)
+- [用户明确要求对已有实现独立形成测试结论](modes/system/GUIDE.md)
+- [调查或验证内存、容量、延迟、释放及故障恢复](modes/stability/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

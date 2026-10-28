@@ -1,6 +1,6 @@
 ---
 name: shzw-code-review
-description: 审查当前项目或指定提交、变更、功能实现中的缺陷、遗漏和职责问题。用于“review 一下”“最近提交有没有问题”“这次修复有没有漏”“为什么同类 bug 反复出现”，也处理指定范围的工程简化与退役检查。纯方案评审进入方案入口；一般运行故障先定位实际故障链。
+description: 审查项目、指定提交或变更的缺陷、遗漏与职责，包括工程简化、退役及反复缺陷。纯方案评审走方案入口；运行故障先定位故障链。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/SKILL.md
@@ -40,10 +40,8 @@ Workforce 公共改动追到实际应用、页面和工具，身份链区分认�
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 工程机制、文件消费或重复缺陷需要深入判断 | [工程机制、文件消费或重复缺陷需要深入判断](modes/engineering/GUIDE.md) |
-| 审查 XRain 内部实现及其实际消费者 | [审查 XRain 内部实现及其实际消费者](modes/xrain/GUIDE.md) |
-| 审查 Workforce 业务链、组合及退役影响 | [审查 Workforce 业务链、组合及退役影响](modes/workforce/GUIDE.md) |
+- [工程机制、文件消费或重复缺陷需要深入判断](modes/engineering/GUIDE.md)
+- [审查 XRain 内部实现及其实际消费者](modes/xrain/GUIDE.md)
+- [审查 Workforce 业务链、组合及退役影响](modes/workforce/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

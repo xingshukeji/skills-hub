@@ -1,6 +1,6 @@
 ---
 name: shzw-solution
-description: 制定、比较或评审技术方案，解决会改变目标、职责或验收的实质分歧。用于“给个方案”“这个设计合理吗”“找找方案漏洞”。普通实现与修复沿原任务执行；仅需恢复前文、补查事实或决定例行实现细节时，不重新规划。
+description: 制定、比较或评审技术方案，解决目标、职责或验收的实质分歧。普通实现、修复、恢复前文、补查事实和例行选择沿原任务执行，不重新规划。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-solution/SKILL.md
@@ -33,10 +33,8 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 目标、边界、事实或验收存在实质未决选择 | [目标、边界、事实或验收存在实质未决选择](modes/direction/GUIDE.md) |
-| 请求方案交付，或受控实现需要工作计划 | [请求方案交付，或受控实现需要工作计划](modes/design/GUIDE.md) |
-| 用户要求质疑或审查一个已有方案 | [用户要求质疑或审查一个已有方案](modes/challenge/GUIDE.md) |
+- [目标、边界、事实或验收存在实质未决选择](modes/direction/GUIDE.md)
+- [请求方案交付，或受控实现需要工作计划](modes/design/GUIDE.md)
+- [用户要求质疑或审查一个已有方案](modes/challenge/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

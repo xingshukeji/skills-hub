@@ -1,6 +1,6 @@
 ---
 name: shzw-xrain-access
-description: 处理 XRain/Workforce 的统一登录、固定账号恢复、登录后 403、应用准入、业务角色与数据范围，以及人员接入、协作和职责变化。用于“登不进去”“登录了还是不能用”“让张三能做这项工作”“撤权后还能访问”。按原用户与具体业务动作定位责任层，保留已有身份和无关授权。
+description: 处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-access/SKILL.md
@@ -18,10 +18,8 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 中心身份、激活、凭据、OIDC 客户端和原应用登录 | [中心身份、激活、凭据、OIDC 客户端和原应用登录](modes/authentication/GUIDE.md) |
-| 租户成员、应用准入、业务权限与执行身份 | [租户成员、应用准入、业务权限与执行身份](modes/authorization/GUIDE.md) |
-| 人员接入、实际使用、协作和职责变化的完整主线 | [人员接入、实际使用、协作和职责变化的完整主线](modes/people/GUIDE.md) |
+- [中心身份、激活、凭据、OIDC 客户端和原应用登录](modes/authentication/GUIDE.md)
+- [租户成员、应用准入、业务权限与执行身份](modes/authorization/GUIDE.md)
+- [人员接入、实际使用、协作和职责变化的完整主线](modes/people/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

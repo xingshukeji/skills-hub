@@ -1,6 +1,6 @@
 ---
 name: shzw-client-development
-description: 开发或修复桌面、原生、移动及 Web 客户端，处理安装包、启动器、更新、托管 Runtime 和应用自管能力。用于“开发客户端”“插件能力怎么接”“安装后起不来”“更新和回滚怎么做”。按实际产品确认界面、运行和交付所有者；一般业务页面小改不展开完整客户端交付。
+description: 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-client-development/SKILL.md
@@ -22,9 +22,7 @@ metadata:
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 客户端选型、UI、安装、更新及分发 | [客户端选型、UI、安装、更新及分发](modes/application/GUIDE.md) |
-| 应用拥有执行程序、工具、资源与生命周期的内部能力 | [应用拥有执行程序、工具、资源与生命周期的内部能力](modes/managed-capability/GUIDE.md) |
+- [客户端选型、UI、安装、更新及分发](modes/application/GUIDE.md)
+- [应用拥有执行程序、工具、资源与生命周期的内部能力](modes/managed-capability/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

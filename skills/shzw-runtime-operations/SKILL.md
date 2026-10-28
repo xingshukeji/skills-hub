@@ -1,6 +1,6 @@
 ---
 name: shzw-runtime-operations
-description: 启动、恢复或排查当前项目服务和 Workforce 运行问题。用于“启动服务”“页面打不开”“智能体不回复”“工具失败”“为什么还是旧效果”“登录或会话很慢”。结合前文与实际环境定位入口、版本和故障阶段；明确的登录、403 或人员授权问题进入访问权限入口。
+description: 启动、恢复或排查项目服务与 Workforce 运行问题，包括页面、智能体、工具、旧版本及登录或会话缓慢。结合前文和实际环境定位入口、版本与故障阶段；明确的登录、403 或人员授权问题走访问权限入口。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/SKILL.md
@@ -22,10 +22,8 @@ Workforce 当前默认路径是本机统一宿主连接共享测试平台、统�
 
 ## 按需资料
 
-| 当前需要 | 按需方法 |
-|---|---|
-| 操作目标项目根入口或服务别名 | [操作目标项目根入口或服务别名](modes/services/GUIDE.md) |
-| 启动依赖、版本核对、原场景验收和慢链路 | [启动依赖、版本核对、原场景验收和慢链路](modes/workforce/GUIDE.md) |
-| 原任务、会话、工具、消息和执行生命周期故障 | [原任务、会话、工具、消息和执行生命周期故障](modes/agents/GUIDE.md) |
+- [操作目标项目根入口或服务别名](modes/services/GUIDE.md)
+- [启动依赖、版本核对、原场景验收和慢链路](modes/workforce/GUIDE.md)
+- [原任务、会话、工具、消息和执行生命周期故障](modes/agents/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。

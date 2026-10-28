@@ -31,20 +31,20 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 <!-- skills:start -->
 | Skill | 用途 |
 | --- | --- |
-| [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。用于“接入 AiInfra”“这段基础设施放哪”“新建后端”“别重复造轮子”；已有代码缺陷审查可按需读取这里的能力知识。 |
-| [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，处理安装包、启动器、更新、托管 Runtime 和应用自管能力。用于“开发客户端”“插件能力怎么接”“安装后起不来”“更新和回滚怎么做”。按实际产品确认界面、运行和交付所有者；一般业务页面小改不展开完整客户端交付。 |
-| [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查当前项目或指定提交、变更、功能实现中的缺陷、遗漏和职责问题。用于“review 一下”“最近提交有没有问题”“这次修复有没有漏”“为什么同类 bug 反复出现”，也处理指定范围的工程简化与退役检查。纯方案评审进入方案入口；一般运行故障先定位实际故障链。 |
-| [shzw-delivery](skills/shzw-delivery/SKILL.md) | 查询或触发现有 Jenkins 流水线，跟踪构建及制品，或按明确授权发布、部署和回滚。用于“看看构建结果”“运行这个流水线”“把这个制品部署到指定环境”。查询只读取，执行沿用已确认作业、操作和目标；构建成功、Git 推送及开发完成不自动触发发布部署。 |
-| [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅供人学习和照做的中文内容，包括开发文档、上手指南、教程、教材和课程。用于“写个上手文档”“新人看不懂”“帮我系统学”“课程太浅或重复”。操作指南核实真实前提、命令与结果；教学内容按读者任务、知识深度和真实例子组织。AGENTS、正式契约与 Runbook 的治理进入工作空间维护。 |
-| [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复或排查当前项目服务和 Workforce 运行问题。用于“启动服务”“页面打不开”“智能体不回复”“工具失败”“为什么还是旧效果”“登录或会话很慢”。结合前文与实际环境定位入口、版本和故障阶段；明确的登录、403 或人员授权问题进入访问权限入口。 |
+| [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。 |
+| [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。 |
+| [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，包括工程简化、退役及反复缺陷。纯方案评审走方案入口；运行故障先定位故障链。 |
+| [shzw-delivery](skills/shzw-delivery/SKILL.md) | 查询或执行现有 Jenkins 流水线、跟踪构建及制品；仅按明确授权发布、部署或回滚。查询只读取，执行沿用已确认作业、操作和目标；构建、Git 推送及开发完成不自动发布或部署。 |
+| [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅面向人的中文开发文档、上手指南、教程、教材与课程，包括过浅或重复的教学内容。操作指南核对前提、命令与结果；教学内容按任务、深度和实例组织。AGENTS、正式契约与 Runbook 治理走工作空间维护。 |
+| [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复或排查项目服务与 Workforce 运行问题，包括页面、智能体、工具、旧版本及登录或会话缓慢。结合前文和实际环境定位入口、版本与故障阶段；明确的登录、403 或人员授权问题走访问权限入口。 |
 | [shzw-skill-evolution](skills/shzw-skill-evolution/SKILL.md) | 根据实际执行与用户纠偏诊断、修正或合并技能，判断技能选错、职责重叠、正文无效、知识或工具失配。用于“skill 没起作用”“为什么还要反复补充”“吸收这次经验”“技能太多合并一下”，以及项目已授权的主动技能改进。单次代码缺陷、环境失败或新需求不自动归因于技能。 |
-| [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较或评审技术方案，解决会改变目标、职责或验收的实质分歧。用于“给个方案”“这个设计合理吗”“找找方案漏洞”。普通实现与修复沿原任务执行；仅需恢复前文、补查事实或决定例行实现细节时，不重新规划。 |
+| [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较或评审技术方案，解决目标、职责或验收的实质分歧。普通实现、修复、恢复前文、补查事实和例行选择沿原任务执行，不重新规划。 |
 | [shzw-task-breakdown](skills/shzw-task-breakdown/SKILL.md) | 拆分或审查 XRain、Workforce 上面向人的业务项目任务。用于“按需求拆任务”“分配是不是太细”“哪些要开发、配置或只测试”“梳理依赖”。先确认当前需求，再分别核对基础产品与目标项目成果是否适用、是否被本期采用，按实际差距安排责任。用好坏示例校准判断，不把旧验证实现当作已交付，保留人的主动性。单项代码修复或智能体执行步骤使用对应入口。 |
 | [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
 | [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户明确要求评估、制定计划或实施 DSH 升级时使用：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。普通 Runtime 故障、客户端修改或发现新版本不自动构成升级请求。 |
 | [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力开发企业业务、接入独立应用，或维护公共宿主的组合与裁剪。用于销售接待、资料协作、记录文件导入导出与业务编排、业务页面和智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
-| [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。用于“入口规则不一致”“文档放哪”“以后按这个流程”“复刻工作空间”“文档治理”。技能选错、职责重叠、正文无效及合并重写由技能进化入口处理；普通产品修复留在原任务。 |
-| [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、登录后 403、应用准入、业务角色与数据范围，以及人员接入、协作和职责变化。用于“登不进去”“登录了还是不能用”“让张三能做这项工作”“撤权后还能访问”。按原用户与具体业务动作定位责任层，保留已有身份和无关授权。 |
+| [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。 |
+| [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。 |
 | [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。 |
 | [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。 |
 <!-- skills:end -->
