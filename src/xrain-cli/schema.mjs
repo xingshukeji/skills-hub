@@ -19,7 +19,7 @@ command('profile set', [...target, 'bearer', 'token-name', 'check'], [], 'Save c
 command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select a saved profile.');
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
-command('auth login', [...target, 'exchange', 'no-browser'], [], 'Authenticate in the browser for platform or independent market commands.');
+command('auth login', [...target, 'exchange', 'device', 'no-browser'], [], 'Authenticate in the browser; --device supports a remote browser for XRain.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
 command('auth whoami', api, [], 'Read the server-verified XRain identity and tenant using the selected credential.');
 command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the browser session, keeping the platform profile.');
@@ -50,7 +50,7 @@ for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['
 const host = ['server', 'profile', 'timeout', ...credentials];
 command('host tenant member list', [...host, 'tenant-id', 'page', 'page-size', 'search'], [slot('tenant-id')], 'List one named tenant membership directory using an authorized Host login.');
 command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('tenant-id'), slot('user-id')], 'Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.');
-command('app login', [...target, 'exchange', 'no-browser'], [], 'Compatibility alias for auth login.');
+command('app login', [...target, 'exchange', 'device', 'no-browser'], [], 'Compatibility alias for auth login.');
 command('app logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Compatibility alias for auth logout.');
 command('app init', ['namespace', 'label', 'dir'], [], 'Create source.json without overwriting a file.');
 command('app check', [...app, 'source'], [], 'Build and validate remotely without saving; use build alone when an artifact is needed.');
@@ -117,6 +117,7 @@ export function validateCommand(args) {
   if (args.has('exchange')) {
     exclusive(['server', 'exchange']);
     if (args.has('tenant') || args.has('bearer') || args.has('token-name')) throw new CliError('Independent market commands use their own browser session, without platform tenant or API token options.', { code: 'invalid_arguments' });
+    if (args.has('device')) throw new CliError('Device login is available for the XRain platform, not the independent market.', { code: 'invalid_arguments' });
   }
   if (args.has('auth') && !['auto', 'session'].includes(args.value('auth')))
     throw new CliError('--auth must be auto or session.', { code: 'invalid_arguments' });
@@ -132,7 +133,7 @@ export function commandHelp(args) {
   const selected = exact ? [exact] : specs.filter(spec => prefix.every((word, i) => spec.words[i] === word));
   if (!selected.length) throw new CliError('Unknown command. Run --help.', { code: 'invalid_command' });
   const title = prefix.length ? `XRain CLI: ${prefix.join(' ')}` : 'XRain CLI — self-contained Node.js client';
-  const lines = [title, 'Usage: node <skill>/scripts/xrain-cli.mjs <command> [options]', ''];
+  const lines = [title, 'Usage: xrain-cli <command> [options] (or node <skill>/scripts/xrain-cli.mjs <command> [options])', ''];
   for (const spec of selected) {
     lines.push(spec.path + spec.operands.map(operand => ` ${operand.optional ? '[' : '<'}${operand.name}${operand.optional ? ']' : '>'}`).join(''));
     lines.push('  ' + spec.description);

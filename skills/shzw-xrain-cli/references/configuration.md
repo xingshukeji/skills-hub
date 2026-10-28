@@ -1,5 +1,9 @@
 # 配置与认证
 
+## 命令入口
+
+执行 `node "<skill目录>/scripts/install-cli.mjs" --json`，使用返回的 `commandPath`。脚本在当前用户的 `.local/bin` 注册指向本技能 CLI 的入口，不使用 npm、不修改 PATH、profile 或会话。可用 `--bin-dir <目录>` 选择其他用户可写目录；目标已有非本技能命令时拒绝覆盖。技能脚本原地更新后无需重新注册；技能位置变化时再运行安装入口。不在 PATH 时使用 `commandPath`，或由使用者自行配置 PATH。安装不可用时继续使用 `node "<skill目录>/scripts/xrain-cli.mjs"`。
+
 ## 连接与身份
 
 目标优先级：命令参数 → XRAIN_SERVER/XRAIN_TENANT → profile → 内置默认地址。实际环境必须用登记地址；历史默认 127.0.0.1:5410 不代表当前部署。--server/--exchange 只接受 origin，不带路径、查询或用户密码；独立市场使用 --exchange，不能混平台 --server/--tenant/Token 参数。
@@ -20,7 +24,9 @@ security tokens ensure 只准备本地 admin/guest 别名，不在服务端建�
 
 ## 浏览器登录
 
-auth login（兼容 app login）使用目标 cli-config、已登记 public client 及 OIDC code+PKCE。固定回调 http://127.0.0.1:38749/callback/，等待三分钟。浏览器 loopback 必须回到 CLI 主机；远端执行用已有获准同机浏览器/转发。--no-browser 只关闭自动开页，不解决跨主机回调。保留命令直到回跳，端口冲突不杀未知进程。
+auth login（兼容 app login）默认使用目标 cli-config、已登记 public client 及 OIDC code+PKCE。固定回调 http://127.0.0.1:38749/callback/，等待三分钟。浏览器 loopback 必须回到 CLI 主机；--no-browser 只关闭自动开页，不解决跨主机回调。保留命令直到回跳，端口冲突不杀未知进程。
+
+XRain 平台认证中心支持设备授权时，可用 `auth login --device --server <平台> --tenant <租户> --profile <名称>`。在其他设备打开命令显示的网址，输入验证码并使用获准身份登录、确认；CLI 按服务器间隔等待并换取原租户会话。服务器未提供设备授权时明确报错，不能把 `--no-browser` 当成设备授权。独立市场暂不支持 `--device`。
 
 平台与市场会话分开；app check/build/publish/status 只用浏览器会话。过期重新 auth login。只有 platform.authen.tenant_membership_required 才允许既有默认租户首次登录分支，最终仍须取得请求租户会话；其他拒绝不换租户或加权。
 

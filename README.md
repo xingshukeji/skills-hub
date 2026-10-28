@@ -55,6 +55,8 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 node "<安装目录>/shzw-xrain-cli/scripts/xrain-cli.mjs" --help
 ```
 
+注册当前用户的短命令可执行 `node "<安装目录>/shzw-xrain-cli/scripts/install-cli.mjs"`。该入口不使用 npm，不修改 PATH；未在 PATH 时可使用返回的完整命令路径。重复注册保留已有入口，技能脚本原地更新后直接生效。认证中心支持设备授权时，远端浏览器登录可使用 `xrain-cli auth login --device`。
+
 XRain CLI 和 JavaScript 辅助脚本需要 Node.js 22.12+，推荐 24；CLI 依赖已打包，使用端无需 npm install 或 .NET。`shzw-xrain-app-package` 的 `authoring` 模式离线校验工具需要 .NET 10 SDK；其安装与恢复模式直接消费已交付制品。开发类技能采用目标项目声明的工具链。当前 Workforce 开发宿主自身要求 Node.js 24；Windows CLI 会话保护仍使用系统 PowerShell。
 
 ## 维护与验证

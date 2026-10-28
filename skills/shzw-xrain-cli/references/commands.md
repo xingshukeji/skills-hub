@@ -12,6 +12,7 @@ JSON 首选 --values-json/--query-json/--filter-json 的文件或 -（stdin）�
 
 ```text
 auth login --server <平台origin> --tenant <租户> --profile <名称>
+auth login --device --server <平台origin> --tenant <租户> --profile <名称>
 auth login --exchange <市场origin> --profile <名称>
 auth status --profile <名称> --json
 auth whoami --profile <名称> --json

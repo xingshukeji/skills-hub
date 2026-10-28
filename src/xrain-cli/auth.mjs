@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { CliError, equalIgnoreCase, httpUrl, nonempty } from './core.mjs';
 import { request, requireSuccess } from './http.mjs';
@@ -33,16 +34,16 @@ export class OidcLogin {
     for (const [key, value] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: 'code', state: this.state, nonce: this.nonce, code_challenge: createHash('sha256').update(this.verifier).digest('base64url'), code_challenge_method: 'S256' })) url.searchParams.set(key, value);
     return url.href;
   }
-  async verifyIdentity(identityToken, accessToken) {
+  async verifyIdentity(identityToken, accessToken, { nonceRequired = true } = {}) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const { payload } = await jwtVerify(identityToken, this.keys, {
           algorithms: ['RS256'], issuer: this.config.authority, audience: this.config.clientId,
-          requiredClaims: ['sub', 'iat', 'exp', 'nonce'], clockTolerance: 0,
+          requiredClaims: ['sub', 'iat', 'exp', ...(nonceRequired ? ['nonce'] : [])], clockTolerance: 0,
         });
         const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
         if (!nonempty(payload.sub) || !Number.isSafeInteger(payload.iat) || !Number.isSafeInteger(payload.exp) ||
-            payload.iat > Math.floor(Date.now() / 1000) || !secureEqual(payload.nonce, this.nonce) ||
+            payload.iat > Math.floor(Date.now() / 1000) || (nonceRequired && !secureEqual(payload.nonce, this.nonce)) ||
             !audiences.length || audiences.some(a => a !== this.config.clientId) ||
             (payload.azp !== undefined && payload.azp !== this.config.clientId)) throw new Error('Invalid claims');
         if (payload.at_hash !== undefined) {
@@ -73,6 +74,62 @@ export class OidcLogin {
       throw new CliError('OIDC login returned invalid tokens.');
     await this.verifyIdentity(tokens.id_token, tokens.access_token);
     return { accessToken: tokens.access_token, identityToken: tokens.id_token };
+  }
+}
+
+export class DeviceLogin extends OidcLogin {
+  constructor(config, reporter, { wait = delay } = {}) { super(config, reporter); this.wait = wait; }
+  async prepare() {
+    await this.discover();
+    const endpoint = this.metadata.device_authorization_endpoint;
+    if (!nonempty(endpoint) || !Array.isArray(this.metadata.grant_types_supported) ||
+        !this.metadata.grant_types_supported.includes('urn:ietf:params:oauth:grant-type:device_code'))
+      throw new CliError('The authentication server does not support device login.', { code: 'device_login_unavailable', hint: 'Use browser login on the CLI host or update the authentication server.' });
+    httpUrl(endpoint, 'Device authorization endpoint');
+    const body = new URLSearchParams({ client_id: this.config.clientId, scope: this.config.scope }).toString();
+    const response = requireSuccess(await request(endpoint, { method: 'POST', body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 30000, limit: 1024 * 1024 }));
+    const value = response.json();
+    if (!nonempty(value?.device_code) || !nonempty(value?.user_code) || value.user_code.length > 128 || /[\p{Cc}]/u.test(value.user_code) || !nonempty(value?.verification_uri) ||
+        !Number.isSafeInteger(value?.expires_in) || value.expires_in <= 0 ||
+        (value.interval !== undefined && (!Number.isSafeInteger(value.interval) || value.interval <= 0)))
+      throw new CliError('The authentication server returned an invalid device request.', { code: 'invalid_response' });
+    const uri = httpUrl(value.verification_uri, 'Device verification URL');
+    this.reporter?.secret(value.device_code);
+    this.deviceCode = value.device_code;
+    this.interval = value.interval ?? 5;
+    this.expiresAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + value.expires_in * 1000);
+    return { verificationUri: uri.href, userCode: value.user_code };
+  }
+  async complete() {
+    if (!this.deviceCode || this.consumed) throw new CliError('Device login was not started or was already used.');
+    this.consumed = true;
+    const body = new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      client_id: this.config.clientId, device_code: this.deviceCode }).toString();
+    for (;;) {
+      let remaining = this.expiresAt - Date.now();
+      if (remaining <= 0) throw new CliError('Device login expired.', { code: 'device_login_expired' });
+      await this.wait(Math.min(this.interval * 1000, remaining, 2147483647));
+      remaining = this.expiresAt - Date.now();
+      if (remaining <= 0) throw new CliError('Device login expired.', { code: 'device_login_expired' });
+      const response = await request(this.metadata.token_endpoint, { method: 'POST', body,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: Math.min(30000, remaining), limit: 1024 * 1024 });
+      if (!response.ok) {
+        let value;
+        try { value = response.json(); } catch {}
+        if (response.status === 400 && value?.error === 'authorization_pending') continue;
+        if (response.status === 400 && value?.error === 'slow_down') { this.interval += 5; continue; }
+        if (response.status === 400 && value?.error === 'access_denied') throw new CliError('Device login was declined.', { code: 'device_login_denied' });
+        if (response.status === 400 && value?.error === 'expired_token') throw new CliError('Device login expired.', { code: 'device_login_expired' });
+        requireSuccess(response);
+      }
+      const tokens = response.json();
+      for (const key of ['access_token', 'id_token', 'refresh_token']) this.reporter?.secret(tokens?.[key]);
+      if (!nonempty(tokens?.id_token) || !nonempty(tokens?.access_token) || (tokens.token_type && !equalIgnoreCase(tokens.token_type, 'Bearer')))
+        throw new CliError('Device login returned invalid tokens.', { code: 'invalid_response' });
+      await this.verifyIdentity(tokens.id_token, tokens.access_token, { nonceRequired: false });
+      return { accessToken: tokens.access_token, identityToken: tokens.id_token };
+    }
   }
 }
 
@@ -155,15 +212,23 @@ export async function browserLogin(ctx) {
   const config = requireSuccess(await request(new URL(apiRoot + '/cli-config', profile.server), { timeout: 30000, limit: 1024 * 1024 })).json();
   if (!nonempty(config.authority) || !nonempty(config.clientId) || !nonempty(config.scope) || config.redirectUri !== REDIRECT_URI || (market && config.scope !== 'openid profile'))
     throw new CliError('XRain CLI login configuration is invalid.');
-  const listener = await listenForCallback();
-  let callback;
+  let callback, listener;
   try {
-    const oidc = new OidcLogin(config, ctx.reporter);
-    const url = await oidc.prepare();
-    if (ctx.args.has('no-browser') || !await openBrowser(url)) ctx.reporter.progress(`Open this login URL in your browser: ${url}`);
-    ctx.reporter.progress('Complete XRain login in your browser. Waiting for the local callback...');
-    callback = await listener.callback;
-    const login = await oidc.complete(callback.url);
+    let login;
+    if (ctx.args.has('device')) {
+      const oidc = new DeviceLogin(config, ctx.reporter);
+      const device = await oidc.prepare();
+      ctx.reporter.progress(`Open ${device.verificationUri} in a browser and enter code: ${device.userCode}`);
+      login = await oidc.complete();
+    } else {
+      listener = await listenForCallback();
+      const oidc = new OidcLogin(config, ctx.reporter);
+      const url = await oidc.prepare();
+      if (ctx.args.has('no-browser') || !await openBrowser(url)) ctx.reporter.progress(`Open this login URL in your browser: ${url}`);
+      ctx.reporter.progress('Complete XRain login in your browser. Waiting for the local callback...');
+      callback = await listener.callback;
+      login = await oidc.complete(callback.url);
+    }
     if (market) {
       const data = requireSuccess(await request(new URL('/api/session/sso', profile.server), { method: 'POST', json: { idToken: login.identityToken }, timeout: 30000, limit: 1024 * 1024 })).json();
       if (!Number.isSafeInteger(data.expiresAt)) throw new CliError('The market returned an invalid expiry.');
@@ -176,10 +241,10 @@ export async function browserLogin(ctx) {
       saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant };
       ctx.store.save(saved);
     }
-    callback.reply('登录已完成，可以返回终端。');
+    callback?.reply('登录已完成，可以返回终端。');
     ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } :
       market ? 'Logged in to the independent application market.' : `Logged in with profile '${profile.name}'.`);
     return 0;
   } catch (error) { callback?.reply('登录失败，请返回终端查看。'); throw error; }
-  finally { listener.close(); }
+  finally { listener?.close(); }
 }

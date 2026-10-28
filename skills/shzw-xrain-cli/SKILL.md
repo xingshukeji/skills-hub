@@ -6,7 +6,7 @@ metadata:
   source: SKILL.md
   documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
   products: XRain
-  runtime-requirements: Node.js 22.12+ and command execution; browser callback must reach the CLI host.
+  runtime-requirements: Node.js 22.12+ and command execution; browser callback or device login.
 ---
 
 # XRain CLI
@@ -16,6 +16,8 @@ metadata:
 ```text
 node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 ```
+
+需要执行 CLI 业务操作时，先运行 `node "<skill目录>/scripts/install-cli.mjs" --json`。使用结果的 `commandPath` 执行后续命令，避免 PATH 中同名旧命令；注册失败时直接用上述 Node 脚本。重复注册会复用现有入口，技能原地更新后入口直接使用新脚本；无需 npm。只查本地帮助或配置无需注册。
 
 先从当前请求、任务上下文和责任项目配置确定预期平台、租户及执行主体；身份查询和后续操作使用相同目标，优先显式指定预期 `--server` 与命令支持的 `--tenant`，若依赖默认值，先用本地 `auth status --json` 核对解析的服务地址。访问平台业务前用 `auth whoami --json` 按后续操作实际采用的目标和凭据核对服务器认出的身份。对照实际服务地址、tenantId、userId 和作用域；不一致或预期无法确定时先定位并恢复已授权连接，不从活动 profile 名称猜测，也不创建身份或扩大权限。同一任务上下文未变化时复用判断；目标、凭据或登录身份改变后重新核对。只查本地帮助或配置无需连接服务器。
 
