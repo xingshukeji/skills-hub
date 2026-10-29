@@ -33,10 +33,11 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | --- | --- |
 | [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。 |
 | [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。 |
-| [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，包括工程简化、退役及反复缺陷。纯方案评审走方案入口；运行故障先定位故障链。 |
+| [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，包括前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化、退役及反复缺陷。页面评审从真实画面、用户任务与操作证据判断，不只检查错位和溢出。纯方案评审走方案入口；运行故障先定位故障链。 |
 | [shzw-delivery](skills/shzw-delivery/SKILL.md) | 发布责任项目的公共包，或查询和执行已有流水线、部署及回滚。团队 Nexus 公共包复用台账中的固定发布凭据，无需个人 Nexus 账号或 CI 仓库；真正发布或部署沿用明确制品、目标与授权，构建和 Git 推送不自动授权发布。 |
-| [shzw-deskpilot-cli](skills/shzw-deskpilot-cli/SKILL.md) | 通过本机 Python 工具观察和操作桌面窗口、原生控件与 Chrome 页面，支持截图、离线中文 OCR、输入、短批次与取消。用于明确要求操作本机应用或网页的任务。优先使用已有业务 API；本技能不决定聊天人设、发言策略或业务授权。Windows 10、Ubuntu 22.04 GNOME/X11 和 GitHub 托管 macOS 已有操作证据，具体组合见安装参考；Wayland 桌面操作尚不可用。 |
+| [shzw-deskpilot-cli](skills/shzw-deskpilot-cli/SKILL.md) | 使用本机 DeskPilot 观察和操作桌面客户端、Android 模拟器与 Chrome 网页，支持原生控件、截图和离线中文 OCR。用于明确要求操作本机界面的任务；已有业务 API 能完成目标时优先使用 API。按当前操作渠道加载对应指南，不决定业务授权、聊天人设或发言策略。 |
 | [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅面向人的中文开发文档、上手指南、教程、教材与课程，包括过浅或重复的教学内容。操作指南核对前提、命令与结果；教学内容按任务、深度和实例组织。AGENTS、正式契约与 Runbook 治理走工作空间维护。 |
+| [shzw-prd](skills/shzw-prd/SKILL.md) | 编写、整理或评审产品需求文档（PRD），把业务场景、角色、功能、字段取值、状态、执行逻辑、组件协作和验收说明给不了解项目的读者。按责任项目查证已确认需求与当前实现，区分目标、现状和未决项；方案方向存在实质分歧时使用方案入口。 |
 | [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复或排查项目服务与 Workforce 运行问题，包括页面、智能体、工具、旧版本及登录或会话缓慢。结合前文和实际环境定位入口、版本与故障阶段；明确的登录、403 或人员授权问题走访问权限入口。 |
 | [shzw-skill-evolution](skills/shzw-skill-evolution/SKILL.md) | 根据实际执行与用户纠偏诊断、修正或合并技能，判断技能选错、职责重叠、正文无效、知识或工具失配。用于“skill 没起作用”“为什么还要反复补充”“吸收这次经验”“技能太多合并一下”，以及项目已授权的主动技能改进。单次代码缺陷、环境失败或新需求不自动归因于技能。 |
 | [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较或评审技术方案，解决目标、职责或验收的实质分歧。普通实现、修复、恢复前文、补查事实和例行选择沿原任务执行，不重新规划。 |

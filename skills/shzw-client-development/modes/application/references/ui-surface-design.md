@@ -4,8 +4,8 @@ Use this reference only when the client owns a dense settings, management, form,
 
 ## Inputs, Search, And Empty States
 
-- Text inputs and textareas use the caret as the primary focus cue. Do not add a rounded outer focus ring, halo, shadow, or boundary shift except for real error, disabled, or read-only semantics; keep keyboard focus indicators for buttons, links, selects, checkboxes, and radios.
-- Audit shared input primitives and route-local controls together. Remove decorative outline, `box-shadow`, and `focus-within` effects without weakening semantic states or accessibility.
+- Keep a visible keyboard focus indicator on operable controls, including text inputs and textareas. Preserve an existing clear caret, border or outline according to the product's interaction design; a generic visual preference does not justify removing a working focus indicator.
+- Audit shared input primitives and route-local controls together. Refine distracting duplicate focus effects or layout shifts only when the resulting focused, error, disabled and read-only states remain distinguishable; verify keyboard use on the rendered surface.
 - Search growing collections only after the user enters a non-empty term. Do not prefetch candidates when a picker opens or while the query is empty; keep the placeholder as the primary instruction and use one centered visual for the pre-search empty state.
 - A modal's close action owns the top-right safe area. Keep search, empty, loading, and result content clear of it. Recheck affected consumers when a shared control changes; select tests and viewport checks according to the changed behavior.
 
@@ -23,6 +23,8 @@ A generic recommendation never outranks an owned product rule. If sources confli
 Treat each check as one of three strengths: an **invariant** protects product responsibility, state truth, accessibility, or a shared owner; a **default** is the smallest proven structure and may yield to an owned product decision with evidence; a **heuristic** is taste-level guidance and cannot justify adding UI or workflow. Keep only invariants and evidence-backed defaults in durable project guidance.
 
 ## 按截图和反馈修订
+
+页面视觉评审使用 `shzw-code-review` 的[前端视觉与体验方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/frontend/GUIDE.md)，逐页检查排版、空间、层级、识别与操作反馈。本参考只补充具体界面的设计约束，不以“没有错位”代替视觉结论。
 
 截图、圈注或多次纠正涉及多个位置时，先把每处位置、期望变化和需保留的行为写在本次工作记录中。查看原图、实际界面及对应源码；需要参考其他产品的行为时，先查其真实定义或实现，不凭外观猜测设置和取值。
 
@@ -77,7 +79,7 @@ Choose evidence for the affected rule and behavior:
 |---|---|
 | Title/action ownership, control grouping, count/status semantics | Inspect the affected source and rendered surface; test a changed behavioral contract when needed |
 | Visibility basis, user-facing copy, and forbidden internal explanations | Review the affected visible text, states, sample data and overlays in the rendered surface |
-| Boundary count, sparse density, spacing, and hierarchy | Browser screenshot or computed-style check |
+| Boundary count, sparse density, spacing, and hierarchy | Inspect the rendered screenshot; use computed styles to substantiate measurements, not to replace visual inspection |
 | Responsive wrapping and no overflow | Desktop and named narrow-width browser smoke |
 | Destructive mutation, pending, failure, and focus return | Focused interaction test |
 

@@ -18,7 +18,7 @@ Windows 在常规环境路径之外也检查已注册的 Chrome/Edge 安装位�
 | `chrome.evaluate` | `expression`；只读表达式明确传 `read_only:true`；工具执行调用方提供的代码，不替调用方生成业务意图 |
 | `chrome.wait` | selector + `state`（visible/hidden/attached/detached），或 `predicate`，或 ready_expression；返回实际就绪信号 |
 
-选择器不唯一时返回 `CHROME_TARGET_AMBIGUOUS`，不点击首项。`chrome.fill` 对密码控件返回 `SENSITIVE_INPUT_BLOCKED`；已授权的本机测试凭据可按[桌面](desktop.md#已授权的本机测试凭据)使用 Windows 的专用输入入口。页面含密码框仅作为可见状态信息，不把整个页面推断成必须登录。
+选择器不唯一时返回 `CHROME_TARGET_AMBIGUOUS`，不点击首项。`chrome.fill` 对密码控件返回 `SENSITIVE_INPUT_BLOCKED`；已授权的本机测试凭据可按[测试凭据输入](credentials.md)使用 Windows 的专用输入入口。页面含密码框仅作为可见状态信息，不把整个页面推断成必须登录。
 
 `chrome.click` 使用鼠标事件；页面处于隐藏状态时返回 `CHROME_PAGE_NOT_VISIBLE`，不声称已点击。先核对正确浏览器和标签是否可见，再决定如何恢复；不要把协议接收事件当作业务动作成功。
 

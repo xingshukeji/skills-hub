@@ -16,6 +16,10 @@ metadata:
 
 普通功能直接实现并验证。涉及交付、托管进程或能力程序时，沿实际入口追踪最终候选、依赖准备、健康、关闭及用户状态保留；采用与本次改变相称的安装或候选检查，不要求每个 UI 修复打完整安装包。
 
+前端页面或截图 review 使用 `shzw-code-review` 的[视觉与体验方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/frontend/GUIDE.md)。开发后的视觉自查沿用该方法，只覆盖受影响页面、视口和状态；不因评审展开完整客户端交付。
+
+需要复验实际界面，而当前可用入口无法观察、截取可信画面或完成必要操作时，在当前工具和授权允许的范围内，使用 [shzw-deskpilot-cli](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-deskpilot-cli/SKILL.md) 检查已有安装和目标能力，按桌面、浏览器或 Android 对应指南操作并回读结果。用户明确指定 DeskPilot 时直接使用。保持指定的应用、浏览器、会话和身份；不能换一个页面或合成画面冒充原场景。DeskPilot 提供观察与操作证据，视觉质量仍按上述方法判断；原目标不可达时说明具体限制。
+
 应用自管能力不能从插件名称推断公共 SDK 或 ABI。工具声明、幂等性、取消、秘密、进程树及持久资源各有明确所有者。首次交付验证原用户动作和受影响恢复分支，源码启动不能替代本次要求的安装后行为。
 
 本地候选生成与正式发布分别判断；发布、签名和外部目标变更只沿已授权交付执行。
