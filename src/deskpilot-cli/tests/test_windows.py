@@ -455,6 +455,41 @@ class WindowsContracts(unittest.TestCase):
             session.execute('ui.find', params | {'search_scope': 'subtree', 'depth': 2})
         self.assertEqual(invalid.exception.code, 'INVALID_ARGUMENT')
 
+    def test_unreadable_subtree_cannot_prove_unique_or_absent(self):
+        class Node:
+            def __init__(self, identifier, children=(), broken=False):
+                self.identifier, self.broken, self.CurrentName = identifier, broken, identifier
+                self.CurrentClassName, self.CurrentControlType = 'Edit', 50004
+                self.CurrentIsPassword, self.CurrentIsControlElement = False, True
+                self.CurrentIsEnabled, self.CurrentIsOffscreen, self.CurrentHasKeyboardFocus = True, False, False
+                self.CurrentBoundingRectangle = SimpleNamespace(left=0, top=0, right=40, bottom=20)
+                self.children, self.next_sibling = list(children), None
+                for i, child in enumerate(self.children):
+                    child.next_sibling = self.children[i + 1] if i + 1 < len(self.children) else None
+            @property
+            def CurrentAutomationId(self):
+                if self.broken: raise OSError('synthetic inaccessible provider')
+                return self.identifier
+        root = Node('root', [Node('unreadable', [Node('target'), Node('hidden-only')], True), Node('target')])
+        walker = SimpleNamespace(GetFirstChildElement=lambda node: node.children[0] if node.children else None,
+                                 GetNextSiblingElement=lambda node: node.next_sibling)
+        self.desktop._automation = lambda: SimpleNamespace(ElementFromHandle=lambda _: root, ControlViewWalker=walker)
+        window = {'native': 10, 'identity': (10, 1, 'fixture'), 'pid': 1, 'process': 'fixture',
+                  'title': 'fixture', 'class_name': 'fixture', 'bounds': {'x': 0, 'y': 0, 'width': 50, 'height': 50}}
+        self.desktop.windows = lambda: [window]
+        self.desktop.window = lambda _: window
+        self.desktop.activate = lambda value, **_: value
+        self.desktop.activity = lambda *a, **k: None
+        self.desktop.foreground = lambda: None
+        self.desktop.close = lambda: None
+        session = Session(desktop=self.desktop)
+        self.addCleanup(session.close)
+        for method, params in [('ui.find', {'automation_id': 'target', 'require_unique': True}),
+                               ('wait.element', {'automation_id': 'hidden-only', 'state': 'absent'})]:
+            with self.subTest(method=method), self.assertRaises(DeskPilotError) as caught:
+                session.execute(method, {'title_exact': 'fixture', **params})
+            self.assertEqual(caught.exception.code, 'UI_AUTOMATION_INCOMPLETE')
+
 
 if __name__ == '__main__':
     unittest.main()

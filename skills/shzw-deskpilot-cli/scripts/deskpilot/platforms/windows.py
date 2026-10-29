@@ -342,8 +342,11 @@ class WindowsDesktop:
                     result.append({"_filtered_out": True})
                     return index
                 item = self._tree_item(element, level, parent)
-            except Exception:
-                return None
+            except DeskPilotError:
+                raise
+            except Exception as exc:
+                raise DeskPilotError("UI_AUTOMATION_INCOMPLETE", f"A control subtree could not be read ({type(exc).__name__}).",
+                                     retryable=True) from None
             index = len(result)
             result.append(item)
             return index
