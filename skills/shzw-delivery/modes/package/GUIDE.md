@@ -12,15 +12,15 @@
 
 团队共享 Nexus `https://nexus.atlas-xrain.com/` 的应用公共包统一复用既有程序账号 `applications-ci-publisher-v1`。成员和 CI 使用同一受管发布凭据，无需另建或提供个人 Nexus 账号。这个账号虽包含 `ci`，也供本技能的直接发包入口使用。
 
-从[服务产品主台账](https://icnqubijerds.feishu.cn/base/EtKrbZtXlaH2m0si7bgcVn5bnZg)按下列关系读取。密码只保存在密码字典的 `value` 字段，技能只分发账号和查找键。
+从[密码与密钥（IT资源安全管理系统_v2）](https://shzhuwei.feishu.cn/wiki/WyPBwavcZivspZkShoBclTo6nyb?table=tblGm4uf0WjxTviX&view=vewOwx5chR)按下列关系读取。先解析链接，确认 Base 为 `Qm4gbe0MnaH0qhsVtaYc3JJQnce`、表为 `tblGm4uf0WjxTviX`。密码只保存在该表的 `value` 字段，技能只分发账号和查找键。
 
 | 位置 | 查找内容 |
 |---|---|
-| 账号清单 | “Nexus · 应用包制品发布”；登录账号 `applications-ci-publisher-v1`；凭证Key `acct.nexus-applications-ci-publisher-v1` |
+| 发布账号 | “Nexus · 应用包制品发布”；登录账号 `applications-ci-publisher-v1`；凭证Key `acct.nexus-applications-ci-publisher-v1` |
 | 密码与密钥 | `key` 精确等于 `acct.nexus-applications-ci-publisher-v1`；读取该记录的 `value` |
 | 允许的公共包路径 | `versioned-releases` 下的 `workforce-application/releases/`、`xrain-agent-runtime/releases/`、`record-file/releases/` |
 
-1. 使用当前可用的多维表格工具读取账号清单、密码字典的字段和上述记录。按 `凭证Key` 与 `key` 关联，不用账号说明中的关键词搜索代替密码字典查询。
+1. 使用当前可用的多维表格工具读取上述密码字典的字段和记录。用户指定其他链接时，先解析该链接并以其实际 Base、表和视图核对；不能用另一份同名表中有记录，证明用户指定的表已收录。按发布账号的 `凭证Key` 精确查询 `key`，不用账号说明中的关键词搜索代替密码字典查询。
 2. 确认 `key` 完全匹配且 `value` 非空。“已收录”只是登记状态，不能代替实际字段检查。查询没有返回记录时，先核对 Base、表、字段和分页；只有完整查询后才能报告缺项。
 3. 将账号和密码在内存中注入发布进程的 `XRAIN_NEXUS_PUBLISH_USER`、`XRAIN_NEXUS_PUBLISH_PASSWORD`。读取结果和子进程环境不得打印；工具生成临时秘密文件时，限定当前用户访问，并在读取后清除。
 
