@@ -1,6 +1,6 @@
 "interface":
   "display_name": "包发布、流水线与交付"
-  "short_description": "用成员凭据独立发布公共包，或按明确制品和目标执行流水线及部署"
+  "short_description": "复用台账固定发布凭据发布公共包，或按明确制品和目标执行流水线及部署"
   "default_prompt": "使用 $shzw-delivery 完成当前请求，沿用已有目标和授权，读取相关项目知识并验证原用户结果。"
 "policy":
   "allow_implicit_invocation": true
