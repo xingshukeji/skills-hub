@@ -7,13 +7,17 @@ on:
       - .github/workflows/deskpilot-macos.yml
       - tools/verify-deskpilot-macos.py
       - src/deskpilot-cli/**
+      - '!src/deskpilot-cli/**/*.md'
       - skills/shzw-deskpilot-cli/**
+      - '!skills/shzw-deskpilot-cli/**/*.md'
   pull_request:
     paths:
       - .github/workflows/deskpilot-macos.yml
       - tools/verify-deskpilot-macos.py
       - src/deskpilot-cli/**
+      - '!src/deskpilot-cli/**/*.md'
       - skills/shzw-deskpilot-cli/**
+      - '!skills/shzw-deskpilot-cli/**/*.md'
   workflow_dispatch:
 
 permissions:

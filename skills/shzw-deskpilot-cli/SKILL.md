@@ -1,6 +1,6 @@
 ---
 name: shzw-deskpilot-cli
-description: 通过本机 Python 工具观察和操作桌面窗口、原生控件与 Chrome 页面，支持截图、离线中文 OCR、输入、短批次与取消。用于明确要求操作本机应用或网页的任务。优先使用已有业务 API；本技能不决定聊天人设、发言策略或业务授权。Windows 10 和 Ubuntu 22.04 GNOME/X11 已有操作证据，macOS 尚待实测，Wayland 桌面操作尚不可用。
+description: 通过本机 Python 工具观察和操作桌面窗口、原生控件与 Chrome 页面，支持截图、离线中文 OCR、输入、短批次与取消。用于明确要求操作本机应用或网页的任务。优先使用已有业务 API；本技能不决定聊天人设、发言策略或业务授权。Windows 10、Ubuntu 22.04 GNOME/X11 和 GitHub 托管 macOS 已有操作证据，具体组合见安装参考；Wayland 桌面操作尚不可用。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
