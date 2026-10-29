@@ -112,6 +112,7 @@ class MacDesktop:
             function.restype, function.argtypes = result, arguments
         for name, result, arguments in [
             ("CGWindowListCopyWindowInfo", C.c_void_p, [C.c_uint32, C.c_uint32]),
+            ("CGWindowLevelForKey", C.c_int32, [C.c_int32]),
             ("CGRectMakeWithDictionaryRepresentation", C.c_bool, [C.c_void_p, C.POINTER(Rect)]),
             ("CGPreflightScreenCaptureAccess", C.c_bool, []),
             ("CGPreflightPostEventAccess", C.c_bool, []),
@@ -224,7 +225,7 @@ class MacDesktop:
                 if bounds["width"] <= 0 or bounds["height"] <= 0:
                     continue
                 visible = bool(self._value(self._dictionary(item, "kCGWindowIsOnscreen")))
-                result.append({"native": number, "identity": (number, pid), "pid": pid,
+                result.append({"native": number, "identity": (number, pid), "pid": pid, "layer": layer,
                                "title": self._value(self._dictionary(item, "kCGWindowName")) or "",
                                "process": self._value(self._dictionary(item, "kCGWindowOwnerName")) or "",
                                "class_name": "AXWindow", "bounds": bounds, "visible": visible, "minimized": not visible})
@@ -381,13 +382,20 @@ class MacDesktop:
         for candidate in self.windows(include_overlays=True):
             if candidate["pid"] == own_overlay_pid:
                 continue
+            # WindowServer exposes the cursor's rendering surface as a window.
+            # It does not intercept input; unrelated high-level windows still do.
+            if (candidate.get("process") == "Window Server" and candidate.get("title") == "Cursor"
+                    and candidate.get("layer") == self.cg.CGWindowLevelForKey(19)):
+                continue
             area = candidate["bounds"]
             if not (area["x"] <= point.x < area["x"] + area["width"]
                     and area["y"] <= point.y < area["y"] + area["height"]):
                 continue
             require(candidate["identity"] == window["identity"], "POINT_OCCLUDED",
                     "Another visible window covers the requested input point.",
-                    details={"blocking_window_id": candidate["native"], "blocking_pid": candidate["pid"]})
+                    details={"blocking_window_id": candidate["native"], "blocking_pid": candidate["pid"],
+                             "blocking_process": candidate.get("process"), "blocking_title": candidate.get("title"),
+                             "blocking_layer": candidate.get("layer"), "blocking_bounds": area})
             return
         raise DeskPilotError("INPUT_TARGET_MISMATCH", "The requested point no longer belongs to the target window.")
 

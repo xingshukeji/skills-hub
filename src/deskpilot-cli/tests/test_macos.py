@@ -23,6 +23,7 @@ class MacPointGuardTests(unittest.TestCase):
                         "bounds": {"x": 60, "y": 70, "width": 80, "height": 60}}
         self.desktop = MacDesktop.__new__(MacDesktop)
         self.desktop._overlay = None
+        self.desktop.cg = SimpleNamespace(CGWindowLevelForKey=lambda key: 2147483630 if key == 19 else 0)
         self.desktop._input_access = Mock()
         self.desktop.foreground = lambda: self.target["native"]
         self.desktop._post = Mock()
@@ -61,6 +62,16 @@ class MacPointGuardTests(unittest.TestCase):
         with self.assertRaises(DeskPilotError) as raised:
             self.desktop._point_guard(self.target, Point(80, 90))
         self.assertEqual(raised.exception.code, "POINT_OCCLUDED")
+
+    def test_system_cursor_surface_is_excluded_without_exempting_other_high_windows(self):
+        cursor = dict(self.foreign, process="Window Server", title="Cursor", layer=2147483630)
+        self.desktop.windows = Mock(return_value=[cursor, self.target])
+        self.desktop._point_guard(self.target, Point(80, 90))
+        for change in ({"process": "Other"}, {"title": "Other"}, {"layer": 3}):
+            self.desktop.windows = Mock(return_value=[cursor | change, self.target])
+            with self.assertRaises(DeskPilotError) as raised:
+                self.desktop._point_guard(self.target, Point(80, 90))
+            self.assertEqual(raised.exception.code, "POINT_OCCLUDED")
 
     def test_missing_target_point_and_lost_foreground_do_not_dispatch(self):
         self.desktop.windows = Mock(return_value=[])
