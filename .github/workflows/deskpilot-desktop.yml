@@ -1,0 +1,80 @@
+name: DeskPilot Windows and Linux desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deskpilot-desktop.yml
+      - src/deskpilot-cli/**
+      - '!src/deskpilot-cli/**/*.md'
+      - skills/shzw-deskpilot-cli/**
+      - '!skills/shzw-deskpilot-cli/**/*.md'
+  pull_request:
+    paths:
+      - .github/workflows/deskpilot-desktop.yml
+      - src/deskpilot-cli/**
+      - '!src/deskpilot-cli/**/*.md'
+      - skills/shzw-deskpilot-cli/**
+      - '!skills/shzw-deskpilot-cli/**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deskpilot-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Native Linux X11 controls and OCR
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      DESKPILOT_RESOURCES: ${{ github.workspace }}/skills/shzw-deskpilot-cli
+      DESKPILOT_LINUX_TESTS: '1'
+      NO_AT_BRIDGE: '0'
+      GTK_MODULES: gail:atk-bridge
+      XDG_SESSION_TYPE: x11
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install the X11 and accessibility runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb dbus-x11 metacity at-spi2-core libgtk-3-0 libatspi2.0-0 libxtst6 libxext6 fonts-noto-cjk
+      - name: Exercise the native GTK fixture
+        run: |
+          dbus-run-session -- xvfb-run -a -s '-screen 0 1600x900x24' bash -c '
+            set -euo pipefail
+            metacity --replace &
+            window_manager=$!
+            trap "kill $window_manager 2>/dev/null || true" EXIT
+            sleep 2
+            python -c "import sys, unittest; suite = unittest.defaultTestLoader.discover(\"src/deskpilot-cli/tests\", pattern=\"test_linux_live.py\"); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(0 if result.wasSuccessful() and result.testsRun == 1 and not result.skipped else 1)"
+          '
+
+  windows:
+    name: Native Windows controls and OCR
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DESKPILOT_RESOURCES: ${{ github.workspace }}/skills/shzw-deskpilot-cli
+      DESKPILOT_LIVE_TESTS: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Exercise the native Windows fixtures
+        shell: pwsh
+        run: |
+          python -c 'import sys, unittest; suite = unittest.defaultTestLoader.discover("src/deskpilot-cli/tests", pattern="test_windows_live.py"); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(0 if result.wasSuccessful() and result.testsRun == 4 and not result.skipped else 1)'
