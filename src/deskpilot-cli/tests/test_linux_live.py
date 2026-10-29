@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deskpilot.session import Session
 from deskpilot.screen import Image
 from deskpilot import DeskPilotError
-from deskpilot.platforms.linux import LinuxDesktop
 
 
 @unittest.skipUnless(sys.platform.startswith("linux") and os.environ.get("DESKPILOT_LINUX_TESTS") == "1", "requires an explicitly selected Linux X11 fixture run")
@@ -74,44 +73,43 @@ class LinuxLiveTests(unittest.TestCase):
         self.assertTrue(doctor["activity"]["status_panel"])
         self.assertTrue(doctor["activity"]["action_trace"])
         self.assertTrue(doctor["activity"]["input_transparent"])
-        desktop = LinuxDesktop()
+        # The session owns the process-wide AT-SPI lifecycle. Reuse its desktop
+        # so this visual inspection cannot shut down the active session.
+        desktop = session.desktop
         area, element = edit["window"]["bounds"], edit["elements"][0]["bounds"]
         center = (element["x"] + element["width"] // 2, element["y"] + element["height"] // 2)
-        try:
-            def colors(x, y, width=1, height=1):
-                image = desktop.x.XGetImage(desktop.display, desktop.root, x, y, width, height, C.c_ulong(-1).value, 2)
-                self.assertTrue(image)
-                try:
-                    frame = image.contents
-                    self.assertEqual(frame.bits_per_pixel, 32)
-                    raw = C.string_at(frame.data, frame.bytes_per_line * frame.height)
-                    order = "little" if frame.byte_order == 0 else "big"
-                    return {int.from_bytes(raw[i:i + 4], order) & 0xFFFFFF for i in range(0, len(raw), 4)}
-                finally:
-                    desktop.x.XDestroyImage(image)
+        def colors(x, y, width=1, height=1):
+            image = desktop.x.XGetImage(desktop.display, desktop.root, x, y, width, height, C.c_ulong(-1).value, 2)
+            self.assertTrue(image)
+            try:
+                frame = image.contents
+                self.assertEqual(frame.bits_per_pixel, 32)
+                raw = C.string_at(frame.data, frame.bytes_per_line * frame.height)
+                order = "little" if frame.byte_order == 0 else "big"
+                return {int.from_bytes(raw[i:i + 4], order) & 0xFFFFFF for i in range(0, len(raw), 4)}
+            finally:
+                desktop.x.XDestroyImage(image)
 
-            self.assertEqual(desktop.window(desktop.foreground())["title"], title)
-            self.assertEqual(colors(area["x"] + 20, area["y"] - 2), {0x3080FF})
-            self.assertEqual(colors(*center), {0x3080FF})
-            screen = desktop._geometry(desktop.root)
-            panel_colors = colors(max(0, screen["width"] - 335), 12, 320, 40)
-            self.assertIn(0x111827, panel_colors)
-            self.assertIn(0xF9FAFB, panel_colors)
-            captured = session.execute("screen.capture", {"title_exact": title})
-            image = Image.open(captured["screenshot"]["path"])
-            x, y = center[0] - area["x"], center[1] - area["y"]
-            offset = (y * image.width + x) * 3
-            self.assertNotEqual(tuple(image.rgb[offset:offset + 3]), (0x30, 0x80, 0xFF))
-            self.assertEqual(colors(*center), {0x3080FF})
-            self.assertIn(0xF9FAFB, colors(max(0, screen["width"] - 335), 12, 320, 40))
-            return captured["screenshot"]["path"]
-        finally:
-            desktop.close()
+        self.assertEqual(desktop.window(desktop.foreground())["title"], title)
+        self.assertEqual(colors(area["x"] + 20, area["y"] - 2), {0x3080FF})
+        self.assertEqual(colors(*center), {0x3080FF})
+        screen = desktop._geometry(desktop.root)
+        panel_colors = colors(max(0, screen["width"] - 335), 12, 320, 40)
+        self.assertIn(0x111827, panel_colors)
+        self.assertIn(0xF9FAFB, panel_colors)
+        captured = session.execute("screen.capture", {"title_exact": title})
+        image = Image.open(captured["screenshot"]["path"])
+        x, y = center[0] - area["x"], center[1] - area["y"]
+        offset = (y * image.width + x) * 3
+        self.assertNotEqual(tuple(image.rgb[offset:offset + 3]), (0x30, 0x80, 0xFF))
+        self.assertEqual(colors(*center), {0x3080FF})
+        self.assertIn(0xF9FAFB, colors(max(0, screen["width"] - 335), 12, 320, 40))
+        return captured["screenshot"]["path"]
 
     def _check_unrelated_overlay_is_rejected(self, session, title):
         observed = session.execute("observe", {"title_exact": title})
         area = observed["window"]["bounds"]
-        desktop = LinuxDesktop()
+        desktop = session.desktop
         overlay = desktop.x.XCreateSimpleWindow(desktop.display, desktop.root,
                                                 area["x"] + 4, area["y"] + 4, 12, 12, 0, 0xFF0000, 0xFF0000)
         self.assertTrue(overlay)
@@ -133,4 +131,3 @@ class LinuxLiveTests(unittest.TestCase):
         finally:
             desktop.x.XDestroyWindow(desktop.display, overlay)
             desktop.x.XSync(desktop.display, False)
-            desktop.close()
