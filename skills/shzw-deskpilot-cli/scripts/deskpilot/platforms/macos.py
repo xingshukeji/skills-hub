@@ -119,6 +119,7 @@ class MacDesktop:
             ("CGPreflightScreenCaptureAccess", C.c_bool, []),
             ("CGPreflightPostEventAccess", C.c_bool, []),
             ("CGEventCreate", C.c_void_p, [C.c_void_p]), ("CGEventGetLocation", Point, [C.c_void_p]),
+            ("CGEventSetLocation", None, [C.c_void_p, Point]),
             ("CGEventCreateMouseEvent", C.c_void_p, [C.c_void_p, C.c_uint32, Point, C.c_uint32]),
             ("CGEventCreateKeyboardEvent", C.c_void_p, [C.c_void_p, C.c_uint16, C.c_bool]),
             ("CGEventKeyboardSetUnicodeString", None, [C.c_void_p, C.c_ulong, C.POINTER(C.c_uint16)]),
@@ -490,7 +491,12 @@ class MacDesktop:
         try:
             self._post(self.cg.CGEventCreateMouseEvent(None, 5, point, 0))
             delta = round(amount / 120 * 3)
-            self._post(self.cg.CGEventCreateScrollWheelEvent(None, 1, 2 if horizontal else 1, 0 if horizontal else delta, delta if horizontal else 0))
+            event = self.cg.CGEventCreateScrollWheelEvent(None, 1, 2 if horizontal else 1, 0 if horizontal else delta, delta if horizontal else 0)
+            require(bool(event), "INPUT_NOT_DISPATCHED", "The system did not create the requested scroll event.")
+            # Posted pointer motion is asynchronous. Bind the wheel event to the
+            # selected point instead of inheriting the previous pointer location.
+            self.cg.CGEventSetLocation(event, point)
+            self._post(event)
         finally:
             self._post(self.cg.CGEventCreateMouseEvent(None, 5, original, 0))
 

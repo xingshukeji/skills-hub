@@ -311,7 +311,7 @@ def verify(output):
                 client.call("ui.click", ref)
                 wait_for(lambda: read_json(state_path), lambda value: value["clicks"] == 2)
 
-            with case("native scroll changes the actual AppKit viewport"):
+            with case("native scroll changes the actual AppKit viewport", collect_failure=True):
                 ref, _ = find("multiline")
                 content = "\n".join(f"Native scroll line {index:02d}" for index in range(80))
                 client.call("ui.set_value", ref | {"value": content})
@@ -324,6 +324,7 @@ def verify(output):
                                              "y": bounds["y"] + bounds["height"] // 2 - area["y"], "amount": -2400})
                 wait_for(lambda: read_json(state_path), lambda value: value["scroll_y"] > before + 1,
                          description="native AppKit viewport scrolling")
+                report["native_scroll"] = {"before_y": before, "after_y": read_json(state_path)["scroll_y"]}
                 ref, _ = find("multiline")
                 client.call("ui.set_value", ref | {"value": "第一行\nSecond line"})
                 wait_for(lambda: read_json(state_path), lambda value: value["multiline"] == "第一行\nSecond line")

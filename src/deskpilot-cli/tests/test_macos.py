@@ -100,6 +100,20 @@ class MacPointGuardTests(unittest.TestCase):
             self.desktop._point_guard(self.target, Point(80, 90))
         self.assertEqual(raised.exception.details["blocking_pid"], 300)
 
+    def test_scroll_event_has_the_requested_location_before_dispatch(self):
+        self.desktop.windows = Mock(return_value=[self.target])
+        self.desktop._pointer = lambda: Point(1, 2)
+        events = []
+        class Graphics:
+            def CGEventCreateMouseEvent(self, *args): return ("mouse", args[2].x, args[2].y)
+            def CGEventCreateScrollWheelEvent(self, *args): return {"kind": "wheel", "position": (1, 2)}
+            def CGEventSetLocation(self, event, point): event["position"] = (point.x, point.y)
+        self.desktop.cg = Graphics()
+        self.desktop._post = events.append
+        self.desktop.scroll(self.target, 60, 60, -120)
+        self.assertEqual(events[1], {"kind": "wheel", "position": (80, 90)})
+        self.assertEqual(events[-1], ("mouse", 1, 2))
+
 
 if __name__ == "__main__":
     unittest.main()
