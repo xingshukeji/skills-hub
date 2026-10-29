@@ -257,7 +257,11 @@ class MacDesktop:
             same_bounds = all(abs(area[key] - window["bounds"][key]) <= 2 for key in area)
             title = self._read(candidate, "AXTitle", "")
             candidates.append({"window_number": number, "bounds": area, "title": title})
-            if same_bounds and (not window["title"] or title == window["title"]):
+            # Chrome decorates its accessibility title with the owning app name,
+            # while WindowServer returns the page title alone. Match only these
+            # exact forms, retaining the same-process, bounds and uniqueness checks.
+            titles = {window["title"], window["title"] + " - " + window.get("process", "")}
+            if same_bounds and (not window["title"] or title in titles):
                 matches.append(candidate)
         require(len(matches) == 1, "WINDOW_IDENTITY_MISMATCH", "The window-server ID could not be uniquely bound to an accessibility window.",
                 details={"target_window_id": window["native"], "target_bounds": window["bounds"],

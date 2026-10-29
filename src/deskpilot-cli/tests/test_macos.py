@@ -115,5 +115,43 @@ class MacPointGuardTests(unittest.TestCase):
         self.assertEqual(events[-1], ("mouse", 1, 2))
 
 
+class MacWindowBindingTests(unittest.TestCase):
+    def setUp(self):
+        self.window = {"native": 1, "pid": 100, "title": "Fixture page", "process": "Google Chrome",
+                       "bounds": {"x": 20, "y": 30, "width": 300, "height": 200}}
+        self.candidate = {"AXTitle": "Fixture page - Google Chrome", "bounds": dict(self.window["bounds"])}
+        self.candidates = [self.candidate]
+        self.desktop = MacDesktop.__new__(MacDesktop)
+        self.desktop.cf = SimpleNamespace(CFRelease=Mock())
+        self.desktop.ax = SimpleNamespace(AXUIElementCreateApplication=lambda pid: 1,
+                                         AXUIElementSetMessagingTimeout=Mock())
+        self.desktop._trusted = Mock()
+        self.desktop._children = lambda *args: self.candidates
+        self.desktop._read = lambda item, name, default=None: item.get(name, default)
+        self.desktop._bounds = lambda item: item["bounds"]
+
+    def test_chrome_owner_suffix_binds_the_same_unique_native_frame(self):
+        self.assertIs(self.desktop._window_ax(self.window), self.candidate)
+        self.candidate["AXTitle"] = self.window["title"]
+        self.assertIs(self.desktop._window_ax(self.window), self.candidate)
+
+    def test_other_titles_or_frame_changes_are_not_treated_as_the_same_window(self):
+        for title in ("Different page - Google Chrome", "Fixture page - Other app", "Fixture page - Google Chrome extra"):
+            self.candidate["AXTitle"] = title
+            with self.assertRaises(DeskPilotError) as raised:
+                self.desktop._window_ax(self.window)
+            self.assertEqual(raised.exception.code, "WINDOW_IDENTITY_MISMATCH")
+        self.candidate["AXTitle"] = "Fixture page - Google Chrome"
+        self.candidate["bounds"]["x"] += 10
+        with self.assertRaises(DeskPilotError):
+            self.desktop._window_ax(self.window)
+
+    def test_decorated_title_does_not_resolve_ambiguous_windows(self):
+        self.candidates.append(dict(self.candidate))
+        with self.assertRaises(DeskPilotError) as raised:
+            self.desktop._window_ax(self.window)
+        self.assertEqual(raised.exception.code, "WINDOW_IDENTITY_MISMATCH")
+
+
 if __name__ == "__main__":
     unittest.main()
