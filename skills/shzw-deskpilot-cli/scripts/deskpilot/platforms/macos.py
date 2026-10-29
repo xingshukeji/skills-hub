@@ -248,7 +248,7 @@ class MacDesktop:
         self._trusted()
         app = AXRef(self, self.ax.AXUIElementCreateApplication(window["pid"]))
         self.ax.AXUIElementSetMessagingTimeout(app.pointer, 2)
-        matches = []
+        matches, candidates = [], []
         for candidate in self._children(app, "AXWindows"):
             number = self._read(candidate, "AXWindowNumber")
             if number is not None and int(number) == window["native"]:
@@ -256,9 +256,12 @@ class MacDesktop:
             area = self._bounds(candidate)
             same_bounds = all(abs(area[key] - window["bounds"][key]) <= 2 for key in area)
             title = self._read(candidate, "AXTitle", "")
+            candidates.append({"window_number": number, "bounds": area, "title": title})
             if same_bounds and (not window["title"] or title == window["title"]):
                 matches.append(candidate)
-        require(len(matches) == 1, "WINDOW_IDENTITY_MISMATCH", "The window-server ID could not be uniquely bound to an accessibility window.")
+        require(len(matches) == 1, "WINDOW_IDENTITY_MISMATCH", "The window-server ID could not be uniquely bound to an accessibility window.",
+                details={"target_window_id": window["native"], "target_bounds": window["bounds"],
+                         "target_title": window["title"], "candidate_windows": candidates[:20]})
         return matches[0]
 
     def _action(self, element, action):

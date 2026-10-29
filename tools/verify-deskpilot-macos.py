@@ -198,7 +198,7 @@ def browser_case(client, executable, directory):
     worker.start()
     profile = directory / "owned browser profile"
     chrome = subprocess.Popen([executable, "--remote-debugging-port=0", "--user-data-dir=" + str(profile),
-                               "--no-first-run", "--no-default-browser-check", "about:blank"],
+                               "--force-renderer-accessibility", "--no-first-run", "--no-default-browser-check", "about:blank"],
                               stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         port = wait_for(lambda: (profile / "DevToolsActivePort").read_text().splitlines()[0], description="owned Chrome endpoint")
