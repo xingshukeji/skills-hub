@@ -23,7 +23,7 @@ class MacPointGuardTests(unittest.TestCase):
                         "bounds": {"x": 60, "y": 70, "width": 80, "height": 60}}
         self.desktop = MacDesktop.__new__(MacDesktop)
         self.desktop._overlay = None
-        self.desktop.cg = SimpleNamespace(CGWindowLevelForKey=lambda key: 2147483630 if key == 19 else 0)
+        self.desktop.cg = SimpleNamespace(CGWindowLevelForKey=lambda key: {19: 2147483630, 7: 20}.get(key, 0))
         self.desktop._input_access = Mock()
         self.desktop.foreground = lambda: self.target["native"]
         self.desktop._post = Mock()
@@ -83,6 +83,22 @@ class MacPointGuardTests(unittest.TestCase):
             self.desktop.scroll(self.target, 60, 60, 120)
         self.assertEqual(background.exception.code, "WINDOW_NOT_FOREGROUND")
         self.desktop._post.assert_not_called()
+
+    def test_dock_transparent_region_requires_system_hit_test_and_actual_controls_still_block(self):
+        dock = dict(self.foreign, process="Dock", title="Dock", layer=20)
+        self.desktop.windows = Mock(return_value=[dock, self.target])
+        self.desktop._point_pid = Mock(return_value=100)
+        self.desktop._point_guard(self.target, Point(80, 90))
+        for pid in (200, None):
+            self.desktop._point_pid.return_value = pid
+            with self.assertRaises(DeskPilotError) as raised:
+                self.desktop._point_guard(self.target, Point(80, 90))
+            self.assertEqual(raised.exception.code, "POINT_OCCLUDED")
+        self.desktop._point_pid.return_value = 300
+        self.desktop.windows = Mock(return_value=[dock, self.foreign | {"pid": 300}, self.target])
+        with self.assertRaises(DeskPilotError) as raised:
+            self.desktop._point_guard(self.target, Point(80, 90))
+        self.assertEqual(raised.exception.details["blocking_pid"], 300)
 
 
 if __name__ == "__main__":

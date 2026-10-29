@@ -101,6 +101,8 @@ class MacDesktop:
             ("AXIsProcessTrusted", C.c_bool, []),
             ("AXUIElementCreateApplication", C.c_void_p, [C.c_int]),
             ("AXUIElementCreateSystemWide", C.c_void_p, []),
+            ("AXUIElementCopyElementAtPosition", C.c_int, [C.c_void_p, C.c_float, C.c_float, C.POINTER(C.c_void_p)]),
+            ("AXUIElementGetPid", C.c_int, [C.c_void_p, C.POINTER(C.c_int)]),
             ("AXUIElementCopyAttributeValue", C.c_int, [C.c_void_p, C.c_void_p, C.POINTER(C.c_void_p)]),
             ("AXUIElementSetAttributeValue", C.c_int, [C.c_void_p, C.c_void_p, C.c_void_p]),
             ("AXUIElementIsAttributeSettable", C.c_int, [C.c_void_p, C.c_void_p, C.POINTER(C.c_bool)]),
@@ -376,6 +378,16 @@ class MacDesktop:
         finally:
             self.cf.CFRelease(event)
 
+    def _point_pid(self, point):
+        root = AXRef(self, self.ax.AXUIElementCreateSystemWide())
+        pointer = C.c_void_p()
+        status = self.ax.AXUIElementCopyElementAtPosition(root.pointer, point.x, point.y, C.byref(pointer))
+        element = AXRef(self, pointer.value)
+        if status != 0 or not element.pointer:
+            return None
+        pid = C.c_int()
+        return pid.value if self.ax.AXUIElementGetPid(element.pointer, C.byref(pid)) == 0 else None
+
     def _point_guard(self, window, point):
         helper = getattr(self._overlay, "process", None)
         own_overlay_pid = helper.pid if helper is not None and helper.poll() is None else None
@@ -391,6 +403,14 @@ class MacDesktop:
             if not (area["x"] <= point.x < area["x"] + area["width"]
                     and area["y"] <= point.y < area["y"] + area["height"]):
                 continue
+            # The Dock uses a display-sized surface with transparent regions.
+            # Exclude a region only when system-wide hit testing establishes
+            # that the point belongs to another process; Dock controls block it.
+            if (candidate.get("process") == "Dock" and candidate.get("title") == "Dock"
+                    and candidate.get("layer") == self.cg.CGWindowLevelForKey(7)):
+                hit_pid = self._point_pid(point)
+                if hit_pid is not None and hit_pid != candidate["pid"]:
+                    continue
             require(candidate["identity"] == window["identity"], "POINT_OCCLUDED",
                     "Another visible window covers the requested input point.",
                     details={"blocking_window_id": candidate["native"], "blocking_pid": candidate["pid"],
