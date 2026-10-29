@@ -311,6 +311,23 @@ def verify(output):
                 client.call("ui.click", ref)
                 wait_for(lambda: read_json(state_path), lambda value: value["clicks"] == 2)
 
+            with case("native scroll changes the actual AppKit viewport"):
+                ref, _ = find("multiline")
+                content = "\n".join(f"Native scroll line {index:02d}" for index in range(80))
+                client.call("ui.set_value", ref | {"value": content})
+                wait_for(lambda: read_json(state_path), lambda value: value["multiline"] == content and value["scroll_document_height"] > 500)
+                _, observed = find("scroll")
+                bounds, area = observed["elements"][0]["bounds"], observed["window"]["bounds"]
+                before = read_json(state_path)["scroll_y"]
+                client.call("input.scroll", {"title_exact": title, "observation_id": observed["observation_id"],
+                                             "x": bounds["x"] + bounds["width"] // 2 - area["x"],
+                                             "y": bounds["y"] + bounds["height"] // 2 - area["y"], "amount": -2400})
+                wait_for(lambda: read_json(state_path), lambda value: value["scroll_y"] > before + 1,
+                         description="native AppKit viewport scrolling")
+                ref, _ = find("multiline")
+                client.call("ui.set_value", ref | {"value": "第一行\nSecond line"})
+                wait_for(lambda: read_json(state_path), lambda value: value["multiline"] == "第一行\nSecond line")
+
             with case("read-only, password and stale-reference rejection without writes"):
                 ref, _ = find("readonly")
                 client.call("ui.set_value", ref | {"value": "must not be written"}, error="ELEMENT_READ_ONLY")
@@ -367,6 +384,11 @@ def verify(output):
                                                          "x": bounds["x"] + bounds["width"] // 2 - area["x"],
                                                          "y": bounds["y"] + bounds["height"] // 2 - area["y"]}, error="POINT_OCCLUDED")
                     ensure(denial["outcome"] == "not_dispatched", "A rejected click was marked dispatched.")
+                    denial = client.call("input.scroll", {"title_exact": title, "observation_id": observed["observation_id"],
+                                                          "x": bounds["x"] + bounds["width"] // 2 - area["x"],
+                                                          "y": bounds["y"] + bounds["height"] // 2 - area["y"],
+                                                          "amount": -120}, error="POINT_OCCLUDED")
+                    ensure(denial["outcome"] == "not_dispatched", "A rejected scroll was marked dispatched.")
                     ensure(read_json(state_path)["clicks"] == before, "A rejected pointer event clicked the underlying target.")
                 finally:
                     blocker.terminate()

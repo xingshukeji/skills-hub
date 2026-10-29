@@ -140,7 +140,7 @@ class WindowsDesktop:
                 raise DeskPilotError("UI_AUTOMATION_UNAVAILABLE", f"Native UI Automation could not initialize ({type(exc).__name__}).") from None
         return self._uia
 
-    def _process(self, pid: int) -> str:
+    def process_path(self, pid: int) -> str:
         handle = self.kernel.OpenProcess(0x1000, False, pid)
         if not handle:
             return ""
@@ -148,10 +148,14 @@ class WindowsDesktop:
             size = W.DWORD(32768)
             buffer = C.create_unicode_buffer(size.value)
             if self.kernel.QueryFullProcessImageNameW(handle, 0, buffer, C.byref(size)):
-                return Path(buffer.value).stem
+                return buffer.value
             return ""
         finally:
             self.kernel.CloseHandle(handle)
+
+    def _process(self, pid: int) -> str:
+        path = self.process_path(pid)
+        return Path(path).stem if path else ""
 
     def window(self, handle) -> dict:
         require(bool(self.user.IsWindow(handle)), "WINDOW_NOT_FOUND", "The window no longer exists.")
@@ -633,8 +637,13 @@ class WindowsDesktop:
                 self._send([INPUT(type=0, mi=MOUSEINPUT(dwFlags=down)), INPUT(type=0, mi=MOUSEINPUT(dwFlags=up))])
                 if index + 1 < count:
                     time.sleep(0.04)
+            # A native host may resolve a queued click against the current
+            # pointer location after SendInput returns.
+            time.sleep(0.1)
         finally:
-            self.user.SetCursorPos(original.x, original.y)
+            current = POINT()
+            if self.user.GetCursorPos(C.byref(current)) and current.x == location.x and current.y == location.y:
+                self.user.SetCursorPos(original.x, original.y)
 
     def type_text(self, text: str, checkpoint):
         require(not self.sensitive_focused(), "SENSITIVE_INPUT_BLOCKED", "Password controls must be handled by the user.")
@@ -704,8 +713,15 @@ class WindowsDesktop:
         self.user.SetCursorPos(point.x, point.y)
         try:
             self._send([INPUT(type=0, mi=MOUSEINPUT(mouseData=W.DWORD(amount).value, dwFlags=0x1000 if horizontal else 0x0800))])
+            # Some native hosts consume the wheel asynchronously and resolve it
+            # using the current cursor position, not the position at SendInput.
+            # Keep the pointer at the selected target briefly; callers still
+            # need to observe whether the application actually scrolled.
+            time.sleep(0.1)
         finally:
-            self.user.SetCursorPos(original.x, original.y)
+            current = POINT()
+            if self.user.GetCursorPos(C.byref(current)) and current.x == point.x and current.y == point.y:
+                self.user.SetCursorPos(original.x, original.y)
 
     def capture(self, window: dict, *, checkpoint=lambda: None):
         checkpoint()

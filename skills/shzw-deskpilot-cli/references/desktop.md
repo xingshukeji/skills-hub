@@ -24,11 +24,19 @@ Windows 可用 `ui.find` 的 `control_type: "document"` 查看文档节点，区
 
 ### Android 模拟器输入
 
-文本或按键返回 `dispatched: true` 只表示事件已派发，等待界面更新后仍需确认普通字段内容。在本机独立 Android 模拟器验证中，`hw.keyboard=no` 时 Windows 文本与实体按键未进入字段；将独立实例设为 `hw.keyboard=yes` 并重启后两者可用。此现象随模拟器与配置而异，不能据此声称所有设备一致。运行中的共享实例由其责任方决定是否调整或重启；不能为测试擅自改动。无需重启时，可在当前画面核对布局，通过屏幕键盘逐键输入普通文本并等待回读；密码使用下述私密入口，不逐字记录点击。
+先用 `windows.find` 确认本机 Android Emulator 窗口，再用 `android.observe` 取得当前访客控件。工具核对窗口所属进程、模拟器端口和 AVD 名称，从模拟器的 SDK、SDK 环境变量或 PATH 查找本机 ADB；可提供绝对 `adb_path`。它不安装 ADB、不重启设备，也不连接任意远程设备。观察结果的密码节点及子节点不返回文字；`parent` 是当前结果内的父节点下标。
+
+对非密码字段，先通过当前控件引用 `android.click` 聚焦，重新 `android.observe`，再对已聚焦字段调用 `android.set_value`。它替换字段内容并回读确认，当前支持最多 128 个可打印 ASCII 字符；不支持的文字在派发前拒绝，不自动切换输入法。点击只证明事件已派发：如果辅助树中其他无关的可操作控件覆盖目标中心，会先拒绝；树未暴露的覆盖仍须结合画面判断并观察点击结果。窗口、设备、控件或焦点发生变化时应重新观察；部分输入或验证失败后先核对现场，不能重放。若 ADB 不可用或目标不支持该通道，仍可用当前可信截图和屏幕键盘；不可假定所有模拟器配置一致。
+
+需要触屏滚动时，可在 `android.observe` 结果中选择 `scrollable: true` 的节点，用当前引用调用 `android.swipe`。`start`、`end` 为 Android 设备坐标中的 `{x, y}`，均须在该节点范围内，`duration_ms` 为 100–3000；从实际页面选取没有按钮等控件的起止点。工具会拒绝辅助树里有其他可操作节点覆盖端点的情况；派发并不证明滚动成功，完成后重新观察页面。窗口坐标滚轮仍受 Windows 的窗口遮挡保护，不能因为看不见遮挡就绕过检查。
+
+普通 `input.type` 和 `input.key` 仍使用宿主键盘，`dispatched: true` 只表示事件已派发；`input.type` 的 `verification.status: "not_checked"` 明确表示没有核验字段值。本机独立模拟器中，`hw.keyboard=no` 时宿主键盘事件未进入字段，但上述 Android 通道可输入并回读，不需要修改或重启实例。
 
 ### 已授权的本机测试凭据
 
-仅在用户或项目的生效政策已授权当前本机开发/测试目标、账号及登录动作时使用 `input.secret`。从责任项目入口确定既有受管测试账号和本地 JSON 凭据文件；不创建替代身份，不将密码复制进请求、日志、对话、命令行或截图。普通 `input.type`、`ui.set_value` 和 `chrome.fill` 不因这项授权自动放开。当前专用入口只在 Windows 后端实现；其他平台返回 `UNSUPPORTED_PLATFORM`。
+仅在用户或项目的生效政策已授权当前本机开发/测试目标、账号及登录动作时使用 `input.secret`。从责任项目入口确定既有受管测试账号和本地 JSON 凭据文件；不创建替代身份，不将密码复制进请求、日志、对话、命令行或截图。普通 `input.type`、`ui.set_value`、`android.set_value` 和 `chrome.fill` 不因这项授权自动放开。Windows 原生密码控件使用下述 `native_password`；本机 Android 模拟器使用当前 Android 密码控件引用。其他平台的原生密码入口尚未验证。
+
+Android 密码输入先确认目标应用，点击密码框并重新执行 `android.observe`。对已聚焦且标为密码的节点，传入该次 `window_id`、`observation_id`、`element_id`、`target_kind: "android_password"`、观察到的 `expected_package`、`purpose: "authorized_local_test"`、`confirmed: true` 和本地 `secret_ref`。工具在内部把受管值转换为 Android 按键事件，不把明文放进请求、进程参数或结果；当前仅支持最多 128 个可打印 ASCII 字符。它不读取密码值，也不自动提交；重新观察并点击登录，随后从不含凭据的业务界面核实结果。设备、焦点或结果未知时停止，不盲目重输。
 
 先确认正确窗口、测试环境、空的密码框及其焦点，在输入前拍一张不含凭据的当前截图。保持窗口前台，直接在同一进程单次发送如下请求；路径和 JSON 字段由责任项目确定：
 
@@ -42,7 +50,7 @@ Windows 可用 `ui.find` 的 `control_type: "document"` 查看文档节点，区
 
 `native_password` 只向系统能确认已聚焦的密码控件输入，且不读取其值。像 Android 模拟器这种宿主无法识别访客控件的情况，只有在当前画面明确确认密码框和焦点时，才设 `target_kind: "observed_opaque_password"` 和 `observed_password_focus: true`；这是调用方根据画面作出的确认，不是系统对访客控件的证明。目标窗口自身必须始终在前台，同属弹窗切到前台也会停止。请求接受文件路径和 JSON 键，不接受密码字符串；结果仅说明是否派发，`verification: "not_read"` 不证明输入或登录成功。禁止在 `actions.batch` 中使用，也不要在密码输入后截取仍显示该字段的画面；通过后续不包含凭据的应用状态核实登录。
 
-如果模拟器不能接收实体键盘事件，`input.secret` 可使用调用方根据**输入前的当前截图**核对的屏幕键盘。添加 `keyboard: {"character_set":"ascii_alphanumeric","keys":{...}}`，其中 `keys` 必须完整包含 26 个小写、26 个大写和 10 个数字；每个字符对应 1 至 6 个截图内 `[x,y]` 点，序列必须在完成该字符后恢复到相同基础键盘状态。例如大写可以是已验证的一次性 Shift 点再接字母点。数字若需切换符号页，序列须包含进入及返回基础页的点。只在已经通过合成内容确认布局和状态切换时使用；不能用密码本身决定提供哪些键。需要标点时可选择 `ascii_printable` 并完整提供所有 95 个可打印 ASCII 字符；受管值包含不支持字符会在操作前返回 `SECRET_LAYOUT_UNSUPPORTED`，不会指出字符。不同设备、输入法、缩放和截图原点的布局可能不同，不能复制固定坐标。
+若 Android 访客控件不能被识别，原有屏幕键盘方式仍可作为明确观察后的回退：`input.secret` 使用 `observed_opaque_password`、`observed_password_focus: true` 和输入前截图，传入 `keyboard: {"character_set": ..., "keys": ...}`。`ascii_alphanumeric` 映射必须覆盖全部 62 个英文字母和数字；`ascii_printable` 必须覆盖全部 95 个可打印 ASCII 字符。每个字符对应 1 至 6 个截图内 `[x,y]` 点，并在输入该字符后恢复基础键盘状态。布局依设备和输入法变化，须先用合成内容验证；不能用真实密码决定映射或逐字记录点击。
 
 若同一输入前截图同时明确显示授权的提交按钮，可选传 `submit_point: [x,y]`，工具输入后等待并点击该点一次，避免为了提交而截取密码框。`submit_dispatched` 仅表示点击已派发，登录结果仍需核实；不提供该点时不会提交。窗口移动、失去前台或结果未知时停止并检查应用状态，不盲目重放。此入口避免在工具请求和结果中暴露密码，不能替目标应用、输入法或其他屏幕记录软件保证保密。
 

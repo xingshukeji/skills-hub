@@ -7,6 +7,7 @@ final class Fixture: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     var input: NSTextField!
     var multiline: NSTextView!
+    var scroll: NSScrollView!
     var readonly: NSTextField!
     var password: NSSecureTextField!
     var result: NSTextField!
@@ -71,10 +72,18 @@ final class Fixture: NSObject, NSApplicationDelegate {
             result.setAccessibilityIdentifier("result")
             content.addSubview(result)
 
-            let scroll = NSScrollView(frame: NSRect(x: 25, y: 273, width: 785, height: 115))
+            scroll = NSScrollView(frame: NSRect(x: 25, y: 273, width: 785, height: 115))
             scroll.hasVerticalScroller = true
             scroll.borderType = .bezelBorder
+            scroll.setAccessibilityIdentifier("scroll")
             multiline = NSTextView(frame: scroll.contentView.bounds)
+            multiline.minSize = NSSize(width: 0, height: scroll.contentView.bounds.height)
+            multiline.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            multiline.isVerticallyResizable = true
+            multiline.isHorizontallyResizable = false
+            multiline.autoresizingMask = .width
+            multiline.textContainer?.containerSize = NSSize(width: scroll.contentView.bounds.width, height: CGFloat.greatestFiniteMagnitude)
+            multiline.textContainer?.widthTracksTextView = true
             multiline.string = "First line\nSecond line"
             multiline.font = NSFont.systemFont(ofSize: 20)
             multiline.isRichText = false
@@ -119,6 +128,8 @@ final class Fixture: NSObject, NSApplicationDelegate {
             state["input_editor"] = input.currentEditor()?.string ?? "<not editing>"
             state["input_selection_length"] = (input.currentEditor() as? NSTextView)?.selectedRange().length ?? 0
             state["multiline"] = multiline.string
+            state["scroll_y"] = scroll.contentView.bounds.origin.y
+            state["scroll_document_height"] = multiline.frame.height
             state["readonly"] = readonly.stringValue
             state["password_empty"] = password.stringValue.isEmpty
             state["result"] = result.stringValue

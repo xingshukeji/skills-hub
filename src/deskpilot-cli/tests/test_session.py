@@ -135,6 +135,13 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "STALE_OBSERVATION")
         self.assertEqual((self.desktop.writes, self.desktop.value), (1, "first"))
 
+    def test_click_and_invoke_do_not_claim_the_application_result_was_verified(self):
+        self.desktop.invoke = lambda _element: None
+        clicked = self.session.execute("ui.click", self.found())
+        invoked = self.session.execute("ui.invoke", self.found())
+        self.assertEqual(clicked["verification"], {"status": "not_checked"})
+        self.assertEqual(invoked["verification"], {"status": "not_checked"})
+
     def test_window_move_or_context_change_rejects_old_evidence_before_input(self):
         reference = self.found()
         self.desktop.item["title"] = "Different context"

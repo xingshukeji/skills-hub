@@ -20,11 +20,13 @@ METHODS = (
     "windows.list", "windows.find", "windows.info", "windows.activate", "observe",
     "ui.tree", "ui.find", "ui.find_all", "ui.get", "ui.invoke", "ui.click", "ui.set_value", "ui.select",
     "input.click", "input.double_click", "input.right_click", "input.type", "input.secret", "input.key", "input.hotkey", "input.scroll",
+    "android.observe", "android.click", "android.set_value", "android.swipe",
     "screen.capture", "screen.capture_window", "screen.read_text", "messages.observe", "wait.window", "wait.element",
     "chrome.ensure", "chrome.targets", "chrome.attach", "chrome.navigate", "chrome.wait", "chrome.evaluate",
     "chrome.fill", "chrome.select", "chrome.click", "chrome.query",
 )
 UI_MUTATIONS = {"ui.invoke", "ui.click", "ui.set_value", "ui.select"}
+ANDROID_MUTATIONS = {"android.click", "android.set_value", "android.swipe"}
 CONTROL_TYPES = {
     "button": 50000, "calendar": 50001, "checkbox": 50002, "combobox": 50003,
     "edit": 50004, "hyperlink": 50005, "image": 50006, "listitem": 50007,
@@ -40,7 +42,7 @@ CONTROL_TYPES = {
 
 
 def mutating(method: str, params: dict | None = None) -> bool:
-    return (method.startswith("input.") or method in UI_MUTATIONS
+    return (method.startswith("input.") or method in UI_MUTATIONS | ANDROID_MUTATIONS
             or method in {"chrome.fill", "chrome.select", "chrome.click", "chrome.navigate"}
             or method == "chrome.evaluate" and (params or {}).get("read_only") is not True)
 
@@ -79,7 +81,7 @@ def resolve_references(value, completed: dict):
 
 
 class Session:
-    def __init__(self, *, desktop=None, browser=None):
+    def __init__(self, *, desktop=None, browser=None, android_factory=None):
         self.id = "session_" + uuid.uuid4().hex
         self._tag = uuid.uuid4().hex[:10]
         self._desktop = desktop
@@ -87,6 +89,9 @@ class Session:
         self._windows = OrderedDict()
         self._elements = {}
         self._observations = {}
+        self._android_observations = {}
+        self._android_elements = {}
+        self._android_factory = android_factory
         self._shots = OrderedDict()
         self._counter = 0
         self._cancelled = threading.Event()
@@ -230,9 +235,13 @@ class Session:
         if window_id is None:
             self._observations.clear()
             self._elements.clear()
+            self._android_observations.clear()
+            self._android_elements.clear()
         else:
             self._observations.pop(window_id, None)
             self._elements = {key: item for key, item in self._elements.items() if item["window_id"] != window_id}
+            self._android_observations.pop(window_id, None)
+            self._android_elements = {key: item for key, item in self._android_elements.items() if item["window_id"] != window_id}
         for shot in self._shots.values():
             if window_id is None or shot["window_id"] == window_id:
                 shot["current"] = False
@@ -288,6 +297,188 @@ class Session:
         self._windows[window_id] = item
         self._target = window_id
         return window_id, item
+
+    def _android_observe(self, params):
+        from .android import AndroidBridge
+        window_id, window = self._window(params, activate=True)
+        limit = int(number(params.get("limit", 1000), "limit", minimum=1, maximum=5000))
+        executable = self.desktop.process_path(window["pid"]) if hasattr(self.desktop, "process_path") else ""
+        factory = self._android_factory or AndroidBridge
+        bridge = factory(window, executable=executable, adb_path=params.get("adb_path"), checkpoint=self.checkpoint)
+        nodes, truncated = bridge.observe(limit=limit)
+        self._invalidate(window_id)
+        observation_id = self._token("android_observation")
+        self._android_observations[window_id] = {"id": observation_id, "identity": window["identity"],
+                                                 "bounds": dict(window["bounds"]), "title": window.get("title", ""),
+                                                 "bridge": bridge}
+        public = []
+        indexes = {node["path"]: index for index, node in enumerate(nodes)}
+        for node in nodes:
+            element_id = self._token("android_element")
+            self._android_elements[element_id] = {"node": node, "window_id": window_id, "observation_id": observation_id}
+            ancestors = [node["path"][:length] for length in range(len(node["path"]) - 1, 0, -1)]
+            parent = next((indexes[path] for path in ancestors if path in indexes), None)
+            public.append({**{key: value for key, value in node.items() if key != "path"},
+                           "parent": parent, "element_id": element_id, "observation_id": observation_id})
+        return {"window": self._public_window(window_id, window), "device_id": bridge.serial,
+                "observation_id": observation_id, "elements": public, "count": len(public), "truncated": truncated}
+
+    def _android_element(self, params):
+        from .android import signature
+        item = self._android_elements.get(params.get("element_id"))
+        require(item is not None and item["observation_id"] == params.get("observation_id"),
+                "STALE_OBSERVATION", "The Android control reference is no longer current; observe again.")
+        window_id = item["window_id"]
+        observation = self._android_observations.get(window_id)
+        require(observation is not None and observation["id"] == item["observation_id"],
+                "STALE_OBSERVATION", "The Android observation is no longer current.")
+        require(params.get("window_id", window_id) == window_id, "WINDOW_IDENTITY_MISMATCH",
+                "The Android control belongs to a different window.")
+        _, window = self._window({"window_id": window_id}, activate=True)
+        require(window["identity"] == observation["identity"] and window["bounds"] == observation["bounds"]
+                and window.get("title", "") == observation["title"],
+                "STALE_OBSERVATION", "The emulator window changed; observe again.")
+        bridge = observation["bridge"]
+        nodes, truncated = bridge.observe(limit=5000)
+        matches = [node for node in nodes if node["path"] == item["node"]["path"]]
+        require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(item["node"]),
+                "STALE_OBSERVATION", "The Android control changed; observe again.")
+        # The guest hierarchy request can take seconds. Reconfirm the selected
+        # host window immediately before input, without retrying any action.
+        _, window = self._window({"window_id": window_id}, activate=True)
+        require(window["identity"] == observation["identity"] and window["bounds"] == observation["bounds"]
+                and window.get("title", "") == observation["title"],
+                "STALE_OBSERVATION", "The emulator window changed; observe again.")
+        return window_id, window, bridge, matches[0], nodes
+
+    def _android_guard(self, window):
+        self.checkpoint()
+        current = self.desktop.window(window["native"])
+        require(current["identity"] == window["identity"] and current["bounds"] == window["bounds"]
+                and current.get("title", "") == window.get("title", ""),
+                "STALE_OBSERVATION", "The emulator window changed during input.",
+                outcome="unknown" if self._dispatched else "not_dispatched")
+        foreground = self.desktop.foreground()
+        details = {}
+        if foreground and foreground != window["native"]:
+            try:
+                other = self.desktop.window(foreground)
+                details = {"foreground_pid": other.get("pid"), "foreground_process": other.get("process")}
+            except (DeskPilotError, OSError):
+                pass
+        require(foreground == window["native"], "WINDOW_NOT_FOREGROUND",
+                "The selected emulator must remain in the foreground during input.",
+                details=details, outcome="unknown" if self._dispatched else "not_dispatched")
+
+    def _android_mutation(self, method, params):
+        from .android import key_events, signature
+        events = None
+        if method == "android.set_value":
+            require(isinstance(params.get("value"), str), "INVALID_ARGUMENT", "value must be a string.")
+            events = ["input keycombination 113 29", "input keyevent 67", *key_events(params["value"])]
+        window_id, window, bridge, node, nodes = self._android_element(params)
+        require(node["enabled"], "ELEMENT_NOT_ACTIONABLE", "The Android control is not enabled.")
+        if method == "android.set_value":
+            require(node["editable"] and not node["password"], "SENSITIVE_INPUT_BLOCKED",
+                    "Use the authorized sensitive-input operation for password controls.")
+            require(node["focused"], "ANDROID_FOCUS_NOT_CONFIRMED", "Focus the Android control and observe it again.")
+        if method == "android.swipe":
+            require(node["scrollable"], "ELEMENT_NOT_ACTIONABLE", "Choose a currently observed scrollable Android control.")
+            def coordinate(value, name):
+                require(isinstance(value, dict), "INVALID_ARGUMENT", f"{name} must be a point.")
+                return (int(number(value.get("x"), f"{name}.x")), int(number(value.get("y"), f"{name}.y")))
+            start, end = coordinate(params.get("start"), "start"), coordinate(params.get("end"), "end")
+            duration = int(number(params.get("duration_ms", 400), "duration_ms", minimum=100, maximum=3000))
+            area = node["bounds"]
+            def inside(point):
+                return (area["x"] <= point[0] < area["x"] + area["width"]
+                        and area["y"] <= point[1] < area["y"] + area["height"])
+            require(inside(start) and inside(end) and start != end, "INVALID_ARGUMENT",
+                    "The swipe endpoints must be distinct points inside the selected scrollable control.")
+            for x, y in (start, end):
+                def blocks(other):
+                    path = other["path"]
+                    parent_of_target = node["path"][:len(path)] == path
+                    area = other["bounds"]
+                    return (other["clickable"] and not parent_of_target and area["x"] <= x < area["x"] + area["width"]
+                            and area["y"] <= y < area["y"] + area["height"])
+                require(not any(blocks(other) for other in nodes), "ANDROID_TARGET_OVERLAPPED",
+                        "Another Android control overlaps a swipe endpoint; observe or reposition it before swiping.")
+        self._activity(window, method, params)
+        guard = lambda: self._android_guard(window)
+        def dispatched():
+            self._dispatched = True
+        try:
+            if method == "android.click":
+                area = node["bounds"]
+                x, y = area["x"] + area["width"] // 2, area["y"] + area["height"] // 2
+                def unrelated(other):
+                    left, right = node["path"], other["path"]
+                    return left[:len(right)] != right and right[:len(left)] != left
+                def covers(other):
+                    bounds = other["bounds"]
+                    return (bounds["x"] <= x < bounds["x"] + bounds["width"]
+                            and bounds["y"] <= y < bounds["y"] + bounds["height"])
+                require(not any(other["clickable"] and unrelated(other) and covers(other) for other in nodes),
+                        "ANDROID_TARGET_OVERLAPPED", "Another Android control overlaps this target; observe or reposition it before clicking.")
+                bridge.tap(x, y, guard, dispatched)
+                verification = {"status": "not_checked"}
+            elif method == "android.swipe":
+                bridge.swipe(start, end, duration, guard, dispatched)
+                verification = {"status": "not_checked"}
+            else:
+                bridge.send_keys(events, guard, dispatched)
+                current, truncated = bridge.observe(limit=5000)
+                matches = [value for value in current if value["path"] == node["path"]]
+                require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(node)
+                        and matches[0]["focused"] and matches[0]["text"] == params["value"],
+                        "ANDROID_VALUE_NOT_VERIFIED", "The Android field value could not be confirmed; observe before any retry.",
+                        outcome="unknown")
+                verification = {"status": "matched", "method": "android_accessibility"}
+        except DeskPilotError as error:
+            if self._dispatched:
+                error.outcome = "unknown"
+            raise
+        finally:
+            if self._dispatched:
+                self._invalidate(window_id)
+        return {"dispatched": True, "verification": verification, "window": self._public_window(window_id, window)}
+
+    def _android_secret(self, params):
+        from .android import key_events, signature
+        from .secret import read_local_secret
+        require(params.get("confirmed") is True and params.get("purpose") == "authorized_local_test",
+                "SENSITIVE_INPUT_BLOCKED", "Sensitive input requires an authorized local test and explicit acknowledgement.")
+        require(not any(key in params for key in ("text", "value", "secret", "password", "verify", "keyboard", "submit_point")),
+                "INVALID_ARGUMENT", "Provide only a secret reference and a current Android password control.")
+        window_id, window, bridge, node, _ = self._android_element(params)
+        require(node["enabled"] and node["editable"] and node["password"] and node["focused"],
+                "SENSITIVE_FOCUS_NOT_CONFIRMED", "Focus the Android password control and observe it again.")
+        require(isinstance(params.get("expected_package"), str) and params["expected_package"] == node["package"],
+                "ANDROID_DEVICE_MISMATCH", "Confirm the observed Android application package before sensitive input.")
+        secret = read_local_secret(params.get("secret_ref"))
+        try:
+            events = key_events(secret)
+            self._activity(window, "input.secret", params)
+            def dispatched():
+                self._dispatched = True
+            bridge.send_keys(events, lambda: self._android_guard(window), dispatched)
+            current, truncated = bridge.observe(limit=5000)
+            matches = [value for value in current if value["path"] == node["path"]]
+            require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(node)
+                    and matches[0]["focused"] and matches[0]["password"],
+                    "SENSITIVE_FOCUS_NOT_CONFIRMED", "The Android password focus changed; inspect the application before any retry.",
+                    outcome="unknown")
+        except DeskPilotError as error:
+            if self._dispatched:
+                error.outcome = "unknown"
+            raise
+        finally:
+            secret = None
+            if self._dispatched:
+                self._invalidate(window_id)
+        return {"dispatched": True, "verification": "not_read", "submit_dispatched": False,
+                "window": self._public_window(window_id, window)}
 
     def _observe(self, params: dict, *, find=False):
         # For a control search, class_name is an element filter. Window class
@@ -624,7 +815,7 @@ class Session:
             require(selected is None or selected in METHODS, "UNKNOWN_METHOD", "Unknown schema method.")
             return {"protocol_version": PROTOCOL_VERSION, "request": {"id": "string|number", "method": "string", "params": "object"},
                     "methods": [{"method": item, "mutates": mutating(item),
-                                 "reference": "observation_id + element_id" if item in UI_MUTATIONS | {"ui.get"} else
+                                 "reference": "observation_id + element_id" if item in UI_MUTATIONS | ANDROID_MUTATIONS | {"ui.get"} else
                                               "observation_id or screenshot_id for coordinate input" if item.startswith("input.") else None}
                                 for item in ([selected] if selected else METHODS)]}
         if method == "doctor":
@@ -666,6 +857,10 @@ class Session:
             return self._capture(params)
         if method in {"screen.read_text", "messages.observe"}:
             return self._read_text(params, messages=method == "messages.observe")
+        if method == "android.observe":
+            return self._android_observe(params)
+        if method in ANDROID_MUTATIONS:
+            return self._android_mutation(method, params)
         if method == "ui.get" or method in UI_MUTATIONS:
             element, window_id, window = self._element(params)
             if method == "ui.get":
@@ -699,11 +894,15 @@ class Session:
             result = {"dispatched": True, "window": self._public_window(window_id, window)}
             if verification is not None:
                 result["verification"] = verification
+            elif method in {"ui.click", "ui.invoke"}:
+                result["verification"] = {"status": "not_checked"}
             if params.get("verify"):
                 result["observation"] = self._observe({"window_id": window_id})
             return result
         if method.startswith("input."):
             if method == "input.secret":
+                if params.get("target_kind") == "android_password":
+                    return self._android_secret(params)
                 return self._input_secret(params)
             if method in {"input.type", "input.key", "input.hotkey"}:
                 window_id, window = self._window(params, activate=True)
@@ -735,7 +934,8 @@ class Session:
                     self.desktop.click(window, x, y, button=button, count=2 if method.endswith("double_click") else 1,
                                        target_content_only=target_content_only)
             self._invalidate(window_id)
-            return {"dispatched": True, "window": self._public_window(window_id, window)}
+            return {"dispatched": True, "verification": {"status": "not_checked"},
+                    "window": self._public_window(window_id, window)}
         if method.startswith("chrome."):
             self._dispatched = mutating(method, params)
             result = self.browser.call(method, params)
@@ -828,5 +1028,7 @@ class Session:
             self._ocr.close()
         self._shots.clear()
         self._elements.clear()
+        self._android_observations.clear()
+        self._android_elements.clear()
         self._temporary.cleanup()
         self._closed = True

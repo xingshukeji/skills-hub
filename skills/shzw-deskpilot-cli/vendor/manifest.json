@@ -121,6 +121,14 @@
       "source": "src/deskpilot-cli/deskpilot/__main__.py"
     },
     {
+      "path": "scripts/deskpilot/android.py",
+      "bytes": 12608,
+      "sha256": "9722476ad6b5799aa887d4f8c601d8da871db1b579ef6a621736d82ae62ced2f",
+      "component": "DeskPilot source",
+      "license": "repository",
+      "source": "src/deskpilot-cli/deskpilot/android.py"
+    },
+    {
       "path": "scripts/deskpilot/browser.py",
       "bytes": 36088,
       "sha256": "cafb6f4bffcc57bd5ed75b665d1ab906a119e661b026789326fa8e5a2948b5de",
@@ -162,8 +170,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/macos.py",
-      "bytes": 25306,
-      "sha256": "cb17e6f2b31605c629721480d4dfd3b91d1d2eacc0962ddcaf478a7a37286bfa",
+      "bytes": 26754,
+      "sha256": "736687dcd364172307eb9782b69ed294cc5db7d1b96676b0dcb20411faea0cc8",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/macos.py"
@@ -186,8 +194,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows.py",
-      "bytes": 49226,
-      "sha256": "810c989be414d9d5270d0cb25c6bb0448eddcccdc03603a11736abb7195c83a5",
+      "bytes": 50131,
+      "sha256": "547c0b9b03c6d3aaea487d71d4a127b0022fd207680eb693c037779c8fe138b9",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows.py"
@@ -210,8 +218,8 @@
     },
     {
       "path": "scripts/deskpilot/session.py",
-      "bytes": 50672,
-      "sha256": "0482bcf3a3b2c78cace01436e5edec1684473200583844391f1e693b2603f9dc",
+      "bytes": 64096,
+      "sha256": "bb2fbe32154d7bb19b6e50fb2c81c05c28e9bf0dfd18bab62ba9f55663d3c399",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/session.py"

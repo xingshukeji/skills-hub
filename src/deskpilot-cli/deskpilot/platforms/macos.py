@@ -201,8 +201,8 @@ class MacDesktop:
     def _trusted(self):
         require(bool(self.ax.AXIsProcessTrusted()), "ACCESSIBILITY_PERMISSION_REQUIRED", "Grant macOS Accessibility access to the calling Python/client application.")
 
-    def windows(self):
-        array = self.cg.CGWindowListCopyWindowInfo(0, 0)
+    def windows(self, *, include_overlays=False):
+        array = self.cg.CGWindowListCopyWindowInfo(17 if include_overlays else 0, 0)
         require(bool(array), "DESKTOP_UNAVAILABLE", "The macOS window server is unavailable.")
         result = []
         try:
@@ -210,7 +210,10 @@ class MacDesktop:
                 item = self.cf.CFArrayGetValueAtIndex(array, index)
                 layer = self._value(self._dictionary(item, "kCGWindowLayer"))
                 pid = int(self._value(self._dictionary(item, "kCGWindowOwnerPID")) or 0)
-                if layer != 0 or pid == os.getpid():
+                if (layer != 0 and not include_overlays) or pid == os.getpid():
+                    continue
+                alpha = self._value(self._dictionary(item, "kCGWindowAlpha"))
+                if include_overlays and alpha is not None and alpha <= 0:
                     continue
                 number = int(self._value(self._dictionary(item, "kCGWindowNumber")) or 0)
                 area = Rect()
@@ -372,10 +375,28 @@ class MacDesktop:
         finally:
             self.cf.CFRelease(event)
 
+    def _point_guard(self, window, point):
+        helper = getattr(self._overlay, "process", None)
+        own_overlay_pid = helper.pid if helper is not None and helper.poll() is None else None
+        for candidate in self.windows(include_overlays=True):
+            if candidate["pid"] == own_overlay_pid:
+                continue
+            area = candidate["bounds"]
+            if not (area["x"] <= point.x < area["x"] + area["width"]
+                    and area["y"] <= point.y < area["y"] + area["height"]):
+                continue
+            require(candidate["identity"] == window["identity"], "POINT_OCCLUDED",
+                    "Another visible window covers the requested input point.",
+                    details={"blocking_window_id": candidate["native"], "blocking_pid": candidate["pid"]})
+            return
+        raise DeskPilotError("INPUT_TARGET_MISMATCH", "The requested point no longer belongs to the target window.")
+
     def click(self, window, x, y, *, button="left", count=1, target_content_only=False):
         self._input_access()
         require(self.foreground() == window["native"], "WINDOW_NOT_FOREGROUND", "The requested window is not foreground.")
-        point, original = Point(window["bounds"]["x"] + x, window["bounds"]["y"] + y), self._pointer()
+        point = Point(window["bounds"]["x"] + x, window["bounds"]["y"] + y)
+        self._point_guard(window, point)
+        original = self._pointer()
         code, down, up = {"left": (0, 1, 2), "right": (1, 3, 4), "middle": (2, 25, 26)}[button]
         try:
             self._post(self.cg.CGEventCreateMouseEvent(None, 5, point, code))
@@ -434,9 +455,12 @@ class MacDesktop:
 
     def scroll(self, window, x, y, amount, horizontal=False, *, target_content_only=False):
         self._input_access()
+        require(self.foreground() == window["native"], "WINDOW_NOT_FOREGROUND", "The requested window is not foreground.")
+        point = Point(window["bounds"]["x"] + x, window["bounds"]["y"] + y)
+        self._point_guard(window, point)
         original = self._pointer()
         try:
-            self._post(self.cg.CGEventCreateMouseEvent(None, 5, Point(window["bounds"]["x"] + x, window["bounds"]["y"] + y), 0))
+            self._post(self.cg.CGEventCreateMouseEvent(None, 5, point, 0))
             delta = round(amount / 120 * 3)
             self._post(self.cg.CGEventCreateScrollWheelEvent(None, 1, 2 if horizontal else 1, 0 if horizontal else delta, delta if horizontal else 0))
         finally:

@@ -113,6 +113,68 @@ class WindowsContracts(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'WINDOW_NOT_FOREGROUND')
         self.desktop._send.assert_not_called()
 
+    def test_scroll_keeps_the_pointer_at_the_selected_target_briefly(self):
+        class User:
+            x, y = 10, 20
+            def GetCursorPos(self, pointer):
+                pointer._obj.x, pointer._obj.y = self.x, self.y
+                return True
+            def SetCursorPos(self, x, y):
+                self.x, self.y = x, y
+                return True
+        self.desktop.user = User()
+        self.desktop.related = lambda *_: True
+        self.desktop.foreground = lambda: 10
+        self.desktop._point_owned = lambda *_args, **_kwargs: None
+        self.desktop._send = Mock()
+        at_wait = []
+        self.clock.sleep = lambda seconds: at_wait.append((seconds, self.desktop.user.x, self.desktop.user.y))
+        self.desktop.scroll({'native':10, 'bounds':{'x':100, 'y':200}}, 30, 40, -120)
+        self.assertEqual(at_wait, [(0.1, 130, 240)])
+        self.assertEqual((self.desktop.user.x, self.desktop.user.y), (10, 20))
+        self.desktop._send.assert_called_once()
+
+    def test_click_waits_at_the_target_and_preserves_user_cursor_movement(self):
+        class User:
+            x, y = 10, 20
+            def GetCursorPos(self, pointer):
+                pointer._obj.x, pointer._obj.y = self.x, self.y
+                return True
+            def SetCursorPos(self, x, y):
+                self.x, self.y = x, y
+                return True
+        self.desktop.user = User()
+        self.desktop.related = lambda *_: True
+        self.desktop.foreground = lambda: 10
+        self.desktop._point_owned = lambda *_args, **_kwargs: None
+        self.desktop._send = Mock()
+        observed = []
+        def moved(seconds):
+            observed.append((seconds, self.desktop.user.x, self.desktop.user.y))
+            self.desktop.user.SetCursorPos(777, 888)
+        self.clock.sleep = moved
+        self.desktop.click({'native':10, 'bounds':{'x':100, 'y':200}}, 30, 40)
+        self.assertEqual(observed, [(0.1, 130, 240)])
+        self.assertEqual((self.desktop.user.x, self.desktop.user.y), (777, 888))
+        self.desktop._send.assert_called_once()
+
+    def test_scroll_does_not_restore_the_cursor_if_the_user_moves_it(self):
+        class User:
+            x, y = 10, 20
+            def GetCursorPos(self, pointer):
+                pointer._obj.x, pointer._obj.y = self.x, self.y
+                return True
+            def SetCursorPos(self, x, y):
+                self.x, self.y = x, y
+                return True
+        self.desktop.user = User()
+        self.desktop.related = lambda *_: True
+        self.desktop.foreground = lambda: 10
+        self.desktop._point_owned = lambda *_args, **_kwargs: None
+        self.desktop._send = Mock()
+        self.clock.sleep = lambda seconds: self.desktop.user.SetCursorPos(777, 888)
+        self.desktop.scroll({'native':10, 'bounds':{'x':100, 'y':200}}, 30, 40, -120)
+        self.assertEqual((self.desktop.user.x, self.desktop.user.y), (777, 888))
     def text_only_setup(self, *, readonly=False):
         state = {'text': 'old'}
         element = SimpleNamespace(CurrentIsPassword=False, CurrentControlType=50030,

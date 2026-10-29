@@ -18,7 +18,10 @@
 | `observe` / `ui.tree` / `ui.find` / `ui.find_all` | 窗口条件、`name`/`name_contains`、`automation_id`、`control_type`、控件 `class_name`；`depth`、`limit` 控制范围。返回 `observation_id` 和 `element_id` |
 | `ui.get` / `ui.invoke` / `ui.click` / `ui.set_value` / `ui.select` | `element_id` + 对应 `observation_id`；set_value 提供字符串 `value`。Windows 文本模式回退的多行内容需按已确认的控件行为提供 `newline_strategy`；select 可提供选项 `value` |
 | `input.type` / `input.key` / `input.hotkey` | 窗口 + `text` 或 `keys` 字符串数组；按当前焦点输入，先核对焦点 |
-| `input.secret` | Windows 的已授权本机测试凭据输入；只接受本地 JSON 文件引用及当前截图，不能放入批次。完整前提和屏幕键盘参数见[桌面](desktop.md#已授权的本机测试凭据) |
+| `android.observe` | 已确认的本机模拟器窗口；可选 `adb_path`、`limit`。返回设备、当前访客控件与会话内引用；密码节点及其子节点不返回文字 |
+| `android.click` / `android.set_value` | 当前 Android `observation_id` + `element_id`；点击只表示已派发，赋值替换非密码字段并回读确认。值目前限 128 个可打印 ASCII 字符 |
+| `android.swipe` | 选中当前 Android 辅助树的可滚动节点，提供设备坐标 `start`、`end` 及可选 `duration_ms`；仅确认派发，需观察滚动后的页面 |
+| `input.secret` | 已授权本机测试凭据输入，只接受本地 JSON 文件引用，不能放入批次；Windows 原生控件或 Android 密码控件使用各自的当前观察。完整前提见[桌面](desktop.md#已授权的本机测试凭据) |
 | `input.click` / `input.double_click` / `input.right_click` / `input.scroll` | 窗口 + 当前 `observation_id` 或 `screenshot_id` + `x`,`y`；引用截图时使用图片内坐标，引用控件观察时使用窗口内坐标。scroll 使用 `amount`，120 为一格，可设 `horizontal` |
 | `screen.capture` / `screen.capture_window` | 窗口条件；可选绝对 `path`，其父目录须已存在；默认截图随会话清理 |
 | `screen.read_text` | 窗口条件或当前 `screenshot_id`；可用截图内 `region` 限定区域，返回全图坐标的文本块、置信度和来源，`include_words` 不保证跨平台词框 |
@@ -30,6 +33,10 @@
 窗口条件必须唯一。`ui.find` 只返回所搜索范围内的匹配；`truncated: true` 不能证明唯一或不存在，树搜索的深度也可能排除更深的控件。`require_unique: true` 在该范围内要求恰好一个匹配且未截断，否则返回 `ELEMENT_NOT_FOUND`、`ELEMENT_NOT_UNIQUE` 或 `UI_AUTOMATION_INCOMPLETE`；不能直接对不唯一或未完成的结果取首项。元素缺失时 `wait.element` 可等待，截断时不能将缺失误报为已消失。ID 不能跨进程保存。动作使观察过期；窗口移动、改标题、身份变化也会使旧观察无效。
 
 `observe` 可设 `include_screenshot: true`，在同一响应返回控件树和可信截图，省去一次单独请求；默认仍只读取控件树。两者依次取得，不是原子快照，动态页面仍需确认当前状态。
+
+`android.observe` 只连接与已选本机 Android Emulator 窗口的端口和 AVD 名称一致的本地设备。优先从该模拟器的 SDK 找 ADB，其次使用 SDK 环境变量或 PATH，也可提供绝对 `adb_path`；不安装工具、不重启或修改模拟器。返回的 `parent` 是当前数组中的父节点下标，`truncated: true` 不能证明控件不存在。动作前重新核对窗口、设备和目标；动作后引用失效。`android.set_value` 需要字段已获焦点，清除后写入一次，并对非密码值回读；不支持的字符在派发前拒绝。若操作结果未知，重新观察，不能重放整批。
+
+`input.*` 的普通鼠标、按键、文字和滚轮操作，以及 `ui.click`、`ui.invoke`，只确认操作已派发，`verification.status` 为 `not_checked`；调用方须观察应用实际变化。滚轮位置应选在实际可滚动的区域，避免把嵌套列表与外层页面混淆。
 
 Windows 已知准确 `automation_id` 时，`ui.find`、`ui.find_all` 或 `wait.element` 可设 `search_scope: "subtree"`，使用系统的整个控件子树精确查找。此模式不接受 `depth`，`limit` 限制该 ID 的匹配节点数而非遍历节点数，`depth` 和 `parent` 不提供；其他筛选条件仍在匹配结果上应用。结果截断或系统无法完整读取时不能证明唯一；不支持此模式的平台返回 `UNSUPPORTED_PLATFORM`。普通 `tree` 范围及其深度、节点上限保持原行为。
 
