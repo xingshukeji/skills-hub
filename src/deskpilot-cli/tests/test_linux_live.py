@@ -46,8 +46,9 @@ class LinuxLiveTests(unittest.TestCase):
             session.execute("ui.invoke", {"element_id": apply["elements"][0]["element_id"], "observation_id": apply["observation_id"]})
             result = session.execute("wait.element", {"title_exact": title, "name": "Result: " + text, "timeout_ms": 3000})
             self.assertEqual(result["count"], 1)
-            screenshot = session.execute("screen.capture", {"title_exact": title})
+            screenshot = session.execute("observe", {"title_exact": title, "include_screenshot": True})
             self.assertTrue(screenshot["screenshot"]["trusted"])
+            self.assertTrue(any(item["name"] == "Result: " + text for item in screenshot["elements"]))
             image = Image.open(screenshot["screenshot"]["path"])
             self.assertGreater(len(set(image.rgb)), 3)
             recognized = session.execute("messages.observe", {

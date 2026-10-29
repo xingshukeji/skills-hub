@@ -328,7 +328,7 @@ class MacDesktop:
         require(info["enabled"] and not info["offscreen"], "ELEMENT_NOT_ACTIONABLE", "The control is not enabled and visible.")
         self._action(element, "AXPress")
 
-    def set_value(self, element, value, *, checkpoint=lambda: None):
+    def set_value(self, element, value, *, checkpoint=lambda: None, window=None, newline_strategy=None):
         info = self.element_info(element)
         require(not info["is_password"], "SENSITIVE_INPUT_BLOCKED", "Password controls must be handled by the user.")
         name, string, settable = self.string("AXValue"), self.string(value), C.c_bool()
@@ -372,7 +372,7 @@ class MacDesktop:
         finally:
             self.cf.CFRelease(event)
 
-    def click(self, window, x, y, *, button="left", count=1):
+    def click(self, window, x, y, *, button="left", count=1, target_content_only=False):
         self._input_access()
         require(self.foreground() == window["native"], "WINDOW_NOT_FOREGROUND", "The requested window is not foreground.")
         point, original = Point(window["bounds"]["x"] + x, window["bounds"]["y"] + y), self._pointer()
@@ -432,7 +432,7 @@ class MacDesktop:
                 self.cg.CGEventSetFlags(event, mask)
                 self._post(event)
 
-    def scroll(self, window, x, y, amount, horizontal=False):
+    def scroll(self, window, x, y, amount, horizontal=False, *, target_content_only=False):
         self._input_access()
         original = self._pointer()
         try:
@@ -442,7 +442,8 @@ class MacDesktop:
         finally:
             self._post(self.cg.CGEventCreateMouseEvent(None, 5, original, 0))
 
-    def capture(self, window):
+    def capture(self, window, *, checkpoint=lambda: None):
+        checkpoint()
         from ..screen import Image
         require(bool(self.cg.CGPreflightScreenCaptureAccess()), "SCREEN_RECORDING_PERMISSION_REQUIRED", "Grant macOS Screen Recording access to the calling Python/client application.")
         before = self.window(window["native"])

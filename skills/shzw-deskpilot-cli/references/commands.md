@@ -15,10 +15,10 @@
 | `capabilities`、`schema`、`doctor` | 方法发现、引用要求、当前平台及能力诊断；不会安装依赖或运行场景 |
 | `windows.list` / `windows.find` | `title_exact`、`title_contains`、`process_name`、`pid` 等；返回进程内 `window_id` |
 | `windows.info` / `windows.activate` | `window_id` 或唯一窗口条件 |
-| `observe` / `ui.tree` / `ui.find` / `ui.find_all` | 窗口条件、`name`/`name_contains`、`automation_id`、`control_type`；`depth`、`limit` 控制范围。返回 `observation_id` 和 `element_id` |
-| `ui.get` / `ui.invoke` / `ui.click` / `ui.set_value` / `ui.select` | `element_id` + 对应 `observation_id`；set_value 提供字符串 `value`，select 可提供选项 `value` |
+| `observe` / `ui.tree` / `ui.find` / `ui.find_all` | 窗口条件、`name`/`name_contains`、`automation_id`、`control_type`、控件 `class_name`；`depth`、`limit` 控制范围。返回 `observation_id` 和 `element_id` |
+| `ui.get` / `ui.invoke` / `ui.click` / `ui.set_value` / `ui.select` | `element_id` + 对应 `observation_id`；set_value 提供字符串 `value`。Windows 文本模式回退的多行内容需按已确认的控件行为提供 `newline_strategy`；select 可提供选项 `value` |
 | `input.type` / `input.key` / `input.hotkey` | 窗口 + `text` 或 `keys` 字符串数组；按当前焦点输入，先核对焦点 |
-| `input.click` / `input.double_click` / `input.right_click` / `input.scroll` | 窗口 + 当前 `observation_id` 或 `screenshot_id` + 窗口内 `x`,`y`；scroll 使用 `amount`，120 为一格，可设 `horizontal` |
+| `input.click` / `input.double_click` / `input.right_click` / `input.scroll` | 窗口 + 当前 `observation_id` 或 `screenshot_id` + `x`,`y`；引用截图时使用图片内坐标，引用控件观察时使用窗口内坐标。scroll 使用 `amount`，120 为一格，可设 `horizontal` |
 | `screen.capture` / `screen.capture_window` | 窗口条件；可选绝对 `path`，其父目录须已存在；默认截图随会话清理 |
 | `screen.read_text` | 窗口条件或当前 `screenshot_id`；可用截图内 `region` 限定区域，返回全图坐标的文本块、置信度和来源，`include_words` 不保证跨平台词框 |
 | `messages.observe` | 上述参数 + `identity_region`,`content_region` 和 `expected_identity`；输出文字候选，不替调用方决策 |
@@ -26,9 +26,15 @@
 | `interaction.begin` / `interaction.status` / `interaction.end` | 保持一组操作和提示，结束恢复原前台；可设 `show_overlay`、`show_action_trace`、`restore_original_window` |
 | `interaction.cancel` / `close` | 取消当前请求或关闭会话；取消可以在长请求执行期间并发写入 |
 
-窗口条件必须唯一。`ui.find` 返回全部匹配，调用方自己检查 `count`；不得直接对不唯一结果取首项。ID 不能跨进程保存。动作使观察过期；窗口移动、改标题、身份变化也会使旧观察无效。
+窗口条件必须唯一。`ui.find` 只返回所搜索范围内的匹配；`truncated: true` 不能证明唯一或不存在，树搜索的深度也可能排除更深的控件。`require_unique: true` 在该范围内要求恰好一个匹配且未截断，否则返回 `ELEMENT_NOT_FOUND`、`ELEMENT_NOT_UNIQUE` 或 `UI_AUTOMATION_INCOMPLETE`；不能直接对不唯一或未完成的结果取首项。元素缺失时 `wait.element` 可等待，截断时不能将缺失误报为已消失。ID 不能跨进程保存。动作使观察过期；窗口移动、改标题、身份变化也会使旧观察无效。
 
-Windows 的 `window.activation` 提供当次前台核验依据；`ui.get` 返回非密码控件的 `value` 和 `has_keyboard_focus`，`observe` 不返回 value。`ui.set_value` 成功可带 `verification`；确认不了时只回读、不重新派发，返回 `VALUE_NOT_VERIFIED` 和 `outcome: unknown`。页面地址、深层文档和外来覆盖的核对方法见[桌面](desktop.md)。
+`observe` 可设 `include_screenshot: true`，在同一响应返回控件树和可信截图，省去一次单独请求；默认仍只读取控件树。两者依次取得，不是原子快照，动态页面仍需确认当前状态。
+
+Windows 已知准确 `automation_id` 时，`ui.find`、`ui.find_all` 或 `wait.element` 可设 `search_scope: "subtree"`，使用系统的整个控件子树精确查找。此模式不接受 `depth`，`limit` 限制该 ID 的匹配节点数而非遍历节点数，`depth` 和 `parent` 不提供；其他筛选条件仍在匹配结果上应用。结果截断或系统无法完整读取时不能证明唯一；不支持此模式的平台返回 `UNSUPPORTED_PLATFORM`。普通 `tree` 范围及其深度、节点上限保持原行为。
+
+`ui.find`、`ui.find_all` 和 `wait.element` 中的 `class_name` 匹配控件类；如需同时限定窗口类，使用 `window_class_name`。`windows.find` 中的 `class_name` 仍匹配窗口类。
+
+Windows 的 `window.activation` 提供当次前台核验依据；`ui.get` 返回非密码控件的 `value`、`value_source` 和 `has_keyboard_focus`，`observe` 不返回 value。`ui.set_value` 成功可带 `verification`；确认不了时只回读、不重新派发，返回 `VALUE_NOT_VERIFIED` 和 `outcome: unknown`。窗口专属截图标明 `capture_scope`、覆盖窗口与未合成的独立窗口；输入位置仍由系统实际命中结果核对。页面地址、深层文档和外来覆盖的核对方法见[桌面](desktop.md)。
 
 ## 短批次
 
@@ -36,7 +42,7 @@ Windows 的 `window.activation` 提供当次前台核验依据；`ui.get` 返回
 
 ```json
 {"id":"edit","method":"actions.batch","params":{"steps":[
-  {"id":"find","method":"ui.find","params":{"title_exact":"已确认窗口","automation_id":"已观察到的唯一控件ID"}},
+  {"id":"find","method":"ui.find","params":{"title_exact":"已确认窗口","automation_id":"已观察到的唯一控件ID","require_unique":true}},
   {"id":"write","method":"ui.set_value","params":{"element_id":{"$ref":"find.result.elements[0].element_id"},"observation_id":{"$ref":"find.result.observation_id"},"value":"调用方指定正文"}},
   {"id":"read","method":"ui.find","params":{"title_exact":"已确认窗口","automation_id":"已观察到的唯一控件ID"}}
 ]}}

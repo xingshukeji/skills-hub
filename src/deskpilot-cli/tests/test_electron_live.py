@@ -22,6 +22,7 @@ from unittest.mock import patch
 from test_installed_live import ProcessSession
 import test_windows_live
 from deskpilot import DeskPilotError
+from deskpilot.session import Session as SourceSession
 
 
 @unittest.skipUnless(sys.platform == 'win32' and os.environ.get('DESKPILOT_ELECTRON_LIVE_TESTS') == '1',
@@ -144,7 +145,25 @@ class ElectronLiveTests(unittest.TestCase):
         self.assertEqual(self.session.execute('ui.get', self.find('account'))['element']['value'], text)
         self.state(account=text)
 
-    def test_reply_switch_recovers_in_same_stream_and_occlusion_stays_rejected(self):
+    def test_exact_search_and_combined_observation_on_electron(self):
+        selected = self.session.execute('ui.find', self.selector | {
+            'automation_id': 'account', 'search_scope': 'subtree', 'require_unique': True})
+        self.assertEqual((selected['count'], selected['truncated']), (1, False))
+        self.assertEqual(selected['tree_backend'], 'uia_control_view_exact_id')
+        reference = {'element_id': selected['elements'][0]['element_id'], 'observation_id': selected['observation_id']}
+        result = self.session.execute('ui.set_value', reference | {'value': 'subtree 中文 123'})
+        self.assertTrue(result['verification']['matched'])
+        self.state(account='subtree 中文 123')
+        observed = self.session.execute('observe', self.selector | {'depth': 16, 'include_screenshot': True})
+        self.assertTrue(observed['screenshot']['trusted'])
+        self.assertTrue(Path(observed['screenshot']['path']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n'))
+        elements = [item for item in observed['elements'] if item['automation_id'] == 'account']
+        self.assertEqual(len(elements), 1)
+        value = self.session.execute('ui.get', {'element_id': elements[0]['element_id'],
+                                                 'observation_id': observed['observation_id']})
+        self.assertEqual(value['element']['value'], 'subtree 中文 123')
+
+    def test_reply_switch_recovers_and_overlaid_target_capture_blocks_covered_click(self):
         self.session.execute('windows.activate', self.selector)
         native = subprocess.Popen([sys.executable, '-B', str(Path(__file__).with_name('windows_fixture.py')),
                                    'DeskPilot reply fixture ' + self.case.name[:8], '--claim-input'],
@@ -165,7 +184,7 @@ class ElectronLiveTests(unittest.TestCase):
             self.assertFalse(activation['set_foreground_returned'])
             self.assertEqual(activation['method'], 'uia_set_focus')
             self.assertEqual(activation['foreground_after']['pid'], self.ready['pid'])
-            test_windows_live.WindowsLiveTests()._check_small_unrelated_overlay_is_rejected(self.session, self.title, found['window']['bounds'])
+            test_windows_live.WindowsLiveTests()._check_overlay_capture_and_hit_guard(self.session, self.title, found['window']['bounds'])
         finally:
             if ready:
                 user = ctypes.WinDLL('user32')
@@ -180,6 +199,34 @@ class ElectronLiveTests(unittest.TestCase):
             errors = native.stderr.read()
             native.stderr.close()
             self.assertEqual(errors, '')
+
+    def test_raw_tree_recovery_keeps_electron_document_and_controls(self):
+        source = SourceSession()
+        try:
+            natural = source.execute('observe', self.selector | {'depth': 16})
+            expected_ids = {'RootWebArea', 'account', 'refused', 'password'}
+            self.assertTrue(expected_ids.issubset({item['automation_id'] for item in natural['elements']}))
+            native = source.desktop._automation()
+            class FailedWalker:
+                def GetFirstChildElement(self, _element):
+                    raise OSError(-2147024809, 'simulated UIA TreeWalker invalid argument')
+            class RawAutomation:
+                ControlViewWalker = FailedWalker()
+                def __getattr__(self, name):
+                    return getattr(native, name)
+            source.desktop._automation = lambda: RawAutomation()
+            recovered = source.execute('observe', self.selector | {'depth': 16})
+            self.assertEqual(recovered['tree_backend'], 'uia_raw_tree_fallback')
+            self.assertTrue(expected_ids.issubset({item['automation_id'] for item in recovered['elements']}))
+            document = next(item for item in recovered['elements'] if item['automation_id'] == 'RootWebArea')
+            read = source.execute('ui.get', {'element_id': document['element_id'],
+                                             'observation_id': recovered['observation_id']})
+            self.assertEqual(read['element']['value'], self.ready['url'])
+            password = next(item for item in recovered['elements'] if item['automation_id'] == 'password')
+            self.assertTrue(password['is_password'])
+            self.assertEqual(password['name'], '')
+        finally:
+            source.close()
 
 
 if __name__ == '__main__':

@@ -46,7 +46,7 @@ def mutating(method: str, params: dict | None = None) -> bool:
 
 
 def validate_flags(params: dict, *, references=False):
-    for key in ("require_confirmation", "confirmed", "allow_unobserved", "verify", "show_overlay",
+    for key in ("require_confirmation", "require_unique", "confirmed", "allow_unobserved", "verify", "include_screenshot", "show_overlay",
                 "restore_original_window", "show_action_trace", "visualize_actions", "horizontal", "read_only", "auto_start"):
         if key in params:
             value = params[key]
@@ -256,7 +256,7 @@ class Session:
         title = str(params.get("title", params.get("title_contains", "")))
         exact = params.get("title_exact")
         process = str(params.get("process", params.get("process_name", params.get("app", "")))).lower().removesuffix(".exe")
-        class_name = params.get("class_name", params.get("class"))
+        class_name = params.get("window_class_name", params.get("class_name", params.get("class")))
         return ((not title or title.casefold() in item.get("title", "").casefold())
                 and (exact is None or str(exact).casefold() == item.get("title", "").casefold())
                 and (not process or process == item.get("process", "").lower().removesuffix(".exe"))
@@ -274,7 +274,7 @@ class Session:
             item = self.desktop.window(previous["native"])
             require(item["identity"] == previous["identity"], "WINDOW_IDENTITY_MISMATCH", "The window identity changed.")
             require(self._window_matches(item, params), "WINDOW_IDENTITY_MISMATCH", "The current window does not match the requested selector.")
-        elif any(key in params for key in ("title", "title_contains", "title_exact", "process", "process_name", "app", "pid", "class_name", "class")):
+        elif any(key in params for key in ("title", "title_contains", "title_exact", "process", "process_name", "app", "pid", "window_class_name", "class_name", "class")):
             matches = self._find_windows(params)
             require(bool(matches), "WINDOW_NOT_FOUND", "No window matches the requested selector.", retryable=True)
             require(len(matches) == 1, "WINDOW_AMBIGUOUS", "More than one window matches; use an exact selector or window_id.", details={"count": len(matches)})
@@ -290,17 +290,45 @@ class Session:
         return window_id, item
 
     def _observe(self, params: dict, *, find=False):
-        window_id, window = self._window(params, activate=True)
+        # For a control search, class_name is an element filter. Window class
+        # remains available through window_class_name (or the existing class alias).
+        window_params = {key: value for key, value in params.items() if not (find and key == "class_name")}
+        window_id, window = self._window(window_params, activate=True)
         self._activity(window, "Observe", params)
         depth = int(number(params.get("depth", params.get("max_depth", 8)), "depth", minimum=0, maximum=64))
         limit = int(number(params.get("limit", params.get("max_nodes", 500)), "limit", minimum=1, maximum=5000))
-        nodes = self.desktop.tree(window, depth=depth, limit=limit, checkpoint=self.checkpoint)
+        scope = params.get("search_scope", "tree")
+        require(scope in ("tree", "subtree") and (find or scope == "tree"),
+                "INVALID_ARGUMENT", "search_scope must be tree, or subtree for a control search.")
+        filters = {key: params[key] for key in ("name", "automation_id", "class_name", "name_contains", "enabled", "offscreen")
+                   if key in params} if find else {}
+        control_type = params.get("control_type", params.get("type")) if find else None
+        if control_type is not None:
+            filters["control_type"] = CONTROL_TYPES.get(str(control_type).lower().replace("controltype.", ""), control_type)
+        if scope == "subtree":
+            require("depth" not in params and "max_depth" not in params,
+                    "INVALID_ARGUMENT", "subtree search does not accept a depth limit.")
+            identifier = params.get("automation_id")
+            require(isinstance(identifier, str) and bool(identifier), "INVALID_ARGUMENT",
+                    "subtree search requires a non-empty exact automation_id.")
+            require(hasattr(self.desktop, "find_exact_id"), "UNSUPPORTED_PLATFORM",
+                    "subtree control search is not supported on this platform.")
+            nodes, truncated = self.desktop.find_exact_id(window, identifier=identifier, limit=limit,
+                                                          checkpoint=self.checkpoint)
+        elif filters and hasattr(self.desktop, "find_tree"):
+            nodes = self.desktop.find_tree(window, depth=depth, limit=limit, checkpoint=self.checkpoint, filters=filters)
+            truncated = len(nodes) >= limit
+        else:
+            nodes = self.desktop.tree(window, depth=depth, limit=limit, checkpoint=self.checkpoint)
+            truncated = len(nodes) >= limit
         self._invalidate(window_id)
         observation_id = self._token("observation")
         self._observations[window_id] = {"id": observation_id, "identity": window["identity"],
                                          "bounds": dict(window["bounds"]), "title": window.get("title", "")}
         public = []
         for node in nodes:
+            if node.get("_filtered_out") or find and not self._element_matches(node, params):
+                continue
             element_id = self._token("element")
             self._elements[element_id] = {"native": node["native"], "window_id": window_id,
                                           "observation_id": observation_id}
@@ -308,10 +336,16 @@ class Session:
             item["element_id"] = element_id
             item["observation_id"] = observation_id
             public.append(item)
-        if find:
-            public = [item for item in public if self._element_matches(item, params)]
-        return {"window": self._public_window(window_id, window), "observation_id": observation_id,
-                "elements": public, "count": len(public), "truncated": len(nodes) >= limit}
+        result = {"window": self._public_window(window_id, window), "observation_id": observation_id,
+                  "elements": public, "count": len(public), "truncated": truncated}
+        if find and params.get("require_unique"):
+            require(not truncated, "UI_AUTOMATION_INCOMPLETE", "The search was truncated; uniqueness cannot be established.",
+                    details={"count": len(public), "truncated": True})
+            require(len(public) == 1, "ELEMENT_NOT_FOUND" if not public else "ELEMENT_NOT_UNIQUE",
+                    "The search must identify exactly one control.", retryable=not public, details={"count": len(public)})
+        if getattr(self.desktop, "tree_backend", None):
+            result["tree_backend"] = self.desktop.tree_backend
+        return result
 
     def _element_matches(self, item: dict, params: dict) -> bool:
         for key in ("name", "automation_id", "class_name"):
@@ -347,6 +381,7 @@ class Session:
 
     def _coordinate(self, params: dict, *, activate=True):
         window_id, window = self._window(params, activate=activate)
+        shot = None
         if not params.get("allow_unobserved", False):
             if params.get("screenshot_id"):
                 shot = self._shots.get(params["screenshot_id"])
@@ -355,14 +390,32 @@ class Session:
                         "STALE_OBSERVATION", "The screenshot no longer describes this window.")
             else:
                 self._check_observation(window_id, window, params.get("observation_id"))
-        x = int(number(params.get("x"), "x", minimum=0, maximum=window["bounds"]["width"] - 1))
-        y = int(number(params.get("y"), "y", minimum=0, maximum=window["bounds"]["height"] - 1))
-        return window_id, window, x, y
+        # Screenshot coordinates refer to the actual captured image. A Windows
+        # compositor frame can start inside the invisible resize border, unlike
+        # a full-window screen copy. Convert once to window-relative input.
+        width = shot["image"].width if shot else window["bounds"]["width"]
+        height = shot["image"].height if shot else window["bounds"]["height"]
+        x = int(number(params.get("x"), "x", minimum=0, maximum=width - 1))
+        y = int(number(params.get("y"), "y", minimum=0, maximum=height - 1))
+        if shot:
+            x += shot["origin"]["x"] - window["bounds"]["x"]
+            y += shot["origin"]["y"] - window["bounds"]["y"]
+            require(0 <= x < window["bounds"]["width"] and 0 <= y < window["bounds"]["height"],
+                    "WINDOW_CAPTURE_UNTRUSTED", "The screenshot coordinate is outside its target window.")
+        target_content_only = bool(shot and shot["evidence"].get("capture_scope") == "target_window_only")
+        return window_id, window, x, y, target_content_only
 
     def _capture(self, params: dict):
         window_id, window = self._window(params, activate=True)
-        image, evidence = self.desktop.capture(window)
+        image, evidence = self.desktop.capture(window, checkpoint=self.checkpoint)
         require(evidence.get("trusted") is True, "WINDOW_CAPTURE_UNTRUSTED", "The backend could not establish capture ownership.")
+        origin = evidence.get("origin", {"x": window["bounds"]["x"], "y": window["bounds"]["y"]})
+        area = window["bounds"]
+        require(isinstance(origin, dict) and type(origin.get("x")) is int and type(origin.get("y")) is int
+                and area["x"] <= origin["x"] and area["y"] <= origin["y"]
+                and origin["x"] + image.width <= area["x"] + area["width"]
+                and origin["y"] + image.height <= area["y"] + area["height"],
+                "WINDOW_CAPTURE_UNTRUSTED", "The screenshot geometry is outside its target window.")
         screenshot_id = self._token("screenshot")
         path = Path(params["path"]) if params.get("path") else Path(self._temporary.name) / f"{screenshot_id}.png"
         require(path.is_absolute(), "INVALID_ARGUMENT", "An explicit screenshot output path must be absolute.")
@@ -373,7 +426,8 @@ class Session:
             raise DeskPilotError("OUTPUT_UNAVAILABLE", "The screenshot output path is not writable.") from None
         self._shots[screenshot_id] = {"image": image, "path": path, "owned": not bool(params.get("path")),
                                      "window_id": window_id, "bounds": dict(window["bounds"]),
-                                     "title": window.get("title", ""), "current": True, "evidence": evidence}
+                                     "origin": dict(origin), "title": window.get("title", ""),
+                                     "current": True, "evidence": evidence}
         for old_id, shot in self._shots.items():
             if old_id != screenshot_id and shot["window_id"] == window_id:
                 shot["current"] = False
@@ -383,7 +437,7 @@ class Session:
                 expired["path"].unlink(missing_ok=True)
         return {"window": self._public_window(window_id, window), "screenshot": {
             "screenshot_id": screenshot_id, "path": str(path), "mime_type": "image/png", "size": path.stat().st_size,
-            "width": image.width, "height": image.height, "origin": {"x": window["bounds"]["x"], "y": window["bounds"]["y"]}, **evidence}}
+            "width": image.width, "height": image.height, "origin": origin, **evidence}}
 
     def _read_text(self, params: dict, *, messages=False):
         from .screen import Ocr
@@ -396,7 +450,7 @@ class Session:
                     "STALE_OBSERVATION", "The screenshot's window changed.")
             capture = {"window": self._public_window(window_id, window), "screenshot": {
                 "screenshot_id": shot_id, "path": str(shot["path"]), "width": shot["image"].width,
-                "height": shot["image"].height, **shot["evidence"]}}
+                "height": shot["image"].height, "origin": shot["origin"], **shot["evidence"]}}
         else:
             capture = self._capture(params)
             shot_id = capture["screenshot"]["screenshot_id"]
@@ -459,6 +513,8 @@ class Session:
     def _wait(self, method: str, params: dict):
         interval = number(params.get("poll_ms", 100), "poll_ms", minimum=10, maximum=10000) / 1000
         stable = number(params.get("stable_ms", 0), "stable_ms", minimum=0, maximum=120000) / 1000
+        require(not (method == "wait.element" and params.get("require_unique") and params.get("state") in {"absent", "hidden"}),
+                "INVALID_ARGUMENT", "An absence wait cannot require a unique control.")
         first = None
         while True:
             self.checkpoint()
@@ -469,6 +525,8 @@ class Session:
                 else:
                     result = self._observe(params, find=True)
                 present = bool(result["count"])
+                if method == "wait.element" and not present and result.get("truncated") and params.get("state") in {"absent", "hidden"}:
+                    raise DeskPilotError("UI_AUTOMATION_INCOMPLETE", "The search was truncated; absence cannot be established.")
                 desired = present if params.get("state", "present") not in {"absent", "hidden"} else not present
                 if desired:
                     first = first or time.monotonic()
@@ -477,7 +535,7 @@ class Session:
                 else:
                     first = None
             except DeskPilotError as exc:
-                if exc.code not in {"WINDOW_NOT_FOUND", "ELEMENT_UNAVAILABLE"}:
+                if exc.code not in {"WINDOW_NOT_FOUND", "ELEMENT_UNAVAILABLE", "ELEMENT_NOT_FOUND"}:
                     raise
                 first = None
             self._cancelled.wait(interval)
@@ -592,7 +650,16 @@ class Session:
         if method in {"windows.info", "windows.activate"}:
             return {"window": self._public_window(*self._window(params, activate=method.endswith("activate")))}
         if method in {"observe", "ui.tree", "ui.find", "ui.find_all"}:
-            return self._observe(params, find=method in {"ui.find", "ui.find_all"})
+            require(method == "observe" or not params.get("include_screenshot"), "INVALID_ARGUMENT",
+                    "include_screenshot is only supported by observe.")
+            result = self._observe(params, find=method in {"ui.find", "ui.find_all"})
+            if method == "observe" and params.get("include_screenshot"):
+                window_id = result["window"]["window_id"]
+                capture = self._capture({"window_id": window_id})
+                _, current = self._window({"window_id": window_id})
+                self._check_observation(window_id, current, result["observation_id"])
+                result["screenshot"] = capture["screenshot"]
+            return result
         if method in {"wait.window", "wait.element"}:
             return self._wait(method, params)
         if method in {"screen.capture", "screen.capture_window"}:
@@ -619,8 +686,12 @@ class Session:
                 self.desktop.invoke(element)
             elif method == "ui.set_value":
                 require(isinstance(params.get("value"), str), "INVALID_ARGUMENT", "value must be a string.")
+                newline_strategy = params.get("newline_strategy")
+                require(newline_strategy is None or newline_strategy in ("unicode", "enter", "shift_enter"),
+                        "INVALID_ARGUMENT", "Unknown newline input strategy.")
                 self._dispatched = True
-                verification = self.desktop.set_value(element, params["value"], checkpoint=self.checkpoint)
+                verification = self.desktop.set_value(element, params["value"], checkpoint=self.checkpoint, window=window,
+                                                      newline_strategy=newline_strategy)
             else:
                 self._dispatched = True
                 verification = self.desktop.select(element, params.get("value"), checkpoint=self.checkpoint)
@@ -648,17 +719,19 @@ class Session:
                     self._dispatched = True
                     self.desktop.key(keys)
             else:
-                window_id, window, x, y = self._coordinate(params)
+                window_id, window, x, y, target_content_only = self._coordinate(params)
                 self._activity(window, method, params, (x, y))
                 if method == "input.scroll":
                     amount = int(number(params.get("amount"), "amount", minimum=-100000, maximum=100000))
                     self._dispatched = True
-                    self.desktop.scroll(window, x, y, amount, horizontal=bool(params.get("horizontal", False)))
+                    self.desktop.scroll(window, x, y, amount, horizontal=bool(params.get("horizontal", False)),
+                                        target_content_only=target_content_only)
                 else:
                     button = params.get("button", "right" if method.endswith("right_click") else "left")
                     require(button in {"left", "middle", "right"}, "INVALID_ARGUMENT", "Unknown mouse button.")
                     self._dispatched = True
-                    self.desktop.click(window, x, y, button=button, count=2 if method.endswith("double_click") else 1)
+                    self.desktop.click(window, x, y, button=button, count=2 if method.endswith("double_click") else 1,
+                                       target_content_only=target_content_only)
             self._invalidate(window_id)
             return {"dispatched": True, "window": self._public_window(window_id, window)}
         if method.startswith("chrome."):

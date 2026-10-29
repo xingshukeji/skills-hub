@@ -44,13 +44,13 @@ class Desktop:
 
     def tree(self, window, **kwargs):
         kwargs["checkpoint"]()
-        return [{"native": "edit", "name": "Input", "automation_id": "input", "control_type": 50004,
+        return [{"native": "edit", "name": "Input", "automation_id": "input", "class_name": "EditControl", "control_type": 50004,
                  "enabled": True, "offscreen": False, "is_password": False, "bounds": {"x": 15, "y": 25, "width": 40, "height": 20}}]
 
     def element_info(self, native):
         return {"value": self.value, "bounds": {"x": 15, "y": 25, "width": 40, "height": 20}, "enabled": True, "offscreen": False}
 
-    def set_value(self, native, value, *, checkpoint=lambda: None):
+    def set_value(self, native, value, *, checkpoint=lambda: None, window=None, newline_strategy=None):
         if self.failure == "password":
             raise DeskPilotError("SENSITIVE_INPUT_BLOCKED", "The control is sensitive.")
         self.writes += 1
@@ -60,7 +60,7 @@ class Desktop:
         if self.failure == "crash":
             raise RuntimeError("private-text-should-not-escape")
 
-    def capture(self, window):
+    def capture(self, window, *, checkpoint=lambda: None):
         return Image(80, 60, b"\xff\xff\xff" * 80 * 60), {"trusted": True}
 
     def click(self, *args, **kwargs):
@@ -79,6 +79,48 @@ class SessionTests(unittest.TestCase):
     def found(self):
         observation = self.session.execute("ui.find", {"title_exact": "Fixture", "automation_id": "input"})
         return {"element_id": observation["elements"][0]["element_id"], "observation_id": observation["observation_id"]}
+
+    def test_element_class_does_not_override_window_identity_filters(self):
+        window = self.session.execute("windows.find", {"class_name": "fixture"})["windows"][0]["window_id"]
+        result = self.session.execute("ui.find", {"window_id": window, "class_name": "EditControl"})
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["elements"][0]["automation_id"], "input")
+        result = self.session.execute("wait.element", {"title_exact": "Fixture", "class_name": "EditControl", "timeout_ms": 500})
+        self.assertEqual(result["count"], 1)
+        result = self.session.execute("ui.find", {"class": "fixture", "class_name": "EditControl"})
+        self.assertEqual(result["count"], 1)
+        result = self.session.execute("ui.find", {"window_class_name": "fixture", "class_name": "EditControl"})
+        self.assertEqual(result["count"], 1)
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute("ui.find", {"window_id": window, "window_class_name": "different", "class_name": "EditControl"})
+        self.assertEqual(caught.exception.code, "WINDOW_IDENTITY_MISMATCH")
+
+    def test_truncated_search_cannot_prove_absence_or_uniqueness(self):
+        with self.assertRaises(DeskPilotError) as absent:
+            self.session.execute("wait.element", {"title_exact": "Fixture", "automation_id": "missing",
+                                                  "limit": 1, "state": "absent", "timeout_ms": 500})
+        self.assertEqual(absent.exception.code, "UI_AUTOMATION_INCOMPLETE")
+        with self.assertRaises(DeskPilotError) as unique:
+            self.session.execute("ui.find", {"title_exact": "Fixture", "automation_id": "input",
+                                             "limit": 1, "require_unique": True})
+        self.assertEqual(unique.exception.code, "UI_AUTOMATION_INCOMPLETE")
+        with self.assertRaises(DeskPilotError) as no_match:
+            self.session.execute("ui.find", {"title_exact": "Fixture", "automation_id": "missing",
+                                             "require_unique": True})
+        self.assertEqual(no_match.exception.code, "ELEMENT_NOT_FOUND")
+
+    def test_batch_never_writes_when_a_search_is_ambiguous(self):
+        original_tree = self.desktop.tree
+        self.desktop.tree = lambda window, **kwargs: original_tree(window, **kwargs) * 2
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute("actions.batch", {"steps": [
+                {"id": "find", "method": "ui.find", "params": {"title_exact": "Fixture", "automation_id": "input",
+                                                                   "require_unique": True}},
+                {"id": "write", "method": "ui.set_value", "params": {
+                    "element_id": {"$ref": "find.result.elements[0].element_id"},
+                    "observation_id": {"$ref": "find.result.observation_id"}, "value": "must not write"}}]})
+        self.assertEqual(caught.exception.code, "ELEMENT_NOT_UNIQUE")
+        self.assertEqual(self.desktop.writes, 0)
 
     def test_refs_are_session_owned_and_invalidated_after_write(self):
         reference = self.found()
@@ -120,6 +162,55 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "STALE_OBSERVATION")
         self.assertEqual(self.desktop.writes, 1)
 
+    def test_observe_can_return_one_current_tree_and_screenshot(self):
+        result = self.session.execute("observe", {"title_exact": "Fixture", "include_screenshot": True})
+        self.assertTrue(result["screenshot"]["trusted"])
+        self.assertEqual(result["count"], 1)
+        reference = {"element_id": result["elements"][0]["element_id"], "observation_id": result["observation_id"]}
+        self.assertEqual(self.session.execute("ui.get", reference)["element"]["value"], "")
+        self.session.execute("input.click", {"window_id": result["window"]["window_id"],
+                                               "screenshot_id": result["screenshot"]["screenshot_id"], "x": 10, "y": 10})
+        with self.assertRaises(DeskPilotError) as stale:
+            self.session.execute("ui.get", reference)
+        self.assertEqual(stale.exception.code, "STALE_OBSERVATION")
+
+    def test_combined_observation_rejects_a_window_that_changes_during_capture(self):
+        original_capture = self.desktop.capture
+        def moved(window, **kwargs):
+            result = original_capture(window, **kwargs)
+            self.desktop.item["title"] = "Different context"
+            return result
+        self.desktop.capture = moved
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute("observe", {"title_exact": "Fixture", "include_screenshot": True})
+        self.assertEqual(caught.exception.code, "STALE_OBSERVATION")
+
+    def test_screenshot_coordinates_include_window_frame_offset(self):
+        self.desktop.capture = lambda window, **kwargs: (
+            Image(60, 50, b"\xff\xff\xff" * 60 * 50),
+            {"trusted": True, "origin": {"x": 17, "y": 25}})
+        clicks = []
+        self.desktop.click = lambda window, x, y, **kwargs: clicks.append((x, y))
+        capture = self.session.execute("screen.capture", {"title_exact": "Fixture"})
+        self.assertEqual(capture["screenshot"]["origin"], {"x": 17, "y": 25})
+        args = {"window_id": capture["window"]["window_id"],
+                "screenshot_id": capture["screenshot"]["screenshot_id"]}
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute("input.click", args | {"x": 60, "y": 10})
+        self.assertEqual(caught.exception.code, "INVALID_ARGUMENT")
+        self.assertEqual(clicks, [])
+        self.session.execute("input.click", args | {"x": 10, "y": 10})
+        self.assertEqual(clicks, [(17, 15)])
+
+    def test_capture_rejects_frame_geometry_outside_the_target(self):
+        self.desktop.capture = lambda window, **kwargs: (
+            Image(60, 50, b"\xff\xff\xff" * 60 * 50),
+            {"trusted": True, "origin": {"x": 40, "y": 25}})
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute("screen.capture", {"title_exact": "Fixture"})
+        self.assertEqual(caught.exception.code, "WINDOW_CAPTURE_UNTRUSTED")
+        self.assertFalse(self.session._shots)
+
     def test_batch_validates_structure_before_any_operation(self):
         with self.assertRaises(DeskPilotError):
             self.session.execute("actions.batch", {"steps": [
@@ -149,7 +240,7 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(self.desktop.writes, 1)
 
     def test_untrusted_capture_is_rejected_before_creating_an_image_reference(self):
-        self.desktop.capture = lambda window: (Image(1, 1, b"\0\0\0"), {"trusted": False})
+        self.desktop.capture = lambda window, **kwargs: (Image(1, 1, b"\0\0\0"), {"trusted": False})
         with self.assertRaises(DeskPilotError) as raised:
             self.session.execute("screen.capture", {"title_exact": "Fixture"})
         self.assertEqual(raised.exception.code, "WINDOW_CAPTURE_UNTRUSTED")

@@ -63,8 +63,10 @@ class WindowsDesktop:
         self.user = C.WinDLL("user32", use_last_error=True)
         self.kernel = C.WinDLL("kernel32", use_last_error=True)
         self.gdi = C.WinDLL("gdi32", use_last_error=True)
+        self.dwm = C.WinDLL("dwmapi", use_last_error=True)
         self._uia = None
         self._uia_module = None
+        self.tree_backend = None
         self._overlay = None
         self._configure()
         try:
@@ -85,6 +87,7 @@ class WindowsDesktop:
             "IsChild": (W.BOOL, [W.HWND, W.HWND]),
             "GetAncestor": (W.HWND, [W.HWND, W.UINT]),
             "WindowFromPoint": (W.HWND, [POINT]),
+            "GetWindowDisplayAffinity": (W.BOOL, [W.HWND, C.POINTER(W.DWORD)]),
             "SetForegroundWindow": (W.BOOL, [W.HWND]),
             "ShowWindow": (W.BOOL, [W.HWND, C.c_int]),
             "GetDC": (W.HDC, [W.HWND]), "ReleaseDC": (C.c_int, [W.HWND, W.HDC]),
@@ -96,6 +99,8 @@ class WindowsDesktop:
         for name, (restype, argtypes) in definitions.items():
             function = getattr(self.user, name)
             function.restype, function.argtypes = restype, argtypes
+        self.dwm.DwmGetWindowAttribute.restype = C.c_long
+        self.dwm.DwmGetWindowAttribute.argtypes = [W.HWND, W.DWORD, C.c_void_p, W.DWORD]
         self.kernel.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
         self.kernel.OpenProcess.restype = W.HANDLE
         self.kernel.QueryFullProcessImageNameW.argtypes = [W.HANDLE, W.DWORD, W.LPWSTR, C.POINTER(W.DWORD)]
@@ -250,30 +255,101 @@ class WindowsDesktop:
         self.user.SetForegroundWindow(handle)
         return bool(self.related(handle, self.foreground()))
 
-    def tree(self, window: dict, *, depth: int, limit: int, checkpoint) -> list[dict]:
+    @staticmethod
+    def _tree_item(element, level, parent):
+        area = element.CurrentBoundingRectangle
+        is_password = bool(element.CurrentIsPassword)
+        return {"native": element, "name": "" if is_password else str(element.CurrentName or ""),
+                "automation_id": str(element.CurrentAutomationId or ""),
+                "control_type": int(element.CurrentControlType),
+                "class_name": str(element.CurrentClassName or ""),
+                "enabled": bool(element.CurrentIsEnabled), "offscreen": bool(element.CurrentIsOffscreen),
+                "has_keyboard_focus": bool(element.CurrentHasKeyboardFocus),
+                "is_password": is_password, "bounds": rectangle(area), "depth": level, "parent": parent}
+
+    def find_exact_id(self, window: dict, *, identifier: str, limit: int, checkpoint):
+        """Search the control-view subtree without fetching every unrelated node."""
+        automation = self._automation()
+        checkpoint()
+        try:
+            root = automation.ElementFromHandle(window["native"])
+            condition = automation.CreatePropertyCondition(self._uia_module.UIA_AutomationIdPropertyId, identifier)
+            matches = root.FindAll(7, condition)  # TreeScope_Subtree, including the root.
+            nodes = []
+            truncated = False
+            for position in range(matches.Length):
+                checkpoint()
+                element = matches.GetElement(position)
+                # The regular walker uses the control view, but always includes
+                # the root. Query the ID first, then apply that view to matches.
+                if not bool(element.CurrentIsControlElement) and not automation.CompareElements(root, element):
+                    continue
+                if len(nodes) >= limit:
+                    truncated = True
+                    break
+                item = self._tree_item(element, None, None)
+                require(item["automation_id"] == identifier, "UI_AUTOMATION_INCOMPLETE",
+                        "A matching control changed while the search was in progress.")
+                nodes.append(item)
+            checkpoint()
+        except DeskPilotError:
+            raise
+        except Exception as exc:
+            raise DeskPilotError("UI_AUTOMATION_INCOMPLETE", f"The exact control search could not complete ({type(exc).__name__}).",
+                                 retryable=True) from None
+        self.tree_backend = "uia_control_view_exact_id"
+        return nodes, truncated
+
+    def find_tree(self, window: dict, *, depth: int, limit: int, checkpoint, filters: dict) -> list[dict]:
+        return self.tree(window, depth=depth, limit=limit, checkpoint=checkpoint, filters=filters)
+
+    def tree(self, window: dict, *, depth: int, limit: int, checkpoint, filters=None) -> list[dict]:
         automation = self._automation()
         root = automation.ElementFromHandle(window["native"])
         walker = automation.ControlViewWalker
         result = []
 
-        def visit(element, level, parent):
+        def matches(element):
+            # Search still visits the same bounded control tree in the same order.
+            # Avoid fetching every property for nodes that cannot match.
+            for key, attr in (("automation_id", "CurrentAutomationId"), ("class_name", "CurrentClassName")):
+                if key in filters and str(getattr(element, attr) or "") != str(filters[key]):
+                    return False
+            if "control_type" in filters and int(element.CurrentControlType) != filters["control_type"]:
+                return False
+            for key, attr in (("enabled", "CurrentIsEnabled"), ("offscreen", "CurrentIsOffscreen")):
+                if key in filters and bool(getattr(element, attr)) != bool(filters[key]):
+                    return False
+            if "name" in filters or "name_contains" in filters:
+                name = "" if bool(element.CurrentIsPassword) else str(element.CurrentName or "")
+                if "name" in filters and name != str(filters["name"]):
+                    return False
+                if "name_contains" in filters and str(filters["name_contains"]).casefold() not in name.casefold():
+                    return False
+            return True
+
+        def append(element, level, parent):
             checkpoint()
-            if not element or len(result) >= limit:
-                return
             try:
-                area = element.CurrentBoundingRectangle
-                is_password = bool(element.CurrentIsPassword)
-                item = {"native": element, "name": "" if is_password else str(element.CurrentName or ""),
-                        "automation_id": str(element.CurrentAutomationId or ""),
-                        "control_type": int(element.CurrentControlType),
-                        "class_name": str(element.CurrentClassName or ""),
-                        "enabled": bool(element.CurrentIsEnabled), "offscreen": bool(element.CurrentIsOffscreen),
-                        "has_keyboard_focus": bool(element.CurrentHasKeyboardFocus),
-                        "is_password": is_password, "bounds": rectangle(area), "depth": level, "parent": parent}
+                if filters and not matches(element):
+                    # Preserve visited-node indices and the traversal limit, including
+                    # ancestors of matching children, without publishing this node.
+                    index = len(result)
+                    result.append({"_filtered_out": True})
+                    return index
+                item = self._tree_item(element, level, parent)
             except Exception:
-                return
+                return None
             index = len(result)
             result.append(item)
+            return index
+
+        def visit(element, level, parent):
+            if not element or len(result) >= limit:
+                return
+            index = append(element, level, parent)
+            if index is None:
+                return
             if level >= depth:
                 return
             child = walker.GetFirstChildElement(element)
@@ -282,12 +358,58 @@ class WindowsDesktop:
                 checkpoint()
                 child = walker.GetNextSiblingElement(child)
 
+        self.tree_backend = "uia_control_view_walker"
         try:
             visit(root, 0, None)
         except DeskPilotError:
             raise
         except Exception as exc:
-            raise DeskPilotError("UI_AUTOMATION_FAILED", f"The accessibility tree could not be read ({type(exc).__name__}).", retryable=True) from None
+            hresult = exc.args[0] if exc.args and isinstance(exc.args[0], int) else None
+            if hresult is not None and hresult & 0xffffffff == 0x80070057:
+                # Some standard multiline Edit providers reject TreeWalker
+                # traversal even though their raw children are accessible.
+                # Rebuild from the raw tree, promoting non-control containers.
+                result.clear()
+                self.tree_backend = "uia_raw_tree_fallback"
+                try:
+                    condition = automation.CreateTrueCondition()
+                    visited = 0
+
+                    def visit_raw(element, level, parent, raw_depth=0, force=False):
+                        nonlocal visited
+                        if not element or len(result) >= limit:
+                            return
+                        checkpoint()
+                        visited += 1
+                        require(raw_depth <= 64 and visited <= min(50_000, max(1_000, limit * 50)),
+                                "UI_AUTOMATION_INCOMPLETE", "The accessibility tree exceeded the bounded recovery search.")
+                        control = force or bool(element.CurrentIsControlElement)
+                        if control:
+                            index = append(element, level, parent)
+                            if index is None or level >= depth:
+                                return
+                            next_level, next_parent = level + 1, index
+                        else:
+                            next_level, next_parent = level, parent
+                        children = element.FindAll(2, condition)  # TreeScope_Children, raw view
+                        for position in range(children.Length):
+                            if len(result) >= limit:
+                                break
+                            visit_raw(children.GetElement(position), next_level, next_parent, raw_depth + 1)
+
+                    visit_raw(root, 0, None, force=True)
+                    return result
+                except DeskPilotError:
+                    raise
+                except Exception as fallback_error:
+                    fallback_hresult = fallback_error.args[0] if fallback_error.args and isinstance(fallback_error.args[0], int) else None
+                    details = {"hresult": f"0x{fallback_hresult & 0xffffffff:08X}"} if fallback_hresult is not None else None
+                    raise DeskPilotError("UI_AUTOMATION_FAILED", "The accessibility tree could not be recovered from the raw view.",
+                                         retryable=True, details=details) from None
+            details = {"hresult": f"0x{hresult & 0xffffffff:08X}"} if hresult is not None else None
+            suffix = f" {details['hresult']}" if details else ""
+            raise DeskPilotError("UI_AUTOMATION_FAILED", f"The accessibility tree could not be read ({type(exc).__name__}{suffix}).",
+                                 retryable=True, details=details) from None
         return result
 
     def _pattern(self, element, pattern_id: int, interface: str):
@@ -301,16 +423,24 @@ class WindowsDesktop:
         try:
             is_password = bool(element.CurrentIsPassword)
             value = None
+            value_source = None
             if not is_password:
                 try:
                     value = str(self._pattern(element, 10002, "IUIAutomationValuePattern").CurrentValue)
+                    value_source = "uia_value"
                 except DeskPilotError:
-                    pass
+                    if int(element.CurrentControlType) in (50004, 50030) and bool(element.CurrentIsKeyboardFocusable):
+                        try:
+                            candidate = self._pattern(element, 10014, "IUIAutomationTextPattern").DocumentRange.GetText(1_000_001)
+                            if isinstance(candidate, str) and len(candidate) <= 1_000_000:
+                                value, value_source = candidate, "uia_text"
+                        except Exception:
+                            pass
             return {"name": "" if is_password else str(element.CurrentName or ""),
                     "bounds": rectangle(element.CurrentBoundingRectangle),
                     "enabled": bool(element.CurrentIsEnabled), "offscreen": bool(element.CurrentIsOffscreen),
                     "has_keyboard_focus": bool(element.CurrentHasKeyboardFocus),
-                    "is_password": is_password, "value": value}
+                    "is_password": is_password, "value": value, "value_source": value_source}
         except Exception as exc:
             raise DeskPilotError("ELEMENT_UNAVAILABLE", f"The control no longer responds ({type(exc).__name__}).", retryable=True) from None
 
@@ -319,16 +449,25 @@ class WindowsDesktop:
         require(info["enabled"] and not info["offscreen"], "ELEMENT_NOT_ACTIONABLE", "The control is not enabled and visible.")
         self._pattern(element, 10000, "IUIAutomationInvokePattern").Invoke()
 
-    def set_value(self, element, value: str, *, checkpoint=lambda: None):
+    def set_value(self, element, value: str, *, checkpoint=lambda: None, window=None, newline_strategy=None):
         info = self.element_info(element)
         require(not info["is_password"], "SENSITIVE_INPUT_BLOCKED", "Password controls must be handled by the user.")
         require(info["enabled"] and not info["offscreen"], "ELEMENT_NOT_ACTIONABLE", "The control is not enabled and visible.")
-        pattern = self._pattern(element, 10002, "IUIAutomationValuePattern")
+        try:
+            pattern = self._pattern(element, 10002, "IUIAutomationValuePattern")
+        except DeskPilotError as error:
+            if error.code != "UI_PATTERN_UNAVAILABLE" or window is None:
+                raise
+            return self._replace_text_pattern(element, value, window, checkpoint=checkpoint,
+                                              newline_strategy=newline_strategy)
         require(not pattern.CurrentIsReadOnly, "ELEMENT_READ_ONLY", "The control is read-only.")
         checkpoint()
         pattern.SetValue(value)
         # Chromium can acknowledge SetValue before its renderer/AX tree updates.
         # Dispatch exactly once; only poll reads, including the caller's cancel/budget.
+        return self._confirm_value(element, value, lambda: str(pattern.CurrentValue), "uia_value", checkpoint)
+
+    def _confirm_value(self, element, value, read, method, checkpoint):
         started = time.monotonic()
         deadline = started + 0.75
         matched_at = None
@@ -338,12 +477,18 @@ class WindowsDesktop:
             # A control can change to a password field while the renderer updates.
             require(not element.CurrentIsPassword, "SENSITIVE_INPUT_BLOCKED",
                     "The control became sensitive during verification; ask the user to inspect it.", outcome="unknown")
-            current = str(pattern.CurrentValue)
+            current = read()
             reads += 1
             now = time.monotonic()
-            if current == value:
+            # Native multiline keyboard input may represent LF as CRLF.
+            # Preserve exact ValuePattern comparison for existing consumers.
+            matches = current == value
+            if method == "uia_text_keyboard":
+                normalize = lambda text: text.replace("\r\n", "\n").replace("\r", "\n")
+                matches = normalize(current) == normalize(value)
+            if matches:
                 if matched_at is not None and now - matched_at >= 0.025:
-                    return {"method": "uia_value", "matched": True, "read_attempts": reads,
+                    return {"method": method, "matched": True, "read_attempts": reads,
                             "elapsed_ms": round((now - started) * 1000)}
                 if matched_at is None:
                     matched_at = now
@@ -354,6 +499,69 @@ class WindowsDesktop:
                                      outcome="unknown", details={"verification_ms": round((now - started) * 1000),
                                                                   "read_attempts": reads, "write_attempts": 1})
             time.sleep(min(0.025, deadline - now))
+
+    def _replace_text_pattern(self, element, value, window, *, checkpoint, newline_strategy=None):
+        require(int(element.CurrentControlType) in (50004, 50030) and bool(element.CurrentIsKeyboardFocusable),
+                "UI_PATTERN_UNAVAILABLE", "The control does not expose a supported editable text surface.")
+        require(len(value) <= 1_000_000, "INVALID_ARGUMENT", "The text is too large for one input request.")
+        require(not any(char in value for char in "\r\n") or newline_strategy in ("unicode", "enter", "shift_enter"),
+                "TEXT_INPUT_STRATEGY_REQUIRED", "The text-only control needs an explicit, verified newline input strategy before typing.")
+        pattern = self._pattern(element, 10014, "IUIAutomationTextPattern")
+        try:
+            readonly = pattern.DocumentRange.GetAttributeValue(40015)  # UIA_IsReadOnlyAttributeId
+        except Exception:
+            raise DeskPilotError("UI_PATTERN_UNAVAILABLE", "The text control did not expose its editability.") from None
+        require(type(readonly) in (bool, int) and readonly == 0, "ELEMENT_READ_ONLY",
+                "The text control is read-only or its editability is unknown.")
+
+        def guard(dispatched=False):
+            checkpoint()
+            outcome = "unknown" if dispatched else "not_dispatched"
+            require(self.related(window["native"], self.foreground()), "WINDOW_NOT_FOREGROUND",
+                    "The target window lost foreground during text input.", outcome=outcome)
+            require(not element.CurrentIsPassword, "SENSITIVE_INPUT_BLOCKED",
+                    "The control became sensitive during text input.", outcome=outcome)
+            require(bool(element.CurrentHasKeyboardFocus), "FOCUS_NOT_CONFIRMED",
+                    "The requested control did not retain keyboard focus.", outcome=outcome)
+
+        checkpoint()
+        try:
+            element.SetFocus()
+        except Exception:
+            raise DeskPilotError("FOCUS_NOT_CONFIRMED", "The text control could not receive keyboard focus.") from None
+        for attempt in range(10):
+            checkpoint()
+            if bool(element.CurrentHasKeyboardFocus):
+                break
+            if attempt < 9:
+                time.sleep(0.025)
+        guard()
+        # This branch is entered only before a ValuePattern write was attempted.
+        # Once any keyboard event is sent, all failures remain outcome=unknown.
+        self.key(["CTRL", "A"])
+        guard(dispatched=True)
+        if value:
+            if newline_strategy in ("enter", "shift_enter") and any(char in value for char in "\r\n"):
+                lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+                for index, line in enumerate(lines):
+                    if index:
+                        guard(dispatched=True)
+                        self.key(["SHIFT", "ENTER"] if newline_strategy == "shift_enter" else ["ENTER"])
+                    if line:
+                        self.type_text(line, lambda: guard(dispatched=True))
+            else:
+                self.type_text(value, lambda: guard(dispatched=True))
+        else:
+            self.key(["DELETE"])
+        guard(dispatched=True)
+
+        def read():
+            result = pattern.DocumentRange.GetText(1_000_001)
+            require(isinstance(result, str) and len(result) <= 1_000_000, "VALUE_NOT_VERIFIED",
+                    "The text control did not expose a bounded value.", outcome="unknown")
+            return result
+
+        return self._confirm_value(element, value, read, "uia_text_keyboard", checkpoint)
 
     def select(self, element, value=None, *, checkpoint=lambda: None):
         if value is None:
@@ -372,13 +580,52 @@ class WindowsDesktop:
         sent = self.user.SendInput(len(events), buffer, C.sizeof(INPUT))
         require(sent == len(events), "INPUT_NOT_DELIVERED", "Windows did not accept all input events; check window privilege and desktop access.", outcome="unknown")
 
-    def click(self, window: dict, x: int, y: int, *, button="left", count=1):
+    def _point_owned(self, window, point, *, target_content_only=False):
+        if target_content_only:
+            # WindowFromPoint intentionally skips click-through layered windows.
+            # A target-only capture does not show them, so also check every
+            # visible top-level window above the target at the requested point.
+            # Only our own indicator may be hidden for this check.
+            if self._overlay:
+                self._overlay.hide()
+            try:
+                state = {"found": False, "blocked": False}
+                callback_type = C.WINFUNCTYPE(W.BOOL, W.HWND, W.LPARAM)
+
+                def visit(handle, _):
+                    if handle == window["native"]:
+                        state["found"] = True
+                        return False
+                    if not self.user.IsWindowVisible(handle) or self.user.IsIconic(handle):
+                        return True
+                    area = RECT()
+                    if not self.user.GetWindowRect(handle, C.byref(area)):
+                        state["blocked"] = True
+                        return False
+                    if area.left <= point.x < area.right and area.top <= point.y < area.bottom:
+                        state["blocked"] = True
+                        return False
+                    return True
+
+                self.user.EnumWindows.argtypes = [callback_type, W.LPARAM]
+                self.user.EnumWindows(callback_type(visit), 0)
+                require(state["found"] and not state["blocked"], "POINT_OCCLUDED",
+                        "The requested point is covered by a window not shown in the observation, or its ownership could not be verified.")
+                hit = self.user.WindowFromPoint(point)
+                owned = hit == window["native"] or self.user.IsChild(window["native"], hit)
+            finally:
+                if self._overlay:
+                    self._overlay.resume()
+        else:
+            owned = self.related(window["native"], self.user.WindowFromPoint(point))
+        require(owned, "POINT_OCCLUDED", "The requested point is covered by a window not shown in the observation.")
+
+    def click(self, window: dict, x: int, y: int, *, button="left", count=1, target_content_only=False):
         require(self.related(window["native"], self.foreground()), "WINDOW_NOT_FOREGROUND", "The requested window is not in the foreground.")
         original = POINT()
         self.user.GetCursorPos(C.byref(original))
         location = POINT(window["bounds"]["x"] + x, window["bounds"]["y"] + y)
-        require(self.related(window["native"], self.user.WindowFromPoint(location)),
-                "POINT_OCCLUDED", "Another window covers the requested point.")
+        self._point_owned(window, location, target_content_only=target_content_only)
         self.user.SetCursorPos(location.x, location.y)
         try:
             down, up = {"left": (2, 4), "right": (8, 16), "middle": (32, 64)}[button]
@@ -428,18 +675,95 @@ class WindowsDesktop:
             for code in reversed(down):
                 self._send([INPUT(type=1, ki=KEYBDINPUT(wVk=code, dwFlags=2))])
 
-    def scroll(self, window: dict, x: int, y: int, amount: int, horizontal=False):
+    def scroll(self, window: dict, x: int, y: int, amount: int, horizontal=False, *, target_content_only=False):
+        require(self.related(window["native"], self.foreground()), "WINDOW_NOT_FOREGROUND", "The requested window is not in the foreground.")
         original = POINT()
         self.user.GetCursorPos(C.byref(original))
         point = POINT(window["bounds"]["x"] + x, window["bounds"]["y"] + y)
-        require(self.related(window["native"], self.user.WindowFromPoint(point)), "POINT_OCCLUDED", "Another window covers the scroll point.")
+        self._point_owned(window, point, target_content_only=target_content_only)
         self.user.SetCursorPos(point.x, point.y)
         try:
             self._send([INPUT(type=0, mi=MOUSEINPUT(mouseData=W.DWORD(amount).value, dwFlags=0x1000 if horizontal else 0x0800))])
         finally:
             self.user.SetCursorPos(original.x, original.y)
 
-    def capture(self, window: dict):
+    def capture(self, window: dict, *, checkpoint=lambda: None):
+        checkpoint()
+        try:
+            return self._capture_screen(window)
+        except DeskPilotError as screen_error:
+            # A screen copy must still reject every overlapping window. An
+            # independently captured HWND frame can safely show the target's
+            # own pixels, but does not show the covering window or popups.
+            details = screen_error.details
+            if not (screen_error.code == "WINDOW_CAPTURE_UNTRUSTED" and details.get("target_found")
+                    and details.get("overlapping_windows", 0) > 0):
+                raise
+            checkpoint()
+            if self._overlay:
+                self._overlay.hide()
+            try:
+                return self._capture_window_frame(window, checkpoint=checkpoint, initial_overlap=details)
+            except DeskPilotError as frame_error:
+                if frame_error.code in {"CANCELLED", "TIMEOUT"}:
+                    raise
+                screen_error.details["window_capture"] = {"code": frame_error.code, "message": str(frame_error)}
+                raise screen_error from None
+            finally:
+                if self._overlay:
+                    self._overlay.resume()
+
+    def _frame_bounds(self, window):
+        area = RECT()
+        status = self.dwm.DwmGetWindowAttribute(window["native"], 9, C.byref(area), C.sizeof(area))
+        require(status == 0, "WINDOW_CAPTURE_BACKEND_UNAVAILABLE", "Windows did not expose the target frame geometry.")
+        return rectangle(area)
+
+    def _capture_allowed(self, window):
+        affinity = W.DWORD()
+        require(bool(self.user.GetWindowDisplayAffinity(window["native"], C.byref(affinity))),
+                "WINDOW_CAPTURE_BACKEND_UNAVAILABLE", "The target's capture protection could not be checked.")
+        require(affinity.value == 0, "WINDOW_CAPTURE_PROTECTED", "The target has a system capture protection setting.")
+
+    def _capture_window_frame(self, window, *, checkpoint, initial_overlap):
+        from .windows_capture import capture_window
+
+        before = self.window(window["native"])
+        require(before["identity"] == window["identity"] and before["bounds"] == window["bounds"]
+                and before["title"] == window["title"] and before["visible"] and not before["minimized"]
+                and self.related(before["native"], self.foreground()),
+                "WINDOW_CAPTURE_UNTRUSTED", "The target changed or is no longer foreground.")
+        self._capture_allowed(before)
+        frame_bounds = self._frame_bounds(before)
+        checkpoint()
+        image = capture_window(before["native"], checkpoint=checkpoint)
+        after = self.window(window["native"])
+        require(after["identity"] == before["identity"] and after["bounds"] == before["bounds"]
+                and after["title"] == before["title"] and after["visible"] and not after["minimized"]
+                and self.related(after["native"], self.foreground()),
+                "WINDOW_CAPTURE_UNTRUSTED", "The target changed during window capture.")
+        self._capture_allowed(after)
+        require(self._frame_bounds(after) == frame_bounds and image.width == frame_bounds["width"]
+                and image.height == frame_bounds["height"],
+                "WINDOW_CAPTURE_UNTRUSTED", "The window frame geometry changed or could not be mapped to its pixels.")
+        try:
+            overlap = self._capture_ownership(after)
+        except DeskPilotError as error:
+            require(error.code == "WINDOW_CAPTURE_UNTRUSTED" and error.details.get("target_found"),
+                    "WINDOW_CAPTURE_UNTRUSTED", "The target's screen position could not be confirmed.")
+            overlap = error.details
+        return image, {"trusted": True, "capture_layer": "windows_graphics_capture",
+                       "capture_scope": "target_window_only", "foreground_relation": "target_or_owned_window",
+                       "origin": {"x": frame_bounds["x"], "y": frame_bounds["y"]},
+                       "separate_popup_windows_included": False,
+                       "overlapping_windows": overlap.get("overlapping_windows", 0),
+                       "blockers": overlap.get("blockers", []),
+                       "blockers_truncated": overlap.get("blockers_truncated", False),
+                       "separate_owned_windows": overlap.get("separate_owned_windows", []),
+                       "separate_owned_windows_truncated": overlap.get("separate_owned_windows_truncated", False),
+                       "overlap_observed_before_capture": initial_overlap.get("overlapping_windows", 0)}
+
+    def _capture_screen(self, window: dict):
         from ..screen import Image
         live = self.window(window["native"])
         require(live["identity"] == window["identity"] and live["bounds"] == window["bounds"],
@@ -448,6 +772,7 @@ class WindowsDesktop:
                 details={"target": self._window_diagnostic(window["native"]), "foreground": self._window_diagnostic(self.foreground())})
         area = live["bounds"]
         require(not live["minimized"], "WINDOW_CAPTURE_UNTRUSTED", "The window is minimized.")
+        self._capture_allowed(live)
         width, height = area["width"], area["height"]
         require(0 < width * height <= 64_000_000, "WINDOW_CAPTURE_FAILED", "The capture size is outside the supported range.")
         if self._overlay:
@@ -484,6 +809,7 @@ class WindowsDesktop:
                 self.user.ReleaseDC(None, screen)
             after = self.window(window["native"])
             self._capture_ownership(after)
+            self._capture_allowed(after)
             require(after["identity"] == window["identity"] and after["bounds"] == window["bounds"] and self.related(window["native"], self.foreground()),
                     "WINDOW_CAPTURE_UNTRUSTED", "Window ownership changed during capture.")
             return Image(width, height, bytes(rgb)), {"trusted": True, "capture_layer": "verified_foreground_gdi",
@@ -495,6 +821,7 @@ class WindowsDesktop:
     def _capture_ownership(self, window):
         """Any unrelated window above the target can taint even a small capture area."""
         blockers = []
+        owned = []
         found = False
         area = window["bounds"]
         callback_type = C.WINFUNCTYPE(W.BOOL, W.HWND, W.LPARAM)
@@ -504,7 +831,10 @@ class WindowsDesktop:
             if handle == window["native"]:
                 found = True
                 return False
-            if not self.user.IsWindowVisible(handle) or self.user.IsIconic(handle) or self.related(window["native"], handle):
+            if not self.user.IsWindowVisible(handle) or self.user.IsIconic(handle):
+                return True
+            if self.related(window["native"], handle):
+                owned.append(int(handle))
                 return True
             rectangle_value = RECT()
             if not self.user.GetWindowRect(handle, C.byref(rectangle_value)):
@@ -518,11 +848,14 @@ class WindowsDesktop:
 
         self.user.EnumWindows.argtypes = [callback_type, W.LPARAM]
         self.user.EnumWindows(callback_type(visit), 0)
-        require(found and not blockers, "WINDOW_CAPTURE_UNTRUSTED", "The target is missing or an unrelated window overlaps its capture area.",
-                details={"target_found": found, "overlapping_windows": len(blockers),
-                         "blockers": [self._window_diagnostic(handle) for handle in blockers[:8]],
-                         "blockers_truncated": len(blockers) > 8,
-                         "recovery": "End the competing tool through its supported controls, then re-observe and capture. Do not ignore or force-close another tool's overlay."})
+        details = {"target_found": found, "overlapping_windows": len(blockers),
+                   "blockers": [self._window_diagnostic(handle) for handle in blockers[:8]],
+                   "blockers_truncated": len(blockers) > 8,
+                   "separate_owned_windows": [self._window_diagnostic(handle) for handle in owned[:8]],
+                   "separate_owned_windows_truncated": len(owned) > 8,
+                   "recovery": "End the competing tool through its supported controls, then re-observe and capture. Do not ignore or force-close another tool's overlay."}
+        require(found and not blockers, "WINDOW_CAPTURE_UNTRUSTED", "The target is missing or an unrelated window overlaps its capture area.", details=details)
+        return details
 
     def activity(self, window: dict | None, label: str, *, visible=True, trace=None):
         if visible:
@@ -542,7 +875,12 @@ class WindowsDesktop:
             ui = {"available": False, "error_code": exc.code}
         return {"interactive_desktop": interactive, "ui_automation": ui,
                 "input": {"available": interactive, "backend": "SendInput"},
-                "capture": {"available": interactive, "backend": "verified_foreground_gdi"},
+                "capture": {"available": interactive, "backend": "verified_foreground_gdi",
+                            "window_capture_fallback": {
+                                "backend": "windows_graphics_capture",
+                                "bundled": (resource_root() / "vendor" / "windows-x64" / "python" /
+                                            "deskpilot_wgc" / "windows_capture.pyd").is_file(),
+                                "availability": "verified_at_capture"}},
                 "virtual_screen": {"x": self.user.GetSystemMetrics(76), "y": self.user.GetSystemMetrics(77),
                                    "width": self.user.GetSystemMetrics(78), "height": self.user.GetSystemMetrics(79)}}
 

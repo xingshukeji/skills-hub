@@ -54,7 +54,7 @@ window_class = WNDCLASS(0, callback, 0, 0, instance, None, None, W.HBRUSH(6), No
 user.RegisterClassW.argtypes = [C.POINTER(WNDCLASS)]
 user.RegisterClassW(C.byref(window_class))
 title = sys.argv[1]
-window = user.CreateWindowExW(0, name, title, 0x10CF0000, 340, 220, 900, 430, None, None, instance, None)
+window = user.CreateWindowExW(0, name, title, 0x10CF0000, 340, 220, 900, 560, None, None, instance, None)
 children = []
 
 
@@ -71,11 +71,16 @@ child("BUTTON", "Apply", 620, 80, 180, 40, 102)
 status = child("STATIC", "Result: waiting", 24, 150, 810, 45, 103)
 child("EDIT", "", 24, 230, 570, 38, 104, 0x008000A0)  # ES_PASSWORD
 child("STATIC", "User-only password field", 24, 280, 700, 38, 105)
+child("EDIT", "First line\r\nSecond line", 24, 320, 570, 75, 106, 0x00A00044)  # ES_MULTILINE
 font = gdi.CreateFontW(-24, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft YaHei")
 for handle in children:
     user.SendMessageW(handle, 0x0030, font, 1)
 user.SetForegroundWindow.argtypes = [W.HWND]
 user.GetForegroundWindow.restype = W.HWND
+if "--protect-capture" in sys.argv:
+    user.SetWindowDisplayAffinity.argtypes = [W.HWND, W.DWORD]
+    if not user.SetWindowDisplayAffinity(window, 0x11):
+        raise RuntimeError("The disposable fixture could not set its capture protection.")
 if "--claim-input" in sys.argv:
     user.SetForegroundWindow(window)
     if user.GetForegroundWindow() != window:

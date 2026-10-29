@@ -122,8 +122,8 @@
     },
     {
       "path": "scripts/deskpilot/browser.py",
-      "bytes": 34561,
-      "sha256": "beef795bd21729c7aedf4f69a1b96d12f1a556c27e93cdcedf2906a4e7a3d5f2",
+      "bytes": 36032,
+      "sha256": "e48a0f4a895b694c8620d5b87e58d86ef07aa5dc23cfbeabab77a9724bd5e2e7",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/browser.py"
@@ -146,8 +146,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/linux.py",
-      "bytes": 40225,
-      "sha256": "13ab6271d349f9f90be4aa70e426e36460b01f412432d9a7a3d938cdb7496a70",
+      "bytes": 40367,
+      "sha256": "8bfb97317e70db16d097f226106a42adf9f97d953cd4008a175d398bb8c38b7c",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/linux.py"
@@ -162,11 +162,19 @@
     },
     {
       "path": "scripts/deskpilot/platforms/macos.py",
-      "bytes": 25164,
-      "sha256": "bee346c1bcc030f9fdf0ef295a57b8e52ad7bda18007f34f2aac691070427886",
+      "bytes": 25306,
+      "sha256": "cb17e6f2b31605c629721480d4dfd3b91d1d2eacc0962ddcaf478a7a37286bfa",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/macos.py"
+    },
+    {
+      "path": "scripts/deskpilot/platforms/windows_capture.py",
+      "bytes": 6550,
+      "sha256": "223bcc2b8c36f74071dcad0a3df77f53a74090d77c6ae9e9c76e16856113ccf9",
+      "component": "DeskPilot source",
+      "license": "repository",
+      "source": "src/deskpilot-cli/deskpilot/platforms/windows_capture.py"
     },
     {
       "path": "scripts/deskpilot/platforms/windows_overlay.py",
@@ -178,8 +186,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows.py",
-      "bytes": 28402,
-      "sha256": "825e51af541a8177a463329ece6b8761332471d42ef1ebff6b2370fecabdc8ee",
+      "bytes": 48177,
+      "sha256": "c0947cd839eb3290ef7c0456a79477a7cf74a779473400a3dfcb2c67f9748c3d",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows.py"
@@ -194,8 +202,8 @@
     },
     {
       "path": "scripts/deskpilot/session.py",
-      "bytes": 40098,
-      "sha256": "f8c0cefc22c0b3a86cdb22914544b175ab2990582149dd9d4c664f55923bdac3",
+      "bytes": 45930,
+      "sha256": "a5f40d58c0bda8484c98a0043f73edcc489310d8e5e3537be1fcd6a2f8d88fbb",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/session.py"
@@ -265,6 +273,32 @@
       "source": "https://files.pythonhosted.org/packages/d7/ed/1b16fb66a37e1b9e41370b93b2c614c7da761a5b2a41dc333f7af4639962/pillow-13.0.0-cp313-cp313-win_amd64.whl",
       "archive_sha256": "9dda0788a9932776a75d8bcc020076edc308ce2508b51f6739a45e3158b3fc42",
       "license": "MIT-CMU AND bundled third-party notices"
+    },
+    {
+      "path": "vendor/licenses/windows-capture/SBOM.json",
+      "bytes": 48312,
+      "sha256": "27e16acaf7c98f77efaf4165fe787c8ce961d6437f1338cf15cb3acd951b3b50",
+      "platforms": [
+        "windows-x64"
+      ],
+      "component": "Windows Capture native extension and notices",
+      "version": "2.0.1",
+      "source": "https://files.pythonhosted.org/packages/6c/02/cdb3c75e60863e94fbd53c2b3607e61af5d464a4f9301e45897fcb08dbfa/windows_capture-2.0.1-cp39-abi3-win_amd64.whl",
+      "archive_sha256": "209c2318e2168802b9afd1005e99499639e8835e71a1e188a3ddc77c7ccc3f04",
+      "license": "MIT AND bundled Rust third-party notices"
+    },
+    {
+      "path": "vendor/licenses/windows-capture/THIRD_PARTY_NOTICES.txt",
+      "bytes": 498582,
+      "sha256": "c7c5aa8011fc55fcd36780bf33e216c524c725e17193aff9f7fd7a504c9ca8a3",
+      "platforms": [
+        "windows-x64"
+      ],
+      "component": "Windows Capture native extension and notices",
+      "version": "2.0.1",
+      "source": "https://files.pythonhosted.org/packages/6c/02/cdb3c75e60863e94fbd53c2b3607e61af5d464a4f9301e45897fcb08dbfa/windows_capture-2.0.1-cp39-abi3-win_amd64.whl",
+      "archive_sha256": "209c2318e2168802b9afd1005e99499639e8835e71a1e188a3ddc77c7ccc3f04",
+      "license": "MIT AND bundled Rust third-party notices"
     },
     {
       "path": "vendor/linux-x64/libonnxruntime_providers_shared.so",
@@ -6323,6 +6357,19 @@
       "source": "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-win-x64-1.23.2.zip",
       "archive_sha256": "0b38df9af21834e41e73d602d90db5cb06dbd1ca618948b8f1d66d607ac9f3cd",
       "license": "MIT"
+    },
+    {
+      "path": "vendor/windows-x64/python/deskpilot_wgc/windows_capture.pyd",
+      "bytes": 534016,
+      "sha256": "9464e5a6a05e980418eeab6b3a774441b4c737ba6bd596ff0d1eead3e48bf7aa",
+      "platforms": [
+        "windows-x64"
+      ],
+      "component": "Windows Capture native extension and notices",
+      "version": "2.0.1",
+      "source": "https://files.pythonhosted.org/packages/6c/02/cdb3c75e60863e94fbd53c2b3607e61af5d464a4f9301e45897fcb08dbfa/windows_capture-2.0.1-cp39-abi3-win_amd64.whl",
+      "archive_sha256": "209c2318e2168802b9afd1005e99499639e8835e71a1e188a3ddc77c7ccc3f04",
+      "license": "MIT AND bundled Rust third-party notices"
     },
     {
       "path": "vendor/windows-x64/python/PIL/__init__.py",

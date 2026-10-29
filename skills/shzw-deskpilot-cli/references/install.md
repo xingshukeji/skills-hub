@@ -28,7 +28,7 @@ python "<实际 Skill 目录>/scripts/install.py" --uninstall --json
 
 | 组合 | 随包文件 | 桌面实现及证据 |
 |---|---|---|
-| Windows x64 | CPython 3.13、comtypes、Pillow、ONNX Runtime、Tiny 模型 | Win32/UIA；Windows 10 build 19045 合成窗口及 Chrome 已验证，含中文、截图和 OCR。Windows 11 尚未验证 |
+| Windows x64 | CPython 3.13、comtypes、Pillow、ONNX Runtime、Tiny 模型、Windows Capture 原生组件 | Win32/UIA；Windows 10 build 19045 合成窗口及 Chrome 已验证，含中文、截图和 OCR。外部遮挡时可尝试系统窗口帧，是否可用以实际捕获结果为准。Windows 11 尚未验证 |
 | macOS arm64 / x64 | CPython 3.13、Pillow、ONNX Runtime、Tiny 模型 | AX/Quartz/AppKit 实现；需要辅助功能、输入和屏幕录制权限，尚缺真实 macOS 桌面验证 |
 | Linux x64，X11 | CPython 3.13、Pillow、ONNX Runtime、Tiny 模型 | Ubuntu 22.04 的 GNOME Flashback/Metacity/Xvfb 图形会话已验证独立只读 Skill、GTK 控件、中文、可信截图/OCR、Chrome 表单、活动提示、遮挡拒绝、取消与清理。其他桌面未验证 |
 | Linux Wayland | 可运行通用协议与 Chrome/CDP | Portal 桌面会话尚未实现；桌面输入与截图返回 `WAYLAND_PORTAL_REQUIRED`，不能按 X11 使用 |

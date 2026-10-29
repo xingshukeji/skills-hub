@@ -400,7 +400,7 @@ class LinuxDesktop:
                 "PATTERN_UNSUPPORTED", "The control has no AT-SPI action.")
         require(bool(self._call("action_do_action", action.pointer, 0)), "ACTION_FAILED", "The control rejected its default action.", outcome="unknown")
 
-    def set_value(self, element, value, *, checkpoint=lambda: None):
+    def set_value(self, element, value, *, checkpoint=lambda: None, window=None, newline_strategy=None):
         info = self.element_info(element)
         require(not info["is_password"], "SENSITIVE_INPUT_BLOCKED", "Password controls must be handled by the user.")
         edit = self._interface(element, "editable_text")
@@ -467,7 +467,7 @@ class LinuxDesktop:
             current = child.value
         raise DeskPilotError("INPUT_TARGET_MISMATCH", "Another X11 window covers the requested input point.")
 
-    def click(self, window, x, y, *, button="left", count=1):
+    def click(self, window, x, y, *, button="left", count=1, target_content_only=False):
         self._input()
         require(self.foreground() == window["native"], "WINDOW_NOT_FOREGROUND", "The requested window is not foreground.")
         self._point_owned(window, x, y)
@@ -532,7 +532,7 @@ class LinuxDesktop:
                 self.xtest.XTestFakeKeyEvent(self.display, code, False, 0)
             self.x.XSync(self.display, False)
 
-    def scroll(self, window, x, y, amount, horizontal=False):
+    def scroll(self, window, x, y, amount, horizontal=False, *, target_content_only=False):
         self._input()
         require(self.foreground() == window["native"], "WINDOW_NOT_FOREGROUND", "The requested window is not foreground.")
         self._point_owned(window, x, y)
@@ -580,7 +580,8 @@ class LinuxDesktop:
                          and above["y"] < area["y"] + area["height"] and above["y"] + above["height"] > area["y"]),
                     "WINDOW_CAPTURE_UNTRUSTED", "Another visible X11 window covers the requested capture.")
 
-    def capture(self, window):
+    def capture(self, window, *, checkpoint=lambda: None):
+        checkpoint()
         self._x11()
         with self._without_activity():
             return self._capture_visible(window)

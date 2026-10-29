@@ -117,6 +117,7 @@ class InstalledLiveTests(unittest.TestCase):
                 self.assertIn("DeskPilot", help_result.stdout)
                 with patch.object(test_windows_live, "Session", lambda: ProcessSession(application)):
                     test_windows_live.WindowsLiveTests().test_native_controls_unicode_sensitive_rejection_capture_and_offline_ocr()
+                    test_windows_live.WindowsLiveTests().test_system_capture_protection_is_honored()
                 session = ProcessSession(application)
                 doctor = session.execute("doctor")
                 self.assertTrue(doctor["desktop_text"]["available"])

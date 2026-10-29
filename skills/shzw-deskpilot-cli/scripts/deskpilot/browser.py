@@ -203,6 +203,30 @@ class WebSocket:
             self._reader.join(1)
 
 
+def _windows_app_paths():
+    """Read registered browser locations even when the host omits PATH variables."""
+    try:
+        import winreg
+    except ImportError:
+        return []
+    paths = []
+    views = (0, getattr(winreg, "KEY_WOW64_64KEY", 0), getattr(winreg, "KEY_WOW64_32KEY", 0))
+    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for name in ("chrome.exe", "msedge.exe"):
+            for view in dict.fromkeys(views):
+                try:
+                    with winreg.OpenKey(root, r"Software\Microsoft\Windows\CurrentVersion\App Paths" + "\\" + name,
+                                        0, winreg.KEY_READ | view) as key:
+                        value, _kind = winreg.QueryValueEx(key, None)
+                except OSError:
+                    continue
+                if isinstance(value, str):
+                    path = os.path.expandvars(value.strip().strip('"'))
+                    if path and path not in paths:
+                        paths.append(path)
+    return paths
+
+
 def chrome_executable(configured=None):
     if configured:
         path = Path(configured).expanduser()
@@ -214,6 +238,7 @@ def chrome_executable(configured=None):
             if os.environ.get(key):
                 candidates += [Path(os.environ[key]) / "Google/Chrome/Application/chrome.exe",
                                Path(os.environ[key]) / "Microsoft/Edge/Application/msedge.exe"]
+        candidates += [Path(path) for path in _windows_app_paths()]
     elif sys.platform == "darwin":
         candidates += [Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
                        Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"]
@@ -548,6 +573,10 @@ return {verified:p.values.length===el.selectedOptions.length&&Array.from(el.sele
             require(result.get("verified"), "CHROME_VALUE_NOT_VERIFIED", "The selected option could not be verified.", outcome="unknown")
         elif method == "chrome.click":
             require(isinstance(params.get("selector"), str), "INVALID_ARGUMENT", "click requires a selector.")
+            state = self._state()
+            require(state.get("visibility") == "visible", "CHROME_PAGE_NOT_VISIBLE",
+                    "The browser page is not visible, so mouse input cannot be verified. Bring the intended page forward and observe it again.",
+                    retryable=True, details={"visibility": state.get("visibility")})
             point = self._js(r"""p=>{const els=document.querySelectorAll(p.selector);if(els.length!==1)return {__deskpilot_error:'CHROME_TARGET_AMBIGUOUS',count:els.length};const el=els[0];
 el.scrollIntoView({block:'center',inline:'center'});const r=el.getBoundingClientRect();if(!r.width||!r.height||el.disabled||el.getAttribute('aria-disabled')==='true')return {__deskpilot_error:'CHROME_TARGET_NOT_ACTIONABLE'};
 const x=r.left+r.width/2,y=r.top+r.height/2,top=document.elementFromPoint(x,y);if(!top||!(top===el||el.contains(top)))return {__deskpilot_error:'CHROME_TARGET_OCCLUDED'};return {x,y};}""", {"selector": params["selector"]})
@@ -569,7 +598,8 @@ const x=r.left+r.width/2,y=r.top+r.height/2,top=document.elementFromPoint(x,y);i
         return {"browser_window_id": result.get("windowId"), "bounds": result.get("bounds"), "page": self._state()}
 
     def diagnose(self):
-        return {"available": bool(chrome_executable()), "executable": chrome_executable(),
+        executable = chrome_executable()
+        return {"available": bool(executable), "executable": executable,
                 "attached": self.socket is not None and not self.socket._closed.is_set(), "endpoint": self.endpoint}
 
     def close(self):
