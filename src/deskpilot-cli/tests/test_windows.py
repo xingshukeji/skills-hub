@@ -87,6 +87,32 @@ class WindowsContracts(unittest.TestCase):
         self.assertEqual((caught.exception.code, caught.exception.outcome), ('SENSITIVE_INPUT_BLOCKED', 'unknown'))
         self.assertEqual(pattern.reads, 0)
 
+    def test_explicit_native_secret_requires_focused_password_and_never_reads_it(self):
+        focused = SimpleNamespace(CurrentIsPassword=True, CurrentIsEnabled=True,
+                                  CurrentIsOffscreen=False, CurrentProcessId=9)
+        self.desktop._automation = lambda: SimpleNamespace(GetFocusedElement=lambda: focused)
+        self.desktop.foreground = lambda: 10
+        self.desktop.related = lambda target, actual: target == actual
+        self.desktop._send = Mock()
+        self.desktop.type_secret('synthetic-value', lambda: None, window={'native': 10, 'pid': 9},
+                                 target_kind='native_password')
+        self.desktop._send.assert_called_once()
+        self.desktop._send.reset_mock()
+        focused.CurrentIsPassword = False
+        with self.assertRaises(DeskPilotError) as caught:
+            self.desktop.type_secret('synthetic-value', lambda: None, window={'native': 10, 'pid': 9},
+                                     target_kind='native_password')
+        self.assertEqual(caught.exception.code, 'SENSITIVE_FOCUS_NOT_CONFIRMED')
+        self.desktop._send.assert_not_called()
+        focused.CurrentIsPassword = True
+        self.desktop.foreground = lambda: 11
+        self.desktop.related = lambda *args: True  # An owned popup is not the intended password target.
+        with self.assertRaises(DeskPilotError) as caught:
+            self.desktop.type_secret('synthetic-value', lambda: None, window={'native': 10, 'pid': 9},
+                                     target_kind='native_password')
+        self.assertEqual(caught.exception.code, 'WINDOW_NOT_FOREGROUND')
+        self.desktop._send.assert_not_called()
+
     def text_only_setup(self, *, readonly=False):
         state = {'text': 'old'}
         element = SimpleNamespace(CurrentIsPassword=False, CurrentControlType=50030,

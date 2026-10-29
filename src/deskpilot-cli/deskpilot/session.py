@@ -19,7 +19,7 @@ METHODS = (
     "interaction.end", "interaction.cancel", "actions.batch", "workflow.run",
     "windows.list", "windows.find", "windows.info", "windows.activate", "observe",
     "ui.tree", "ui.find", "ui.find_all", "ui.get", "ui.invoke", "ui.click", "ui.set_value", "ui.select",
-    "input.click", "input.double_click", "input.right_click", "input.type", "input.key", "input.hotkey", "input.scroll",
+    "input.click", "input.double_click", "input.right_click", "input.type", "input.secret", "input.key", "input.hotkey", "input.scroll",
     "screen.capture", "screen.capture_window", "screen.read_text", "messages.observe", "wait.window", "wait.element",
     "chrome.ensure", "chrome.targets", "chrome.attach", "chrome.navigate", "chrome.wait", "chrome.evaluate",
     "chrome.fill", "chrome.select", "chrome.click", "chrome.query",
@@ -46,7 +46,7 @@ def mutating(method: str, params: dict | None = None) -> bool:
 
 
 def validate_flags(params: dict, *, references=False):
-    for key in ("require_confirmation", "require_unique", "confirmed", "allow_unobserved", "verify", "include_screenshot", "show_overlay",
+    for key in ("require_confirmation", "require_unique", "confirmed", "observed_password_focus", "allow_unobserved", "verify", "include_screenshot", "show_overlay",
                 "restore_original_window", "show_action_trace", "visualize_actions", "horizontal", "read_only", "auto_start"):
         if key in params:
             value = params[key]
@@ -551,7 +551,7 @@ class Session:
             arguments = step.get("params", step.get("parameters", {}))
             require(isinstance(name, str) and re.fullmatch(r"[A-Za-z_][\w-]*", name) and name not in names,
                     "INVALID_BATCH", "Step identifiers must be unique simple names.")
-            require(method in METHODS and method not in {"close", "actions.batch", "workflow.run"}
+            require(method in METHODS and method not in {"close", "actions.batch", "workflow.run", "input.secret"}
                     and not method.startswith("interaction."), "INVALID_BATCH", "This method cannot run inside a batch.")
             require(isinstance(arguments, dict), "INVALID_BATCH", "Step params must be an object.")
             validate_flags(arguments, references=True)
@@ -703,6 +703,8 @@ class Session:
                 result["observation"] = self._observe({"window_id": window_id})
             return result
         if method.startswith("input."):
+            if method == "input.secret":
+                return self._input_secret(params)
             if method in {"input.type", "input.key", "input.hotkey"}:
                 window_id, window = self._window(params, activate=True)
                 self._activity(window, method, params)
@@ -741,6 +743,78 @@ class Session:
                 self._invalidate()
             return result
         raise DeskPilotError("UNKNOWN_METHOD", "The requested method is not supported.")
+
+    def _input_secret(self, params):
+        require(params.get("confirmed") is True and params.get("purpose") == "authorized_local_test",
+                "SENSITIVE_INPUT_BLOCKED", "Sensitive input requires an authorized local test and explicit acknowledgement.")
+        require(not any(key in params for key in ("text", "value", "secret", "password", "verify")),
+                "INVALID_ARGUMENT", "Provide a secret reference without a plaintext value or automatic verification.")
+        kind = params.get("target_kind")
+        require(kind in ("native_password", "observed_opaque_password"), "INVALID_ARGUMENT",
+                "Choose a native password control or an observed opaque password control.")
+        require(kind != "observed_opaque_password" or params.get("observed_password_focus") is True,
+                "SENSITIVE_FOCUS_NOT_CONFIRMED", "Confirm the opaque password control and its focus from the current screen.")
+        require(hasattr(self.desktop, "type_secret"), "UNSUPPORTED_PLATFORM",
+                "Secure sensitive input is not supported by this platform backend.")
+        window_id, window = self._window(params)
+        require(self.desktop.foreground() == window["native"], "WINDOW_NOT_FOREGROUND",
+                "The observed target itself must remain in the foreground before sensitive input.")
+        shot = self._shots.get(params.get("screenshot_id"))
+        require(shot is not None and shot["current"] and shot["window_id"] == window_id
+                and shot["bounds"] == window["bounds"] and shot["title"] == window.get("title", ""),
+                "STALE_OBSERVATION", "Use a current screenshot of the focused password control.")
+        offset_x = shot["origin"]["x"] - window["bounds"]["x"]
+        offset_y = shot["origin"]["y"] - window["bounds"]["y"]
+        submit = params.get("submit_point")
+        if submit is not None:
+            require(isinstance(submit, list) and len(submit) == 2 and all(type(value) is int for value in submit)
+                    and 0 <= submit[0] < shot["image"].width and 0 <= submit[1] < shot["image"].height,
+                    "INVALID_ARGUMENT", "The explicitly observed submit point must lie within the screenshot.")
+            submit = (submit[0] + offset_x, submit[1] + offset_y)
+        from .secret import keyboard_sequence, read_local_secret
+        secret = read_local_secret(params.get("secret_ref"))
+        keyboard = params.get("keyboard")
+        if keyboard is not None:
+            require(kind == "observed_opaque_password", "INVALID_ARGUMENT",
+                    "An on-screen keyboard requires an observed opaque password control.")
+            sequence = keyboard_sequence(keyboard, secret, width=shot["image"].width, height=shot["image"].height,
+                                         offset_x=offset_x, offset_y=offset_y)
+        else:
+            sequence = None
+        self._activity(window, method="input.secret", params=params)
+        self._dispatched = True
+        target_content_only = shot["evidence"].get("capture_scope") == "target_window_only"
+
+        def click_observed(point):
+            self.checkpoint()
+            current = self.desktop.window(window["native"])
+            require(current["identity"] == window["identity"] and current["bounds"] == window["bounds"]
+                    and current.get("title", "") == window.get("title", ""),
+                    "STALE_OBSERVATION", "The target window changed during sensitive input.", outcome="unknown")
+            require(self.desktop.foreground() == window["native"], "WINDOW_NOT_FOREGROUND",
+                    "The target itself lost foreground during sensitive input.", outcome="unknown")
+            try:
+                self.desktop.click(window, *point, target_content_only=target_content_only)
+            except DeskPilotError as exc:
+                exc.outcome = "unknown"
+                raise
+
+        try:
+            if sequence is None:
+                self.desktop.type_secret(secret, self.checkpoint, window=window, target_kind=kind)
+            else:
+                for point in sequence:
+                    click_observed(point)
+                    self._cancelled.wait(0.12)
+            if submit is not None:
+                self._cancelled.wait(0.8)
+                click_observed(submit)
+        finally:
+            secret = None
+            sequence = None
+        self._invalidate(window_id)
+        return {"dispatched": True, "verification": "not_read", "submit_dispatched": submit is not None,
+                "window": self._public_window(window_id, window)}
 
     def close(self):
         if self._closed:

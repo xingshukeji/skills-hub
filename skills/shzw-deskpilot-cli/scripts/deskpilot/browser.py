@@ -261,7 +261,7 @@ return {count: elements.length, elements: elements.slice(0,p.limit || 50).map(el
  enabled:!el.disabled && el.getAttribute('aria-disabled')!=='true',
  editable:!el.disabled && !el.readOnly && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)),
  bounds:{x:r.x,y:r.y,width:r.width,height:r.height},coordinate_space:'css_viewport',
- attributes:Object.fromEntries((p.attributes || []).map(k => [k,el.getAttribute(k)]))};})};
+ attributes:Object.fromEntries((p.attributes || []).map(k => [k,sensitive && String(k).toLowerCase()==='value' ? null : el.getAttribute(k)]))};})};
 })"""
 STATE_JS = r"""(() => {
  const visible = el => {const r=el.getBoundingClientRect();const s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};

@@ -60,6 +60,9 @@ class BrowserLiveTests(unittest.TestCase):
             password = session.execute("chrome.query", {"selector": "#password"})
             self.assertIsNone(password["elements"][0]["value"])
             self.assertTrue(password["elements"][0]["is_password"])
+            attributes = session.execute("chrome.query", {"selector": "#password", "attributes": ["value", "type"]})
+            self.assertIsNone(attributes["elements"][0]["attributes"]["value"])
+            self.assertEqual(attributes["elements"][0]["attributes"]["type"], "password")
             with self.assertRaises(DeskPilotError) as raised:
                 session.execute("chrome.fill", {"selector": "#password", "value": "not authorized here"})
             self.assertEqual(raised.exception.code, "SENSITIVE_INPUT_BLOCKED")

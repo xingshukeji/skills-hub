@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 import uuid
@@ -18,6 +21,57 @@ from deskpilot.session import Session
 
 @unittest.skipUnless(sys.platform == "win32" and os.environ.get("DESKPILOT_LIVE_TESTS") == "1", "requires an explicitly selected Windows interactive fixture run")
 class WindowsLiveTests(unittest.TestCase):
+    def test_authorized_local_native_password_uses_local_reference(self):
+        title = "DeskPilot password fixture " + uuid.uuid4().hex[:8]
+        marker = secrets.token_urlsafe(18)
+        digest = hashlib.sha256(marker.encode("utf-8")).hexdigest()
+        fixture = subprocess.Popen([sys.executable, "-B", str(Path(__file__).with_name("windows_fixture.py")), title,
+                                    "--secret-digest=" + digest],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+        session = Session()
+        ready = None
+        try:
+            ready = json.loads(fixture.stdout.readline())
+            session.execute("interaction.begin", {"show_overlay": False, "restore_original_window": False})
+            control = session.execute("ui.find", {"title_exact": title, "automation_id": "104", "require_unique": True})
+            reference = {"element_id": control["elements"][0]["element_id"], "observation_id": control["observation_id"]}
+            session.execute("ui.click", reference)
+            with self.assertRaises(DeskPilotError) as blocked:
+                session.execute("input.type", {"title_exact": title, "text": "ordinary input"})
+            self.assertEqual(blocked.exception.code, "SENSITIVE_INPUT_BLOCKED")
+            capture = session.execute("screen.capture", {"title_exact": title})
+            with tempfile.TemporaryDirectory() as directory:
+                source = Path(directory) / "fixture.json"
+                source.write_text(json.dumps({"credential": marker}), encoding="utf-8")
+                result = session.execute("input.secret", {"window_id": capture["window"]["window_id"],
+                    "screenshot_id": capture["screenshot"]["screenshot_id"], "confirmed": True,
+                    "purpose": "authorized_local_test", "target_kind": "native_password",
+                    "secret_ref": {"path": str(source), "json_path": ["credential"]}})
+                self.assertNotIn(marker, json.dumps(result))
+                result = session.execute("wait.element", {"title_exact": title, "name": "Secret: matched", "timeout_ms": 3000})
+                self.assertEqual(result["count"], 1)
+            control = session.execute("ui.find", {"title_exact": title, "automation_id": "104"})
+            observed = session.execute("ui.get", {"element_id": control["elements"][0]["element_id"],
+                                                    "observation_id": control["observation_id"]})
+            self.assertTrue(observed["element"]["is_password"])
+            self.assertIsNone(observed["element"]["value"])
+        finally:
+            session.close()
+            if ready:
+                user = ctypes.WinDLL("user32")
+                user.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+                user.PostMessageW(ready["handle"], 0x0010, 0, 0)
+            try:
+                fixture.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                fixture.terminate()
+                fixture.wait(timeout=3)
+            fixture.stdout.close()
+            errors = fixture.stderr.read()
+            fixture.stderr.close()
+            self.assertEqual(errors, "")
+
     def test_system_capture_protection_is_honored(self):
         title = "DeskPilot protected fixture " + uuid.uuid4().hex[:8]
         fixture = subprocess.Popen([sys.executable, "-B", str(Path(__file__).with_name("windows_fixture.py")),

@@ -10,7 +10,7 @@ Windows 已从当前页面观察到准确 `automation_id` 后，可用 `ui.find`
 
 Windows 可用 `ui.find` 的 `control_type: "document"` 查看文档节点，区分壳容器和实际页面。Chromium 的实际页面常以 `automation_id: "RootWebArea"` 暴露；对观察得到的每个候选，用其 `element_id` 和 `observation_id` 调用 `ui.get`。当该节点支持 ValuePattern 时，`element.value` 是页面地址。核对实际返回的地址、节点位置/可见性和页面内容；不能把第一个文档节点或固定名字当作唯一当前页。未暴露地址时明确保留此项未知，可使用应用已有的地址/关于入口或已授权连接的 `chrome.targets`、`chrome.query`；不要据标题猜地址或给现有客户端另开调试入口。
 
-登录完成要在同一窗口、同一实际页面重新观察业务导航及当前身份/租户；用户在另一浏览器登录不证明此嵌入页已登录。用户操作后旧引用需要重新定位。`observe`/`ui.find` 只返回控件结构，未返回 value 不代表字段为空；只有对当前非密码控件的 `ui.get` 得到 `value: ""` 才能说该次读取为空。仍看到登录页只能证明当时观察到该界面，不能直接归因为 UIA 陈旧。密码值始终交由用户处理。
+登录完成要在同一窗口、同一实际页面重新观察业务导航及当前身份/租户；用户在另一浏览器登录不证明此嵌入页已登录。用户操作后旧引用需要重新定位。`observe`/`ui.find` 只返回控件结构，未返回 value 不代表字段为空；只有对当前非密码控件的 `ui.get` 得到 `value: ""` 才能说该次读取为空。仍看到登录页只能证明当时观察到该界面，不能直接归因为 UIA 陈旧。密码控件的值不回读。
 
 ## 控件与输入
 
@@ -20,7 +20,31 @@ Windows 可用 `ui.find` 的 `control_type: "document"` 查看文档节点，区
 
 文本模式回退遇到换行时，先返回 `TEXT_INPUT_STRATEGY_REQUIRED`，不选中或写入任何文字。确认当前控件处理换行的方式后，可在 `ui.set_value` 中显式设置 `newline_strategy`：`unicode` 发送字面换行，`enter` 或 `shift_enter` 使用对应按键。只有实际确认该按键在当前控件中插入换行时才选择它；聊天或表单中的 Enter 可能执行提交。无法确认时保留未执行状态，不猜测或尝试发送。
 
-`VALUE_NOT_VERIFIED` 或其他 `outcome: unknown` 后，重新 `ui.find` 再 `ui.get`，核对值和应用反馈。目标值已存在则继续验证业务结果；仍不符也不能重放整批。语义赋值已经尝试或结果未知时，工具不会自动改用键盘重发。只有确认当前结果、仍需该输入且控件支持常规编辑时，才显式选择键盘输入：`ui.click` 后重新定位，用 Windows `ui.get.element.has_keyboard_focus` 确认焦点，再按任务需要选择/替换文字并 `input.type`，最后重新读取。按键和热键使用键名数组；`MOD`/`PRIMARY` 在 macOS 对应 Command，在 Windows/Linux 对应 Ctrl。工具不读取或写入密码控件。
+`VALUE_NOT_VERIFIED` 或其他 `outcome: unknown` 后，重新 `ui.find` 再 `ui.get`，核对值和应用反馈。目标值已存在则继续验证业务结果；仍不符也不能重放整批。语义赋值已经尝试或结果未知时，工具不会自动改用键盘重发。只有确认当前结果、仍需该输入且控件支持常规编辑时，才显式选择键盘输入：`ui.click` 后重新定位，用 Windows `ui.get.element.has_keyboard_focus` 确认焦点，再按任务需要选择/替换文字并 `input.type`，最后重新读取。按键和热键使用键名数组；`MOD`/`PRIMARY` 在 macOS 对应 Command，在 Windows/Linux 对应 Ctrl。普通输入继续拦截可识别的密码控件。
+
+### Android 模拟器输入
+
+文本或按键返回 `dispatched: true` 只表示事件已派发，等待界面更新后仍需确认普通字段内容。在本机独立 Android 模拟器验证中，`hw.keyboard=no` 时 Windows 文本与实体按键未进入字段；将独立实例设为 `hw.keyboard=yes` 并重启后两者可用。此现象随模拟器与配置而异，不能据此声称所有设备一致。运行中的共享实例由其责任方决定是否调整或重启；不能为测试擅自改动。无需重启时，可在当前画面核对布局，通过屏幕键盘逐键输入普通文本并等待回读；密码使用下述私密入口，不逐字记录点击。
+
+### 已授权的本机测试凭据
+
+仅在用户或项目的生效政策已授权当前本机开发/测试目标、账号及登录动作时使用 `input.secret`。从责任项目入口确定既有受管测试账号和本地 JSON 凭据文件；不创建替代身份，不将密码复制进请求、日志、对话、命令行或截图。普通 `input.type`、`ui.set_value` 和 `chrome.fill` 不因这项授权自动放开。当前专用入口只在 Windows 后端实现；其他平台返回 `UNSUPPORTED_PLATFORM`。
+
+先确认正确窗口、测试环境、空的密码框及其焦点，在输入前拍一张不含凭据的当前截图。保持窗口前台，直接在同一进程单次发送如下请求；路径和 JSON 字段由责任项目确定：
+
+```json
+{"id":"secret","method":"input.secret","params":{
+  "window_id":"当前窗口 ID","screenshot_id":"输入前的当前截图 ID",
+  "purpose":"authorized_local_test","confirmed":true,"target_kind":"native_password",
+  "secret_ref":{"path":"本机受管 JSON 绝对路径","json_path":["字段名"]}
+}}
+```
+
+`native_password` 只向系统能确认已聚焦的密码控件输入，且不读取其值。像 Android 模拟器这种宿主无法识别访客控件的情况，只有在当前画面明确确认密码框和焦点时，才设 `target_kind: "observed_opaque_password"` 和 `observed_password_focus: true`；这是调用方根据画面作出的确认，不是系统对访客控件的证明。目标窗口自身必须始终在前台，同属弹窗切到前台也会停止。请求接受文件路径和 JSON 键，不接受密码字符串；结果仅说明是否派发，`verification: "not_read"` 不证明输入或登录成功。禁止在 `actions.batch` 中使用，也不要在密码输入后截取仍显示该字段的画面；通过后续不包含凭据的应用状态核实登录。
+
+如果模拟器不能接收实体键盘事件，`input.secret` 可使用调用方根据**输入前的当前截图**核对的屏幕键盘。添加 `keyboard: {"character_set":"ascii_alphanumeric","keys":{...}}`，其中 `keys` 必须完整包含 26 个小写、26 个大写和 10 个数字；每个字符对应 1 至 6 个截图内 `[x,y]` 点，序列必须在完成该字符后恢复到相同基础键盘状态。例如大写可以是已验证的一次性 Shift 点再接字母点。数字若需切换符号页，序列须包含进入及返回基础页的点。只在已经通过合成内容确认布局和状态切换时使用；不能用密码本身决定提供哪些键。需要标点时可选择 `ascii_printable` 并完整提供所有 95 个可打印 ASCII 字符；受管值包含不支持字符会在操作前返回 `SECRET_LAYOUT_UNSUPPORTED`，不会指出字符。不同设备、输入法、缩放和截图原点的布局可能不同，不能复制固定坐标。
+
+若同一输入前截图同时明确显示授权的提交按钮，可选传 `submit_point: [x,y]`，工具输入后等待并点击该点一次，避免为了提交而截取密码框。`submit_dispatched` 仅表示点击已派发，登录结果仍需核实；不提供该点时不会提交。窗口移动、失去前台或结果未知时停止并检查应用状态，不盲目重放。此入口避免在工具请求和结果中暴露密码，不能替目标应用、输入法或其他屏幕记录软件保证保密。
 
 ## 截图与 OCR
 

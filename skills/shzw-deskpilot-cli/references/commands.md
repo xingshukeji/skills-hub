@@ -18,6 +18,7 @@
 | `observe` / `ui.tree` / `ui.find` / `ui.find_all` | 窗口条件、`name`/`name_contains`、`automation_id`、`control_type`、控件 `class_name`；`depth`、`limit` 控制范围。返回 `observation_id` 和 `element_id` |
 | `ui.get` / `ui.invoke` / `ui.click` / `ui.set_value` / `ui.select` | `element_id` + 对应 `observation_id`；set_value 提供字符串 `value`。Windows 文本模式回退的多行内容需按已确认的控件行为提供 `newline_strategy`；select 可提供选项 `value` |
 | `input.type` / `input.key` / `input.hotkey` | 窗口 + `text` 或 `keys` 字符串数组；按当前焦点输入，先核对焦点 |
+| `input.secret` | Windows 的已授权本机测试凭据输入；只接受本地 JSON 文件引用及当前截图，不能放入批次。完整前提和屏幕键盘参数见[桌面](desktop.md#已授权的本机测试凭据) |
 | `input.click` / `input.double_click` / `input.right_click` / `input.scroll` | 窗口 + 当前 `observation_id` 或 `screenshot_id` + `x`,`y`；引用截图时使用图片内坐标，引用控件观察时使用窗口内坐标。scroll 使用 `amount`，120 为一格，可设 `horizontal` |
 | `screen.capture` / `screen.capture_window` | 窗口条件；可选绝对 `path`，其父目录须已存在；默认截图随会话清理 |
 | `screen.read_text` | 窗口条件或当前 `screenshot_id`；可用截图内 `region` 限定区域，返回全图坐标的文本块、置信度和来源，`include_words` 不保证跨平台词框 |

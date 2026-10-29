@@ -638,6 +638,9 @@ class WindowsDesktop:
 
     def type_text(self, text: str, checkpoint):
         require(not self.sensitive_focused(), "SENSITIVE_INPUT_BLOCKED", "Password controls must be handled by the user.")
+        self._type_unicode(text, checkpoint)
+
+    def _type_unicode(self, text: str, checkpoint):
         units = text.encode("utf-16-le")
         for index in range(0, len(units), 128):
             checkpoint()
@@ -647,6 +650,23 @@ class WindowsDesktop:
                 events.extend([INPUT(type=1, ki=KEYBDINPUT(wScan=unit, dwFlags=4)),
                                INPUT(type=1, ki=KEYBDINPUT(wScan=unit, dwFlags=6))])
             self._send(events)
+
+    def type_secret(self, text, checkpoint, *, window, target_kind):
+        def guard():
+            checkpoint()
+            require(window["native"] == self.foreground(), "WINDOW_NOT_FOREGROUND",
+                    "The target itself lost foreground during sensitive input.", outcome="unknown")
+            if target_kind == "native_password":
+                try:
+                    focused = self._automation().GetFocusedElement()
+                    valid = (bool(focused.CurrentIsPassword) and bool(focused.CurrentIsEnabled)
+                             and not bool(focused.CurrentIsOffscreen) and int(focused.CurrentProcessId) == window["pid"])
+                except Exception:
+                    valid = False
+                require(valid, "SENSITIVE_FOCUS_NOT_CONFIRMED",
+                        "The focused native password control could not be confirmed.", outcome="unknown")
+        guard()
+        self._type_unicode(text, guard)
 
     def key(self, keys: list[str]):
         mapping = {"CTRL": 0x11, "CONTROL": 0x11, "MOD": 0x11, "PRIMARY": 0x11, "ALT": 0x12, "SHIFT": 0x10,

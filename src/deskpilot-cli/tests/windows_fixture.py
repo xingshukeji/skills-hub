@@ -2,6 +2,7 @@
 
 import ctypes as C
 from ctypes import wintypes as W
+import hashlib
 import json
 import os
 import sys
@@ -30,10 +31,17 @@ kernel.GetModuleHandleW.restype = W.HMODULE
 gdi.CreateFontW.restype = W.HFONT
 gdi.CreateFontW.argtypes = [C.c_int] * 5 + [W.DWORD] * 8 + [W.LPCWSTR]
 instance = kernel.GetModuleHandleW(None)
-edit = status = None
+edit = status = secret_status = None
+expected_digest = next((arg.partition("=")[2] for arg in sys.argv if arg.startswith("--secret-digest=")), None)
 
 
 def procedure(handle, message, wparam, lparam):
+    if message == 0x0111 and wparam & 0xFFFF == 104 and (wparam >> 16) == 0x0300 and expected_digest and secret_status:
+        value = C.create_unicode_buffer(4096)
+        user.GetWindowTextW(lparam, value, 4096)  # The fixture reads only its own generated test input.
+        matched = hashlib.sha256(value.value.encode("utf-8")).hexdigest() == expected_digest
+        user.SetWindowTextW(secret_status, "Secret: matched" if matched else "Secret: pending")
+        return 0
     if message == 0x0111 and wparam & 0xFFFF == 102:
         value = C.create_unicode_buffer(4096)
         user.GetWindowTextW(edit, value, 4096)
@@ -72,6 +80,7 @@ status = child("STATIC", "Result: waiting", 24, 150, 810, 45, 103)
 child("EDIT", "", 24, 230, 570, 38, 104, 0x008000A0)  # ES_PASSWORD
 child("STATIC", "User-only password field", 24, 280, 700, 38, 105)
 child("EDIT", "First line\r\nSecond line", 24, 320, 570, 75, 106, 0x00A00044)  # ES_MULTILINE
+secret_status = child("STATIC", "Secret: pending", 24, 410, 570, 38, 107)
 font = gdi.CreateFontW(-24, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 0, 0, "Microsoft YaHei")
 for handle in children:
     user.SendMessageW(handle, 0x0030, font, 1)

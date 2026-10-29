@@ -122,8 +122,8 @@
     },
     {
       "path": "scripts/deskpilot/browser.py",
-      "bytes": 36032,
-      "sha256": "e48a0f4a895b694c8620d5b87e58d86ef07aa5dc23cfbeabab77a9724bd5e2e7",
+      "bytes": 36088,
+      "sha256": "cafb6f4bffcc57bd5ed75b665d1ab906a119e661b026789326fa8e5a2948b5de",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/browser.py"
@@ -186,8 +186,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows.py",
-      "bytes": 48177,
-      "sha256": "c0947cd839eb3290ef7c0456a79477a7cf74a779473400a3dfcb2c67f9748c3d",
+      "bytes": 49226,
+      "sha256": "810c989be414d9d5270d0cb25c6bb0448eddcccdc03603a11736abb7195c83a5",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows.py"
@@ -201,9 +201,17 @@
       "source": "src/deskpilot-cli/deskpilot/screen.py"
     },
     {
+      "path": "scripts/deskpilot/secret.py",
+      "bytes": 4692,
+      "sha256": "9243e9b5be390c215e17119961bdadea9b268b42b18a366d04ce736aaa9d2065",
+      "component": "DeskPilot source",
+      "license": "repository",
+      "source": "src/deskpilot-cli/deskpilot/secret.py"
+    },
+    {
       "path": "scripts/deskpilot/session.py",
-      "bytes": 45930,
-      "sha256": "a5f40d58c0bda8484c98a0043f73edcc489310d8e5e3537be1fcd6a2f8d88fbb",
+      "bytes": 50672,
+      "sha256": "0482bcf3a3b2c78cace01436e5edec1684473200583844391f1e693b2603f9dc",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/session.py"
