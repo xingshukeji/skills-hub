@@ -176,8 +176,12 @@ class Page(BaseHTTPRequestHandler):
     def do_GET(self):
         body = b'''<!doctype html><meta charset="utf-8"><title>DeskPilot browser fixture</title>
 <label>Input <input id="input"></label><select id="category"><option>choose</option><option value="automation">automation</option></select>
-<button id="apply" onclick="document.querySelector('#result').textContent=document.querySelector('#input').value+' | '+document.querySelector('#category').value">Apply</button>
-<p id="result"></p><button class="ambiguous">A</button><button class="ambiguous">B</button>'''
+<button id="apply" onclick="window.fixtureClicks++;document.querySelector('#result').textContent=document.querySelector('#input').value+' | '+document.querySelector('#category').value">Apply</button>
+<p id="result"></p><button class="ambiguous">A</button><button class="ambiguous">B</button>
+<script>window.fixtureClicks=0;window.fixtureEvents=[];
+for(const type of ['pointerdown','pointerup','mousedown','mouseup','click','focus','blur','resize'])
+addEventListener(type,event=>{window.fixtureEvents.push({type,target:event.target.id||event.target.nodeName,x:event.clientX,y:event.clientY,focused:document.hasFocus()});if(window.fixtureEvents.length>100)window.fixtureEvents.shift()},true);
+</script>'''
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -200,16 +204,33 @@ def browser_case(client, executable, directory):
         port = wait_for(lambda: (profile / "DevToolsActivePort").read_text().splitlines()[0], description="owned Chrome endpoint")
         client.call("chrome.ensure", {"endpoint": "http://127.0.0.1:" + port})
         client.call("chrome.navigate", {"url": f"http://127.0.0.1:{server.server_port}/", "ready_selector": "#input"})
-        text = "浏览器中文输入 12345"
-        result = client.call("actions.batch", {"show_overlay": False, "steps": [
-            {"id": "fill", "method": "chrome.fill", "params": {"selector": "#input", "value": text}},
-            {"id": "select", "method": "chrome.select", "params": {"selector": "#category", "value": "automation"}},
-            {"id": "apply", "method": "chrome.click", "params": {"selector": "#apply"}},
-            {"id": "read", "method": "chrome.wait", "params": {"predicate": {"type": "element", "selector": "#result", "text": {"equals": text + " | automation"}}}},
-        ]})
-        ensure(result["status"] == "completed", "The browser form did not complete.")
+        # A visible tab is not proof that the native browser has finished its
+        # activation. Establish the fixture's real foreground/focus precondition.
+        client.call("windows.activate", {"pid": chrome.pid, "title_contains": "DeskPilot browser fixture"})
+        client.call("chrome.wait", {"expression": "document.hasFocus() && document.visibilityState === 'visible'", "stable_ms": 500})
+        for index in range(3):
+            text = "浏览器中文输入 12345 " + str(index)
+            result = client.call("actions.batch", {"show_overlay": False, "steps": [
+                {"id": "fill", "method": "chrome.fill", "params": {"selector": "#input", "value": text}},
+                {"id": "select", "method": "chrome.select", "params": {"selector": "#category", "value": "automation"}},
+                {"id": "apply", "method": "chrome.click", "params": {"selector": "#apply"}},
+                {"id": "read", "method": "chrome.wait", "params": {"predicate": {"type": "element", "selector": "#result", "text": {"equals": text + " | automation"}}}},
+            ]})
+            ensure(result["status"] == "completed", "The browser form did not complete.")
+            clicks = client.call("chrome.evaluate", {"expression": "window.fixtureClicks", "read_only": True})
+            ensure(clicks["value"] == index + 1, "The fixture did not receive exactly one click for the requested action.")
         client.call("chrome.click", {"selector": ".ambiguous"}, error="CHROME_TARGET_AMBIGUOUS")
     finally:
+        if client.process.poll() is None:
+            try:
+                state = client.call("chrome.evaluate", {"read_only": True, "expression":
+                    "({focused:document.hasFocus(),visibility:document.visibilityState,clicks:window.fixtureClicks,events:window.fixtureEvents,"
+                    "input:document.querySelector('#input')?.value,result:document.querySelector('#result')?.textContent,"
+                    "viewport:{width:innerWidth,height:innerHeight,scale:devicePixelRatio}})"})
+                (client.evidence / "browser-state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+                run(["/usr/sbin/screencapture", "-x", client.evidence / "browser-desktop.png"])
+            except (AssertionError, OSError, queue.Empty):
+                pass
         chrome.terminate()
         chrome.wait(timeout=10)
         server.shutdown()
