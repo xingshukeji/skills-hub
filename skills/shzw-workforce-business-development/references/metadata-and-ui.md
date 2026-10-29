@@ -131,6 +131,8 @@ export function replaceRecordTypeOptionScope(fields, fieldId, enabledOptionIds) 
 
 视图配置 fieldNames/conditions/sort、标签与呈现覆盖、cellColorRules；关联路径从 view-field-catalog 取得。条件用 fieldName/operator/value，Runtime 用 field/op/value。
 
+视图保存的是完整共享配置，不是保存者的字段授权。实际读取时使用当前用户的对象、字段和记录权限，列表只显示本次 query 响应中可读的字段；不能把配置字段目录补成未获权的列。已保存视图仍可包含其他用户无权读取的字段，例如同一视图对甲显示姓名和金额，对乙只显示姓名；切换身份或编辑其他设置不得删除原定义。不可读字段的颜色规则不执行；若筛选或排序依赖不可读字段，查询拒绝并保留原条件，不能静默去掉条件扩大结果。目录只反映当前主体可选字段，不代表保存定义的完整范围或授予数据权限；权限变化后重新读取并验证目标版本的实际行为。
+
 `businessListViewQuery` 返回的 query 才是查询 body，外层 filter 是说明文本。附加条件与原条件合并，按需覆盖分页，保留排序与列。筛选器按查询能力选操作符：无值操作不收值，集合操作收数组；maxCollectionValues 为 null 表示没有项数门槛。
 
 视图转换的 query.presentation 实测为 null。需显示覆盖/填色时加入 `presentation: {viewName, viewRevision: views.metadataRevision}`，修订取 views 接口。平台返回 cellStyles（recordId → fieldName → colorToken）和 viewRevision；未命中可为空对象，前端直接渲染。旧修订 409 时重读配置并保留输入。

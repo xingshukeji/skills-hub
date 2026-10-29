@@ -60,7 +60,7 @@ query 的条件叶子是 `{field, op, value}`，and/or 组成非空条件组；�
 | Picklist/MultiPicklist 候选 | `GET /api/data/v1/entities/{entityCode}/fields/{fieldApiName}/options?page=1&pageSize=50&search=...` | `{page, pageSize, totalCount, items}`；项 `{value, label, color}` |
 | 视图列表和修订 | `GET /api/metadata/v1/entities/{entityCode}/views` | `{metadataRevision, listViews}` |
 | 视图转换为查询 | `GET /api/metadata/v1/entities/{entityCode}/views/{viewName}/runtime-query` | 取响应中的 query；外层 filter 是说明文本，不是查询 AST |
-| 视图允许的字段路径 | `GET /api/metadata/v1/entities/{entityCode}/view-field-catalog` | `{entityCode, metadataRevision, fields}` |
+| 当前身份可选的视图字段路径 | `GET /api/metadata/v1/entities/{entityCode}/view-field-catalog` | `{entityCode, metadataRevision, fields}`；不代表完整保存定义，也不替代运行时数据授权 |
 | 设计标准 | `GET /api/metadata/v1/standards/entity-design` | 类型、命名、呈现、筛选和时间合同；开发管理入口 |
 
 实测：describe 用 fieldApiName，查询字段描述用 apiName；describe 无 fields[].options；`/options` 仅支持选项类型，UserRef 返回 400。人员读受控成员资料，Lookup 查询目标对象。

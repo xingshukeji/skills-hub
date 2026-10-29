@@ -25,7 +25,7 @@ required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyT
 | 资源组 | 必须遵守 |
 |---|---|
 | BizObject / BizField | 对象由服务器固定为自定义 runtime business、trackable、非 alwaysHardDelete，不把这些固定字段放 values。标准 id/tenant/owner/审计字段由 runtime 提供。type 是唯一业务类型，支持 Text/LongText/Number/Decimal/Money/Date/DateTime/Boolean/Picklist/MultiPicklist/UserRef/Lookup；物理存储由平台派生。Text 配 length，Lookup/UserRef 配 targetEntityDefinitionId，Picklist/MultiPicklist 配 valuePicklistId。`UserRef` 引用受保护租户 `User` 对象，固定 `targetEntityDefinitionId=00457d0cb59a8281762b`；包外 Lookup 的结构检查与安装准入分别判断，见下方引用与权限。presentation 仅保存显式覆盖，省略时继承服务端默认 editor/cell/detail；列表 fieldPresentationOverrides 只覆盖 cell。拒绝旧 fieldType/uiType/uiLength。unique=true 仅支持 Text、length 1–255，创建覆盖软删除行的数据库唯一索引（NULL 可重复，必填另设 nullable=false）；重复存量数据阻止升级。仍不支持 indexed/computed 或默认值迁移；新增必填字段会因存量数据进入 Waiting，不静默补 0/空串。 |
-| BizListView | fieldNames 为字段名字符串数组，fieldLabelOverrides 为字段名到标签映射；conditions、sort、cellColorRules 分别整体处理。安装不会自动公开视图；Owner 属于绑定。 |
+| BizListView | fieldNames 为字段名字符串数组，fieldLabelOverrides 为字段名到标签映射；conditions、sort、cellColorRules 分别整体处理。包可保存完整视图定义，安装不会自动公开视图或授予字段/记录读取权限；Owner 属于绑定。实际读取只显示当前用户可读字段，不能因接收者无权限而删改包中配置；不可读筛选或排序拒绝执行。 |
 | BizPicklist / BizPicklistItem | 子项 refPicklistId 指向包内父项。选项 name 不变；颜色、标签、active 是业务值。 |
 | BizRecordType | picklistFields 为 `{fieldId,usesAllActiveOptions,enabledOptionIds}` 数组；布尔 usesAllActiveOptions、选项 ID 数组，字段必须属于 refObjectId，选项必须属于该字段关联 picklist。 |
 | BizTrigger | refObjectId/refOrchestrationId 是包内 ID，单 Trigger 和对象总开关共同生效；不包含派发记录或历史。triggerType 使用目标协议支持的 before/after 事件值，不从 JS 事件名推断。 |
