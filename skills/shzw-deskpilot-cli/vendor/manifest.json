@@ -170,8 +170,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/macos.py",
-      "bytes": 29693,
-      "sha256": "22c98182018578bc793da4682085729d218bfc59eaadba1198525cde0403a613",
+      "bytes": 30208,
+      "sha256": "b0bfe9c09d28eeae00c27ced36ad99a6e533d77764a7bdf2d592344613f7563d",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/macos.py"

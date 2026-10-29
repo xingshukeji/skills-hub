@@ -153,5 +153,24 @@ class MacWindowBindingTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "WINDOW_IDENTITY_MISMATCH")
 
 
+class MacForegroundTests(unittest.TestCase):
+    def test_foreground_uses_the_actual_frontmost_application_and_window_order(self):
+        desktop = MacDesktop.__new__(MacDesktop)
+        def send(receiver, selector, *args):
+            return {"sharedWorkspace": 2, "frontmostApplication": 3, "processIdentifier": 100}[selector]
+        desktop.objc = SimpleNamespace(cls=lambda _: 1, send=send)
+        desktop.windows = lambda: [{"native": 9, "pid": 200, "visible": True},
+                                   {"native": 1, "pid": 100, "visible": True},
+                                   {"native": 2, "pid": 100, "visible": True}]
+        self.assertEqual(desktop.foreground(), 1)
+
+    def test_no_frontmost_app_does_not_guess_another_visible_window(self):
+        desktop = MacDesktop.__new__(MacDesktop)
+        desktop.objc = SimpleNamespace(cls=lambda _: 1, send=lambda *args: 0)
+        desktop.windows = Mock()
+        self.assertIsNone(desktop.foreground())
+        desktop.windows.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

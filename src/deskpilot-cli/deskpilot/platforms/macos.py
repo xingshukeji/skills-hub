@@ -242,7 +242,12 @@ class MacDesktop:
         return matches[0]
 
     def foreground(self):
-        return next((item["native"] for item in self.windows() if item["visible"]), None)
+        workspace = self.objc.send(self.objc.cls("NSWorkspace"), "sharedWorkspace")
+        app = self.objc.send(workspace, "frontmostApplication")
+        if not app:
+            return None
+        pid = self.objc.send(app, "processIdentifier", C.c_int)
+        return next((item["native"] for item in self.windows() if item["visible"] and item["pid"] == pid), None)
 
     def _window_ax(self, window):
         self._trusted()
@@ -295,7 +300,9 @@ class MacDesktop:
             if self.foreground() == window["native"]:
                 return self.window(window["native"])
             time.sleep(0.025)
-        raise DeskPilotError("WINDOW_ACTIVATION_FAILED", "The requested macOS window did not become foreground.", retryable=True)
+        raise DeskPilotError("WINDOW_ACTIVATION_FAILED", "The requested macOS window did not become foreground.", retryable=True,
+                             details={"target_window_id": window["native"], "foreground_window_id": self.foreground(),
+                                      "visible_windows": [item for item in self.windows() if item["visible"]][:20]})
 
     def restore(self, native):
         try:

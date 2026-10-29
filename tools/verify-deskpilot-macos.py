@@ -228,6 +228,8 @@ def browser_case(client, executable, directory):
                     "input:document.querySelector('#input')?.value,result:document.querySelector('#result')?.textContent,"
                     "viewport:{width:innerWidth,height:innerHeight,scale:devicePixelRatio}})"})
                 (client.evidence / "browser-state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+                windows = client.call("windows.list")
+                (client.evidence / "browser-windows.json").write_text(json.dumps(windows, ensure_ascii=False, indent=2), encoding="utf-8")
                 run(["/usr/sbin/screencapture", "-x", client.evidence / "browser-desktop.png"])
             except (AssertionError, OSError, queue.Empty):
                 pass
@@ -275,6 +277,9 @@ def verify(output):
                 for path in skill.rglob("*"):
                     if path.is_file():
                         path.chmod(0o444)
+                for path in (skill, *skill.rglob("*")):
+                    if path.is_dir():
+                        path.chmod(0o555)
                 home, state, commands = directory / "home", directory / "runtime", directory / "commands"
                 home.mkdir()
                 environment = dict(os.environ, HOME=str(home), ZDOTDIR=str(home), SHELL="/bin/zsh", PYTHONPATH="", PYTHONIOENCODING="utf-8")
@@ -493,9 +498,9 @@ def verify(output):
             if "fixture_log" in locals():
                 fixture_log.close()
             if "skill" in locals() and skill.exists():
+                skill.chmod(0o755)
                 for path in skill.rglob("*"):
-                    if path.is_file():
-                        path.chmod(0o644)
+                    path.chmod(0o755 if path.is_dir() else 0o644)
             (output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"status": report["status"], "cases": len(report["cases"]), "architecture": platform.machine()}), flush=True)
 
