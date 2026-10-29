@@ -45,16 +45,25 @@ class LinuxLiveTests(unittest.TestCase):
             session.execute("ui.invoke", {"element_id": apply["elements"][0]["element_id"], "observation_id": apply["observation_id"]})
             result = session.execute("wait.element", {"title_exact": title, "name": "Result: " + text, "timeout_ms": 3000})
             self.assertEqual(result["count"], 1)
-            screenshot = session.execute("observe", {"title_exact": title, "include_screenshot": True})
+            # Accessibility state can update before GTK paints the new frame.
+            # Wait for the actual captured pixels to contain the new text.
+            deadline = time.monotonic() + 3
+            expected_text = "".join(text.split())
+            while True:
+                screenshot = session.execute("observe", {"title_exact": title, "include_screenshot": True})
+                recognized = session.execute("messages.observe", {
+                    "screenshot_id": screenshot["screenshot"]["screenshot_id"],
+                    "expected_identity": "DeskPilot Linux Fixture"})
+                captured_text = "".join(recognized["recognition"]["text"].split())
+                if expected_text in captured_text or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.05)
             self.assertTrue(screenshot["screenshot"]["trusted"])
             self.assertTrue(any(item["name"] == "Result: " + text for item in screenshot["elements"]))
             image = Image.open(screenshot["screenshot"]["path"])
             self.assertGreater(len(set(image.rgb)), 3)
-            recognized = session.execute("messages.observe", {
-                "screenshot_id": screenshot["screenshot"]["screenshot_id"],
-                "expected_identity": "DeskPilot Linux Fixture"})
             self.assertTrue(recognized["context_identity"]["matched"])
-            self.assertIn("".join(text.split()), "".join(recognized["recognition"]["text"].split()))
+            self.assertIn(expected_text, captured_text)
             self._check_unrelated_overlay_is_rejected(session, title)
         finally:
             session.close()
