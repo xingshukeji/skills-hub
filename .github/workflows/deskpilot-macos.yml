@@ -1,0 +1,51 @@
+name: DeskPilot macOS desktop
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deskpilot-macos.yml
+      - tools/verify-deskpilot-macos.py
+      - src/deskpilot-cli/**
+      - skills/shzw-deskpilot-cli/**
+  pull_request:
+    paths:
+      - .github/workflows/deskpilot-macos.yml
+      - tools/verify-deskpilot-macos.py
+      - src/deskpilot-cli/**
+      - skills/shzw-deskpilot-cli/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deskpilot-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Native desktop (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, macos-15, macos-15-intel, macos-26]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Verify the independently installed Skill on a real desktop
+        run: python3 -I -S -B tools/verify-deskpilot-macos.py --output "$RUNNER_TEMP/deskpilot-macos-evidence"
+      - name: Preserve the result, protocol log and synthetic screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deskpilot-desktop-${{ matrix.runner }}
+          path: ${{ runner.temp }}/deskpilot-macos-evidence
+          if-no-files-found: error
+          retention-days: 7
