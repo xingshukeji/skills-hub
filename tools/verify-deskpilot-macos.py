@@ -227,7 +227,7 @@ def verify(output):
                                              "Hosted-runner authorization and separate unapproved-app denial are distinct; first-time human approval is not inferred."]}
 
     @contextmanager
-    def case(name):
+    def case(name, *, collect_failure=False):
         item = {"name": name, "status": "running"}
         report["cases"].append(item)
         started = time.monotonic()
@@ -237,7 +237,9 @@ def verify(output):
             item["status"] = "passed"
         except BaseException:
             item["status"] = "failed"
-            raise
+            item["failure"] = traceback.format_exc()
+            if not collect_failure:
+                raise
         finally:
             item["duration_ms"] = round((time.monotonic() - started) * 1000)
             (output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -349,25 +351,27 @@ def verify(output):
                 owned_shot = client.call("screen.capture", {"title_exact": title})["screenshot"]["path"]
                 (output / "native-state.json").write_text(json.dumps(read_json(state_path), ensure_ascii=False, indent=2), encoding="utf-8")
 
-            with case("foreign floating window rejects pointer input"):
+            with case("foreign floating window rejects pointer input", collect_failure=True):
                 _, button = find("apply")
                 bounds = button["elements"][0]["bounds"]
                 blocker_state = directory / "blocker-state.json"
                 blocker = subprocess.Popen([str(fixture_executable), title + " blocker", str(blocker_state), "--blocker",
                                             str(bounds["x"] - 5), str(bounds["y"] - 5)],
                                            stdout=subprocess.DEVNULL, stderr=fixture_log)
-                wait_for(lambda: read_json(blocker_state), description="foreign floating window")
-                before = read_json(state_path)["clicks"]
-                observed = client.call("observe", {"title_exact": title})
-                area = observed["window"]["bounds"]
-                denial = client.call("input.click", {"title_exact": title, "observation_id": observed["observation_id"],
-                                                     "x": bounds["x"] + bounds["width"] // 2 - area["x"],
-                                                     "y": bounds["y"] + bounds["height"] // 2 - area["y"]}, error="POINT_OCCLUDED")
-                ensure(denial["outcome"] == "not_dispatched", "A rejected click was marked dispatched.")
-                ensure(read_json(state_path)["clicks"] == before, "A rejected pointer event clicked the underlying target.")
-                blocker.terminate()
-                blocker.wait(timeout=5)
-                blocker = None
+                try:
+                    wait_for(lambda: read_json(blocker_state), description="foreign floating window")
+                    before = read_json(state_path)["clicks"]
+                    observed = client.call("observe", {"title_exact": title})
+                    area = observed["window"]["bounds"]
+                    denial = client.call("input.click", {"title_exact": title, "observation_id": observed["observation_id"],
+                                                         "x": bounds["x"] + bounds["width"] // 2 - area["x"],
+                                                         "y": bounds["y"] + bounds["height"] // 2 - area["y"]}, error="POINT_OCCLUDED")
+                    ensure(denial["outcome"] == "not_dispatched", "A rejected click was marked dispatched.")
+                    ensure(read_json(state_path)["clicks"] == before, "A rejected pointer event clicked the underlying target.")
+                finally:
+                    blocker.terminate()
+                    blocker.wait(timeout=5)
+                    blocker = None
 
             with case("owned Chrome form, Chinese input and ambiguous-target rejection"):
                 ensure(doctor["chrome"]["available"], "The maintainer runner must provide Chrome for this real browser test.")
@@ -417,6 +421,7 @@ def verify(output):
                 ensure("# >>>" in (clean_home / ".zshrc").read_text(), "The clean install did not create its PATH block.")
                 run(clean_installer + ["--uninstall"], env=clean_environment, cwd=directory)
                 ensure("# >>>" not in (clean_home / ".zshrc").read_text(), "The clean uninstall retained its owned PATH block.")
+            ensure(not any(item["status"] != "passed" for item in report["cases"]), "One or more native cases failed; see result.json.")
             report["status"] = "passed"
         except BaseException:
             report["status"] = "failed"
