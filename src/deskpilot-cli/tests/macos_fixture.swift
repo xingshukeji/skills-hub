@@ -102,6 +102,7 @@ final class Fixture: NSObject, NSApplicationDelegate {
                                   "window_number": window.windowNumber, "blocker": blocker]
         if !blocker {
             state["input"] = input.stringValue
+            state["input_editor"] = input.currentEditor()?.string ?? "<not editing>"
             state["multiline"] = multiline.string
             state["readonly"] = readonly.stringValue
             state["password_empty"] = password.stringValue.isEmpty

@@ -36,6 +36,7 @@ def ensure(condition, message):
 
 def wait_for(read, predicate=lambda value: bool(value), *, timeout=15, description="fixture state"):
     deadline = time.monotonic() + timeout
+    value = None
     while time.monotonic() < deadline:
         try:
             value = read()
@@ -44,7 +45,7 @@ def wait_for(read, predicate=lambda value: bool(value), *, timeout=15, descripti
         except (OSError, ValueError):
             pass
         time.sleep(0.05)
-    raise AssertionError("Timed out waiting for " + description)
+    raise AssertionError("Timed out waiting for " + description + "; last observation: " + repr(value))
 
 
 def read_json(path):
@@ -420,6 +421,15 @@ def verify(output):
             report["failure"] = traceback.format_exc()
             raise
         finally:
+            if "state_path" in locals() and state_path.is_file():
+                try:
+                    native_state = read_json(state_path)
+                    (output / "native-state.json").write_text(json.dumps(native_state, ensure_ascii=False, indent=2), encoding="utf-8")
+                    if report["status"] != "passed":
+                        subprocess.run(["/usr/sbin/screencapture", "-x", "-o", "-l", str(native_state["window_number"]), str(output / "failure-native.png")],
+                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                except (OSError, ValueError, subprocess.TimeoutExpired):
+                    pass
             if client:
                 try:
                     client.close()
