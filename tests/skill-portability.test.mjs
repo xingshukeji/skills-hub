@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -43,7 +43,7 @@ test('copied service helper dispatches only the target project command and propa
   await writeFile(join(f.project, 'status.cjs'), "require('node:fs').writeFileSync('observed.json', JSON.stringify({ cwd: process.cwd() })); process.exit(7);\n");
   const result = run(f, ['--workspace-root', f.project, '--service', 'xrain', '--action', 'status']);
   assert.equal(result.status, 7, result.stderr);
-  assert.equal(JSON.parse(await readFile(join(f.project, 'observed.json'), 'utf8')).cwd, f.project);
+  assert.equal(JSON.parse(await readFile(join(f.project, 'observed.json'), 'utf8')).cwd, await realpath(f.project));
   const unavailable = run(f, ['--workspace-root', f.project, '--action', 'start']);
   assert.equal(unavailable.status, 1);
   assert.match(unavailable.stderr, /does not define script 'start'/);
