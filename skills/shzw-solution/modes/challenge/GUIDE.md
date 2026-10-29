@@ -15,7 +15,7 @@ Do not author the missing proposal, revise the reviewed artifact, implement it, 
 
 ## Challenge the Proposal
 
-Lead with concrete findings, ordered by impact:
+Apply each dimension below to the fixed review scope. Explain a non-applicable dimension briefly when it matters; do not manufacture a finding or require a standard report table. Lead with concrete findings, ordered by impact:
 
 - **Necessity**: Can the outcome be achieved by an existing owner or simpler mechanism?
 - **Scope**: Does the proposal change unrelated tasks, projects, users, phases, skills, documents, or runtime behavior?
@@ -27,6 +27,16 @@ Lead with concrete findings, ordered by impact:
 - **Counterexamples**: Test at least one nearby case that should be covered and one that must remain outside the proposal.
 
 Do not manufacture objections for balance. Preserve parts supported by evidence and distinguish blocking findings from optional improvements.
+
+### Trace new mechanisms to their consumers
+
+On a revised proposal, separate the original issue from mechanisms introduced by its repair. Start from each material new or changed fact, constraint or artifact; follow its producer through the actual serialization, transfer or persistence boundary to the reader that decides or acts on it. Name these consumers from source, types or authoritative contracts. A component list or a successful producer-side check is not evidence that consumers preserve the rule.
+
+At each affected boundary, check whether identity, version, authority, resource budget and failure meaning survive. Include a background worker, callback, old reader, generated file reused as input, or cleanup path only when it can actually consume the changed mechanism. Distinguish guarantees enforced at that consumer from declarations and diagnostic identifiers; do not extend a transaction or process-local guarantee across a boundary without a supporting contract.
+
+Use a concrete nearby case to test the consequence: for example, a valid input gains recovery metadata and must still fit the receiving upload path. Try the applicable interruption or partial-success case, and check whether the next operator action sees all required facts. Trace only edges changed by the proposal or needed to support a material claim; a text-only change with no changed consumer behavior does not justify a repository-wide scan or new framework.
+
+Return the affected consumer and boundary evidence with each finding. Mark an unresolved capability explicitly; do not claim end-to-end support merely because the new writer, type or rule exists. Preserve unrelated behavior and the review's read-only scope.
 
 ## Return the Review
 
