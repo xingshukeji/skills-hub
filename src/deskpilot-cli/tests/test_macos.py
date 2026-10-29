@@ -156,9 +156,12 @@ class MacWindowBindingTests(unittest.TestCase):
 class MacForegroundTests(unittest.TestCase):
     def test_foreground_uses_the_actual_frontmost_application_and_window_order(self):
         desktop = MacDesktop.__new__(MacDesktop)
-        def send(receiver, selector, *args):
-            return {"sharedWorkspace": 2, "frontmostApplication": 3, "processIdentifier": 100}[selector]
-        desktop.objc = SimpleNamespace(cls=lambda _: 1, send=send)
+        desktop.cf = SimpleNamespace(CFRelease=Mock())
+        def get_pid(app, output):
+            output._obj.value = 100
+            return 0
+        desktop.ax = SimpleNamespace(AXUIElementCreateSystemWide=lambda: 1, AXUIElementGetPid=get_pid)
+        desktop._copy = lambda root, attribute: 2 if attribute == "AXFocusedApplication" else None
         desktop.windows = lambda: [{"native": 9, "pid": 200, "visible": True},
                                    {"native": 1, "pid": 100, "visible": True},
                                    {"native": 2, "pid": 100, "visible": True}]
@@ -166,7 +169,9 @@ class MacForegroundTests(unittest.TestCase):
 
     def test_no_frontmost_app_does_not_guess_another_visible_window(self):
         desktop = MacDesktop.__new__(MacDesktop)
-        desktop.objc = SimpleNamespace(cls=lambda _: 1, send=lambda *args: 0)
+        desktop.cf = SimpleNamespace(CFRelease=Mock())
+        desktop.ax = SimpleNamespace(AXUIElementCreateSystemWide=lambda: 1)
+        desktop._copy = lambda *args: None
         desktop.windows = Mock()
         self.assertIsNone(desktop.foreground())
         desktop.windows.assert_not_called()

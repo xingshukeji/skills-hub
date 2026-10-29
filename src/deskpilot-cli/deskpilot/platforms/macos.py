@@ -242,12 +242,14 @@ class MacDesktop:
         return matches[0]
 
     def foreground(self):
-        workspace = self.objc.send(self.objc.cls("NSWorkspace"), "sharedWorkspace")
-        app = self.objc.send(workspace, "frontmostApplication")
-        if not app:
+        root = AXRef(self, self.ax.AXUIElementCreateSystemWide())
+        app = AXRef(self, self._copy(root, "AXFocusedApplication"))
+        if not app.pointer:
             return None
-        pid = self.objc.send(app, "processIdentifier", C.c_int)
-        return next((item["native"] for item in self.windows() if item["visible"] and item["pid"] == pid), None)
+        pid = C.c_int()
+        if self.ax.AXUIElementGetPid(app.pointer, C.byref(pid)) != 0:
+            return None
+        return next((item["native"] for item in self.windows() if item["visible"] and item["pid"] == pid.value), None)
 
     def _window_ax(self, window):
         self._trusted()
@@ -301,8 +303,7 @@ class MacDesktop:
                 return self.window(window["native"])
             time.sleep(0.025)
         raise DeskPilotError("WINDOW_ACTIVATION_FAILED", "The requested macOS window did not become foreground.", retryable=True,
-                             details={"target_window_id": window["native"], "foreground_window_id": self.foreground(),
-                                      "visible_windows": [item for item in self.windows() if item["visible"]][:20]})
+                             details={"target_window_id": window["native"], "foreground_window_id": self.foreground()})
 
     def restore(self, native):
         try:
