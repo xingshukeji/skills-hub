@@ -2,10 +2,15 @@ name: Validate skills
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: validate-skills-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -25,3 +30,22 @@ jobs:
           python-version: '3.13'
       - run: npm ci
       - run: npm run check
+  appkg:
+    name: Application package validator (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - run: npm run test:appkg
