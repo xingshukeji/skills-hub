@@ -106,6 +106,7 @@ class Session:
         self._closed = False
         self._target = None
         self._dispatched = False
+        self._activity_started = False
 
     @property
     def desktop(self):
@@ -158,6 +159,7 @@ class Session:
             self._cancelled.clear()
             self._active = True
         self._dispatched = False
+        self._activity_started = False
         self._deadline = time.monotonic() + timeout / 1000
         implicit = False
         try:
@@ -182,8 +184,16 @@ class Session:
             raise DeskPilotError("INTERNAL_ERROR", f"Operation failed ({type(exc).__name__}).",
                                  outcome="unknown" if self._dispatched else "not_dispatched") from None
         finally:
-            if implicit:
+            if implicit and self._lease:
                 self._end(restore=params.get("restore_original_window", True))
+            if self._activity_started and self._desktop is not None:
+                finish = getattr(self._desktop, "activity_done", None)
+                if finish:
+                    try:
+                        finish()
+                    except (DeskPilotError, OSError):
+                        pass
+                self._activity_started = False
             with self._state_lock:
                 self._active = False
             self._deadline = None
@@ -207,6 +217,7 @@ class Session:
     def _end(self, *, cancelled=False, restore=True) -> dict:
         existed = bool(self._lease)
         restored = False
+        self._activity_started = False
         if self._desktop is not None:
             try:
                 self._desktop.activity(None, "Cancelled" if cancelled else "Ready", visible=False)
@@ -227,6 +238,7 @@ class Session:
             try:
                 trace = point if params.get("show_action_trace", getattr(self, "_trace_requested", False)) else None
                 self.desktop.activity(window, str(params.get("action_label", method))[:120], visible=True, trace=trace)
+                self._activity_started = True
             except (OSError, DeskPilotError):
                 if params.get("overlay_required"):
                     raise DeskPilotError("OVERLAY_UNAVAILABLE", "The desktop activity indicator could not be shown.") from None

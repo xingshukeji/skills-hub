@@ -10,15 +10,78 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deskpilot import DeskPilotError
-from deskpilot.platforms.windows_overlay import ActivityOverlay, _status_text
+from deskpilot.platforms.windows_overlay import ActivityOverlay, _ActivityPresentation, _status_text
 
 
 class ActivityLabelTests(unittest.TestCase):
     def test_common_actions_and_custom_labels(self):
-        self.assertEqual(_status_text("ui.set_value"), "Entering text")
-        self.assertEqual(_status_text("input.hotkey"), "Pressing keys")
+        self.assertEqual(_status_text("ui.set_value"), "Working")
+        self.assertEqual(_status_text("input.hotkey"), "Working")
         self.assertEqual(_status_text("input.unknown"), "Working")
         self.assertEqual(_status_text("  正在处理\n资料  "), "正在处理 资料")
+
+    def test_status_coalesces_changes_and_auto_hides_only_after_completion(self):
+        state = _ActivityPresentation()
+        state.update("Observe", 0)
+        state.update("ui.click", 0.1)
+        state.update("input.type", 0.2)
+        self.assertEqual(state.label, "Working")
+        state.update("整理资料", 0.3)
+        state.update("核对结果", 0.4)
+        state.tick(1.19)
+        self.assertEqual(state.label, "Working")
+        state.tick(1.2)
+        self.assertEqual(state.label, "核对结果")
+        state.tick(20)
+        self.assertTrue(state.seen, "A long-running operation must remain visible")
+        state.finish("Ready", 20)
+        state.tick(21.1)
+        self.assertTrue(state.seen)
+        self.assertEqual(state.label, "核对结果", "Completion must not flash another label")
+        self.assertLess(state.opacity(21.3), 255)
+        state.update("Observe", 21.3)
+        self.assertEqual(state.opacity(21.3), 255, "New work must cancel the fade")
+        state.finish("Ready", 21.4)
+        state.tick(21.4 + state.IDLE_HOLD + state.FADE_DURATION + 0.01)
+        self.assertFalse(state.seen)
+        state.update("Observe", 23)
+        self.assertTrue(state.seen, "Later work must be able to show the indicator again")
+        self.assertEqual(state.label, "Working")
+
+    def test_completed_or_failed_requests_end_the_windows_activity(self):
+        from deskpilot.session import Session
+
+        class Desktop:
+            def __init__(self):
+                self.events = []
+
+            def activity(self, window, label, *, visible=True, trace=None):
+                self.events.append(("activity", label, visible))
+
+            def activity_done(self):
+                self.events.append(("done",))
+
+            def close(self):
+                pass
+
+        desktop = Desktop()
+        session = Session(desktop=desktop)
+        try:
+            def dispatch(method, params):
+                session._activity(None, "Observe", params)
+                if params.get("fail"):
+                    raise DeskPilotError("TEST_FAILURE", "Failed after observation.")
+                return {}
+
+            with patch.object(session, "_dispatch", side_effect=dispatch):
+                session.execute("observe")
+                self.assertEqual(desktop.events, [("activity", "Observe", True), ("done",)])
+                desktop.events.clear()
+                with self.assertRaises(DeskPilotError):
+                    session.execute("observe", {"fail": True})
+                self.assertEqual(desktop.events, [("activity", "Observe", True), ("done",)])
+        finally:
+            session.close()
 
     def test_dismissal_only_blocks_actions_that_require_a_visible_indicator(self):
         from deskpilot.session import Session
@@ -44,6 +107,68 @@ class ActivityLabelTests(unittest.TestCase):
 @unittest.skipUnless(sys.platform == "win32" and os.environ.get("DESKPILOT_LIVE_TESTS") == "1",
                      "requires a Windows interactive desktop")
 class ActivityOverlayLiveTests(unittest.TestCase):
+    def test_completed_activity_fades_and_later_activity_reappears(self):
+        from ctypes import wintypes as w
+
+        user = ctypes.WinDLL("user32", use_last_error=True)
+        user.GetWindowThreadProcessId.argtypes = [w.HWND, ctypes.POINTER(w.DWORD)]
+        user.GetWindowTextW.argtypes = [w.HWND, w.LPWSTR, ctypes.c_int]
+        user.IsWindowVisible.argtypes = [w.HWND]
+        user.GetLayeredWindowAttributes.argtypes = [w.HWND, ctypes.POINTER(w.DWORD),
+                                                    ctypes.POINTER(w.BYTE), ctypes.POINTER(w.DWORD)]
+        callback_type = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        user.EnumWindows.argtypes = [callback_type, w.LPARAM]
+
+        def window(title):
+            matches = []
+
+            @callback_type
+            def inspect(handle, _):
+                pid = w.DWORD()
+                user.GetWindowThreadProcessId(handle, ctypes.byref(pid))
+                text = ctypes.create_unicode_buffer(128)
+                user.GetWindowTextW(handle, text, len(text))
+                if pid.value == os.getpid() and text.value == title:
+                    matches.append(handle)
+                return True
+
+            user.EnumWindows(inspect, 0)
+            self.assertEqual(len(matches), 1, title)
+            return matches[0]
+
+        def opacity(handle):
+            alpha, color, flags = w.BYTE(), w.DWORD(), w.DWORD()
+            self.assertTrue(user.GetLayeredWindowAttributes(handle, ctypes.byref(color), ctypes.byref(alpha), ctypes.byref(flags)))
+            return alpha.value
+
+        def wait_for(predicate, timeout=3):
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if predicate():
+                    return
+                time.sleep(0.02)
+            self.fail("Activity window did not reach the expected state")
+
+        overlay = ActivityOverlay()
+        try:
+            overlay.update(None, "Observe")
+            panel, button = (window(title) for title in ("DeskPilot status", "Close DeskPilot status"))
+            wait_for(lambda: user.IsWindowVisible(panel) and user.IsWindowVisible(button))
+            time.sleep(_ActivityPresentation.IDLE_HOLD + _ActivityPresentation.FADE_DURATION + 0.2)
+            self.assertTrue(user.IsWindowVisible(panel), "A request still running must stay visible")
+            overlay.finish("Ready")
+            wait_for(lambda: 0 < opacity(panel) < 255)
+            self.assertTrue(user.IsWindowVisible(button))
+            overlay.update(None, "input.type")
+            wait_for(lambda: opacity(panel) == 255 and opacity(button) == 255)
+            self.assertTrue(user.IsWindowVisible(panel), "New work must interrupt the fade")
+            overlay.finish("Ready")
+            wait_for(lambda: not user.IsWindowVisible(panel) and not user.IsWindowVisible(button))
+            overlay.update(None, "Observe")
+            wait_for(lambda: user.IsWindowVisible(panel) and user.IsWindowVisible(button))
+        finally:
+            overlay.close()
+
     def test_close_button_hides_the_cue_without_activating_or_interrupting(self):
         from ctypes import wintypes as w
 

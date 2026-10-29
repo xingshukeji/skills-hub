@@ -902,6 +902,11 @@ class WindowsDesktop:
         elif self._overlay:
             self._overlay.finish(label)
 
+    def activity_done(self):
+        overlay = getattr(self, "_overlay", None)
+        if overlay:
+            overlay.finish("Ready")
+
     def doctor(self) -> dict:
         interactive = bool(self.foreground())
         try:

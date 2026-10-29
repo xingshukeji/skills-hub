@@ -13,17 +13,60 @@ from .. import DeskPilotError
 
 
 def _status_text(label):
-    """Keep the common action names understandable while preserving custom labels."""
+    """Group rapid tool operations under one stable label; retain custom labels."""
     text = " ".join(str(label).split())[:120]
-    actions = {
-        "Observe": "Observing", "ui.click": "Clicking", "ui.invoke": "Selecting",
-        "ui.set_value": "Entering text", "ui.select": "Selecting", "input.click": "Clicking",
-        "input.double_click": "Clicking", "input.right_click": "Clicking", "input.type": "Typing",
-        "input.secret": "Entering text", "input.key": "Pressing keys", "input.hotkey": "Pressing keys",
-        "input.scroll": "Scrolling", "android.click": "Clicking", "android.set_value": "Entering text",
-        "android.swipe": "Scrolling",
-    }
-    return actions.get(text, "Working" if not text or text.startswith(("ui.", "input.", "android.")) else text)
+    if not text or text == "Observe" or text.startswith(("ui.", "input.", "android.")):
+        return "Working"
+    return text
+
+
+class _ActivityPresentation:
+    """Coalesce status text and keep completion separate from temporary hiding."""
+
+    LABEL_INTERVAL = 1.2
+    IDLE_HOLD = 1.2
+    FADE_DURATION = 0.25
+
+    def __init__(self):
+        self.label = "Working"
+        self.label_changed_at = 0.0
+        self.pending_label = None
+        self.active = False
+        self.seen = False
+        self.fade_at = None
+
+    def update(self, label, now):
+        new_label = _status_text(label)
+        if not self.seen or self.label == "Cancelled" or now - self.label_changed_at >= self.LABEL_INTERVAL:
+            if new_label != self.label or not self.seen:
+                self.label, self.label_changed_at = new_label, now
+            self.pending_label = None
+        elif new_label == self.label:
+            self.pending_label = None
+        else:
+            self.pending_label = new_label
+        self.active, self.seen, self.fade_at = True, True, None
+
+    def finish(self, label, now):
+        if not self.seen or not self.active:
+            return
+        self.active = False
+        self.pending_label = None
+        if label == "Cancelled":
+            self.label, self.label_changed_at = "Cancelled", now
+        self.fade_at = now + self.IDLE_HOLD
+
+    def tick(self, now):
+        if self.active and self.pending_label is not None and now - self.label_changed_at >= self.LABEL_INTERVAL:
+            self.label, self.label_changed_at = self.pending_label, now
+            self.pending_label = None
+        if not self.active and self.fade_at is not None and now >= self.fade_at + self.FADE_DURATION:
+            self.seen, self.fade_at = False, None
+
+    def opacity(self, now):
+        if self.fade_at is None or now <= self.fade_at:
+            return 255
+        return max(0, round(255 * (1 - (now - self.fade_at) / self.FADE_DURATION)))
 
 
 class ActivityOverlay:
@@ -138,8 +181,9 @@ class ActivityOverlay:
             scale = 1.0
         px = lambda value: round(value * scale)
         width, height, button_size = px(264), px(44), px(32)
-        state = {"area": None, "label": "Ready", "trace": None, "deadline": 0,
-                 "hidden": False, "seen": False, "hover": False, "pressed": False}
+        state = {"area": None, "trace": None, "deadline": 0,
+                 "hidden": False, "hover": False, "pressed": False}
+        presentation = _ActivityPresentation()
         frame = panel = button = None
         original_button_proc = None
         transparent = 0x00010101
@@ -176,7 +220,7 @@ class ActivityOverlay:
                     old_pen = gdi.SelectObject(dc, panel_pen)
                     old_brush = gdi.SelectObject(dc, panel_brush)
                     gdi.RoundRect(dc, 0, 0, area.right, area.bottom, px(16), px(16))
-                    dot = ready_brush if state["label"] == "Ready" else active_brush
+                    dot = ready_brush if presentation.label == "Ready" else active_brush
                     gdi.SelectObject(dc, dot)
                     gdi.SelectObject(dc, gdi.GetStockObject(8))  # NULL_PEN
                     gdi.Ellipse(dc, px(15), px(19), px(21), px(25))
@@ -188,7 +232,7 @@ class ActivityOverlay:
                     gdi.SelectObject(dc, status_font)
                     gdi.SetTextColor(dc, 0x00C8C8C8)
                     status_area = RECT(px(101), 0, area.right - px(42), area.bottom)
-                    user.DrawTextW(dc, _status_text(state["label"]), -1, C.byref(status_area), 0x20 | 0x04 | 0x800 | 0x8000)
+                    user.DrawTextW(dc, presentation.label, -1, C.byref(status_area), 0x20 | 0x04 | 0x800 | 0x8000)
                     gdi.SelectObject(dc, old_font)
                     gdi.SelectObject(dc, old_brush)
                     gdi.SelectObject(dc, old_pen)
@@ -285,7 +329,7 @@ class ActivityOverlay:
             frame = user.CreateWindowExW(passive_style, class_name, "DeskPilot activity", 0x80000000, 0, 0, 1, 1, None, None, instance, None)
             panel = user.CreateWindowExW(passive_style, class_name, "DeskPilot status", 0x80000000, 0, 0, width, height, None, None, instance, None)
             # A real native button keeps its accessible name and button role; only this small area accepts input.
-            button_style = 0x00000080 | 0x08000000 | 0x00000008
+            button_style = 0x00080000 | 0x00000080 | 0x08000000 | 0x00000008
             button = user.CreateWindowExW(button_style, "BUTTON", "Close DeskPilot status", 0x80000000,
                                           0, 0, button_size, button_size, None, None, instance, None)
             if not frame or not panel or not button:
@@ -293,11 +337,13 @@ class ActivityOverlay:
             original_button_proc = user.SetWindowLongPtrW(button, -4, C.cast(button_callback, C.c_void_p))
             if not original_button_proc:
                 raise OSError("Button subclass failed")
-            user.SetLayeredWindowAttributes(frame, transparent, 255, 1)
-            user.SetLayeredWindowAttributes(panel, transparent, 255, 1)
+            user.SetLayeredWindowAttributes(frame, transparent, 255, 3)
+            user.SetLayeredWindowAttributes(panel, transparent, 255, 3)
+            user.SetLayeredWindowAttributes(button, 0, 255, 2)
             self._ready.set()
             running = True
             panel_position = frame_position = None
+            panel_opacity = 255
             dirty = True
             while running:
                 acknowledgements = []
@@ -307,10 +353,12 @@ class ActivityOverlay:
                     except queue.Empty:
                         break
                     if name == "update":
-                        state.update(area=value[0], label=value[1], trace=value[2], deadline=time.monotonic() + 2, seen=True)
+                        now = time.monotonic()
+                        state.update(area=value[0], trace=value[2], deadline=now + 2)
+                        presentation.update(value[1], now)
                         dirty = True
                     elif name == "finish":
-                        state.update(area=None, label=value, trace=None)
+                        presentation.finish(value, time.monotonic())
                         dirty = True
                     elif name == "hide":
                         state["hidden"] = True
@@ -320,7 +368,11 @@ class ActivityOverlay:
                         running = False
                     if acknowledged:
                         acknowledgements.append(acknowledged)
-                visible = state["seen"] and not state["hidden"] and not self._dismissed.is_set() and running
+                now = time.monotonic()
+                previous_label = presentation.label
+                presentation.tick(now)
+                dirty |= previous_label != presentation.label
+                visible = presentation.seen and not state["hidden"] and not self._dismissed.is_set() and running
                 if visible:
                     work = RECT()
                     if not user.SystemParametersInfoW(0x0030, 0, C.byref(work), 0):
@@ -333,6 +385,12 @@ class ActivityOverlay:
                                           top + (height - button_size) // 2, button_size, button_size, 0x0010 | 0x0040)
                         panel_position = position
                         dirty = True
+                    opacity = presentation.opacity(now)
+                    if opacity != panel_opacity:
+                        user.SetLayeredWindowAttributes(frame, transparent, opacity, 3)
+                        user.SetLayeredWindowAttributes(panel, transparent, opacity, 3)
+                        user.SetLayeredWindowAttributes(button, 0, opacity, 2)
+                        panel_opacity = opacity
                     if dirty:
                         user.InvalidateRect(panel, None, False)
                 elif panel_position is not None:
@@ -340,7 +398,7 @@ class ActivityOverlay:
                     user.ShowWindow(button, 0)
                     panel_position = None
                 area = state["area"]
-                if visible and area and time.monotonic() < state["deadline"]:
+                if visible and area and now < state["deadline"]:
                     position = (area["x"], area["y"], area["width"], area["height"])
                     if frame_position != position:
                         user.SetWindowPos(frame, W.HWND(-1), *position, 0x0010 | 0x0040)

@@ -186,16 +186,16 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows_overlay.py",
-      "bytes": 19501,
-      "sha256": "93b1e2ab4cffcbde382549db3990cb99730b387f271b6db7039c83a6fc062330",
+      "bytes": 21575,
+      "sha256": "0b58e75d1443e25219cc936c5977e881de1d5afd3213096fb345f2c9925e688a",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows_overlay.py"
     },
     {
       "path": "scripts/deskpilot/platforms/windows.py",
-      "bytes": 50131,
-      "sha256": "547c0b9b03c6d3aaea487d71d4a127b0022fd207680eb693c037779c8fe138b9",
+      "bytes": 50267,
+      "sha256": "937d9ffd0df76f404c767c56ebd1e258d76d993655a6fe1c72353e4f1d71a988",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows.py"
@@ -218,8 +218,8 @@
     },
     {
       "path": "scripts/deskpilot/session.py",
-      "bytes": 64096,
-      "sha256": "bb2fbe32154d7bb19b6e50fb2c81c05c28e9bf0dfd18bab62ba9f55663d3c399",
+      "bytes": 64630,
+      "sha256": "374fa82c3608b70ec1868b9765b88df33a1f826a5b7e084f059b764e325c278f",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/session.py"
