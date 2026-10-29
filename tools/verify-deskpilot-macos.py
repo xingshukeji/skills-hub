@@ -298,6 +298,8 @@ def verify(output):
                 client.call("ui.click", ref)
                 wait_for(lambda: read_json(state_path), lambda value: value["focused"] == "input", description="native input focus")
                 client.call("input.hotkey", {"title_exact": title, "keys": ["CMD", "A"]})
+                wait_for(lambda: read_json(state_path), lambda value: value["input_selection_length"] == len("原生中文赋值 12345"),
+                         description="Command+A native field selection")
                 client.call("input.type", {"title_exact": title, "text": "键盘中文输入 67890"})
                 wait_for(lambda: read_json(state_path), lambda value: value["input"] == "键盘中文输入 67890")
                 ref, _ = find("apply")

@@ -32,6 +32,20 @@ final class Fixture: NSObject, NSApplicationDelegate {
             window.title = args[1]
             window.orderFrontRegardless()
         } else {
+            let menu = NSMenu()
+            let applicationItem = NSMenuItem()
+            menu.addItem(applicationItem)
+            let applicationMenu = NSMenu()
+            applicationMenu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            applicationItem.submenu = applicationMenu
+            let editItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+            menu.addItem(editItem)
+            let editMenu = NSMenu(title: "Edit")
+            let selectAll = NSMenuItem(title: "Select All", action: NSSelectorFromString("selectAll:"), keyEquivalent: "a")
+            selectAll.keyEquivalentModifierMask = .command
+            editMenu.addItem(selectAll)
+            editItem.submenu = editMenu
+            NSApplication.shared.mainMenu = menu
             window = NSWindow(contentRect: NSRect(x: 100, y: 120, width: 850, height: 630),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             window.title = args[1]
@@ -103,6 +117,7 @@ final class Fixture: NSObject, NSApplicationDelegate {
         if !blocker {
             state["input"] = input.stringValue
             state["input_editor"] = input.currentEditor()?.string ?? "<not editing>"
+            state["input_selection_length"] = (input.currentEditor() as? NSTextView)?.selectedRange().length ?? 0
             state["multiline"] = multiline.string
             state["readonly"] = readonly.stringValue
             state["password_empty"] = password.stringValue.isEmpty
