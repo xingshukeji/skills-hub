@@ -186,8 +186,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows_overlay.py",
-      "bytes": 10056,
-      "sha256": "f5a212e8cbf7ed8dd21548883bf8c7aeb24971e34bdd15dd81a2e62d33d69bc4",
+      "bytes": 19501,
+      "sha256": "93b1e2ab4cffcbde382549db3990cb99730b387f271b6db7039c83a6fc062330",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows_overlay.py"

@@ -42,6 +42,8 @@
 | interaction.cancel / close | 取消或关闭，取消可在长请求期间并发写入 |
 | chrome.* | 连接、选择器、输入和等待见[浏览器](browser.md) |
 
+Windows 的状态提示可用右侧关闭按钮收起；这只关闭提示和动作边框，不会取消当前操作。同一个进程内提示不会自动重新出现，新进程可再次显示。若调用方明确要求 `overlay_required: true`，用户关闭提示后的后续操作会报告 `OVERLAY_UNAVAILABLE`，避免将未显示的提示当作已显示。
+
 查找 require_unique: true 要求所搜索范围只有一个匹配且未截断，否则返回 ELEMENT_NOT_FOUND、ELEMENT_NOT_UNIQUE 或 UI_AUTOMATION_INCOMPLETE。树深度也可能排除深层控件。Windows 已知准确 automation_id 时可用 search_scope: subtree，见[桌面](desktop.md)。
 
 ## 短批次
