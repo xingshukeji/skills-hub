@@ -86,8 +86,10 @@ final class Fixture: NSObject, NSApplicationDelegate {
             NSApplication.shared.activate(ignoringOtherApps: true)
         }
         writeState()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.writeState() }
+        timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(tick(_:)), userInfo: nil, repeats: true)
     }
+
+    @objc func tick(_ timer: Timer) { writeState() }
 
     @objc func applyValue() {
         clicks += 1
@@ -120,8 +122,14 @@ final class Fixture: NSObject, NSApplicationDelegate {
     }
 }
 
-let app = NSApplication.shared
-let delegate = Fixture()
-app.delegate = delegate
-app.setActivationPolicy(delegate.blocker ? .accessory : .regular)
-app.run()
+@main
+@MainActor
+struct FixtureApplication {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = Fixture()
+        app.delegate = delegate
+        app.setActivationPolicy(delegate.blocker ? .accessory : .regular)
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

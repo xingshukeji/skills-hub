@@ -138,7 +138,7 @@ def app_bundle(source, parent, name, identifier, *, background=False):
     if background:
         info["LSUIElement"] = True
     (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
-    run(["/usr/bin/xcrun", "swiftc", "-swift-version", "5", "-O", "-framework", "AppKit", source, "-o", executable], timeout=180)
+    run(["/usr/bin/xcrun", "swiftc", "-swift-version", "5", "-parse-as-library", "-O", "-framework", "AppKit", source, "-o", executable], timeout=180)
     run(["/usr/bin/codesign", "--force", "--sign", "-", bundle])
     return bundle, executable
 

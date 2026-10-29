@@ -29,8 +29,14 @@ final class PermissionProbe: NSObject, NSApplicationDelegate {
     }
 }
 
-let app = NSApplication.shared
-let delegate = PermissionProbe()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()
+@main
+@MainActor
+struct PermissionApplication {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = PermissionProbe()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}
