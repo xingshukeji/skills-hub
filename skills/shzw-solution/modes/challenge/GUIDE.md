@@ -15,7 +15,7 @@ Do not author the missing proposal, revise the reviewed artifact, implement it, 
 
 ## Challenge the Proposal
 
-Apply each dimension below to the fixed review scope. Explain a non-applicable dimension briefly when it matters; do not manufacture a finding or require a standard report table. Lead with concrete findings, ordered by impact:
+First apply the skill's [机制取舍](../../SKILL.md#机制取舍): distinguish the user's required outcome from mechanisms added by the proposal. Test whether a troublesome mechanism can be removed or returned to an existing owner before proposing more validation, state or recovery logic. Review the dimensions relevant to the fixed scope; do not manufacture findings or require a standard report table. Lead with concrete findings, ordered by impact:
 
 - **Necessity**: Can the outcome be achieved by an existing owner or simpler mechanism?
 - **Scope**: Does the proposal change unrelated tasks, projects, users, phases, skills, documents, or runtime behavior?
@@ -26,11 +26,11 @@ Apply each dimension below to the fixed review scope. Explain a non-applicable d
 - **Completion and failure**: Are success, stopping conditions, validation, rollback, and unresolved decisions observable and proportionate?
 - **Counterexamples**: Test at least one nearby case that should be covered and one that must remain outside the proposal.
 
-Do not manufacture objections for balance. Preserve parts supported by evidence and distinguish blocking findings from optional improvements.
+A blocking finding needs a reachable case, the required behavior it violates and a material consequence. Missing exhaustive proof or an optional diagnostic is not by itself a product defect. Report a simpler design when it preserves the required behavior; do not treat every proposed mechanism as an invariant that the next revision must repair. Preserve necessary identity, authorization, concurrency and commit guarantees.
 
 ### Trace new mechanisms to their consumers
 
-On a revised proposal, separate the original issue from mechanisms introduced by its repair. Start from each material new or changed fact, constraint or artifact; follow its producer through the actual serialization, transfer or persistence boundary to the reader that decides or acts on it. Name these consumers from source, types or authoritative contracts. A component list or a successful producer-side check is not evidence that consumers preserve the rule.
+For a necessary mechanism, separate the original issue from mechanisms introduced by its repair. Follow each material changed fact or constraint through its actual transfer or persistence boundary to the reader that decides or acts on it. If the mechanism is removed, check the affected consumers and retained guarantees instead of completing its obsolete lifecycle. Name consumers from source, types or authoritative contracts; a component list or producer-side check does not prove their behavior.
 
 At each affected boundary, check whether identity, version, authority, resource budget and failure meaning survive. Include a background worker, callback, old reader, generated file reused as input, or cleanup path only when it can actually consume the changed mechanism. Distinguish guarantees enforced at that consumer from declarations and diagnostic identifiers; do not extend a transaction or process-local guarantee across a boundary without a supporting contract.
 

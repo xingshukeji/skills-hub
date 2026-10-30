@@ -12,7 +12,7 @@ Use this skill only for a requested solution or a controlled technical change un
 
 This skill is Development-only. A coding-ready solution defines the scoped verification needed for the requested result, including actual consumer or UI behavior when required, and may name a possible candidate output. It must not add an independent system-test campaign or deployment sequence as implementation steps. Route an explicitly requested SystemTest objective to its skill, which separately chooses control strength and persistence; Deployment always receives its own durable controlled task and plan. Do not call either a project or session phase transition.
 
-An explicit implementation request authorizes its necessary planning and coding within scope once the coding-ready gate below is satisfied. Do not require separate direction approval when existing authorization and facts settle it. A solution-only request authorizes the requested design deliverable, not coding. If a blocking fact or observable acceptance surface is missing, pause dependent implementation and continue independent authorized work.
+An explicit implementation request authorizes its necessary planning and coding within scope once the implementation readiness conditions below are satisfied. Do not require separate direction approval when existing authorization and facts settle it. A solution-only request authorizes the requested design deliverable, not coding. If a blocking fact or observable acceptance surface is missing, pause dependent implementation and continue independent authorized work.
 
 ## Artifact delivery
 
@@ -40,7 +40,7 @@ Reuse current root `AGENTS.md`, `文档/TASK_CONTROL.md` and matched project con
 
 ### Requested solution or review
 
-Use a decision table when comparing choices; a simple decision can use concise prose. Cover the relevant fields:
+Apply the skill's [机制取舍](../../SKILL.md#机制取舍) before elaborating interfaces or failure protocols. Establish the smallest usable flow and add only mechanisms with a concrete unmet need. Use a decision table for material choices; a simple decision can use concise prose. Cover the relevant fields:
 
 | Outcome / decision | Current support | Required change | Owner | Evidence | Open decision |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ Use a decision table when comparing choices; a simple decision can use concise p
 - Group closely related surfaces and actions by business capability; do not repeat every component, field, endpoint, test class, or historical detail in the main plan.
 - State the recommended order and known prerequisites that could prevent delivery. Resolve discoverable capability, artifact, environment and access facts before presenting material decisions. Verify the actual supported consumer path and representative data shape before dependent work; for a result spanning components, keep one owner of the complete outcome and require evidence from its actual consumer. Reuse matching evidence and repeat only checks affected by a change, failure or unresolved concern. Authorization continuity follows the target WorkflowContract.
 - Distinguish already authorized work, a requested design deliverable, and work blocked by a concrete product/ownership decision.
-- State schema, migration, public-contract, operational, or compatibility impact only when the outcome reaches that boundary. Name concrete assets only when verified. For a new or changed mechanism, identify who writes it and who subsequently reads, executes or reuses it; state where its guarantee ends and how the affected consumer demonstrates success or failure. Include mechanisms introduced while repairing the proposal, without expanding a small change into a universal layer checklist.
+- State schema, migration, public-contract, operational, or compatibility impact only when affected. For a mechanism worth retaining, identify its owner and real consumer, the unmet need and the evidence that its guarantee holds. For a removed mechanism, identify which dependent behavior must change. Do not turn diagnostic conveniences or hypothetical failure combinations into new runtime gates.
 - Resolve questions from supplied materials, settled decisions and supported capabilities first. Make ordinary implementation choices when the evidence is sufficient. Group the remaining material product choices by their shared consequence; present the evidence, two or three mutually exclusive options and a recommendation. Do not ask field by field or reopen settled scope. Pause only the dependent part; a repairable source-data issue does not by itself block the rest of a model.
 - Give a short explicit list of rejected/non-goal legacy behavior so review does not reopen it accidentally.
 
@@ -59,18 +59,7 @@ Use exact paths, routes, contracts, tables, jobs, and owners only to substantiat
 
 ### Working plan for authorized implementation or requested detail
 
-Cover these items in substance, using only the structure needed by the task:
-
-1. Goal and Scope
-2. Facts and Sources
-3. Plan and Change Boundary
-4. Agent Constraints
-5. Success Criteria
-6. Stop Implementation Conditions
-7. Verification
-8. Open Questions and Non-Goals
-
-Use exact paths, routes, contracts, tables, jobs, and owners when verified. Separate verified facts from assumptions and inferences. For phased work, state prerequisites, this phase's stopping boundary, downstream handoff, and explicit exclusions.
+State the intended behavior, bounded change, responsible owner and direct evidence of success. Include only actual prerequisites, affected compatibility or data boundaries, and material unresolved choices. Separate verified facts from assumptions. A short plan can cover these points in a paragraph; extra headings, task records and approval rounds are not evidence of readiness.
 
 ## Bound complex work before sustained execution
 
@@ -88,20 +77,9 @@ Keep this working state in the current plan; use the existing ChangePlan only wh
 
 Use the [bounded execution examples](references/bounded-execution-examples.md) to check this method against complex work, small fixes and unchanged evidence.
 
-## Coding-ready gate
+## Implementation readiness
 
-Do not hand the plan to coding unless:
-
-- it preserves the direction contract without redefining its outcome, invariants, ownership, or completion rule;
-- the allowed change surface and prohibited dependencies are explicit;
-- critical behavior is grounded in source, measured state, or an authoritative contract;
-- success is observable through named UI actions, tests, APIs, CLI output, artifacts, or database checks;
-- validation commands/checks are concrete and proportionate to risk;
-- Development completion evidence covers the requested result and its necessary checks, with repository state reported separately; SystemTest or Deployment appears only when the user requested or the workflow actually established those independent tasks;
-- missing facts, unavailable secrets/access, unauthorized expansion, and unresolved product choices are stop conditions;
-- non-goals prevent scope drift.
-
-Agent constraints must directly state what to read, what may/must not change, required validation, secret limits, and behavior that must remain stable.
+Proceed with authorized implementation when the behavior, change boundary, necessary facts and observable verification are clear. Preserve the user's required result and real authorization/data constraints. A missing fact stops only an action whose correctness depends on it; routine choices, optional diagnostics and unneeded proof do not become approval gates. Run the checks that establish the result, and report repository state separately. SystemTest and Deployment remain separate only when explicitly established by the user or workflow.
 
 Before coding any controlled technical change, establish its A→B delta, agent constraints, observable success criteria and stop conditions. For temporary execution, keep that plan in the current task and do not create persistence artifacts. For durable recovery, register the unfinished task and save exactly one `Kind: ChangePlan`, `Workflow: WF-0002` document under the project's or workspace's `推进中/` directory. `Draft` does not authorize coding. A persisted ChangePlan must depend on at least one actual durable formal owner and state the delta that owner will receive when its facts change; CurrentDesign is required only for capability-design changes.
 

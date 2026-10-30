@@ -1,111 +1,33 @@
-# Review-first technical solution template
+# 技术方案提纲
 
-Use this outline for a requested solution document or detailed handoff. An authorized implementation may use a compact working plan; the outline is not an extra approval gate or a required file-by-file recipe.
+按任务需要选用下列内容。简短方案可以合并为几个段落，不要求逐项建章节。正式文档的位置、授权和工作流沿用 design 方法；本提纲不再增加审批或任务记录。
 
-## Artifact delivery gate
+## 用户结果与现有能力
 
-When the user explicitly asks to 输出、形成 or 给出技术方案, create or update the sole truthful formal `CurrentDesign` or `Decision` and return its path with the review summary. Do not create a `ChangePlan` unless authorized implementation also needs durable recovery. When the user asks to discuss, evaluate, challenge, stay chat-only, or avoid file changes, return the outline in chat and leave the workspace unchanged. Stop rather than create an unclassified or duplicate document when no truthful formal owner exists.
+写清用户从输入到可用结果的操作、真实业务约束，以及当前平台已经承担的责任。区分用户要求与方案作者选用的机制；用户质疑复杂度时，后者可以重新取舍。
 
-Positive case: “输出客户导入技术方案” produces a formal artifact and linked summary. Negative case: “先讨论客户导入可行性，不要改文件” produces chat-only analysis.
+## 最小改变与实质选择
 
-## 1. Direction contract
+优先完成一条可实际使用的流程。先删除重复状态、无必要的门禁或职责错位，再考虑新增逻辑。
 
-- Outcome
-- Boundary
-- This task's execution type
-- Invariants
-- Ownership
-- Completion rule
-- Material open decisions
+只有存在实质选择时才使用表格：
 
-Reuse the established direction from the request, verified facts and any earlier alignment; load `本入口的 direction 方法` only for a material unresolved direction choice.
+| 用户动作或要求 | 现有能力与缺口 | 选择及理由 | 责任方与验证 |
+|---|---|---|---|
 
-## 2. Review summary
+对影响正常操作的限制，说明具体触发、所保护的事实、现有能力为何不足及正常相邻场景。需要保留的机制写清实际消费者和作用边界；删除机制时同步列出受影响的消费者。不要为了完整填写提纲设计额外状态、协议或配置。
 
-State the recommended decision, scope, and whether the plan is ready to code.
+## 实施与验证
 
-## 3. Decision table
+按用户可以完成的动作安排顺序。给出本次变更范围、必要的前提和直接验收入口；只记录会阻断下一项实际动作的未决条件。已有授权内的普通技术选择由实施者完成。
 
-| Outcome / decision | Current support | Required change | Owner | Evidence | Open decision |
-|---|---|---|---|---|---|
+验证应覆盖正常操作、已发现故障和必须保留的权限及数据约束。指明实际命令或观察结果；不要用测试数量、文档篇幅或构建成功代替用户结果，也不为无关能力增加检查。
 
-Use only the evidence needed to support each decision. Add UI, API, data/schema, security, operations, migration, or compatibility notes only for dimensions that the outcome actually affects; name concrete assets only when verified. Group related surfaces and actions.
+兼容、迁移、部署、UI 或独立系统测试只有被本次目标实际涉及才展开。报告已验证事实和剩余缺口，Git 状态单独说明。
 
-Resolve discoverable facts and routine implementation choices within existing authorization. Present a concrete recommendation and alternatives only for a material unresolved user decision.
+## 使用示例
 
-## 4. Recommended order and boundaries
-
-- For complex work, apply the skill's “Bound complex work before sustained execution” method: finite results, unique write owners, prerequisite contracts and acceptance coverage; simple work stays direct
-- Current source/candidate baseline, existing evidence and specific gaps; one coordinator only when there are multiple execution tasks
-- Explicit rejected/non-goal behavior
-- Questions that require reviewer direction
-
-## 5. Evidence and verification
-
-- Key verified sources and material assumptions
-- Scoped white-box evidence that satisfies the completion rule
-- SystemTest or Deployment task status only when the user requested or the workflow established it
-- Repository state, reported separately from Development completion
-
----
-
-# Coding-ready supplement
-
-Use the following for authorized implementation or an explicit request for implementation detail. Existing implementation authorization also covers necessary planning. Keep the substantive constraints and acceptance explicit; use only the headings needed by the task.
-
-## 1. Goal and Scope
-
-- Problem and expected outcome
-- Included repositories/modules/contracts
-- This task's execution boundary
-- Explicit exclusions
-
-## 2. Facts and Sources
-
-| Type | Fact | Exact source/evidence |
-|---|---|---|
-| Verified |  |  |
-| Assumption/inference |  | Why it is not yet verified |
-
-## 3. Plan and Change Boundary
-
-- Independently acceptable results with their stopping points, following the skill's complex-work method when applicable
-- Exact code/document/contract touch points
-- Prerequisites and downstream handoff
-- Consumer or migration impact
-
-## 4. Agent Constraints
-
-- Read first
-- May change
-- Must not change
-- Behavior to preserve
-- Required validation
-- Secret/access limits
-
-## 5. Success Criteria
-
-Use observable outcomes only and preserve the completion rule from the direction contract:
-
-- UI: named route, interaction, state, and visible result
-- Backend/infrastructure: named tests, API assertions, CLI output, generated artifact, or direct database query/state
-
-## 6. Stop Implementation Conditions
-
-Stop when a required fact conflicts or remains unverified, scope needs unauthorized expansion, a forbidden dependency must change, required access is unavailable, no observable acceptance surface exists, or a product/ownership decision remains blocking.
-
-## 7. Verification
-
-- Exact scoped build/typecheck/test commands that provide white-box completion evidence
-- Selected Development-scoped API/CLI/browser/database checks; route broad candidate testing to a separate SystemTestPlan
-- Evidence or report required by current runbook
-- Risk-based regression checks
-- SystemTest, Deployment, and repository state, without using them to reverse the Development verdict
-
-## 8. Open Questions and Non-Goals
-
-Keep only non-blocking questions here. List non-goals explicitly; identify which work each blocking question prevents and continue independent authorized work.
-
-## Gate
-
-Before handoff, confirm the preserved direction contract, explicit boundary, grounded facts, direct constraints, observable criteria, stop conditions, concrete verification, and non-goals. When a correction changes the direction contract, rewrite all dependent sections and delete incompatible wording rather than appending an exception.
+- “输出客户导入技术方案”：更新既有设计所有者，说明服务端完整预检、用户确认和分块恢复怎样形成可用结果，并给出实际入口验收。
+- “把这个导入方案简化”：先判断额外令牌、客户端台账、提交后核对等机制的独立必要性，再更新受影响合同；不默认保留每项机制并继续补洞。
+- “只评审，不改文件”：在对话中给出有证据的结论和建议，保留文件。
+- “按已确认方案执行”：完成必要工作计划后直接实施及验证，不把本提纲变成另一轮方案交付。
