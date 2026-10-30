@@ -2,7 +2,7 @@
 
 本指南把已验证的独立结果提交到目标仓库的当前分支并推送。Git 收口不改变功能结论，也不授权发布应用包或部署服务。目标仓库、分支和必要验证由用户请求与项目入口确定；本目录提供收口工具。
 
-通过 node scripts/run-git-closeout.mjs 执行本指南中的同步、git add、git commit 和 git push。工具使用具体文件路径；默认操作当前主 checkout 的 origin/main。只有用户明确要求已有的其他分支或已有 worktree 时，才传入 --branch 或 --allow-linked-worktree。
+通过 node scripts/run-git-closeout.mjs 执行本指南中的同步、git add、git commit 和 git push。工具使用具体文件路径；默认操作当前主 checkout 的 origin/main。用户明确要求其他分支，或责任项目要求使用任务分支时，传入该分支；只有用户对本任务明确要求使用 worktree 时才传入 --allow-linked-worktree。
 
 ## 先确认范围
 
@@ -21,6 +21,7 @@
 | 本次文件已有暂存内容 | 核实该文件的暂存和工作副本全部属于本次且已验证后，传入 --include-staged-owned；否则保留现场并停止该范围。 |
 | 所选文件的归属无法确定 | 停止该范围；不取消其他会话的暂存，不猜测归属。混合文件中的本次内容可独立核实且依赖完整时，使用经验证的候选 tree。 |
 | 本地有较早的未推送提交，远端是其祖先 | 可以提交当前已验证且完整归属的文件。工具等待前一个提交由其责任方推送后，再推送本次确切提交。 |
+| 责任项目要求新任务分支，远端尚无该分支 | 明确目标分支和远端基础分支，确认本地任务分支的 HEAD 等于最新远端基础分支，再使用下文的 `--new-branch-base`。工具只创建尚不存在的远端分支，不推送未归属的父提交。 |
 | 工作文件无差异，但本地有未推送提交 | 不把它报告为无变更完成。核实提交 SHA、完整差异、归属和验证后，用 push-commit 接续本任务的确切提交。 |
 | 全仓检查因其他会话尚未完成的改动失败 | 先核实失败归属及依赖。若本次结果能够独立验证，使用下述候选快照运行同一必要检查；同时报告共享工作目录的失败。若两者无法分离或项目要求检查共享集成状态，停止收口。 |
 | 远端领先且可以安全快进 | 工具自动获取并快进，然后返回 `synchronized_recheck`；检查上游变化并重做受影响的验证，再继续收口。 |
@@ -42,6 +43,16 @@ node .agents/support/shzw-git-closeout/scripts/run-git-closeout.mjs --mode commi
 ~~~
 
 --mode check 检查路径、暂存重叠和远端状态，不提交或推送。结果中的 pendingParentCommits 表示当前分支还有较早的本地提交；它不证明这些提交可以由本次任务推送。
+
+### 首次推送任务分支
+
+按责任项目的分支规则从最新远端基础分支建立本地任务分支并完成验证。远端没有同名分支时，显式提供任务分支和基础分支；不传该参数时，远端缺分支仍停止。`check` 只核对，不创建远端分支。
+
+~~~powershell
+node .agents/support/shzw-git-closeout/scripts/run-git-closeout.mjs --mode commit-push --repo . --branch fix/example --new-branch-base main --verification "定向检查及改动归属已核对" --message "fix: example" --path path/to/owned-file
+~~~
+
+首次创建前工具核对任务分支 HEAD 与远端基础分支完全一致，防止推送其他人的未发布提交；提交后再次核对基础分支和目标分支。远端分支创建使用空期望值进行原子校验，只能创建不存在的分支，不能覆盖已有分支。若并发创建、基础分支变化或推送结果不明，保留本地提交并报告；若分支已经创建而基础分支随即变化，也会报告已发布并要求合并前复验。`push-commit` 可带相同参数接续确切提交，但仍要求其父提交等于当前远端基础分支。
 
 ### 同步后继续
 
@@ -103,6 +114,6 @@ skip_no_changes 只在选中路径无工作副本差异且本地和远端一致�
 
 ## 验证方法
 
-维护 scripts/run-git-closeout.test.mjs。测试至少覆盖明确文件提交、验证 tree 的混合文件交付、无关暂存保留、选中路径暂存拒绝、并发提交、等待父提交和接续指定 SHA、钩子更改内容、忽略文件、空远端初始化、安全快进、重叠文件保留与拒绝以及真实推送拒绝。验证工具自身修改时，运行该测试、技能校验、项目要求的文档检查及本次文件的差异检查。
+维护 scripts/run-git-closeout.test.mjs。测试至少覆盖明确文件提交、验证 tree 的混合文件交付、无关暂存保留、选中路径暂存拒绝、并发提交、等待父提交和接续指定 SHA、钩子更改内容、忽略文件、空远端初始化、新任务分支的基础与并发创建保护、安全快进、重叠文件保留与拒绝以及真实推送拒绝。验证工具自身修改时，运行该测试、技能校验、项目要求的文档检查及本次文件的差异检查。
 
 路径提交思路参考 [Beryl 的多智能体 Git 技能](https://github.com/berylorg/beryl/blob/main/.agents/skills/multi-agent-vcs/SKILL.md) 和 [Git commit 文档](https://git-scm.com/docs/git-commit)。这些来源不能代替本仓对提交钩子、共同索引和推送后状态的实际验证。

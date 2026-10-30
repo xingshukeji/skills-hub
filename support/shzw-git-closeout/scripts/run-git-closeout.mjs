@@ -55,6 +55,10 @@ function parseArgs(argv) {
         break;
       case "--branch":
         options.branch = value;
+        options.explicitBranch = true;
+        break;
+      case "--new-branch-base":
+        options.newBranchBase = value;
         break;
       case "--message":
         options.message = value;
@@ -111,6 +115,10 @@ function parseArgs(argv) {
   }
   if (options.sourceRoot && options.mode !== "snapshot") {
     throw new CloseoutError("invalid_arguments", "--source-root is only valid with snapshot.", {}, 1);
+  }
+  if (options.newBranchBase && (!options.explicitBranch || !new Set(["check", "commit-push", "commit-tree", "push-commit"]).has(options.mode) ||
+      options.newBranchBase === options.branch || options.newBranchBase.startsWith("-"))) {
+    throw new CloseoutError("invalid_arguments", "--new-branch-base requires an explicit target branch, a distinct base, and a check or commit/push mode.", {}, 1);
   }
   if (!Number.isInteger(options.waitSeconds) || options.waitSeconds < 0 || options.waitSeconds > 60) {
     throw new CloseoutError("invalid_arguments", "--wait-seconds must be an integer from 0 to 60.", {}, 1);
@@ -243,6 +251,9 @@ function assertCheckout(repo, options) {
   if (branchCheck.status !== 0) {
     throw new CloseoutError("invalid_target", `Branch ${options.branch} is not a valid branch name.`, {}, 1);
   }
+  if (options.newBranchBase && runGit(repo, ["check-ref-format", "--branch", options.newBranchBase], { allowFailure: true }).status !== 0) {
+    throw new CloseoutError("invalid_target", "The new branch base is not a valid branch name.");
+  }
 
   const branch = gitText(repo, ["branch", "--show-current"]);
   if (branch !== options.branch) {
@@ -304,10 +315,6 @@ function remoteHeadRecords(repo, remote) {
   });
 }
 
-function remoteHeads(repo, remote) {
-  return remoteHeadRecords(repo, remote).map(({ ref }) => ref);
-}
-
 function syncCounts(repo, remote, branch) {
   runGit(repo, ["fetch", "--no-tags", remote, branch]);
   const output = gitText(repo, ["rev-list", "--left-right", "--count", `HEAD...${remote}/${branch}`]);
@@ -319,9 +326,22 @@ function syncCounts(repo, remote, branch) {
 }
 
 function assertInitiallySynchronized(repo, options) {
-  const heads = remoteHeads(repo, options.remote);
+  const records = remoteHeadRecords(repo, options.remote);
+  const heads = records.map(({ ref }) => ref);
   const expectedRef = `refs/heads/${options.branch}`;
   if (!heads.includes(expectedRef)) {
+    if (options.newBranchBase) {
+      const baseRef = `refs/heads/${options.newBranchBase}`;
+      const remoteBase = records.find(({ ref }) => ref === baseRef);
+      if (!remoteBase || !hasLocalHead(repo)) throw new CloseoutError("new_branch_base_missing", "The named remote base must already exist.");
+      runGit(repo, ["fetch", "--no-tags", options.remote, options.newBranchBase]);
+      const base = gitText(repo, ["rev-parse", `${options.remote}/${options.newBranchBase}`]);
+      const head = gitText(repo, ["rev-parse", "HEAD"]);
+      if (base !== remoteBase.sha || head !== base) {
+        throw new CloseoutError("new_branch_base_changed", "The new branch must start at the current remote base; synchronize and reverify first.", { head, base, observedBase: remoteBase.sha });
+      }
+      return { newBranch: true, base, ahead: 0, behind: 0 };
+    }
     if (!hasLocalHead(repo) && heads.length === 0) {
       return { initializeRemote: true };
     }
@@ -329,6 +349,7 @@ function assertInitiallySynchronized(repo, options) {
       remoteHeads: heads,
     });
   }
+  if (options.newBranchBase) throw new CloseoutError("new_branch_already_exists", "The named remote branch already exists; review it before proceeding.");
   if (!hasLocalHead(repo)) {
     throw new CloseoutError("history_not_synchronized", "Local and remote history must match before closeout.", {
       ahead: 0,
@@ -612,10 +633,31 @@ function publishCommit(repo, options, sha, changedFiles) {
     assertCheckout(repo, options);
     const remote = currentRemoteHead(repo, options);
     if (remote.sha && isAncestor(repo, sha, remote.sha)) {
+      if (options.newBranchBase) {
+        const base = remoteHeadRecords(repo, options.remote).find(({ ref }) => ref === `refs/heads/${options.newBranchBase}`);
+        if (!base || base.sha !== parent) {
+          throw new CloseoutError("new_branch_base_changed_after_push", "The branch was published, but its base changed; reverify before merging.",
+            { sha, parent, remoteHead: remote.sha, baseHead: base?.sha || null, branchPublished: true }, 3);
+        }
+      }
       return { status: "pushed", sha, changedFiles, remote: options.remote, branch: options.branch, remoteHead: remote.sha };
     }
     if (successfulPush) {
       throw new CloseoutError("push_not_verified", "Push returned successfully but the remote no longer contains this commit.", { sha, remoteHead: remote.sha }, 3);
+    }
+    if (options.newBranchBase) {
+      const base = remoteHeadRecords(repo, options.remote).find(({ ref }) => ref === `refs/heads/${options.newBranchBase}`);
+      if (remote.sha || !parent || !base || base.sha !== parent) {
+        throw new CloseoutError("new_branch_remote_changed", "The new branch or its base changed; the local commit was not pushed.", { sha, parent, remoteHead: remote.sha, baseHead: base?.sha || null }, 3);
+      }
+      if (failedPush) {
+        throw new CloseoutError("push_failed", "The local commit exists but new-branch creation failed.", { sha, stderr: sanitizeGitOutput(failedPush.stderr.trim()) }, 3);
+      }
+      // The empty expected value makes this an atomic create-only operation;
+      // it cannot overwrite a branch that appears after the preflight.
+      failedPush = runGit(repo, ["push", `--force-with-lease=refs/heads/${options.branch}:`, options.remote, `${sha}:refs/heads/${options.branch}`], { allowFailure: true });
+      if (failedPush.status === 0) { failedPush = null; successfulPush = true; }
+      continue;
     }
     const canPush = parent ? remote.sha === parent : !remote.sha && remote.heads.length === 0;
     if (canPush) {
@@ -916,6 +958,7 @@ function main() {
       remote: options.remote,
       branch: options.branch,
       initializeRemote: syncState.initializeRemote,
+      ...(syncState.newBranch ? { newBranch: true, base: syncState.base } : {}),
       pendingParentCommits: syncState.ahead || 0,
       verification: options.verification.trim(),
     };

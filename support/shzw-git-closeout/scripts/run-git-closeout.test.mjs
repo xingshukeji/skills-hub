@@ -146,6 +146,156 @@ test("initializes an entirely empty origin main with one exact commit", (t) => {
   assert.equal(git(fixture.repo, ["status", "--short"]), "");
 });
 
+test("creates a requested task branch from an exact published base and pushes only owned files", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  write(path.join(fixture.repo, "other.txt"), "other work\n");
+  const args = ["--branch", "fix/task", "--new-branch-base", "main", "--path", "owned.txt"];
+  const check = run(fixture.repo, ["--mode", "check", ...args]);
+  assert.equal(check.status, 0, check.stdout);
+  assert.equal(check.json.newBranch, true);
+  assert.equal(check.json.base, base);
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]), "");
+  const result = run(fixture.repo, ["--mode", "commit-push", "--message", "test: new branch", ...args]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.json.status, "pushed");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD^" ]), base);
+  assert.equal(git(fixture.repo, ["show", "--pretty=", "--name-only", "HEAD"]), "owned.txt");
+  assert.equal(git(fixture.repo, ["status", "--short"]), "M other.txt");
+  assert.equal(git(fixture.repo, ["rev-parse", "refs/remotes/origin/fix/task"]), git(fixture.repo, ["rev-parse", "HEAD"]));
+});
+
+test("new task branch requires a current remote base and no unpublished parent", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  write(path.join(fixture.repo, "other.txt"), "unpublished parent\n");
+  git(fixture.repo, ["add", "other.txt"]);
+  git(fixture.repo, ["commit", "-m", "unpublished"]);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const result = run(fixture.repo, ["--mode", "commit-push", "--branch", "fix/task", "--new-branch-base", "main", "--message", "test: task", "--path", "owned.txt"]);
+  assert.equal(result.json.code, "new_branch_base_changed");
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]), "");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "task change\n");
+});
+
+test("new branch creation requires an explicitly named target and an existing base", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const implicit = run(fixture.repo, ["--mode", "check", "--new-branch-base", "develop", "--path", "owned.txt"]);
+  assert.equal(implicit.json.code, "invalid_arguments");
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const missing = run(fixture.repo, ["--mode", "check", "--branch", "fix/task", "--new-branch-base", "missing", "--path", "owned.txt"]);
+  assert.equal(missing.json.code, "new_branch_base_missing");
+});
+
+test("new task branch does not adopt an already existing remote branch", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  git(fixture.repo, ["push", "origin", "fix/task"]);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const result = run(fixture.repo, ["--mode", "check", "--branch", "fix/task", "--new-branch-base", "main", "--path", "owned.txt"]);
+  assert.equal(result.json.code, "new_branch_already_exists");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), git(fixture.repo, ["rev-parse", "origin/main"]));
+});
+
+test("new task branch keeps its local commit when the base advances during commit", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const peer = path.join(fixture.root, "peer");
+  git(fixture.root, ["clone", "--branch", "main", fixture.remote, peer]);
+  git(peer, ["config", "user.name", "Peer"]);
+  git(peer, ["config", "user.email", "peer@example.invalid"]);
+  write(path.join(peer, "other.txt"), "new upstream\n");
+  git(peer, ["add", "other.txt"]);
+  git(peer, ["commit", "-m", "upstream change"]);
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const hook = path.join(fixture.repo, ".git", "hooks", "post-commit");
+  write(hook, `#!/bin/sh\ngit -C '${peer.replaceAll("\\", "/")}' push origin HEAD:refs/heads/main >/dev/null 2>&1\n`);
+  fs.chmodSync(hook, 0o755);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const result = run(fixture.repo, ["--mode", "commit-push", "--branch", "fix/task", "--new-branch-base", "main", "--message", "test: task", "--path", "owned.txt"]);
+  assert.equal(result.json.code, "new_branch_remote_changed", result.stdout);
+  assert.equal(result.json.sha, git(fixture.repo, ["rev-parse", "HEAD"]));
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]), "");
+});
+
+test("new task branch never overwrites a branch created during push", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const hook = path.join(fixture.repo, ".git", "hooks", "pre-push");
+  write(hook, `#!/bin/sh\ngit --git-dir='${fixture.remote.replaceAll("\\", "/")}' update-ref refs/heads/fix/task ${base}\n`);
+  fs.chmodSync(hook, 0o755);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const result = run(fixture.repo, ["--mode", "commit-push", "--branch", "fix/task", "--new-branch-base", "main", "--message", "test: task", "--path", "owned.txt"]);
+  assert.equal(result.status, 3, result.stdout);
+  assert.equal(result.json.sha, git(fixture.repo, ["rev-parse", "HEAD"]));
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]).split(/\s+/)[0], base);
+});
+
+test("new task branch reports publication when the base advances during push", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const peer = path.join(fixture.root, "peer");
+  git(fixture.root, ["clone", "--branch", "main", fixture.remote, peer]);
+  git(peer, ["config", "user.name", "Peer"]);
+  git(peer, ["config", "user.email", "peer@example.invalid"]);
+  write(path.join(peer, "other.txt"), "new upstream\n");
+  git(peer, ["add", "other.txt"]);
+  git(peer, ["commit", "-m", "upstream change"]);
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const hook = path.join(fixture.repo, ".git", "hooks", "pre-push");
+  write(hook, `#!/bin/sh\ngit -C '${peer.replaceAll("\\", "/")}' push origin HEAD:refs/heads/main >/dev/null 2>&1\n`);
+  fs.chmodSync(hook, 0o755);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const result = run(fixture.repo, ["--mode", "commit-push", "--branch", "fix/task", "--new-branch-base", "main", "--message", "test: task", "--path", "owned.txt"]);
+  assert.equal(result.json.code, "new_branch_base_changed_after_push", result.stdout);
+  assert.equal(result.json.branchPublished, true);
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]).split(/\s+/)[0], result.json.sha);
+});
+
+test("new task branch can publish a verified candidate tree without consuming unrelated work", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  const tree = makeCandidateTree(fixture, { "owned.txt": "reviewed candidate\n" });
+  write(path.join(fixture.repo, "owned.txt"), "different local work\n");
+  write(path.join(fixture.repo, "other.txt"), "unrelated staged work\n");
+  git(fixture.repo, ["add", "other.txt"]);
+  const result = run(fixture.repo, ["--mode", "commit-tree", "--branch", "fix/task", "--new-branch-base", "main", "--expected-base", base, "--expected-tree", tree, "--message", "test: candidate branch", "--path", "owned.txt"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(git(fixture.repo, ["show", "HEAD:owned.txt"]), "reviewed candidate");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "different local work\n");
+  assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "other.txt");
+});
+
+test("new task branch can resume its exact commit after a rejected push", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  git(fixture.repo, ["switch", "-c", "fix/task"]);
+  const hook = path.join(fixture.remote, "hooks", "pre-receive");
+  write(hook, "#!/bin/sh\nexit 1\n");
+  fs.chmodSync(hook, 0o755);
+  write(path.join(fixture.repo, "owned.txt"), "task change\n");
+  const args = ["--branch", "fix/task", "--new-branch-base", "main", "--path", "owned.txt"];
+  const failed = run(fixture.repo, ["--mode", "commit-push", "--message", "test: task", ...args]);
+  assert.equal(failed.status, 3, failed.stdout);
+  assert.ok(failed.json.sha);
+  fs.unlinkSync(hook);
+  const resumed = run(fixture.repo, ["--mode", "push-commit", "--commit", failed.json.sha, ...args]);
+  assert.equal(resumed.status, 0, resumed.stdout);
+  assert.equal(resumed.json.sha, failed.json.sha);
+  assert.equal(git(fixture.repo, ["ls-remote", "--heads", "origin", "refs/heads/fix/task"]).split(/\s+/)[0], failed.json.sha);
+});
+
 test("rejects remote initialization when another remote branch already exists", (t) => {
   const fixture = createEmptyRepository();
   t.after(() => cleanupFixture(fixture));
