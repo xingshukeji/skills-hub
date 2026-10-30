@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { createReadStream } from 'node:fs';
+import { createReadStream, promises as filesystem } from 'node:fs';
 import { readFile, readdir, stat, truncate, writeFile } from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
@@ -175,6 +176,69 @@ test('large downloads stream past the JSON limit and interrupted downloads never
   broken = false;
   const retried = await f.run(['data', 'import', 'download', ...baseArgs, '--job', jobId, '--purpose', 'result', '--out', incomplete]);
   assert.equal(retried.code, 0, retried.stdout); assert.equal((await stat(incomplete)).size, bytes);
+});
+
+test('a disk-full download removes its temporary file and the same result can be downloaded again', async t => {
+  const f = fixture(t);
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url === `${root}/capabilities`) return respond(res, capabilities);
+    if (hit.url.includes('/file?')) { res.writeHead(200, { 'Content-Type': mime, 'Content-Length': 9 }); return res.end('synthetic'); }
+    return respond(res, {}, 404);
+  });
+  f.profile(service.url);
+  const destination = join(f.directory, 'result.xlsx'), existing = join(f.directory, 'existing.xlsx');
+  await writeFile(existing, 'keep');
+  const originalOpen = filesystem.open;
+  filesystem.open = async (...args) => {
+    const handle = await originalOpen(...args);
+    if (!String(args[0]).endsWith('.part')) return handle;
+    return new Proxy(handle, { get(target, key) {
+      if (key === 'write') return async () => { const error = new Error('No space left on device'); error.code = 'ENOSPC'; throw error; };
+      const value = Reflect.get(target, key, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    } });
+  };
+  syncBuiltinESMExports();
+  try {
+    const failed = await f.run(['data', 'import', 'download', ...baseArgs, '--job', jobId, '--purpose', 'result', '--out', destination]);
+    assert.equal(failed.code, 1);
+    assert.match(failed.stdout, /No space left on device|ENOSPC/);
+    assert.ok(!(await readdir(f.directory)).some(name => name.includes('result.xlsx')));
+    assert.equal(await readFile(existing, 'utf8'), 'keep');
+  } finally {
+    filesystem.open = originalOpen;
+    syncBuiltinESMExports();
+  }
+  const retried = await f.run(['data', 'import', 'download', ...baseArgs, '--job', jobId, '--purpose', 'result', '--out', destination]);
+  assert.equal(retried.code, 0, retried.stdout);
+  assert.equal(await readFile(destination, 'utf8'), 'synthetic');
+});
+
+test('canceling a download removes only its temporary file and allows a later retry', async t => {
+  const f = fixture(t); let interrupted = false;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url === `${root}/capabilities`) return respond(res, capabilities);
+    if (hit.url.includes('/file?')) {
+      if (!interrupted) {
+        interrupted = true;
+        res.writeHead(200, { 'Content-Type': mime, 'Content-Length': 100_000 });
+        res.write(Buffer.alloc(8192, 65));
+        setTimeout(() => process.emit('SIGINT'), 50);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': mime, 'Content-Length': 9 }); return res.end('synthetic');
+    }
+    return respond(res, {}, 404);
+  });
+  f.profile(service.url);
+  const destination = join(f.directory, 'cancelled.xlsx'), existing = join(f.directory, 'existing.xlsx');
+  await writeFile(existing, 'keep');
+  const failed = await f.run(['data', 'import', 'download', ...baseArgs, '--job', jobId, '--purpose', 'result', '--out', destination]);
+  assert.equal(failed.code, 130, failed.stdout); assert.equal(output(failed).error.code, 'interrupted');
+  assert.ok(!(await readdir(f.directory)).some(name => name.includes('cancelled.xlsx')));
+  assert.equal(await readFile(existing, 'utf8'), 'keep');
+  const retried = await f.run(['data', 'import', 'download', ...baseArgs, '--job', jobId, '--purpose', 'result', '--out', destination]);
+  assert.equal(retried.code, 0, retried.stdout); assert.equal(await readFile(destination, 'utf8'), 'synthetic');
 });
 
 test('upload uses the job file budget beyond 32 MiB, and unsuitable bindings are rejected before upload', async t => {
