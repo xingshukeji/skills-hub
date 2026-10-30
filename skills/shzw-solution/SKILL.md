@@ -33,7 +33,7 @@ metadata:
 | 保存新业务事实、负责人、协作与追溯 | XRain 对象、字段及已有 Owner、分享、历史；缺的是业务字段或授权时配置现有能力，不再建一套人员、分享或审计表 |
 | 操作已有 ERP、CRM 或其他系统 | 原系统仍保存事实；用 Connector、请求及必要的 Routine 组合，只有独立新事实才建对象 |
 | 增加页面、工具或应用 | Workforce 公共 SDK 的宿主、客户端入口及 Runtime 工具能力；区分企业业务代码与公共能力缺口，不用平台私有导入补接口 |
-| 定时或事件驱动处理 | 已有函数、Trigger、Routine 及对应执行入口；确认触发条件、执行身份、重复处理和结果去向，不因存在按钮就另建调度器 |
+| 定时或事件驱动处理 | 确认实际责任方、现有调度与执行入口、触发条件、执行身份、重复处理和结果去向；按业务区分平台 Routine 与 Workforce 智能体安排 |
 
 公开使用细节按需查企业业务技能的[对象能力](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/object-foundation.md)、[集成](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/integration.md)或[SDK](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/workforce-sdk.md)。对目标租户、已安装包与实际版本核对支持情况；“平台能做”“该项目已配置”“原使用者已能完成”是三个不同结论。
 

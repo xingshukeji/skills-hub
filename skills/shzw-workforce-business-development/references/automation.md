@@ -103,6 +103,10 @@ Routine 引用编排、固定输入、Owner 和调度；支持 Manual/Daily/Work
 
 基址 `/api/automation/routines`：列表必须传 page/pageSize；`/{id}` 下有 definition/schedule/enable/pause/runs/history/versions，活动运行在 `/{id}/active-runs`。读取执行人与调度预览的 DTO 见业务 API；其他写入按当前编辑合同。
 
-Owner 是维护者，普通 Routine 由 automationExecutionUserId 指向的活跃成员执行，运行时检查权限；复用适用身份。Workforce 员工定时任务另按其执行链路判断。
+Owner 是维护者，普通 Routine 由 automationExecutionUserId 指向的活跃成员执行，运行时检查权限；复用适用身份。
+
+Workforce 新建的周期智能体安排和新登记的员工一次性检查由 Workforce 后端保存并调度，通过已有 Runtime 连接执行。周期安排由负责人本人启用并以其身份运行；一次性检查使用员工身份并核验原事项。两者的频率、停机恢复和时限分别判断，不创建普通 Task。
+
+平台 Routine 继续处理平台业务自动化和尚未清理的旧 Workforce 安排；旧安排不自动迁移。不能通过普通 Routine 列表判断 Workforce 新安排是否存在。实际环境使用的版本与部署状态须分别核对。
 
 启用和运行 ID 不证明业务完成；检查对应运行的输出、失败码及外部动作结果。

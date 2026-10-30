@@ -91,11 +91,11 @@ query 的条件叶子是 `{field, op, value}`，and/or 组成非空条件组；�
 | 执行应用所选函数 | `POST /api/xrain/v1/applications/{applicationId}/functions/{resourceId}:execute`；`{input, expectedVersionId}` | 沿函数合同和实际执行结果解析；此次核对了选择目录，未执行现有业务算法 |
 | 发现已配置的外部接口 | `GET /api/integration/v1/http-interfaces/catalog` | `{baseUrl, generatedAtUtc, status, items}`；读取 invokeMethod/invokePath/permissionName/inputVariables |
 | 调用已登记外部接口 | `POST /api/integration/v1/http-interfaces/{interfaceId}`；输入对象直接作 body | 合同为 `{statusCode, isSuccess, headers, body}`；此次未向外部系统执行动作 |
-| 查看定时任务 | `GET /api/automation/routines?page=1&pageSize=20` | `{totalCount, page, pageSize, items}`；必须提供分页参数 |
-| 查看实际执行成员 | `GET /api/automation/routines/execution-user` | `{userId}`；null 表示未配置 |
+| 查看平台 Routine | `GET /api/automation/routines?page=1&pageSize=20` | `{totalCount, page, pageSize, items}`；必须提供分页参数 |
+| 查看平台 Routine 执行成员 | `GET /api/automation/routines/execution-user` | `{userId}`；null 表示未配置 |
 | 预览调度 | `POST /api/automation/routines/schedule-preview`；`{scheduleType, executeTime, timeZoneId}` | `{nextRunAt, timeZoneId, offset}`，不会启用任务 |
 
-debug 会真实执行动作；正式调用使用函数、接口或 Routine 入口。Trigger 合同与后台执行成员分别核对，事务边界见[自动化](automation.md)和[系统集成](integration.md)。
+debug 会真实执行动作；正式调用使用函数、接口或 Routine 入口。Workforce 新建智能体安排由 Workforce 自己管理，不在此平台 Routine 列表判断。Trigger 合同与后台执行成员分别核对，事务边界见[自动化](automation.md)和[系统集成](integration.md)。
 
 ## 应用、助手、通知和文件
 
