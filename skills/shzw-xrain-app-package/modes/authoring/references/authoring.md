@@ -47,6 +47,10 @@ required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyT
 
 复用同一 `execute(ctx)` 按 `ctx.input.phase` 分派：来源 transform 可拆合/显式 skip 并保留全部 sourceRefs；normalizeIdentity 只改选定业务键、保持 Id；平台匹配和仅新增默认/更新合并后，prepareRecord 接收完整目标候选，只改可写值；validate 只返回 issues。阶段可选，固定 parameters 来自入口；消费方提供独立稳定 importSourceKey，EventId 保留原事件链。importTransform 只许可受控函数和获权直接 runtime 读取，禁止写入/投递/raw HTTP，normalizeIdentity 仅纯计算。维护回导跳过来源转换/input-only，但保留共同阶段；删除只需身份并跳过来源转换/准备。输入输出必须遵循目标公开阶段 DTO，离线容器校验不替代服务端编译/运行验证。
 
+目标支持可恢复文件作业时，`import.version: 2` 可在 `import.phaseScopes` 中为每个启用阶段声明 `independentRows` 或 `wholeFile`；禁用阶段不写入该对象，`recordMaintenance` 不属于阶段范围。例如 `{"fields":[],"import":{"version":2,"inputColumns":[],"transform":false,"normalizeIdentity":false,"prepareRecord":true,"validate":true,"recordMaintenance":true,"phaseScopes":{"prepareRecord":"independentRows","validate":"independentRows"}}}`。只有来源组之间的结果不依赖其他来源、处理顺序或分块大小时才能声明独立；同一来源的输出仍须作为一组处理。版本 1 不写 phaseScopes，按整个文件处理，不能直接用于分块作业。
+
+目标对象使用的活动记录 Trigger 还须满足正常 Trigger 合同；其对应编排版本的 `inputModel.recordBatchScope` 可声明 `independentRows` 或 `wholeBatch`，缺省按 `wholeBatch`。只有记录间业务结果互不依赖时声明独立，依赖整批的 Trigger 不能用于分块作业。更新声明须新增不可变编排版本并调整父指针；先检查目标服务的作业能力和实际对象规则，再使用版本 2，不能仅凭离线包检查判断分块资格。
+
 文件 API 的包权限集可按 `refPermissionName: "api.xrain.runtime.records.import"` 引用已登记的租户导入目录权限；导出复用 records.export。引用不自动分配人员/角色，也不替代对象、字段或记录授权。
 
 嵌套筛选、排序、颜色规则、地址规则、模板语言、脚本 callable 与执行策略是 XRain 能力合同，不是任意 JSON。基础生成器不证明这些语义。对没有完整规格或已批准示例的复杂配置，不猜测枚举/结构、不伪造可安装性；先生成可表达部分并明确缺口，或从目标正式 API schema 获取该能力规格后再生成。目标不提供规格且不能合法表达需求时停止，不私自扩展包格式。
