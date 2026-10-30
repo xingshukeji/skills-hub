@@ -1,4 +1,4 @@
 interface:
   display_name: "产品需求文档"
-  short_description: "编写清晰可追溯的产品需求，说明字段、执行规则、协作关系和验收场景"
-  default_prompt: "使用 $shzw-prd 梳理这个功能的产品需求、字段、执行逻辑和验收场景。"
+  short_description: "按固定模板编写平台 PRD，通过审阅、改写与反馈复核提高可读性"
+  default_prompt: "使用 $shzw-prd，按固定模板查证并编写这个功能的需求，完成阅读审查、精简改写和语义复核；有已确认反馈时验证对应方法改进。"
