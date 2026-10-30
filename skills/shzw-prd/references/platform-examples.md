@@ -20,10 +20,14 @@ Workforce 的 Task 由用户明确建立责任。写作时从责任项目的产�
 
 先区分负责人、所选智能体、模型和单次运行，再核对创建、启停、到期、重叠、停机、人工处理、超时及改派后不同入口的访问。产品目标与现有调度代码可能不同。普通 Task 的“任何有权任务读者可只读关联执行对话”，不能直接套用定时安排的历史权限；每个入口仍查自己的合同。默认时限、版本及其生效范围必须读取当前定时任务产品契约，不能把示例数字固定进技能。
 
+## 邮箱：并列动作与各自字段
+
+账户配置、阅读、AI 协助和草稿有不同入口与结果。可以按操作分节，把账户字段放在配置旁、草稿字段放在保存旁；不能把“阅读 → AI → 保存”写成人人都要走的流程。服务商认证、本人归属和保存结果仍须查现行合同。页面输入限制与底层保存限制不同时，标明各自适用范围；AI 处理范围和个人数据留存也分别核对。
+
 ## 多功能审阅
 
 先逐项列出功能、用户入口和事实所有者，再分别跟踪关键动作。账号切换关心旧租户响应和新主体；邮箱关心账户归属、认证和草稿保存；应用市场关心上架、安装和个人准入；顾客资料关心元数据、字段权限和私人对话。它们都可能出现“结果未知”，但恢复方式和可回查对象不同，不能复制同一行泛化重试说明。
 
 ## 方法参考
 
-对照时可借鉴用户故事与可观察测试、问题与结果的关联、假设来源及审阅检查；它们不能替代平台事实。参考来源：[to-spec](https://github.com/mattpocock/skills/tree/a496f5513d4a4cf889bc48e189e579f4b0bdf6aa/skills/engineering/to-spec)、[prd-development](https://github.com/deanpeters/Product-Manager-Skills/tree/cfcb697f14b8891d8b3ec43c16c3547df3e70e13/skills/prd-development)、[product-manager](https://github.com/tronghieu/agent-skills/tree/f923333754b1fcf45c443cae1ebe8c9886162207/skills/product-manager)。技能使用不依赖访问这些链接，也不要求创建外部工单或额外任务记录。
+对照时可借鉴用户故事与可观察测试、问题与结果的关联、假设来源及审阅检查；它们不能替代平台事实。参考来源：[to-spec](https://github.com/mattpocock/skills/tree/a496f5513d4a4cf889bc48e189e579f4b0bdf6aa/skills/engineering/to-spec)、[prd-development](https://github.com/deanpeters/Product-Manager-Skills/tree/cfcb697f14b8891d8b3ec43c16c3547df3e70e13/skills/prd-development)、[product-manager](https://github.com/tronghieu/agent-skills/tree/f923333754b1fcf45c443cae1ebe8c9886162207/skills/product-manager)、[deliver-prd](https://github.com/product-on-purpose/pm-skills/blob/9335f2c33d54a5ee6074296ae2e3172eea8e321c/skills/deliver-prd/SKILL.md)及 [OpenAI skill-creator 的不同自由度](https://github.com/openai/skills/blob/49f948faa9258a0c61caceaf225e179651397431/skills/.system/skill-creator/SKILL.md)。前者的范围和可验证 AI 行为可参考，指标和计划仍须有事实；后者提示按任务变化程度选择约束强度。技能使用不依赖访问这些链接，也不要求创建外部工单或额外任务记录。
