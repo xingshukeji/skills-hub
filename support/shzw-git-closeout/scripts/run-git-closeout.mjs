@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -68,6 +68,12 @@ function parseArgs(argv) {
       case "--expected-tree":
         options.expectedTree = value;
         break;
+      case "--expected-base":
+        options.expectedBase = value;
+        break;
+      case "--source-root":
+        options.sourceRoot = value;
+        break;
       case "--wait-seconds":
         options.waitSeconds = Number(value);
         break;
@@ -79,14 +85,14 @@ function parseArgs(argv) {
     }
   }
 
-  if (!new Set(["snapshot", "check", "commit-push", "push-commit"]).has(options.mode)) {
-    throw new CloseoutError("invalid_mode", "--mode must be snapshot, check, commit-push, or push-commit.", {}, 1);
+  if (!new Set(["snapshot", "check", "sync", "sync-preserve", "commit-tree", "commit-push", "push-commit"]).has(options.mode)) {
+    throw new CloseoutError("invalid_mode", "--mode must be snapshot, check, sync, sync-preserve, commit-tree, commit-push, or push-commit.", {}, 1);
   }
   if (options.mode !== "snapshot" && !options.verification?.trim()) {
     throw new CloseoutError("verification_required", "Non-empty --verification evidence is required.");
   }
-  if (options.mode === "commit-push" && !options.message?.trim()) {
-    throw new CloseoutError("message_required", "A non-empty --message is required for commit-push.");
+  if (["commit-push", "commit-tree"].includes(options.mode) && !options.message?.trim()) {
+    throw new CloseoutError("message_required", "A non-empty --message is required to commit.");
   }
   if (options.mode === "push-commit" && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(options.commit || "")) {
     throw new CloseoutError("commit_required", "push-commit requires the full immutable commit SHA.", {}, 1);
@@ -94,13 +100,22 @@ function parseArgs(argv) {
   if (options.mode !== "push-commit" && options.commit) {
     throw new CloseoutError("invalid_arguments", "--commit is only valid with push-commit.", {}, 1);
   }
-  if (options.expectedTree && (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(options.expectedTree) || !["commit-push", "push-commit"].includes(options.mode))) {
+  if (options.expectedTree && (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(options.expectedTree) || !["commit-push", "push-commit", "commit-tree"].includes(options.mode))) {
     throw new CloseoutError("invalid_arguments", "--expected-tree requires a full tree SHA and a commit or push mode.", {}, 1);
+  }
+  if (options.mode === "commit-tree" && (!options.expectedTree || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(options.expectedBase || ""))) {
+    throw new CloseoutError("invalid_arguments", "commit-tree requires full --expected-base and --expected-tree SHAs.", {}, 1);
+  }
+  if (options.mode !== "commit-tree" && options.expectedBase) {
+    throw new CloseoutError("invalid_arguments", "--expected-base is only valid with commit-tree.", {}, 1);
+  }
+  if (options.sourceRoot && options.mode !== "snapshot") {
+    throw new CloseoutError("invalid_arguments", "--source-root is only valid with snapshot.", {}, 1);
   }
   if (!Number.isInteger(options.waitSeconds) || options.waitSeconds < 0 || options.waitSeconds > 60) {
     throw new CloseoutError("invalid_arguments", "--wait-seconds must be an integer from 0 to 60.", {}, 1);
   }
-  if (options.paths.length === 0) {
+  if (options.paths.length === 0 && options.mode !== "sync") {
     throw new CloseoutError("paths_required", "At least one explicit --path is required.");
   }
   if (!options.remote.trim() || !options.branch.trim()) {
@@ -120,7 +135,7 @@ function sanitizeGitOutput(value) {
     .slice(0, 2000);
 }
 
-function runGit(repo, args, { allowFailure = false, indexFile, extraEnv = {}, literalPaths = true } = {}) {
+function runGit(repo, args, { allowFailure = false, indexFile, input, extraEnv = {}, literalPaths = true } = {}) {
   const env = { ...process.env, ...extraEnv };
   for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS"]) {
     delete env[key];
@@ -133,6 +148,7 @@ function runGit(repo, args, { allowFailure = false, indexFile, extraEnv = {}, li
     encoding: "utf8",
     windowsHide: true,
     maxBuffer: 8 * 1024 * 1024,
+    input,
     env,
   });
 
@@ -161,7 +177,7 @@ function resolveGitPath(repo, value) {
   return path.resolve(repo, value.trim());
 }
 
-function normalizeOwnedPath(repo, value, { allowMissing = false } = {}) {
+function normalizeOwnedPath(repo, value, { allowMissing = false, checkIgnoredIfMissing = false } = {}) {
   if (!value?.trim() || path.isAbsolute(value)) {
     throw new CloseoutError("unsafe_path", "Owned paths must be non-empty repository-relative file paths.", { path: value });
   }
@@ -198,7 +214,7 @@ function normalizeOwnedPath(repo, value, { allowMissing = false } = {}) {
   if (!allowMissing && !fs.existsSync(resolved) && !tracked) {
     throw new CloseoutError("path_not_found", "Owned path is neither an existing file nor a tracked deletion.", { path: relative });
   }
-  if (!allowMissing && !tracked) {
+  if ((!allowMissing || checkIgnoredIfMissing) && !tracked) {
     // check-ignore accepts literal path names, but rejects Git's literal pathspec magic.
     const ignored = runGit(repo, ["check-ignore", "-q", "--", relative], { allowFailure: true, literalPaths: false });
     if (ignored.status === 0) {
@@ -321,9 +337,139 @@ function assertInitiallySynchronized(repo, options) {
   }
   const counts = syncCounts(repo, options.remote, options.branch);
   if (counts.behind !== 0) {
-    throw new CloseoutError("history_not_synchronized", "Remote history is ahead or diverged; the shared checkout was not changed.", counts);
+    if (counts.ahead !== 0 || options.mode === "check") {
+      throw new CloseoutError("history_not_synchronized", "Remote history is ahead or diverged; inspect or synchronize before closeout.", counts);
+    }
+    const before = gitText(repo, ["rev-parse", "HEAD"]);
+    const target = gitText(repo, ["rev-parse", `${options.remote}/${options.branch}`]);
+    const merge = runGit(repo, ["merge", "--ff-only", target], { allowFailure: true });
+    if (merge.status !== 0) {
+      throw new CloseoutError("fast_forward_blocked", "Git could not safely fast-forward; local changes were left in place. Review overlapping paths before using sync-preserve.", {
+        ...counts, before, target, stderr: sanitizeGitOutput(merge.stderr.trim()),
+      });
+    }
+    if (gitText(repo, ["rev-parse", "HEAD"]) !== target) {
+      throw new CloseoutError("sync_state_changed", "The branch changed during synchronization; inspect it before continuing.", { before, target }, 3);
+    }
+    return { initializeRemote: false, ahead: 0, synchronized: true, before, target };
   }
   return { initializeRemote: false, ahead: counts.ahead };
+}
+
+function hashBytes(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+// Advance the base only after the caller reviews every changed path. This mode
+// never writes a working file: incoming changes stay in HEAD, while each local
+// difference remains visible as an unstaged change for its owner to reconcile.
+function syncPreservingReviewedFiles(repo, options, reviewedPaths) {
+  if (!hasLocalHead(repo)) throw new CloseoutError("history_not_synchronized", "A local base commit is required.");
+  const counts = syncCounts(repo, options.remote, options.branch);
+  if (counts.ahead || !counts.behind) {
+    if (!counts.ahead && !counts.behind) return { status: "already_synchronized" };
+    throw new CloseoutError("history_not_synchronized", "Only a strictly remote-ahead branch can be advanced by sync-preserve.", counts);
+  }
+  const before = gitText(repo, ["rev-parse", "HEAD"]);
+  const target = gitText(repo, ["rev-parse", `${options.remote}/${options.branch}`]);
+  const entries = splitNull(runGit(repo, ["diff", "--no-renames", "--name-status", "-z", before, target]).stdout);
+  const changed = [];
+  for (let i = 0; i < entries.length; i += 2) {
+    if (entries[i] !== "M" || !entries[i + 1]) {
+      throw new CloseoutError("sync_review_incomplete", "sync-preserve accepts only modified existing files, without additions, deletions, or renames.");
+    }
+    changed.push(entries[i + 1]);
+  }
+  changed.sort();
+  if (!sameList(changed, reviewedPaths)) {
+    throw new CloseoutError("sync_review_incomplete", "Review and pass every path changed by the remote as an explicit --path.", { changed, reviewedPaths });
+  }
+  const dirty = splitNull(runGit(repo, ["diff", "--no-renames", "--name-only", "-z", "--", ...changed]).stdout).sort();
+  if (!sameList(changed, dirty)) {
+    throw new CloseoutError("sync_review_incomplete", "Every remote-changed file must already have a local working change; use ordinary sync for clean paths.", { changed, dirty });
+  }
+  assertNoOverlappingStaged(repo, changed, false);
+  const flags = splitNull(runGit(repo, ["ls-files", "-v", "-z", "--", ...changed]).stdout);
+  if (flags.length !== changed.length || flags.some((entry) => !entry.startsWith("H "))) {
+    throw new CloseoutError("sync_review_incomplete", "Sparse or assume-unchanged paths require separate review.");
+  }
+  if (runGit(repo, ["ls-files", "--unmerged", "-z"]).stdout) {
+    throw new CloseoutError("operation_in_progress", "Unmerged index entries must be resolved by their owner first.");
+  }
+  const entriesByPath = (tree) => new Map(treeEntries(repo, tree, changed).map((entry) => {
+    const tab = entry.indexOf("\t");
+    return [entry.slice(tab + 1), entry.slice(0, tab)];
+  }));
+  const oldEntries = entriesByPath(before);
+  const newEntries = entriesByPath(target);
+  if (oldEntries.size !== changed.length || newEntries.size !== changed.length || changed.some((file) => {
+    const oldEntry = oldEntries.get(file) || "";
+    const newEntry = newEntries.get(file) || "";
+    return !/^100(644|755) blob /.test(oldEntry) || oldEntry.slice(0, 11) !== newEntry.slice(0, 11);
+  })) {
+    throw new CloseoutError("sync_review_incomplete", "File type or mode changes require a separate review.");
+  }
+  const workingHashes = new Map(changed.map((file) => {
+    const full = path.join(repo, file);
+    if (!fs.lstatSync(full).isFile()) throw new CloseoutError("sync_review_incomplete", "Only regular files may be preserved.", { path: file });
+    return [file, hashBytes(fs.readFileSync(full))];
+  }));
+  const indexPath = resolveGitPath(repo, gitText(repo, ["rev-parse", "--git-path", "index"]));
+  const indexBytes = fs.readFileSync(indexPath);
+  const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "shzw-sync-index-"));
+  const candidate = path.join(directory, "index");
+  const lock = `${indexPath}.lock`;
+  let lockOwned = false;
+  try {
+    fs.writeFileSync(candidate, indexBytes);
+    const targetEntries = runGit(repo, ["ls-tree", "-r", "-z", target, "--", ...changed]).stdout;
+    runGit(repo, ["update-index", "-z", "--index-info"], { indexFile: candidate, input: targetEntries });
+    if (runGit(repo, ["diff", "--cached", "--quiet", target, "--", ...changed], { indexFile: candidate, allowFailure: true }).status !== 0) {
+      throw new CloseoutError("sync_index_changed", "The prepared index does not match the reviewed remote files.");
+    }
+    const originalUnrelated = splitNull(runGit(repo, ["ls-files", "--stage", "-z"]).stdout)
+      .filter((entry) => !changed.includes(entry.slice(entry.indexOf("\t") + 1))).sort();
+    const candidateUnrelated = splitNull(runGit(repo, ["ls-files", "--stage", "-z"], { indexFile: candidate }).stdout)
+      .filter((entry) => !changed.includes(entry.slice(entry.indexOf("\t") + 1))).sort();
+    if (!sameList(originalUnrelated, candidateUnrelated)) {
+      throw new CloseoutError("sync_index_changed", "The prepared index would change unrelated staged content.");
+    }
+    let descriptor;
+    try { descriptor = fs.openSync(lock, "wx", fs.statSync(indexPath).mode); }
+    catch (error) {
+      if (error.code === "EEXIST") throw new CloseoutError("index_locked", "Another Git operation owns the index lock; it was not modified.");
+      throw error;
+    }
+    lockOwned = true;
+    try {
+      fs.writeFileSync(descriptor, fs.readFileSync(candidate));
+      fs.fsyncSync(descriptor);
+    } finally { fs.closeSync(descriptor); }
+    if (hashBytes(fs.readFileSync(indexPath)) !== hashBytes(indexBytes) || gitText(repo, ["rev-parse", "HEAD"]) !== before ||
+        changed.some((file) => hashBytes(fs.readFileSync(path.join(repo, file))) !== workingHashes.get(file))) {
+      throw new CloseoutError("sync_state_changed", "The index, branch, or reviewed files changed during preparation; retry the review.");
+    }
+    const remote = currentRemoteHead(repo, options);
+    if (remote.sha !== target) throw new CloseoutError("sync_state_changed", "The remote branch changed during preparation; retry the review.", { target, remoteHead: remote.sha });
+    runGit(repo, ["update-ref", "-m", "shzw-closeout: preserve reviewed working files", `refs/heads/${options.branch}`, target, before]);
+    try {
+      fs.renameSync(lock, indexPath);
+      lockOwned = false;
+    } catch (error) {
+      const rollback = runGit(repo, ["update-ref", `refs/heads/${options.branch}`, before, target], { allowFailure: true });
+      if (rollback.status !== 0) {
+        lockOwned = false; // Keep the prepared index for explicit recovery if the reference also changed.
+        throw new CloseoutError("sync_recovery_required", "The branch changed while installing the index; inspect the preserved index lock and branch before proceeding.", { before, target, lock }, 3);
+      }
+      throw error;
+    }
+    return { status: "synchronized_preserving_working_files", before, target, preservedPaths: changed };
+  } finally {
+    if (lockOwned && fs.existsSync(lock)) fs.unlinkSync(lock);
+    if (fs.existsSync(candidate)) fs.unlinkSync(candidate);
+    if (fs.existsSync(`${candidate}.lock`)) fs.unlinkSync(`${candidate}.lock`);
+    fs.rmdirSync(directory);
+  }
 }
 
 function treeEntries(repo, tree, paths) {
@@ -348,6 +494,43 @@ function snapshotSelectedTree(repo, base, ownedPaths) {
     if (fs.existsSync(`${indexFile}.lock`)) fs.unlinkSync(`${indexFile}.lock`);
     fs.rmdirSync(directory);
   }
+}
+
+function snapshotCandidateFiles(repo, base, ownedPaths, sourceRoot) {
+  if (!base) throw new CloseoutError("history_not_synchronized", "A base commit is required for a separate candidate.");
+  const root = fs.realpathSync(path.resolve(sourceRoot));
+  if (!fs.statSync(root).isDirectory()) throw new CloseoutError("unsafe_path", "--source-root must be an existing directory.");
+  const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "shzw-candidate-index-"));
+  const indexFile = path.join(directory, "index");
+  try {
+    runGit(repo, ["read-tree", base], { indexFile });
+    for (const file of ownedPaths) {
+      let source;
+      try { source = fs.realpathSync(path.join(root, file)); }
+      catch (error) {
+        if (error.code === "ENOENT") throw new CloseoutError("candidate_file_missing", "Every selected path must exist in the candidate root.", { path: file });
+        throw error;
+      }
+      const relative = path.relative(root, source);
+      if (!relative || relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative) || !fs.statSync(source).isFile()) {
+        throw new CloseoutError("unsafe_path", "Candidate file escapes its source root or is not a regular file.", { path: file });
+      }
+      const original = treeEntries(repo, base, [file]);
+      const mode = original.length ? original[0].slice(0, 6) : "100644";
+      if (!new Set(["100644", "100755"]).has(mode)) throw new CloseoutError("unsafe_path", "Candidate file has an unsupported Git mode.", { path: file });
+      const blob = gitText(repo, ["hash-object", "-w", `--path=${file}`, source]);
+      runGit(repo, ["update-index", "--add", "--cacheinfo", `${mode},${blob},${file}`], { indexFile });
+    }
+    return gitTextWithIndex(repo, ["write-tree"], indexFile);
+  } finally {
+    if (fs.existsSync(indexFile)) fs.unlinkSync(indexFile);
+    if (fs.existsSync(`${indexFile}.lock`)) fs.unlinkSync(`${indexFile}.lock`);
+    fs.rmdirSync(directory);
+  }
+}
+
+function gitTextWithIndex(repo, args, indexFile) {
+  return runGit(repo, args, { indexFile }).stdout.trim();
 }
 
 function commitParents(repo, sha) {
@@ -541,6 +724,126 @@ function commitAndPush(repo, options, ownedPaths, changedFiles) {
   }
 }
 
+function workingFileHashes(repo, files) {
+  return new Map(files.map((file) => {
+    const full = path.join(repo, file);
+    if (!fs.existsSync(full)) return [file, null];
+    if (!fs.lstatSync(full).isFile()) throw new CloseoutError("unsafe_path", "Only regular working files can be preserved by commit-tree.", { path: file });
+    return [file, hashBytes(fs.readFileSync(full))];
+  }));
+}
+
+// Commit a separately constructed and verified tree while preserving the
+// checkout's own staged and working content. Native Git hooks still run.
+function commitVerifiedTree(repo, options, ownedPaths) {
+  if (options.includeStagedOwned) throw new CloseoutError("invalid_arguments", "commit-tree never consumes staged content.", {}, 1);
+  const base = gitText(repo, ["rev-parse", "HEAD"]);
+  if (base.toLowerCase() !== options.expectedBase.toLowerCase()) {
+    throw new CloseoutError("verified_base_changed", "The branch moved since the candidate was built; revalidate it.", { expectedBase: options.expectedBase, actualBase: base });
+  }
+  if (gitText(repo, ["cat-file", "-t", options.expectedTree]) !== "tree") {
+    throw new CloseoutError("invalid_candidate", "The verified candidate must be a Git tree.");
+  }
+  const changed = splitNull(runGit(repo, ["diff", "--no-renames", "--name-only", "-z", base, options.expectedTree]).stdout).sort();
+  if (!changed.length || !sameList(changed, ownedPaths)) {
+    throw new CloseoutError("commit_scope_mismatch", "The verified tree must change exactly the declared paths.", { changed, ownedPaths });
+  }
+  assertNoOverlappingStaged(repo, ownedPaths, false);
+  const flags = splitNull(runGit(repo, ["ls-files", "-v", "-z", "--", ...ownedPaths]).stdout);
+  if (flags.some((entry) => !entry.startsWith("H ")) || runGit(repo, ["ls-files", "--unmerged", "-z"]).stdout) {
+    throw new CloseoutError("operation_in_progress", "Unmerged, sparse, or assume-unchanged paths require separate review.");
+  }
+  const working = workingFileHashes(repo, ownedPaths);
+  const indexPath = resolveGitPath(repo, gitText(repo, ["rev-parse", "--git-path", "index"]));
+  const indexBytes = fs.readFileSync(indexPath);
+  const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "shzw-verified-tree-"));
+  const candidateIndex = path.join(directory, "candidate-index");
+  const preservedIndex = path.join(directory, "preserved-index");
+  const lock = `${indexPath}.lock`;
+  let lockOwned = false;
+  let sha = null;
+  try {
+    runGit(repo, ["read-tree", options.expectedTree], { indexFile: candidateIndex });
+    let descriptor;
+    try { descriptor = fs.openSync(lock, "wx", fs.statSync(indexPath).mode); }
+    catch (error) {
+      if (error.code === "EEXIST") throw new CloseoutError("index_locked", "Another Git operation owns the index lock; it was not modified.");
+      throw error;
+    }
+    lockOwned = true;
+    try { fs.writeFileSync(descriptor, indexBytes); fs.fsyncSync(descriptor); }
+    finally { fs.closeSync(descriptor); }
+    if (hashBytes(fs.readFileSync(indexPath)) !== hashBytes(indexBytes) || gitText(repo, ["rev-parse", "HEAD"]) !== base) {
+      throw new CloseoutError("sync_state_changed", "The branch or index changed while preparing the candidate.");
+    }
+    const marker = `shzw-closeout-${randomUUID()}`;
+    const commit = runGit(repo, ["-c", "core.abbrev=40", "-c", "color.ui=false", "commit", "-m", options.message], {
+      allowFailure: true, indexFile: candidateIndex, extraEnv: { GIT_REFLOG_ACTION: marker, LC_ALL: "C" },
+    });
+    sha = findCommit(repo, options.branch, marker, commit.stdout);
+    if (!sha) {
+      throw new CloseoutError(commit.status === 0 ? "commit_identity_unknown" : "commit_failed", "No verified commit could be identified; nothing was pushed.", {
+        stderr: sanitizeGitOutput(commit.stderr.trim()), stdout: sanitizeGitOutput(commit.stdout.trim()),
+      }, commit.status === 0 ? 3 : 2);
+    }
+    let verificationError = null;
+    try {
+      if (commit.status !== 0) throw new CloseoutError("commit_failed_after_ref_change", "Git reported failure after creating a commit; nothing was pushed.", {}, 3);
+      verifyCommit(repo, sha, base, options.expectedTree, changed, ownedPaths, true);
+      if (commitParents(repo, sha)[0] !== base) throw new CloseoutError("commit_base_changed", "The commit has an unexpected parent; nothing was pushed.", {}, 3);
+      if ([...workingFileHashes(repo, ownedPaths)].some(([file, hash]) => working.get(file) !== hash)) {
+        throw new CloseoutError("working_files_changed", "A working file changed while committing; revalidate before pushing.", {}, 3);
+      }
+    } catch (error) { verificationError = error; }
+    if (gitText(repo, ["rev-parse", "HEAD"]) !== sha || hashBytes(fs.readFileSync(indexPath)) !== hashBytes(indexBytes)) {
+      throw new CloseoutError("commit_index_recovery_required", "The branch or index changed after commit; the existing index and working files were preserved.", { sha }, 3);
+    }
+    fs.writeFileSync(preservedIndex, indexBytes);
+    const actualEntries = runGit(repo, ["ls-tree", "-r", "-z", sha, "--", ...ownedPaths]).stdout;
+    const existing = new Set(splitNull(actualEntries).map((entry) => entry.slice(entry.indexOf("\t") + 1)));
+    if (actualEntries) runGit(repo, ["update-index", "-z", "--index-info"], { indexFile: preservedIndex, input: actualEntries });
+    const deleted = ownedPaths.filter((file) => !existing.has(file));
+    if (deleted.length) runGit(repo, ["update-index", "--force-remove", "--", ...deleted], { indexFile: preservedIndex });
+    const unrelated = (indexFile) => splitNull(runGit(repo, ["ls-files", "--stage", "-z"], { indexFile }).stdout)
+      .filter((entry) => !ownedPaths.includes(entry.slice(entry.indexOf("\t") + 1))).sort();
+    if (!sameList(unrelated(undefined), unrelated(preservedIndex))) {
+      throw new CloseoutError("commit_index_recovery_required", "The prepared index would alter unrelated content; the existing index was preserved.", { sha }, 3);
+    }
+    descriptor = fs.openSync(lock, "w");
+    try { fs.writeFileSync(descriptor, fs.readFileSync(preservedIndex)); fs.fsyncSync(descriptor); }
+    finally { fs.closeSync(descriptor); }
+    try { fs.renameSync(lock, indexPath); lockOwned = false; }
+    catch (error) {
+      lockOwned = false;
+      throw new CloseoutError("commit_index_recovery_required", "The commit exists but its prepared index could not be installed; preserve the index lock for recovery.", { sha, lock }, 3);
+    }
+    if (verificationError) {
+      if (verificationError instanceof CloseoutError) {
+        verificationError.exitCode = 3;
+        verificationError.details = { sha, ...verificationError.details };
+      }
+      throw verificationError;
+    }
+    return publishCommit(repo, options, sha, changed);
+  } catch (error) {
+    if (sha) {
+      if (error instanceof CloseoutError) {
+        error.exitCode = 3;
+        error.details = { sha, ...error.details };
+      } else {
+        throw new CloseoutError("commit_index_recovery_required", "The commit exists but index reconciliation did not complete; inspect the branch and working files.", { sha }, 3);
+      }
+    }
+    throw error;
+  } finally {
+    if (lockOwned && fs.existsSync(lock)) fs.unlinkSync(lock);
+    for (const file of [candidateIndex, `${candidateIndex}.lock`, preservedIndex, `${preservedIndex}.lock`]) {
+      if (fs.existsSync(file)) fs.unlinkSync(file);
+    }
+    fs.rmdirSync(directory);
+  }
+}
+
 function resumeCommit(repo, options, ownedPaths) {
   const sha = gitText(repo, ["rev-parse", "--verify", `${options.commit}^{commit}`]);
   if (sha.toLowerCase() !== options.commit.toLowerCase() || !isAncestor(repo, sha, "HEAD")) {
@@ -569,16 +872,31 @@ function main() {
   const repo = fs.realpathSync(path.resolve(options.repo));
   assertCheckout(repo, options);
   assertNoOperationInProgress(repo);
-  const ownedPaths = [...new Set(options.paths.map((value) => normalizeOwnedPath(repo, value, { allowMissing: options.mode === "push-commit" })))].sort();
+  const allowCandidateMissing = options.mode === "commit-tree" || (options.mode === "snapshot" && Boolean(options.sourceRoot));
+  const ownedPaths = [...new Set(options.paths.map((value) => normalizeOwnedPath(repo, value, {
+    allowMissing: options.mode === "push-commit" || allowCandidateMissing, checkIgnoredIfMissing: allowCandidateMissing,
+  })))].sort();
   if (options.mode === "push-commit") return resumeCommit(repo, options, ownedPaths);
+  if (options.mode === "sync-preserve") return syncPreservingReviewedFiles(repo, options, ownedPaths);
+  if (options.mode === "sync") {
+    const syncState = assertInitiallySynchronized(repo, options);
+    return { status: syncState.synchronized ? "synchronized_recheck" : "already_synchronized", ...syncState };
+  }
   assertNoOverlappingStaged(repo, ownedPaths, options.includeStagedOwned);
-  const changedFiles = selectedChanges(repo, ownedPaths, options.includeStagedOwned);
   if (options.mode === "snapshot") {
     const base = hasLocalHead(repo) ? gitText(repo, ["rev-parse", "HEAD"]) : null;
-    const tree = snapshotSelectedTree(repo, base, ownedPaths);
+    const tree = options.sourceRoot ? snapshotCandidateFiles(repo, base, ownedPaths, options.sourceRoot) : snapshotSelectedTree(repo, base, ownedPaths);
+    const changedFiles = options.sourceRoot
+      ? splitNull(runGit(repo, ["diff", "--no-renames", "--name-only", "-z", base, tree]).stdout).sort()
+      : selectedChanges(repo, ownedPaths, options.includeStagedOwned);
     return { status: "snapshot", base, tree, changedFiles };
   }
   const syncState = assertInitiallySynchronized(repo, options);
+  if (syncState.synchronized) {
+    return { status: "synchronized_recheck", before: syncState.before, target: syncState.target };
+  }
+  if (options.mode === "commit-tree") return commitVerifiedTree(repo, options, ownedPaths);
+  const changedFiles = selectedChanges(repo, ownedPaths, options.includeStagedOwned);
   if (changedFiles.length === 0) {
     const staged = overlappingStaged(repo, ownedPaths);
     if (staged.length) {

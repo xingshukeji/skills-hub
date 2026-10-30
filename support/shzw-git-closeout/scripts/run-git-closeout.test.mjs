@@ -19,6 +19,24 @@ function write(file, contents) {
   fs.writeFileSync(file, contents, "utf8");
 }
 
+function makeCandidateTree(fixture, files) {
+  const index = path.join(fixture.root, "candidate-index");
+  const env = { ...process.env, GIT_INDEX_FILE: index };
+  const indexedGit = (args) => {
+    const result = spawnSync("git", args, { cwd: fixture.repo, encoding: "utf8", windowsHide: true, env });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return result.stdout.trim();
+  };
+  indexedGit(["read-tree", "HEAD"]);
+  for (const [file, contents] of Object.entries(files)) {
+    const source = path.join(fixture.root, `candidate-${Object.keys(files).indexOf(file)}.txt`);
+    write(source, contents);
+    const blob = git(fixture.repo, ["hash-object", "-w", source]);
+    indexedGit(["update-index", "--add", "--cacheinfo", `100644,${blob},${file}`]);
+  }
+  return indexedGit(["write-tree"]);
+}
+
 function createRepository() {
   const tempRoot = fs.realpathSync(os.tmpdir());
   const root = fs.mkdtempSync(path.join(tempRoot, "git-closeout-"));
@@ -218,6 +236,88 @@ test("rejects a candidate changed after its snapshot without committing it", (t)
   assert.equal(result.json.code, "verified_tree_changed");
   assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), before);
   assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
+});
+
+test("commits a verified tree while preserving mixed working files and unrelated staged content", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  const candidateRoot = path.join(fixture.root, "candidate");
+  write(path.join(candidateRoot, "owned.txt"), "verified own change\n");
+  write(path.join(candidateRoot, "new.txt"), "verified new file\n");
+  write(path.join(fixture.repo, "owned.txt"), "verified own change\nother task in progress\n");
+  write(path.join(fixture.repo, "new.txt"), "verified new file\nother task addition\n");
+  write(path.join(fixture.repo, "other.txt"), "foreign staged\n");
+  git(fixture.repo, ["add", "other.txt"]);
+
+  const snapshot = run(fixture.repo, ["--mode", "snapshot", "--source-root", candidateRoot,
+    "--path", "owned.txt", "--path", "new.txt"]);
+  assert.equal(snapshot.status, 0, snapshot.stdout);
+  assert.equal(snapshot.json.base, base);
+  assert.deepEqual(snapshot.json.changedFiles, ["new.txt", "owned.txt"]);
+  const tree = snapshot.json.tree;
+
+  const result = run(fixture.repo, ["--mode", "commit-tree", "--message", "test: verified tree",
+    "--expected-base", base, "--expected-tree", tree, "--path", "owned.txt", "--path", "new.txt"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.json.status, "pushed");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD^{tree}"]), tree);
+  assert.equal(git(fixture.repo, ["show", "HEAD:owned.txt"]), "verified own change");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "verified own change\nother task in progress\n");
+  assert.equal(git(fixture.repo, ["show", ":owned.txt"]), "verified own change");
+  assert.equal(git(fixture.repo, ["show", "HEAD:new.txt"]), "verified new file");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "new.txt"), "utf8"), "verified new file\nother task addition\n");
+  assert.equal(git(fixture.repo, ["show", ":other.txt"]), "foreign staged");
+  assert.deepEqual(git(fixture.repo, ["diff", "--name-only"]).split(/\r?\n/), ["new.txt", "owned.txt"]);
+  assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "other.txt");
+});
+
+test("a candidate source root cannot commit an ignored path or a file outside the root", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const candidateRoot = path.join(fixture.root, "candidate");
+  write(path.join(candidateRoot, "ignored.txt"), "candidate\n");
+  write(path.join(fixture.repo, ".git/info/exclude"), "ignored.txt\n");
+  const ignored = run(fixture.repo, ["--mode", "snapshot", "--source-root", candidateRoot, "--path", "ignored.txt"]);
+  assert.equal(ignored.json.code, "ignored_path");
+  const outside = run(fixture.repo, ["--mode", "snapshot", "--source-root", candidateRoot, "--path", "../outside.txt"]);
+  assert.equal(outside.json.code, "unsafe_path");
+  assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
+});
+
+test("rejects a candidate tree with an undeclared path or overlapping staged content", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  const tooBroad = makeCandidateTree(fixture, { "owned.txt": "own\n", "other.txt": "other\n" });
+  write(path.join(fixture.repo, "owned.txt"), "local\n");
+  const broad = run(fixture.repo, ["--mode", "commit-tree", "--message", "test: broad", "--expected-base", base,
+    "--expected-tree", tooBroad, "--path", "owned.txt"]);
+  assert.equal(broad.json.code, "commit_scope_mismatch");
+  const exact = makeCandidateTree(fixture, { "owned.txt": "own\n" });
+  git(fixture.repo, ["add", "owned.txt"]);
+  const staged = run(fixture.repo, ["--mode", "commit-tree", "--message", "test: staged", "--expected-base", base,
+    "--expected-tree", exact, "--path", "owned.txt"]);
+  assert.equal(staged.json.code, "overlapping_staged_changes");
+  assert.equal(git(fixture.repo, ["show", ":owned.txt"]), "local");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), base);
+});
+
+test("a hook-altered verified tree is retained locally and never pushed", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  const tree = makeCandidateTree(fixture, { "owned.txt": "verified\n" });
+  write(path.join(fixture.repo, "owned.txt"), "local work\n");
+  write(path.join(fixture.repo, ".git/hooks/pre-commit"), "#!/bin/sh\nprintf 'hook addition\\n' > other.txt\ngit add -- other.txt\n");
+  fs.chmodSync(path.join(fixture.repo, ".git/hooks/pre-commit"), 0o755);
+  const result = run(fixture.repo, ["--mode", "commit-tree", "--message", "test: hook", "--expected-base", base,
+    "--expected-tree", tree, "--path", "owned.txt"]);
+  assert.equal(result.status, 3, result.stdout);
+  assert.equal(result.json.code, "commit_scope_changed");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), result.json.sha);
+  assert.equal(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], base);
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "local work\n");
 });
 
 test("refuses to resume a commit whose tree is not the verified candidate", (t) => {
@@ -595,7 +695,7 @@ test("rejects ignored paths and treats path names literally", (t) => {
   assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
 });
 
-test("rejects remote-ahead history before staging", (t) => {
+test("fast-forwards safe remote changes and requires revalidation before committing", (t) => {
   const fixture = createRepository();
   t.after(() => cleanupFixture(fixture));
   const peer = path.join(fixture.root, "peer");
@@ -610,10 +710,89 @@ test("rejects remote-ahead history before staging", (t) => {
 
   const result = run(fixture.repo, ["--mode", "commit-push", "--message", "test: blocked", "--path", "owned.txt"]);
 
-  assert.equal(result.status, 2);
-  assert.equal(result.json.code, "history_not_synchronized");
-  assert.equal(result.json.behind, 1);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.json.status, "synchronized_recheck");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), git(fixture.repo, ["rev-parse", "origin/main"]));
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "local change\n");
   assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
+  const after = run(fixture.repo, ["--mode", "commit-push", "--message", "test: verified after sync", "--path", "owned.txt"]);
+  assert.equal(after.status, 0, after.stdout);
+  assert.equal(after.json.status, "pushed");
+});
+
+test("a conflicting remote change stops without overwriting local content", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const peer = path.join(fixture.root, "peer");
+  git(fixture.root, ["clone", "-b", "main", fixture.remote, peer]);
+  git(peer, ["config", "user.name", "Peer"]);
+  git(peer, ["config", "user.email", "peer@example.invalid"]);
+  write(path.join(peer, "owned.txt"), "remote change\n");
+  git(peer, ["add", "owned.txt"]);
+  git(peer, ["commit", "-m", "peer change"]);
+  git(peer, ["push", "origin", "main"]);
+  write(path.join(fixture.repo, "owned.txt"), "local change\n");
+  const before = git(fixture.repo, ["rev-parse", "HEAD"]);
+
+  const result = run(fixture.repo, ["--mode", "commit-push", "--message", "test: overlap", "--path", "owned.txt"]);
+  assert.equal(result.status, 2, result.stdout);
+  assert.equal(result.json.code, "fast_forward_blocked");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "local change\n");
+  assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
+});
+
+test("preserves reviewed working files and unrelated staged data while advancing the base", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const peer = path.join(fixture.root, "peer");
+  git(fixture.root, ["clone", "-b", "main", fixture.remote, peer]);
+  git(peer, ["config", "user.name", "Peer"]);
+  git(peer, ["config", "user.email", "peer@example.invalid"]);
+  write(path.join(peer, "owned.txt"), "remote change\n");
+  git(peer, ["add", "owned.txt"]);
+  git(peer, ["commit", "-m", "peer change"]);
+  git(peer, ["push", "origin", "main"]);
+  write(path.join(fixture.repo, "owned.txt"), "local change\n");
+  write(path.join(fixture.repo, "other.txt"), "foreign staged\n");
+  git(fixture.repo, ["add", "other.txt"]);
+
+  const result = run(fixture.repo, ["--mode", "sync-preserve", "--path", "owned.txt"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.equal(result.json.status, "synchronized_preserving_working_files");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), git(fixture.repo, ["rev-parse", "origin/main"]));
+  assert.equal(git(fixture.repo, ["show", "HEAD:owned.txt"]), "remote change");
+  assert.equal(git(fixture.repo, ["show", ":owned.txt"]), "remote change");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "local change\n");
+  assert.equal(git(fixture.repo, ["show", ":other.txt"]), "foreign staged");
+  assert.equal(git(fixture.repo, ["diff", "--name-only"]), "owned.txt");
+  assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "other.txt");
+});
+
+test("preserve synchronization refuses an incomplete review and staged overlapping data", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const peer = path.join(fixture.root, "peer");
+  git(fixture.root, ["clone", "-b", "main", fixture.remote, peer]);
+  git(peer, ["config", "user.name", "Peer"]);
+  git(peer, ["config", "user.email", "peer@example.invalid"]);
+  write(path.join(peer, "owned.txt"), "remote owned\n");
+  write(path.join(peer, "other.txt"), "remote other\n");
+  git(peer, ["add", "owned.txt", "other.txt"]);
+  git(peer, ["commit", "-m", "peer changes"]);
+  git(peer, ["push", "origin", "main"]);
+  write(path.join(fixture.repo, "owned.txt"), "local owned\n");
+  write(path.join(fixture.repo, "other.txt"), "local other\n");
+  const before = git(fixture.repo, ["rev-parse", "HEAD"]);
+
+  const partial = run(fixture.repo, ["--mode", "sync-preserve", "--path", "owned.txt"]);
+  assert.equal(partial.json.code, "sync_review_incomplete");
+  git(fixture.repo, ["add", "other.txt"]);
+  const staged = run(fixture.repo, ["--mode", "sync-preserve", "--path", "owned.txt", "--path", "other.txt"]);
+  assert.equal(staged.json.code, "sync_review_incomplete");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(fixture.repo, ["show", ":other.txt"]), "local other");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8"), "local owned\n");
 });
 
 test("rejects directories and common secret paths", (t) => {
