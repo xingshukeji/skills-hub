@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { CliError, isObject, jsonInput, nonempty, origin, segment } from './core.mjs';
+import { CliError, isObject, jsonInput, nonempty, segment } from './core.mjs';
 import { apiValue, request, responseError } from './http.mjs';
 import { chatCommands } from './agent-chat.mjs';
+import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
+
+export { identifier } from './agent-target.mjs';
 
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
@@ -9,11 +12,7 @@ const definitionFields = ['name', 'enabled', 'instructions', 'provider', 'model'
   'workspaceId', 'nativeTools', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools'];
 const inputFields = new Set([...definitionFields, 'workspaceChange']);
 
-export function identifier(value, label) {
-  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === '.' || value === '..')
-    throw new CliError(`${label} must be a valid exact identifier.`, { code: 'invalid_arguments' });
-  return value;
-}
+const runtimeConnections = new WeakMap();
 function revision(args) {
   if (!args.has('expected-revision')) throw new CliError('--expected-revision is required. Read the definition first.', { code: 'invalid_arguments' });
   return args.integer('expected-revision');
@@ -47,12 +46,16 @@ function workspaceChange(value) {
 }
 
 export function runtimeConnection(ctx) {
+  const cached = runtimeConnections.get(ctx);
+  if (cached) return cached;
   const { args, store } = ctx;
-  const runtime = origin(args.required('runtime'));
   const profile = store.resolve(args, true);
+  const runtime = runtimeOrigin(profile);
   const { token, source } = store.credential(args, profile);
   if (!token) throw new CliError('A platform credential is required for the Runtime.', { code: 'authentication_required', hint: 'Check auth status for the selected platform profile.' });
-  return { runtime, profile, token, source };
+  const connection = { runtime, profile, token, source };
+  runtimeConnections.set(ctx, connection);
+  return connection;
 }
 export async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
   const { args } = ctx;
@@ -133,13 +136,14 @@ async function definitionCommands(ctx) {
 }
 
 export async function agentCommands(ctx) {
-  const { args, reporter, spec } = ctx;
+  const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
-  if (action === 'chat') return chatCommands(ctx, { identifier, runtimeConnection, runtimeValue, writeOnce });
+  if (action === 'chat') return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === 'definition') return definitionCommands(ctx);
   if (action === 'directory') {
     if (args.has('mine') && args.has('application-id')) throw new CliError('--mine applies only to the personal directory.', { code: 'invalid_arguments' });
-    const headers = args.has('application-id') ? { 'X-XRain-Application-Id': identifier(args.value('application-id'), 'Application ID') } : {};
+    const appId = applicationId(runtimeConnection(ctx).profile);
+    const headers = appId ? { 'X-XRain-Application-Id': appId } : {};
     reporter.print(await runtimeValue(ctx, 'GET', `/v1/dsh/workbench-agents?mine=${args.has('mine')}`, undefined, headers)); return 0;
   }
   if (action === 'tool') {
@@ -152,7 +156,9 @@ export async function agentCommands(ctx) {
     const call = () => runtimeValue(ctx, 'POST', definitions + path, body);
     reporter.print(sub === 'browse' ? await call() : await writeOnce(call, 'Operation outcome is unknown. Inspect the original directory or workspace before retrying.', { operation: spec.path })); return 0;
   }
-  const appId = args.has('application-id') ? identifier(args.value('application-id'), 'Application ID') : undefined;
+  const selectedProfile = (action === 'qualifications' || action === 'use') ? store.resolve(args, true) : undefined;
+  const appId = selectedProfile ? applicationId(selectedProfile)
+    : args.has('application-id') ? identifier(args.value('application-id'), 'Application ID') : undefined;
   let method = 'GET', path, body;
   if (action === 'qualifications') path = platformAgents + '/qualifications' + (appId ? '?' + new URLSearchParams({ applicationId: appId }) : '');
   else if (action === 'use') { method = 'POST'; path = `${platformAgents}/${segment(identifier(args.required('agent-id'), 'Agent ID'))}/use`; body = { applicationId: appId ?? null }; }
@@ -169,7 +175,7 @@ export async function agentCommands(ctx) {
   }
   const readOnly = method === 'GET' || action === 'use';
   const call = async () => {
-    const result = await apiValue(ctx, method, path, body);
+    const result = await apiValue(ctx, method, path, body, { resolvedProfile: selectedProfile });
     if (!readOnly) {
       const id = args.value('agent-id');
       const valid = action === 'subscribe' ? isObject(result) && nonempty(result.id) && result.agentId === id && result.selected === true && ['pending', 'approved'].includes(result.approvalStatus)

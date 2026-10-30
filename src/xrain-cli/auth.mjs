@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { CliError, equalIgnoreCase, httpUrl, nonempty } from './core.mjs';
 import { request, requireSuccess } from './http.mjs';
+import { samePlatformTarget } from './agent-target.mjs';
 
 export const REDIRECT_URI = 'http://127.0.0.1:38749/callback/';
 const secureEqual = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -181,7 +182,7 @@ async function openBrowser(url) {
 
 function tenantSession(response) {
   const data = requireSuccess(response).json();
-  if (!nonempty(data.access_token) || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
+  if (!nonempty(data.access_token) || (data.token_type !== undefined && !equalIgnoreCase(data.token_type, 'Bearer')) || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
     throw new CliError('XRain returned an invalid tenant session.');
   return { token: data.access_token, tenant: data.tenantId, expiry: data.expires_at_utc };
 }
@@ -203,6 +204,47 @@ export async function exchangeTenant(server, accessToken, requestedTenant) {
   const initial = tenantSession(await send('', {}));
   if (!nonempty(requestedTenant) || equalIgnoreCase(initial.tenant, requestedTenant)) return initial;
   return selectedSession(await send('/tenant', { tenantId: requestedTenant }));
+}
+
+function savePlatformLogin(ctx, profile, session) {
+  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
+  const saved = ctx.store.load();
+  const existing = saved.profiles[profile.name] ?? {};
+  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant);
+  const clearedAgentSettings = !sameTarget && !!(existing.runtime || existing.applicationId);
+  saved.activeProfile = profile.name;
+  saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant,
+    ...(sameTarget && existing.runtime ? { runtime: existing.runtime } : {}),
+    ...(sameTarget && existing.applicationId ? { applicationId: existing.applicationId } : {}) };
+  ctx.store.save(saved);
+  if (clearedAgentSettings) ctx.reporter.progress('Platform or tenant changed; previous agent connection settings were not reused.');
+}
+
+export async function nativeLogin(ctx) {
+  if (ctx.stdin.isTTY) throw new CliError('Pipe the password into stdin for native login; do not put it in command arguments.', { code: 'invalid_arguments' });
+  const profile = ctx.store.resolve(ctx.args, false, { allowMissing: true });
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of ctx.stdin) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.length;
+    if (size > 4096) throw new CliError('Password input exceeds its size limit.', { code: 'invalid_arguments' });
+    chunks.push(bytes);
+  }
+  let password;
+  try { password = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)); }
+  catch { throw new CliError('Password input must be UTF-8.', { code: 'invalid_arguments' }); }
+  ctx.reporter.secret(password);
+  if (!nonempty(password)) throw new CliError('Password input is empty.', { code: 'invalid_arguments' });
+  const session = tenantSession(await request(new URL('/api/service/authen/v1/account/login', profile.server), {
+    method: 'POST', json: { userName: ctx.args.required('user'), password, ...(profile.tenant ? { tenantId: profile.tenant } : {}) },
+    timeout: ctx.args.timeout(), limit: 1024 * 1024,
+  }));
+  if (nonempty(profile.tenant) && !equalIgnoreCase(session.tenant, profile.tenant))
+    throw new CliError('The server returned a different tenant session.');
+  savePlatformLogin(ctx, profile, session);
+  ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : `Logged in with profile '${profile.name}'.`);
+  return 0;
 }
 
 export async function browserLogin(ctx) {
@@ -235,11 +277,7 @@ export async function browserLogin(ctx) {
       ctx.store.saveSession(profile.name, profile.server, '', data.token, data.expiresAt);
     } else {
       const session = await exchangeTenant(profile.server, login.accessToken, profile.tenant);
-      ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
-      const saved = ctx.store.load();
-      saved.activeProfile = profile.name;
-      saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant };
-      ctx.store.save(saved);
+      savePlatformLogin(ctx, profile, session);
     }
     callback?.reply('登录已完成，可以返回终端。');
     ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } :

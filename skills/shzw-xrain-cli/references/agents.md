@@ -1,6 +1,6 @@
 # 智能体命令
 
-所有命令接在 `node "<skill目录>/scripts/xrain-cli.mjs"` 后。先按 [SKILL.md](../SKILL.md) 核对平台、租户和当前身份；以下示例省略共同的 `--profile <连接> --auth session --json`。Runtime 命令还须提供准确的 `--runtime <Runtime origin>`，所选平台凭据会发送到该 Runtime。该地址从责任项目的现有配置或 Runbook 确定，不能从平台地址推断。
+所有命令接在 `node "<skill目录>/scripts/xrain-cli.mjs"` 后。先按 [连接与认证](configuration.md) 保存服务方提供的 Runtime 入口、登录并核对平台及 Runtime 的本人身份；以下示例省略共同的 `--profile <连接> --auth session --json`。Runtime 命令复用该 profile，也可用 `--runtime <Runtime origin>` 单次覆盖。所选平台凭据会发送到该地址，不能从平台地址推断它。
 
 ## 职责和顺序
 
@@ -11,31 +11,31 @@ Runtime 持有智能体定义、工作区和工具配置；XRain 持有个人订
 ## 查询和定义
 
 ```text
-agent definition options --runtime <Runtime origin>
-agent definition list --runtime <Runtime origin>
-agent definition show <agentId> --runtime <Runtime origin>
-agent directory --runtime <Runtime origin>
-agent directory --mine --runtime <Runtime origin>
-agent directory --application-id <应用ID> --runtime <Runtime origin>
-agent qualifications [--application-id <应用ID>]
-agent use <agentId> [--application-id <应用ID>]
+agent definition options
+agent definition list
+agent definition show <agentId>
+agent directory
+agent directory --mine
+agent directory --application-id <应用ID>
+agent qualifications [--application-id <应用ID> | --personal]
+agent use <agentId> [--application-id <应用ID> | --personal]
 ```
 
-`directory` 汇合 Runtime 定义与平台资格，默认展示可发现项；`--mine` 仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。
+`directory` 汇合 Runtime 定义与平台资格，默认使用 profile 配置的应用上下文；`--personal` 单次选择个人上下文，`--mine` 始终仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。个人订阅命令始终以当前人为主体。
 
 ## 发起和继续对话
 
-`agent chat` 使用 Runtime 的真实会话、所选定义及当前主体权限；工具可能读取或修改实际资料。按明确授权发送输入，验证时可使用不涉及业务写入的合成问题。应用入口带实际 `--application-id`；个人入口省略它并遵循本人订阅规则。续聊、等待和回答待处理事项时使用原会话相同的应用上下文。
+`agent chat` 使用 Runtime 的真实会话、所选定义及当前主体权限；工具可能读取或修改实际资料。按明确授权发送输入，验证时可使用不涉及业务写入的合成问题。应用入口使用 profile 配置的应用或显式 `--application-id`；已配置应用时可用 `--personal` 选择个人入口并遵循本人订阅规则。续聊、等待和回答待处理事项时使用原会话相同的 Runtime 和应用上下文。命令结果提供实际 Runtime 与 applicationId；切换 profile 后由使用者选回原目标或显式指定，不按名称猜测。
 
 ```text
-agent chat start <agentId> --message-file <输入.txt> --runtime <Runtime origin> [--application-id <应用ID>]
-agent chat send <sessionId> --message-file <输入.txt> --runtime <Runtime origin> [--application-id <应用ID>]
-agent chat list --runtime <Runtime origin>
-agent chat list --all --runtime <Runtime origin>
-agent chat history <sessionId> --runtime <Runtime origin>
-agent chat wait <sessionId> --request-id <原请求ID> --runtime <Runtime origin> [--application-id <应用ID>]
-agent chat pending --session-id <sessionId> --runtime <Runtime origin>
-agent chat respond <actionRef> --values-json <回答.json> --runtime <Runtime origin> [--application-id <应用ID>]
+agent chat start <agentId> --message-file <输入.txt>
+agent chat send <sessionId> --message-file <输入.txt>
+agent chat list
+agent chat list --all
+agent chat history <sessionId>
+agent chat wait <sessionId> --request-id <原请求ID>
+agent chat pending --session-id <sessionId>
+agent chat respond <actionRef> --values-json <回答.json>
 ```
 
 `--message-file -` 从标准输入读取 UTF-8 文本，也可用 `--message` 直接提供短输入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；也可通过 `--request-id` 显式指定本次输入的稳定 ID。
@@ -57,10 +57,10 @@ agent chat respond <actionRef> --values-json <回答.json> --runtime <Runtime or
 ```
 
 ```text
-agent definition create --name <名称> --values-json <定义.json> --runtime <Runtime origin>
-agent definition update <agentId> --expected-revision <读到的版本> --values-json <修改.json> --runtime <Runtime origin>
-agent definition enable <agentId> --expected-revision <读到的版本> --runtime <Runtime origin>
-agent definition disable <agentId> --expected-revision <读到的版本> --runtime <Runtime origin>
+agent definition create --name <名称> --values-json <定义.json>
+agent definition update <agentId> --expected-revision <读到的版本> --values-json <修改.json>
+agent definition enable <agentId> --expected-revision <读到的版本>
+agent definition disable <agentId> --expected-revision <读到的版本>
 ```
 
 创建时名称也可放在 JSON 的 `name`，但不能同时使用 `--name`；无 JSON 可先创建空的停用定义。`update` 接收待修改字段，保留原定义的其他字段。每次更新或启停都必须提供实际读取的版本；冲突时重读比较，不自动改用新版本。更换目录或工作方式使用上述 `workspaceChange: {operation:"bind",...}`；`{operation:"clear"}` 仅能用于停用的定义。未改工作区时保留原绑定。原生工具和业务工具显式空数组表示清空，省略表示保留。
@@ -70,11 +70,11 @@ agent definition disable <agentId> --expected-revision <读到的版本> --runti
 ## 工作区与工具
 
 ```text
-agent tool native --workspace-id <工作区ID> --preset <工作方式> --runtime <Runtime origin>
-agent tool business --runtime <Runtime origin>
-agent workspace browse --values-json <目录查询.json> --runtime <Runtime origin>
-agent workspace create --values-json <目录创建.json> --runtime <Runtime origin>
-agent workspace register --values-json <工作区登记.json> --runtime <Runtime origin>
+agent tool native --workspace-id <工作区ID> --preset <工作方式>
+agent tool business
+agent workspace browse --values-json <目录查询.json>
+agent workspace create --values-json <目录创建.json>
+agent workspace register --values-json <工作区登记.json>
 ```
 
 目录查询 JSON 为 `{"path":"<Runtime机器上的目录>"}`；创建为 `{"parent":"<已有父目录>","name":"<目录名>"}`；登记为 `{"path":"<已有目录>","name":"<显示名称>","agentPresets":["<可用工作方式>"]}`。目录和工作区写入需要用户明确要求及对应管理权；结果未知先检查原位置和登记，避免重复创建。

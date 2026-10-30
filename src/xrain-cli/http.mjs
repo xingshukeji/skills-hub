@@ -33,8 +33,8 @@ export function responseError(response, hint = '', context = {}) {
   const serverCode = typeof candidate === 'string' && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : undefined;
   const methodRejected = serverCode?.endsWith('authentication_method_not_allowed');
   const code = methodRejected ? 'authentication_method_not_allowed' : response.status === 401 ? 'authentication_failed' : response.status === 403 ? 'permission_denied' : response.status === 404 ? 'not_found' : response.status === 409 ? 'conflict' : 'http_error';
-  const defaultHint = methodRejected ? 'This endpoint does not accept the selected credential type. Run auth login and select --auth session for browser management commands.' :
-    response.status === 401 ? 'Run auth status to inspect the selected credential. Reauthenticate with auth login if the browser session was rejected; check XRAIN_TOKEN when using automatic selection.' :
+  const defaultHint = methodRejected ? 'This endpoint does not accept the selected credential type. Run auth login and select --auth session for management commands.' :
+    response.status === 401 ? 'Run auth status to inspect the selected credential. Reauthenticate with auth login if the session was rejected; check XRAIN_TOKEN when using automatic selection.' :
       response.status === 403 ? 'Check the account, tenant membership and required permission on the server.' : '';
   const requestId = response.headers?.get('x-request-id');
   return new CliError(`XRain request failed (HTTP ${response.status}${serverCode ? ', ' + serverCode : ''}).`, {
@@ -49,10 +49,10 @@ export function requireSuccess(response, hint = '') {
   throw responseError(response, hint);
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true } = {}) {
-  const profile = ctx.store.resolve(ctx.args, requireTenant);
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile } = {}) {
+  const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = ctx.store.credential(ctx.args, profile);
-  if (ctx.args.value('auth') === 'session' && !token) throw new CliError('A matching browser session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
+  if (ctx.args.value('auth') === 'session' && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
   let result;
   try { result = response.json(); } catch { result = response.text(); }

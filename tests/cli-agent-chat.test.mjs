@@ -77,6 +77,20 @@ test('chat starts and continues the selected agent only after observing its own 
   assert.ok(!history.stdout.includes('internal')); assert.ok(!started.stdout.includes('synthetic-token'));
 });
 
+test('chat reuses the saved Runtime and application while returning the original conversation context', async t => {
+  const f = fixture(t), mock = setup(t), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const configured = await f.run(['profile', 'set', '--runtime', service.url, '--application-id', 'app-1', '--json']);
+  assert.equal(configured.code, 0, configured.stdout);
+  const started = await f.run(['agent', 'chat', 'start', 'agent-one', '--message', 'saved target', '--wait-timeout', '3', '--json']);
+  assert.equal(started.code, 0, started.stdout);
+  assert.equal(result(started).data.runtime, service.url); assert.equal(result(started).data.applicationId, 'app-1');
+  const continued = await f.run(['agent', 'chat', 'send', result(started).data.sessionId, '--message', 'continue', '--wait-timeout', '3', '--json']);
+  assert.equal(continued.code, 0, continued.stdout);
+  assert.equal(result(continued).data.sessionId, 'session-1'); assert.equal(result(continued).data.runtime, service.url);
+  assert.equal(result(continued).data.applicationId, 'app-1'); assert.deepEqual({ creates: mock.state().creates, sends: mock.state().sends }, { creates: 1, sends: 2 });
+});
+
 test('pending actions require an explicit response and can be followed to completion without resending', async t => {
   const f = fixture(t), mock = setup(t, { pending: true }), service = await mock.servicePromise;
   f.profile(service.url, 'tenant-demo', 'synthetic-token');

@@ -45,7 +45,7 @@ function localError(error) {
   return new CliError('The operation failed. Check the input and local file access; no credentials were printed.', { code: 'operation_failed' });
 }
 
-export async function main(argv = process.argv.slice(2), { env = process.env, stdout = process.stdout, stderr = process.stderr, store: sharedStore } = {}) {
+export async function main(argv = process.argv.slice(2), { env = process.env, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr, store: sharedStore } = {}) {
   const reporter = new Reporter(stdout, stderr);
   reporter.json = argv.includes('--json');
   reporter.secret(env.XRAIN_TOKEN);
@@ -62,7 +62,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, st
       store = sharedStore ?? new Store(env, reporter);
       previousReporter = store.reporter;
       store.reporter = reporter;
-      const ctx = { args, store, reporter, spec, execute: (next, io) => main(next, { env, store, ...io }) };
+      const ctx = { args, store, reporter, stdin, spec, execute: (next, io) => main(next, { env, store, ...io }) };
       code = await dispatch(ctx);
     }
   } catch (error) { reporter.error(localError(error)); code = 1; }

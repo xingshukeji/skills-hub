@@ -20,7 +20,7 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "no-total", "check", "wait", "maintain-installed-version", "mine", "all"]);
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
 var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
@@ -203,6 +203,43 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { randomBytes as randomBytes2 } from "node:crypto";
 import { spawnSync } from "node:child_process";
+
+// src/xrain-cli/agent-target.mjs
+function identifier(value, label) {
+  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
+    throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
+  return value;
+}
+function samePlatformTarget(saved, server, tenant) {
+  if (!nonempty(saved?.server)) return false;
+  try {
+    return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant);
+  } catch {
+    return false;
+  }
+}
+function runtimeOrigin(profile) {
+  if (profile.invalidRuntime) throw new CliError("The saved agent Runtime address is invalid.", {
+    code: "invalid_runtime_configuration",
+    hint: "Correct the address with profile set --runtime, or supply --runtime for this command.",
+    details: { profile: profile.name, server: profile.server, tenant: profile.tenant ?? null }
+  });
+  if (!nonempty(profile.runtime)) throw new CliError("The agent Runtime is not configured for this platform and tenant.", {
+    code: "runtime_not_configured",
+    hint: "Save the service-provided address with profile set --runtime, or supply --runtime for this command.",
+    details: { profile: profile.name, server: profile.server, tenant: profile.tenant ?? null }
+  });
+  return origin(profile.runtime);
+}
+function applicationId(profile) {
+  if (profile.invalidApplicationId) throw new CliError("The saved agent application ID is invalid.", {
+    code: "invalid_application_configuration",
+    hint: "Correct it with profile set --application-id, or use --personal."
+  });
+  return profile.applicationId === void 0 || profile.applicationId === null ? void 0 : identifier(profile.applicationId, "Application ID");
+}
+
+// src/xrain-cli/store.mjs
 function writePrivate(path, bytes) {
   mkdirSync(dirname(path), { recursive: true, mode: 448 });
   const temporary = `${path}.${randomBytes2(8).toString("hex")}.tmp`;
@@ -272,6 +309,25 @@ var Store = class {
       bearerToken: args.value("bearer") ?? this.env.XRAIN_TOKEN ?? saved.bearerToken,
       tokenName: args.value("token-name") ?? this.env.XRAIN_TOKEN_NAME ?? saved.tokenName
     };
+    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant);
+    const runtime2 = args.value("runtime") ?? (sameTarget ? saved.runtime : void 0);
+    const application = args.has("personal") || args.has("mine") ? void 0 : args.value("application-id") ?? (sameTarget ? saved.applicationId : void 0);
+    if (runtime2 !== void 0 && runtime2 !== null) {
+      try {
+        profile.runtime = origin(runtime2);
+      } catch (error) {
+        if (args.has("runtime")) throw error;
+        profile.invalidRuntime = true;
+      }
+    }
+    if (application !== void 0 && application !== null) {
+      try {
+        profile.applicationId = identifier(application, "Application ID");
+      } catch (error) {
+        if (args.has("application-id")) throw error;
+        profile.invalidApplicationId = true;
+      }
+    }
     this.reporter?.secret(profile.bearerToken);
     if (requireTenant && !nonempty(profile.tenant)) throw new CliError("Tenant is required. Run auth login --tenant <tenantId>.", { code: "tenant_required" });
     return profile;
@@ -365,8 +421,12 @@ var Store = class {
       credentialSource: selected.source,
       credentialConfigured: !!selected.token,
       session,
+      ...profile.runtime ? { agentRuntime: profile.runtime } : {},
+      ...profile.applicationId ? { agentApplicationId: profile.applicationId } : {},
+      ...profile.invalidRuntime ? { agentRuntimeStatus: "invalid" } : {},
+      ...profile.invalidApplicationId ? { agentApplicationStatus: "invalid" } : {},
       remoteValidation: "not_checked",
-      hints: sessionToken && selected.source !== "application-session" ? ["The browser session is not selected. Use --auth session to select it explicitly."] : !sessionToken && selected.source === "application-session" ? ["Run auth login for this server, tenant and profile."] : []
+      hints: sessionToken && selected.source !== "application-session" ? ["The saved session is not selected. Use --auth session to select it explicitly."] : !sessionToken && selected.source === "application-session" ? ["Run auth login for this server, tenant and profile."] : []
     };
   }
 };
@@ -421,7 +481,7 @@ function responseError(response, hint = "", context = {}) {
   const serverCode = typeof candidate === "string" && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : void 0;
   const methodRejected = serverCode?.endsWith("authentication_method_not_allowed");
   const code = methodRejected ? "authentication_method_not_allowed" : response.status === 401 ? "authentication_failed" : response.status === 403 ? "permission_denied" : response.status === 404 ? "not_found" : response.status === 409 ? "conflict" : "http_error";
-  const defaultHint = methodRejected ? "This endpoint does not accept the selected credential type. Run auth login and select --auth session for browser management commands." : response.status === 401 ? "Run auth status to inspect the selected credential. Reauthenticate with auth login if the browser session was rejected; check XRAIN_TOKEN when using automatic selection." : response.status === 403 ? "Check the account, tenant membership and required permission on the server." : "";
+  const defaultHint = methodRejected ? "This endpoint does not accept the selected credential type. Run auth login and select --auth session for management commands." : response.status === 401 ? "Run auth status to inspect the selected credential. Reauthenticate with auth login if the session was rejected; check XRAIN_TOKEN when using automatic selection." : response.status === 403 ? "Check the account, tenant membership and required permission on the server." : "";
   const requestId = response.headers?.get("x-request-id");
   return new CliError(`XRain request failed (HTTP ${response.status}${serverCode ? ", " + serverCode : ""}).`, {
     code,
@@ -436,10 +496,10 @@ function requireSuccess(response, hint = "") {
   if (response.ok) return response;
   throw responseError(response, hint);
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true } = {}) {
-  const profile = ctx.store.resolve(ctx.args, requireTenant);
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile } = {}) {
+  const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = ctx.store.credential(ctx.args, profile);
-  if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching browser session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
+  if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
   let result;
   try {
@@ -464,7 +524,14 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
   }
   const config = store.load();
   if (action === "list") {
-    reporter.print(Object.entries(config.profiles).map(([name, profile]) => ({ name, active: equalIgnoreCase(name, config.activeProfile), server: profile.server, tenant: profile.tenant })));
+    reporter.print(Object.entries(config.profiles).map(([name, profile]) => ({
+      name,
+      active: equalIgnoreCase(name, config.activeProfile),
+      server: profile.server,
+      tenant: profile.tenant,
+      ...profile.runtime ? { agentRuntime: profile.runtime } : {},
+      ...profile.applicationId ? { agentApplicationId: profile.applicationId } : {}
+    })));
     return 0;
   }
   if (action === "set") {
@@ -476,11 +543,18 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
       bearerToken: args.has("bearer") ? args.value("bearer") : args.has("token-name") ? void 0 : existing.bearerToken,
       tokenName: args.value("token-name") ?? store.env.XRAIN_TOKEN_NAME ?? existing.tokenName
     };
+    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant);
+    const runtime2 = args.value("runtime") ?? (sameTarget ? existing.runtime : void 0);
+    const application = args.has("personal") ? void 0 : args.value("application-id") ?? (sameTarget ? existing.applicationId : void 0);
+    if (runtime2 !== void 0 && runtime2 !== null) profile.runtime = origin(runtime2);
+    if (application !== void 0 && application !== null) profile.applicationId = identifier(application, "Application ID");
+    const clearedAgentSettings = !sameTarget && !!(existing.runtime && !args.has("runtime") || existing.applicationId && !args.has("application-id") && !args.has("personal"));
+    if (clearedAgentSettings) reporter.progress("Platform or tenant changed; previous agent connection settings were not reused.");
     reporter.secret(profile.bearerToken);
     config.activeProfile = name;
     config.profiles[name] = profile;
     store.save(config);
-    const result = { profile: name, configPath: store.configPath, saved: true };
+    const result = { profile: name, configPath: store.configPath, saved: true, ...clearedAgentSettings ? { clearedAgentSettings: true } : {} };
     if (args.has("check")) {
       reporter.progress(`Saved profile '${name}' at ${store.configPath}. Checking the selected credential...`);
       return api(ctx, "GET", "/health/ready");
@@ -500,7 +574,16 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
     reporter.print({
       configPath: store.configPath,
       activeProfile: profile.name,
-      profile: { server: profile.server, tenant: profile.tenant, tokenName: profile.tokenName, hasBearerToken: !!profile.bearerToken },
+      profile: {
+        server: profile.server,
+        tenant: profile.tenant,
+        tokenName: profile.tokenName,
+        hasBearerToken: !!profile.bearerToken,
+        ...profile.runtime ? { agentRuntime: profile.runtime } : {},
+        ...profile.applicationId ? { agentApplicationId: profile.applicationId } : {},
+        ...profile.invalidRuntime ? { agentRuntimeStatus: "invalid" } : {},
+        ...profile.invalidApplicationId ? { agentApplicationStatus: "invalid" } : {}
+      },
       tokenSource
     });
     return 0;
@@ -656,7 +739,7 @@ import { spawn } from "node:child_process";
 import { join as join2 } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-// node_modules/jose/dist/webapi/lib/buffer_utils.js
+// ../../../node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var strictDecoder = new TextDecoder("utf-8", { fatal: true });
@@ -698,7 +781,7 @@ function decodeBase64(encoded, url = false) {
   return bytes;
 }
 
-// node_modules/jose/dist/webapi/util/errors.js
+// ../../../node_modules/jose/dist/webapi/util/errors.js
 var JOSEError = class extends Error {
   static code = "ERR_JOSE_GENERIC";
   code = "ERR_JOSE_GENERIC";
@@ -770,7 +853,7 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
   }
 };
 
-// node_modules/jose/dist/webapi/util/base64url.js
+// ../../../node_modules/jose/dist/webapi/util/base64url.js
 var invalid = "The input to be decoded is not correctly encoded.";
 function decode(input2) {
   try {
@@ -780,7 +863,7 @@ function decode(input2) {
   }
 }
 
-// node_modules/jose/dist/webapi/lib/validate.js
+// ../../../node_modules/jose/dist/webapi/lib/validate.js
 function isObject2(input2) {
   if (typeof input2 != "object" || input2 === null || Object.prototype.toString.call(input2) !== "[object Object]")
     return false;
@@ -860,7 +943,7 @@ function validateB64(protectedHeader, extensions) {
   return true;
 }
 
-// node_modules/jose/dist/webapi/lib/key.js
+// ../../../node_modules/jose/dist/webapi/lib/key.js
 var tag = (key) => key[Symbol.toStringTag];
 var jwkMatchesOp = (entry, key, usage) => {
   const { alg } = entry;
@@ -991,7 +1074,7 @@ async function rawKey(key, expected, usage, extractable = false) {
   return key instanceof Uint8Array && (key = await crypto.subtle.importKey("raw", key, expected, extractable, [usage])), checkCryptoKey(key, expected, usage), key;
 }
 
-// node_modules/jose/dist/webapi/lib/key_descriptor.js
+// ../../../node_modules/jose/dist/webapi/lib/key_descriptor.js
 function table(entries) {
   const out = { __proto__: null };
   for (const alg in entries)
@@ -999,7 +1082,7 @@ function table(entries) {
   return out;
 }
 
-// node_modules/jose/dist/webapi/lib/jws_algorithms.js
+// ../../../node_modules/jose/dist/webapi/lib/jws_algorithms.js
 var sig = [["verify"], ["sign"]];
 function hmac(bits) {
   const subtle = { name: "HMAC", hash: `SHA-${bits}` };
@@ -1069,7 +1152,7 @@ function jwsAlgorithm(alg) {
   return entry;
 }
 
-// node_modules/jose/dist/webapi/lib/jws_verify.js
+// ../../../node_modules/jose/dist/webapi/lib/jws_verify.js
 function prepareVerify(options) {
   return [options && validateAlgorithms("algorithms", options.algorithms), options?.crit];
 }
@@ -1121,7 +1204,7 @@ async function verifyCompact(jws, shared, key) {
   return verifySignature({ payload, protected: protectedHeader, signature }, shared, key, encodeCompactUnencodedPayload);
 }
 
-// node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+// ../../../node_modules/jose/dist/webapi/lib/jwt_claims_set.js
 var epoch = (date) => Math.floor(date.getTime() / 1e3);
 var multipliers = {
   s: 1,
@@ -1207,7 +1290,7 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   return payload;
 }
 
-// node_modules/jose/dist/webapi/jwt/verify.js
+// ../../../node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
   const [verified, b64] = await verifyCompact(jwt, prepareVerify(options), key);
   if (!b64)
@@ -1216,7 +1299,7 @@ async function jwtVerify(jwt, key, options) {
   return { ...verified, payload };
 }
 
-// node_modules/jose/dist/webapi/jwks/local.js
+// ../../../node_modules/jose/dist/webapi/jwks/local.js
 function isUsableJWK(jwk, entry, alg, kid) {
   const { kty, key_ops: keyOps, ext, kid: jwkKid, alg: jwkAlg, use, crv } = jwk;
   return (ext === void 0 || typeof ext == "boolean") && (keyOps === void 0 || Array.isArray(keyOps) && keyOps.every((operation, index) => typeof operation == "string" && keyOps.indexOf(operation) === index) && keyOps.includes("verify")) && entry.kty.includes(kty) && (kid === void 0 || typeof kid == "string" && kid === jwkKid) && (jwkAlg === void 0 ? kty !== "AKP" : alg === jwkAlg) && (use === void 0 || use === "sig") && (!entry.crv || crv === entry.crv);
@@ -1493,7 +1576,7 @@ async function openBrowser(url) {
 }
 function tenantSession(response) {
   const data = requireSuccess(response).json();
-  if (!nonempty(data.access_token) || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
+  if (!nonempty(data.access_token) || data.token_type !== void 0 && !equalIgnoreCase(data.token_type, "Bearer") || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
     throw new CliError("XRain returned an invalid tenant session.");
   return { token: data.access_token, tenant: data.tenantId, expiry: data.expires_at_utc };
 }
@@ -1517,6 +1600,53 @@ async function exchangeTenant(server, accessToken, requestedTenant) {
   const initial = tenantSession(await send("", {}));
   if (!nonempty(requestedTenant) || equalIgnoreCase(initial.tenant, requestedTenant)) return initial;
   return selectedSession(await send("/tenant", { tenantId: requestedTenant }));
+}
+function savePlatformLogin(ctx, profile, session) {
+  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
+  const saved = ctx.store.load();
+  const existing = saved.profiles[profile.name] ?? {};
+  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant);
+  const clearedAgentSettings = !sameTarget && !!(existing.runtime || existing.applicationId);
+  saved.activeProfile = profile.name;
+  saved.profiles[profile.name] = {
+    server: profile.server,
+    tenant: session.tenant,
+    ...sameTarget && existing.runtime ? { runtime: existing.runtime } : {},
+    ...sameTarget && existing.applicationId ? { applicationId: existing.applicationId } : {}
+  };
+  ctx.store.save(saved);
+  if (clearedAgentSettings) ctx.reporter.progress("Platform or tenant changed; previous agent connection settings were not reused.");
+}
+async function nativeLogin(ctx) {
+  if (ctx.stdin.isTTY) throw new CliError("Pipe the password into stdin for native login; do not put it in command arguments.", { code: "invalid_arguments" });
+  const profile = ctx.store.resolve(ctx.args, false, { allowMissing: true });
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of ctx.stdin) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.length;
+    if (size > 4096) throw new CliError("Password input exceeds its size limit.", { code: "invalid_arguments" });
+    chunks.push(bytes);
+  }
+  let password;
+  try {
+    password = new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+  } catch {
+    throw new CliError("Password input must be UTF-8.", { code: "invalid_arguments" });
+  }
+  ctx.reporter.secret(password);
+  if (!nonempty(password)) throw new CliError("Password input is empty.", { code: "invalid_arguments" });
+  const session = tenantSession(await request(new URL("/api/service/authen/v1/account/login", profile.server), {
+    method: "POST",
+    json: { userName: ctx.args.required("user"), password, ...profile.tenant ? { tenantId: profile.tenant } : {} },
+    timeout: ctx.args.timeout(),
+    limit: 1024 * 1024
+  }));
+  if (nonempty(profile.tenant) && !equalIgnoreCase(session.tenant, profile.tenant))
+    throw new CliError("The server returned a different tenant session.");
+  savePlatformLogin(ctx, profile, session);
+  ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : `Logged in with profile '${profile.name}'.`);
+  return 0;
 }
 async function browserLogin(ctx) {
   const market = ctx.args.has("exchange");
@@ -1548,11 +1678,7 @@ async function browserLogin(ctx) {
       ctx.store.saveSession(profile.name, profile.server, "", data.token, data.expiresAt);
     } else {
       const session = await exchangeTenant(profile.server, login.accessToken, profile.tenant);
-      ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
-      const saved = ctx.store.load();
-      saved.activeProfile = profile.name;
-      saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant };
-      ctx.store.save(saved);
+      savePlatformLogin(ctx, profile, session);
     }
     callback?.reply("登录已完成，可以返回终端。");
     ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : market ? "Logged in to the independent application market." : `Logged in with profile '${profile.name}'.`);
@@ -2019,7 +2145,7 @@ async function appCommands(ctx) {
 // src/xrain-cli/diagnostics.mjs
 async function authCommands(ctx) {
   const { args, store, reporter } = ctx;
-  if (args.command(1) === "login") return browserLogin(ctx);
+  if (args.command(1) === "login") return args.has("native") ? nativeLogin(ctx) : browserLogin(ctx);
   const market = args.has("exchange"), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === "status") {
     reporter.print(store.authStatus(args, profile, market));
@@ -2054,14 +2180,68 @@ async function authCommands(ctx) {
     if (!isObject(value) || !nonempty(value.userId) || !Object.hasOwn(value, "tenantId") || !["tenant", "host"].includes(value.scope) || (value.scope === "tenant" ? !nonempty(value.tenantId) : value.tenantId !== null)) {
       throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
     }
-    reporter.print({
+    const identity = {
       ...details,
       configuredTenant: profile.tenant ?? null,
       userId: value.userId,
       tenantId: value.tenantId,
       scope: value.scope,
       remoteValidation: "identity_confirmed"
-    });
+    };
+    const appId = profile.invalidApplicationId ? void 0 : applicationId(profile);
+    const agentContext = {
+      ...profile.runtime ? { runtime: profile.runtime } : {},
+      ...appId ? { applicationId: appId } : {},
+      ...profile.invalidRuntime ? { runtimeConfiguration: "invalid" } : {},
+      ...profile.invalidApplicationId ? { applicationConfiguration: "invalid" } : {},
+      runtimeIdentity: "not_checked"
+    };
+    if (!args.has("agent")) {
+      reporter.print({ ...identity, ...profile.runtime || appId || profile.invalidRuntime || profile.invalidApplicationId ? { agentContext } : {} });
+      return 0;
+    }
+    let runtime2;
+    try {
+      runtime2 = runtimeOrigin(profile);
+    } catch (error) {
+      if (error instanceof CliError) error.details = { ...error.details, platformIdentity: identity, agentContext };
+      throw error;
+    }
+    let runtimeResponse;
+    try {
+      runtimeResponse = await request(new URL("/v1/dsh/whoami", runtime2), {
+        token,
+        headers: { "X-XRain-Authorization": `Bearer ${token}` },
+        timeout: args.timeout(),
+        limit: 1024 * 1024
+      });
+    } catch (error) {
+      if (error instanceof CliError) error.details = { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } };
+      throw error;
+    }
+    if (!runtimeResponse.ok) throw responseError(
+      runtimeResponse,
+      runtimeResponse.status === 404 ? "This Runtime does not provide the identity endpoint. The platform identity remains confirmed." : "",
+      { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } }
+    );
+    let runtimeIdentity;
+    try {
+      runtimeIdentity = runtimeResponse.json();
+    } catch {
+      runtimeIdentity = void 0;
+    }
+    if (!isObject(runtimeIdentity) || !nonempty(runtimeIdentity.userId) || !Object.hasOwn(runtimeIdentity, "tenantId") || runtimeIdentity.tenantId !== null && !nonempty(runtimeIdentity.tenantId))
+      throw new CliError("Runtime returned an invalid identity context.", {
+        code: "invalid_response",
+        details: { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } }
+      });
+    const actual = { runtime: runtime2, ...appId ? { applicationId: appId } : {}, userId: runtimeIdentity.userId, tenantId: runtimeIdentity.tenantId };
+    if (runtimeIdentity.userId !== value.userId || runtimeIdentity.tenantId !== value.tenantId)
+      throw new CliError("Runtime and platform identities do not match.", {
+        code: "identity_mismatch",
+        details: { platformIdentity: identity, agentContext: { ...actual, runtimeIdentity: "mismatch" } }
+      });
+    reporter.print({ ...identity, agentContext: { ...actual, runtimeIdentity: "identity_confirmed" } });
     return 0;
   }
   store.deleteSession(profile.name);
@@ -2100,18 +2280,18 @@ var specs = [];
 function command(path, options = [], operands = [], description = "") {
   specs.push({ path, words: path.split(" "), options: [...common, ...options], operands, description });
 }
-command("login", [...target, "bearer", "token-name", "check"], [], "Save connection settings; use auth login for browser authentication.");
-command("logout", ["profile"], [], "Remove the selected profile and its platform browser session.");
+command("login", [...target, "bearer", "token-name", "check", "runtime", "application-id", "personal"], [], "Save connection settings; use auth login for browser authentication.");
+command("logout", ["profile"], [], "Remove the selected profile and its platform session.");
 command("profile show", api2, [], "Show the selected connection and credential source without secrets.");
 command("profile list", [], [], "List saved platform profiles.");
-command("profile set", [...target, "bearer", "token-name", "check"], [], "Save connection settings.");
+command("profile set", [...target, "bearer", "token-name", "check", "runtime", "application-id", "personal"], [], "Save platform and optional agent connection settings.");
 command("profile use", ["name", "profile"], [slot("name", ["profile"])], "Select a saved profile.");
 command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), optional: true }], "Remove a saved profile and session.");
 command("profile path", [], [], "Show the profile store path.");
-command("auth login", [...target, "exchange", "device", "no-browser"], [], "Authenticate in the browser; --device supports a remote browser for XRain.");
+command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native tenant account. Native login reads its password from stdin.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
-command("auth whoami", api2, [], "Read the server-verified XRain identity and tenant using the selected credential.");
-command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the browser session, keeping the platform profile.");
+command("auth whoami", [...api2, "agent", "runtime", "application-id", "personal"], [], "Read the verified XRain identity; --agent also checks the selected Runtime caller.");
+command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the saved session, keeping the platform profile.");
 command("doctor", [...api2, "exchange"], [], "Check the selected connection and credential with a read-only probe.");
 command("health", api2, [], "Probe readiness.");
 for (const action of ["ready", "live", "healthz"]) command("health " + action, api2, [], "Read a health endpoint.");
@@ -2119,16 +2299,16 @@ command("metadata standards", api2, [], "Read entity design standards.");
 command("metadata entities", api2, [], "List the target environment object registry.");
 command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.");
 var runtime = [...api2, "runtime"];
-command("agent directory", [...runtime, "application-id", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
-command("agent chat start", [...runtime, "agent-id", "application-id", "message", "message-file", "request-id", "wait-timeout"], [slot("agent-id")], "Create a conversation, submit one message and wait for its own completed turn.");
-command("agent chat send", [...runtime, "session-id", "application-id", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
-command("agent chat wait", [...runtime, "session-id", "application-id", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
+command("agent directory", [...runtime, "application-id", "personal", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
+command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("agent-id")], "Create a conversation, submit one message and wait for its own completed turn.");
+command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
+command("agent chat wait", [...runtime, "session-id", "application-id", "personal", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
 command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
 command("agent chat history", [...runtime, "session-id"], [slot("session-id")], "Read visible messages and turn outcomes from an authorized conversation.");
 command("agent chat pending", [...runtime, "session-id"], [], "List your pending questions or approvals, optionally filtered by session.");
-command("agent chat respond", [...runtime, "action-ref", "application-id", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
-command("agent qualifications", [...api2, "application-id"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
-command("agent use", [...api2, "agent-id", "application-id"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
+command("agent chat respond", [...runtime, "action-ref", "application-id", "personal", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
+command("agent qualifications", [...api2, "application-id", "personal"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
+command("agent use", [...api2, "agent-id", "application-id", "personal"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
 for (const action of ["subscribe", "unsubscribe"]) command(
   `agent ${action}`,
   [...api2, "agent-id"],
@@ -2234,6 +2414,17 @@ function validateCommand(args) {
   const exclusive = (names) => {
     if (names.filter((name) => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map((name) => "--" + name).join(", ")}.`, { code: "invalid_arguments" });
   };
+  if (spec.path === "auth login") {
+    if (args.has("native")) {
+      args.required("user");
+      if (!args.has("password-stdin") || args.has("device") || args.has("no-browser") || args.has("exchange"))
+        throw new CliError("Native login requires --user and --password-stdin and cannot be combined with browser, device or market login.", { code: "invalid_arguments" });
+    } else if (args.has("user") || args.has("password-stdin")) {
+      throw new CliError("--user and --password-stdin require --native.", { code: "invalid_arguments" });
+    }
+  }
+  exclusive(["application-id", "personal"]);
+  if (args.has("runtime")) origin(args.value("runtime"));
   if (spec.path === "data query") {
     exclusive(["query", "query-json", "file"]);
     exclusive(["filter", "filter-json"]);
@@ -2242,7 +2433,6 @@ function validateCommand(args) {
   }
   if (["data create", "data update", "security user create", "security user ensure", "security permission-set create", "security permission-set ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
   if (spec.path.startsWith("agent ")) {
-    if (spec.options.includes("runtime")) origin(args.required("runtime"));
     if (spec.options.includes("expected-revision")) {
       args.required("expected-revision");
       args.integer("expected-revision");
@@ -2302,14 +2492,14 @@ function commandHelp(args) {
     if (exact) lines.push("  Options: " + spec.options.map((name) => "--" + name).join(", "));
   }
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
-  if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.");
+  if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
   if (!exact || exact.options.includes("request-json")) lines.push("Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.");
-  if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
+  if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
   if (prefix[0] === "agent" && prefix[1] === "chat") lines.push("Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.");
   if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
-    "auth login authenticates; login/profile set only save settings. Applications require browser authentication.",
+    "auth login authenticates; login/profile set only save settings. Market login uses browser authentication.",
     "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed."
   );
   return lines.join("\n") + "\n";
@@ -2323,7 +2513,7 @@ async function batchCommands(ctx) {
   for (const row of plan) {
     if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
-    if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and browser login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
+    if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
     if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
       throw new CliError("Batch steps must use files or inline JSON instead of sharing stdin.", { code: "invalid_arguments" });
     commands.push(spec.path);
@@ -2609,7 +2799,9 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers) {
 }
 async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
-  const app2 = args.has("application-id") ? helpers.identifier(args.value("application-id"), "Application ID") : void 0;
+  const connection = helpers.runtimeConnection(ctx);
+  const app2 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection.profile) : void 0;
+  const context = { runtime: connection.runtime, applicationId: app2 ?? null };
   const headers = app2 ? { "X-XRain-Application-Id": app2 } : {};
   if (action === "list") {
     const path = args.has("all") ? sessions : `${sessions}?source=xrain-cli`;
@@ -2636,8 +2828,8 @@ async function chatCommands(ctx, helpers) {
       const accepted = await helpers.runtimeValue(ctx, "POST", `${pendingPath}/${segment(ref)}/responses`, { ...input2, responseId }, headers);
       if (!isObject(accepted) || accepted.accepted !== true) throw new CliError("Runtime returned an invalid response receipt.", { code: "invalid_response" });
       return accepted;
-    }, "Response outcome is unknown. Inspect this pending action before retrying.", { actionRef: ref, responseId });
-    reporter.print({ actionRef: ref, responseId, ...result });
+    }, "Response outcome is unknown. Inspect this pending action before retrying.", { actionRef: ref, responseId, ...context });
+    reporter.print({ actionRef: ref, responseId, ...result, ...context });
     return 0;
   }
   let sessionId = args.value("session-id");
@@ -2654,13 +2846,18 @@ async function chatCommands(ctx, helpers) {
       const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli" }, headers);
       if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError("Runtime returned an invalid session receipt.", { code: "invalid_response" });
       return result;
-    }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, ...app2 ? { applicationId: app2 } : {} });
+    }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, ...context });
     sessionId = created.sessionId;
     reporter.progress(`Session ID: ${sessionId}`);
   }
   sessionId = helpers.identifier(sessionId, "Session ID");
   reporter.progress(`Request ID: ${requestId}`);
-  reporter.print(await follow(ctx, sessionId, requestId, text, headers, helpers));
+  try {
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers), ...context });
+  } catch (error) {
+    if (error instanceof CliError) error.details = { ...error.details, ...context };
+    throw error;
+  }
   return 0;
 }
 
@@ -2683,11 +2880,7 @@ var definitionFields = [
   "assistantTools"
 ];
 var inputFields = /* @__PURE__ */ new Set([...definitionFields, "workspaceChange"]);
-function identifier(value, label) {
-  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
-    throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
-  return value;
-}
+var runtimeConnections = /* @__PURE__ */ new WeakMap();
 function revision(args) {
   if (!args.has("expected-revision")) throw new CliError("--expected-revision is required. Read the definition first.", { code: "invalid_arguments" });
   return args.integer("expected-revision");
@@ -2719,12 +2912,16 @@ function workspaceChange(value) {
   }
 }
 function runtimeConnection(ctx) {
+  const cached = runtimeConnections.get(ctx);
+  if (cached) return cached;
   const { args, store } = ctx;
-  const runtime2 = origin(args.required("runtime"));
   const profile = store.resolve(args, true);
+  const runtime2 = runtimeOrigin(profile);
   const { token, source } = store.credential(args, profile);
   if (!token) throw new CliError("A platform credential is required for the Runtime.", { code: "authentication_required", hint: "Check auth status for the selected platform profile." });
-  return { runtime: runtime2, profile, token, source };
+  const connection = { runtime: runtime2, profile, token, source };
+  runtimeConnections.set(ctx, connection);
+  return connection;
 }
 async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
   const { args } = ctx;
@@ -2836,13 +3033,14 @@ async function definitionCommands(ctx) {
   return 0;
 }
 async function agentCommands(ctx) {
-  const { args, reporter, spec } = ctx;
+  const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
-  if (action === "chat") return chatCommands(ctx, { identifier, runtimeConnection, runtimeValue, writeOnce });
+  if (action === "chat") return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === "definition") return definitionCommands(ctx);
   if (action === "directory") {
     if (args.has("mine") && args.has("application-id")) throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });
-    const headers = args.has("application-id") ? { "X-XRain-Application-Id": identifier(args.value("application-id"), "Application ID") } : {};
+    const appId2 = applicationId(runtimeConnection(ctx).profile);
+    const headers = appId2 ? { "X-XRain-Application-Id": appId2 } : {};
     reporter.print(await runtimeValue(ctx, "GET", `/v1/dsh/workbench-agents?mine=${args.has("mine")}`, void 0, headers));
     return 0;
   }
@@ -2858,7 +3056,8 @@ async function agentCommands(ctx) {
     reporter.print(sub === "browse" ? await call2() : await writeOnce(call2, "Operation outcome is unknown. Inspect the original directory or workspace before retrying.", { operation: spec.path }));
     return 0;
   }
-  const appId = args.has("application-id") ? identifier(args.value("application-id"), "Application ID") : void 0;
+  const selectedProfile = action === "qualifications" || action === "use" ? store.resolve(args, true) : void 0;
+  const appId = selectedProfile ? applicationId(selectedProfile) : args.has("application-id") ? identifier(args.value("application-id"), "Application ID") : void 0;
   let method = "GET", path, body;
   if (action === "qualifications") path = platformAgents + "/qualifications" + (appId ? "?" + new URLSearchParams({ applicationId: appId }) : "");
   else if (action === "use") {
@@ -2894,7 +3093,7 @@ async function agentCommands(ctx) {
   }
   const readOnly = method === "GET" || action === "use";
   const call = async () => {
-    const result = await apiValue(ctx, method, path, body);
+    const result = await apiValue(ctx, method, path, body, { resolvedProfile: selectedProfile });
     if (!readOnly) {
       const id = args.value("agent-id");
       const valid = action === "subscribe" ? isObject(result) && nonempty(result.id) && result.agentId === id && result.selected === true && ["pending", "approved"].includes(result.approvalStatus) : action === "unsubscribe" ? isObject(result) && result.cancelled === true : action === "policy" ? isObject(result) && result.agentId === id && result.visibility === body.visibility : action === "subscription" ? isObject(result) && result.id === args.value("id") && result.approvalStatus === body.decision : isObject(result) && Array.isArray(result.bindings) && Array.isArray(body.bindings) && result.bindings.length === body.bindings.length && result.bindings.every((row, index) => isObject(row) && row.agentId === body.bindings[index]?.agentId) && (result.defaultAgentId ?? null) === (body.defaultAgentId ?? null);
@@ -2956,7 +3155,7 @@ function localError(error) {
   if (["EACCES", "EPERM"].includes(error.code)) return new CliError("Cannot access the file or directory. Check local permissions.", { code: "local_permission_denied" });
   return new CliError("The operation failed. Check the input and local file access; no credentials were printed.", { code: "operation_failed" });
 }
-async function main(argv = process.argv.slice(2), { env = process.env, stdout = process.stdout, stderr = process.stderr, store: sharedStore } = {}) {
+async function main(argv = process.argv.slice(2), { env = process.env, stdin = process.stdin, stdout = process.stdout, stderr = process.stderr, store: sharedStore } = {}) {
   const reporter = new Reporter(stdout, stderr);
   reporter.json = argv.includes("--json");
   reporter.secret(env.XRAIN_TOKEN);
@@ -2976,7 +3175,7 @@ async function main(argv = process.argv.slice(2), { env = process.env, stdout = 
       store = sharedStore ?? new Store(env, reporter);
       previousReporter = store.reporter;
       store.reporter = reporter;
-      const ctx = { args, store, reporter, spec, execute: (next, io) => main(next, { env, store, ...io }) };
+      const ctx = { args, store, reporter, stdin, spec, execute: (next, io) => main(next, { env, store, ...io }) };
       code = await dispatch(ctx);
     }
   } catch (error) {

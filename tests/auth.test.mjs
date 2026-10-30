@@ -159,12 +159,24 @@ test('full platform browser login saves protected session before returning brows
 
 test('auth login supports machine output while browser progress stays on stderr', async t => {
   const f = fixture(t), service = await identityServer(t);
+  const configured = await f.run(['profile', 'set', '--server', service.url, '--tenant', 'tenant-demo', '--profile', 'Machine', '--runtime', 'https://runtime.example', '--application-id', 'app-one', '--json']);
+  assert.equal(configured.code, 0, configured.stdout);
   const { result, browser } = await completeBrowserFlow(f, service, ['auth', 'login', '--server', service.url, '--tenant', 'tenant-demo', '--profile', 'Machine', '--no-browser', '--json']);
   assert.equal(result.code, 0, result.stdout); assert.match(browser, /登录已完成/);
   const value = JSON.parse(result.stdout);
   assert.equal(value.ok, true); assert.equal(value.data.authenticated, true); assert.equal(value.data.profile, 'Machine');
+  assert.equal(f.store.load().profiles.Machine.runtime, 'https://runtime.example');
+  assert.equal(f.store.load().profiles.Machine.applicationId, 'app-one');
   assert.match(result.stderr, /Open this login URL/);
   for (const token of ['test-oidc-access-token', 'test-tenant-session-token', ...service.authorizationTokens]) assert.ok(!(result.stdout + result.stderr).includes(token));
+});
+
+test('browser login to a different platform clears the previously associated agent target', async t => {
+  const f = fixture(t), service = await identityServer(t);
+  f.store.save({ activeProfile: 'Machine', profiles: { Machine: { server: 'http://127.0.0.1:1', tenant: 'tenant-demo', runtime: 'https://runtime.example', applicationId: 'app-one' } } });
+  const { result } = await completeBrowserFlow(f, service, ['auth', 'login', '--server', service.url, '--tenant', 'tenant-demo', '--profile', 'Machine', '--no-browser', '--json']);
+  assert.equal(result.code, 0, result.stdout); assert.match(result.stderr, /previous agent connection settings were not reused/);
+  assert.equal(f.store.load().profiles.Machine.runtime, undefined); assert.equal(f.store.load().profiles.Machine.applicationId, undefined);
 });
 
 test('failed tenant exchange produces browser failure and saves no session', async t => {

@@ -218,7 +218,9 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers) {
 
 export async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
-  const app = args.has('application-id') ? helpers.identifier(args.value('application-id'), 'Application ID') : undefined;
+  const connection = helpers.runtimeConnection(ctx);
+  const app = ['start', 'send', 'wait', 'respond'].includes(action) ? helpers.applicationId(connection.profile) : undefined;
+  const context = { runtime: connection.runtime, applicationId: app ?? null };
   const headers = app ? { 'X-XRain-Application-Id': app } : {};
   if (action === 'list') {
     const path = args.has('all') ? sessions : `${sessions}?source=xrain-cli`;
@@ -243,8 +245,8 @@ export async function chatCommands(ctx, helpers) {
       const accepted = await helpers.runtimeValue(ctx, 'POST', `${pendingPath}/${segment(ref)}/responses`, { ...input, responseId }, headers);
       if (!isObject(accepted) || accepted.accepted !== true) throw new CliError('Runtime returned an invalid response receipt.', { code: 'invalid_response' });
       return accepted;
-    }, 'Response outcome is unknown. Inspect this pending action before retrying.', { actionRef: ref, responseId });
-    reporter.print({ actionRef: ref, responseId, ...result }); return 0;
+    }, 'Response outcome is unknown. Inspect this pending action before retrying.', { actionRef: ref, responseId, ...context });
+    reporter.print({ actionRef: ref, responseId, ...result, ...context }); return 0;
   }
   let sessionId = args.value('session-id');
   if (action === 'history') {
@@ -259,11 +261,16 @@ export async function chatCommands(ctx, helpers) {
       const result = await helpers.runtimeValue(ctx, 'POST', sessions, { agentId, source: 'xrain-cli' }, headers);
       if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError('Runtime returned an invalid session receipt.', { code: 'invalid_response' });
       return result;
-    }, 'Session creation outcome is unknown. Inspect your conversation list before creating another.', { agentId, ...(app ? { applicationId: app } : {}) });
+    }, 'Session creation outcome is unknown. Inspect your conversation list before creating another.', { agentId, ...context });
     sessionId = created.sessionId;
     reporter.progress(`Session ID: ${sessionId}`);
   }
   sessionId = helpers.identifier(sessionId, 'Session ID');
   reporter.progress(`Request ID: ${requestId}`);
-  reporter.print(await follow(ctx, sessionId, requestId, text, headers, helpers)); return 0;
+  try { reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers), ...context }); }
+  catch (error) {
+    if (error instanceof CliError) error.details = { ...error.details, ...context };
+    throw error;
+  }
+  return 0;
 }

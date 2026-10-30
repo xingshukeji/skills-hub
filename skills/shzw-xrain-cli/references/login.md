@@ -4,7 +4,9 @@
 
 ## 平台用户
 
-用原获准管理员浏览器会话查询：
+使用平台原生租户账号时，先配置目标连接，再将已登记的密码以 UTF-8 原文通过受控标准输入传给 `auth login --native --user <账号> --password-stdin --profile <连接>`；密码不写在命令参数中。输入不会自动去掉末尾换行。登录后用 `auth whoami --profile <连接> --auth session --json` 核对原用户和租户。统一登录账号仍使用浏览器或设备登录。
+
+用原获准管理员会话查询：
 
 ```text
 security user ensure --user <固定登录名> --profile <目标> --auth session --json

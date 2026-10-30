@@ -11,7 +11,7 @@ export async function batchCommands(ctx) {
   for (const row of plan) {
     if (!Array.isArray(row) || !row.length || row.some(value => typeof value !== 'string')) throw new CliError('Each batch item must be a nonempty array of strings.', { code: 'invalid_arguments' });
     const args = new Args(row), spec = validateCommand(args);
-    if (['batch', 'auth login', 'app login'].includes(spec.path)) throw new CliError('Nested batches and browser login are not supported inside a batch. Log in before running it.', { code: 'invalid_arguments' });
+    if (['batch', 'auth login', 'app login'].includes(spec.path)) throw new CliError('Nested batches and login are not supported inside a batch. Log in before running it.', { code: 'invalid_arguments' });
     if (['file', 'query-json', 'values-json', 'filter-json', 'request-json', 'message-file'].some(name => args.value(name) === '-') || ['query', 'values', 'filter'].some(name => args.value(name) === '@-'))
       throw new CliError('Batch steps must use files or inline JSON instead of sharing stdin.', { code: 'invalid_arguments' });
     commands.push(spec.path);

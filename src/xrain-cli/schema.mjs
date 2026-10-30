@@ -11,18 +11,18 @@ function command(path, options = [], operands = [], description = '') {
   specs.push({ path, words: path.split(' '), options: [...common, ...options], operands, description });
 }
 
-command('login', [...target, 'bearer', 'token-name', 'check'], [], 'Save connection settings; use auth login for browser authentication.');
-command('logout', ['profile'], [], 'Remove the selected profile and its platform browser session.');
+command('login', [...target, 'bearer', 'token-name', 'check', 'runtime', 'application-id', 'personal'], [], 'Save connection settings; use auth login for browser authentication.');
+command('logout', ['profile'], [], 'Remove the selected profile and its platform session.');
 command('profile show', api, [], 'Show the selected connection and credential source without secrets.');
 command('profile list', [], [], 'List saved platform profiles.');
-command('profile set', [...target, 'bearer', 'token-name', 'check'], [], 'Save connection settings.');
+command('profile set', [...target, 'bearer', 'token-name', 'check', 'runtime', 'application-id', 'personal'], [], 'Save platform and optional agent connection settings.');
 command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select a saved profile.');
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
-command('auth login', [...target, 'exchange', 'device', 'no-browser'], [], 'Authenticate in the browser; --device supports a remote browser for XRain.');
+command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native tenant account. Native login reads its password from stdin.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
-command('auth whoami', api, [], 'Read the server-verified XRain identity and tenant using the selected credential.');
-command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the browser session, keeping the platform profile.');
+command('auth whoami', [...api, 'agent', 'runtime', 'application-id', 'personal'], [], 'Read the verified XRain identity; --agent also checks the selected Runtime caller.');
+command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the saved session, keeping the platform profile.');
 command('doctor', [...api, 'exchange'], [], 'Check the selected connection and credential with a read-only probe.');
 command('health', api, [], 'Probe readiness.');
 for (const action of ['ready', 'live', 'healthz']) command('health ' + action, api, [], 'Read a health endpoint.');
@@ -30,16 +30,16 @@ command('metadata standards', api, [], 'Read entity design standards.');
 command('metadata entities', api, [], 'List the target environment object registry.');
 command('metadata describe', [...api, 'entity'], [slot('entity')], 'Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.');
 const runtime = [...api, 'runtime'];
-command('agent directory', [...runtime, 'application-id', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
-command('agent chat start', [...runtime, 'agent-id', 'application-id', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('agent-id')], 'Create a conversation, submit one message and wait for its own completed turn.');
-command('agent chat send', [...runtime, 'session-id', 'application-id', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
-command('agent chat wait', [...runtime, 'session-id', 'application-id', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
+command('agent directory', [...runtime, 'application-id', 'personal', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
+command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('agent-id')], 'Create a conversation, submit one message and wait for its own completed turn.');
+command('agent chat send', [...runtime, 'session-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
+command('agent chat wait', [...runtime, 'session-id', 'application-id', 'personal', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
 command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations; --all includes other sources owned by the same identity.');
 command('agent chat history', [...runtime, 'session-id'], [slot('session-id')], 'Read visible messages and turn outcomes from an authorized conversation.');
 command('agent chat pending', [...runtime, 'session-id'], [], 'List your pending questions or approvals, optionally filtered by session.');
-command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
-command('agent qualifications', [...api, 'application-id'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
-command('agent use', [...api, 'agent-id', 'application-id'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
+command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'personal', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
+command('agent qualifications', [...api, 'application-id', 'personal'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
+command('agent use', [...api, 'agent-id', 'application-id', 'personal'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
 for (const action of ['subscribe', 'unsubscribe']) command(`agent ${action}`, [...api, 'agent-id'], [slot('agent-id')],
   action === 'subscribe' ? 'Request a personal subscription; private definitions can require approval.' : 'Cancel your personal subscription; history and application selection remain unchanged.');
 command('agent policy list', api, [], 'List personal subscription policies.');
@@ -130,6 +130,17 @@ export function validateCommand(args) {
   const exclusive = names => {
     if (names.filter(name => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map(name => '--' + name).join(', ')}.`, { code: 'invalid_arguments' });
   };
+  if (spec.path === 'auth login') {
+    if (args.has('native')) {
+      args.required('user');
+      if (!args.has('password-stdin') || args.has('device') || args.has('no-browser') || args.has('exchange'))
+        throw new CliError('Native login requires --user and --password-stdin and cannot be combined with browser, device or market login.', { code: 'invalid_arguments' });
+    } else if (args.has('user') || args.has('password-stdin')) {
+      throw new CliError('--user and --password-stdin require --native.', { code: 'invalid_arguments' });
+    }
+  }
+  exclusive(['application-id', 'personal']);
+  if (args.has('runtime')) origin(args.value('runtime'));
   if (spec.path === 'data query') {
     exclusive(['query', 'query-json', 'file']); exclusive(['filter', 'filter-json']);
     if (['query', 'query-json', 'file'].some(name => args.has(name)) && ['page', 'page-size', 'search', 'fields', 'filter', 'filter-json', 'sort', 'no-total'].some(name => args.has(name)))
@@ -137,7 +148,6 @@ export function validateCommand(args) {
   }
   if (['data create', 'data update', 'security user create', 'security user ensure', 'security permission-set create', 'security permission-set ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
   if (spec.path.startsWith('agent ')) {
-    if (spec.options.includes('runtime')) origin(args.required('runtime'));
     if (spec.options.includes('expected-revision')) { args.required('expected-revision'); args.integer('expected-revision'); }
     if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
     if (['agent definition update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
@@ -193,13 +203,13 @@ export function commandHelp(args) {
     if (exact) lines.push('  Options: ' + spec.options.map(name => '--' + name).join(', '));
   }
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
-  if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.');
+  if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
   if (!exact || exact.options.includes('request-json')) lines.push('Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.');
-  if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
+  if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
   if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
   if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
-  lines.push('auth login authenticates; login/profile set only save settings. Applications require browser authentication.',
+  lines.push('auth login authenticates; login/profile set only save settings. Market login uses browser authentication.',
     'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed.');
   return lines.join('\n') + '\n';
 }

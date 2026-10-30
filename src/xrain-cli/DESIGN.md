@@ -9,13 +9,13 @@ Depends On:
 - ../../AGENTS.md
 - ../../skills/shzw-xrain-cli/SKILL.md
 
-本文提出待评审的目标设计。本文不表示下述新增命令、配置和接口已经实现，也不授权编码。当前行为以源码和已交付 Skill 为准。
+本文记录已批准的连接设计与源码实现。`profile` 智能体配置、`auth whoami --agent` 及 Runtime 本人身份接口已在对应源码实现；实际部署和已安装 Skill 是否包含这些能力，以所用版本为准。
 
 ## 用户结果与现状
 
 使用者安装完整 Skill 后，通过 CLI 配置目标并登录。使用者可以查询当前身份，再按实际权限管理智能体定义、个人订阅和应用选用，并发起、继续和回读对话。平台、租户、智能体入口与使用身份由同一连接配置表达。使用者不需要读取开发仓库或编写登录脚本。
 
-当前 `auth login` 从平台取得登录配置并保存租户会话。`auth whoami` 向平台查询实际用户和租户。当前 profile 保存平台地址和租户，不保存 Runtime 地址。智能体定义与对话命令每次要求 `--runtime`。CLI 将所选平台凭据发送到该地址。平台的智能体订阅和应用选用仍使用平台地址。
+`auth login` 的浏览器和设备方式从平台取得登录配置；原生账号方式直接使用平台原生登录接口。成功后均保存租户会话。`auth whoami` 向平台查询实际用户和租户。profile 可保存平台地址、租户、Runtime 地址及默认应用 ID；智能体定义与对话也保留单次 `--runtime` 覆盖。CLI 将所选平台凭据发送到 Runtime。平台的智能体订阅和应用选用仍使用平台地址。
 
 本机开发配置中的 `http://127.0.0.1:15380` 是该开发组合的统一宿主地址。它不是 CLI 登录的返回值，也不是其他使用者的默认地址。平台现有 CLI 登录配置和应用列表没有提供客户端可用的 Runtime 地址。平台的定义目录地址用于其自身目录读取，不能当作各客户端的执行入口。
 
@@ -28,13 +28,13 @@ Depends On:
 
 推荐方案允许使用实际应用宿主对外提供的 Runtime 入口。只有该宿主确实开放所需接口时，应用网址才能用作该入口。CLI 不根据平台域名、应用名称或固定端口猜测地址，也不把本机开发地址设为通用默认值。缺少入口时，智能体运行命令提示配置；平台命令仍可使用。
 
-在现有 profile 中增加可选的 Runtime 地址和默认应用 ID。默认应用 ID 为空时使用个人上下文。多个环境或不同 Runtime 使用不同 profile。显式 `--runtime` 和 `--application-id` 保留单次覆盖能力。拟增加 `--personal`，供适用命令在本次请求中选择个人上下文；`profile set --personal` 清除已保存的默认应用。`agent directory --mine` 始终使用个人上下文。
+profile 支持可选的 Runtime 地址和默认应用 ID。默认应用 ID 为空时使用个人上下文。多个环境或不同 Runtime 使用不同 profile。显式 `--runtime` 和 `--application-id` 保留单次覆盖能力。`--personal` 供适用命令在本次请求中选择个人上下文；`profile set --personal` 清除已保存的默认应用。`agent directory --mine` 始终使用个人上下文。
 
 地址解析顺序为命令显式参数、当前 profile 中的对应字段。只有有效的平台地址与租户和该 profile 保存的目标一致时，才复用 profile 的 Runtime 和应用配置。若单次命令切换平台或租户，应显式提供对应 Runtime，或选择对应 profile；不能把原目标的地址静默用于新目标。订阅和订阅审批始终使用个人订阅语义。应用选用的管理命令继续使用明确的应用 ID。
 
 `profile set`、`profile show/list`、`auth status` 和帮助文本处理并展示新的非秘密配置。当 `profile set` 修改平台或租户时，CLI 清除没有同时重新指定的旧 Runtime 和应用关联。成功登录同一平台与租户时，`auth login` 保留该 profile 的 Runtime 和应用配置；登录到不同平台或租户时，清除旧关联并提示重新配置。`auth logout` 继续保留 profile，`profile remove` 沿用现有删除语义。地址不是凭据，不存入登录会话；会话保护方式保持不变。
 
-以下是拟议命令，尚不是当前可用命令：
+以下命令需要包含本次实现的 Skill 及支持身份检查的 Runtime：
 
 ```text
 xrain-cli profile set --server <平台地址> --tenant <租户ID> --runtime <智能体入口地址>
@@ -54,15 +54,15 @@ xrain-cli agent chat send <sessionId> --message <后续问题>
 
 ## 登录与身份诊断
 
-复用现有平台浏览器或设备登录，以及平台租户会话。保持现有凭据选择顺序；`auth status` 和 `auth whoami` 展示实际凭据来源。如果环境变量中的凭据优先于浏览器会话，使用者可以显式选择 `--auth session`。命令不输出凭据。
+复用平台浏览器或设备登录，以及平台租户会话。对于平台原生租户账号，`auth login --native --user <账号> --password-stdin` 从标准输入读取密码，并通过平台原生登录接口取得同一种租户会话；不接受命令参数形式的密码。保持现有凭据选择顺序；`auth status` 和 `auth whoami` 展示实际凭据来源。如果环境变量中的凭据优先于已保存会话，使用者可以显式选择 `--auth session`。命令不输出凭据。
 
 普通 `auth whoami` 继续查询平台实际用户和租户，并展示已配置的智能体入口和应用上下文。配置展示不表示 Runtime 已连接或应用已授权，不因 Runtime 不可用而改变平台身份查询结果。
 
-拟增加 `auth whoami --agent`，由 CLI 使用同一所选凭据分别查询平台与 Runtime，并展示两个服务各自确认的用户和租户。Runtime 新增一个只读本人身份入口，例如 `GET /v1/dsh/whoami`，返回服务端认证得到的 `userId` 和 `tenantId`；该入口不返回令牌或权限全集。CLI 比较两个实际响应，标明一致、不同或未验证。一致仅表示两个响应中的用户和租户一致，不单独证明两个服务属于同一部署。当前 Runtime 没有返回本人 ID 的等价入口；已有 `/v1/dsh/agent-catalog` 只返回租户及目录，不能证明 Runtime 报告的用户 ID。
+`auth whoami --agent` 使用同一所选凭据分别查询平台与 Runtime，并展示两个服务各自确认的用户和租户。Runtime 的只读本人身份入口 `GET /v1/dsh/whoami` 返回服务端认证得到的 `userId` 和 `tenantId`，不返回令牌或权限全集。CLI 比较两个实际响应，标明一致、不同或未验证。一致仅表示两个响应中的用户和租户一致，不单独证明两个服务属于同一部署。已有 `/v1/dsh/agent-catalog` 只返回租户及目录，不能证明 Runtime 报告的用户 ID。
 
 应用 ID 在身份结果中仅表示选定上下文。应用准入和智能体可用性仍由现有 `agent directory`、逐次使用判断及实际操作确认。身份查询成功不表示管理、订阅或数据权限已获授予。
 
-旧 Runtime 未提供本人身份入口时，`whoami --agent` 保留平台身份结果并明确报告 Runtime 身份未验证。网络失败、登录失效和权限拒绝保留各自原因。诊断不是每次业务操作的前置门槛；旧 Runtime 已支持的智能体命令仍可按原合同使用。实现该身份入口及 CLI 消费属于后续待授权开发，Runtime 合同由 xrain-harness 持有。
+旧 Runtime 未提供本人身份入口时，`whoami --agent` 保留平台身份结果并明确报告 Runtime 身份未验证。网络失败、登录失效和权限拒绝保留各自原因。诊断不是每次业务操作的前置门槛；旧 Runtime 已支持的智能体命令仍可按原合同使用。Runtime 身份合同由 xrain-harness 持有。
 
 ## 智能体命令与会话
 
@@ -76,7 +76,7 @@ xrain-cli agent chat send <sessionId> --message <后续问题>
 
 skills-hub 修改 CLI 源码、构建结果及完整 Skill 的连接和智能体使用知识。xrain-harness 按本人身份合同增加只读入口并维护对应契约。平台继续负责登录、本人资格与应用准入；本方案不要求平台新增 Runtime 登记或执行转发。正式产品和运行事实仍由各责任项目持有。
 
-后续实现需验证：
+交付需验证：
 
 1. 在独立安装的 Skill 中，从 profile 配置、正式登录和 `whoami --agent` 进入智能体目录；不用开发配置文件或另写脚本取得凭据。
 2. 使用有管理权限的身份完成定义创建、配置、启用及回读。使用有订阅权限的实际身份申请并按现有策略取得结果。应用选用和个人订阅分别验证，不互相代替。

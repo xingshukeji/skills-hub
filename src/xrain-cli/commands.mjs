@@ -1,12 +1,14 @@
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, jsonInput, origin, segment } from './core.mjs';
 import { api, apiValue } from './http.mjs';
+import { identifier, samePlatformTarget } from './agent-target.mjs';
 
 export async function profileCommands(ctx, action = ctx.args.command(1)) {
   const { args, store, reporter } = ctx;
   if (action === 'path') { reporter.print(store.configPath); return 0; }
   const config = store.load();
   if (action === 'list') {
-    reporter.print(Object.entries(config.profiles).map(([name, profile]) => ({ name, active: equalIgnoreCase(name, config.activeProfile), server: profile.server, tenant: profile.tenant })));
+    reporter.print(Object.entries(config.profiles).map(([name, profile]) => ({ name, active: equalIgnoreCase(name, config.activeProfile), server: profile.server, tenant: profile.tenant,
+      ...(profile.runtime ? { agentRuntime: profile.runtime } : {}), ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}) })));
     return 0;
   }
   if (action === 'set') {
@@ -18,10 +20,18 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
       bearerToken: args.has('bearer') ? args.value('bearer') : args.has('token-name') ? undefined : existing.bearerToken,
       tokenName: args.value('token-name') ?? store.env.XRAIN_TOKEN_NAME ?? existing.tokenName,
     };
+    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant);
+    const runtime = args.value('runtime') ?? (sameTarget ? existing.runtime : undefined);
+    const application = args.has('personal') ? undefined : args.value('application-id') ?? (sameTarget ? existing.applicationId : undefined);
+    if (runtime !== undefined && runtime !== null) profile.runtime = origin(runtime);
+    if (application !== undefined && application !== null) profile.applicationId = identifier(application, 'Application ID');
+    const clearedAgentSettings = !sameTarget && !!((existing.runtime && !args.has('runtime')) ||
+      (existing.applicationId && !args.has('application-id') && !args.has('personal')));
+    if (clearedAgentSettings) reporter.progress('Platform or tenant changed; previous agent connection settings were not reused.');
     reporter.secret(profile.bearerToken);
     config.activeProfile = name; config.profiles[name] = profile;
     store.save(config);
-    const result = { profile: name, configPath: store.configPath, saved: true };
+    const result = { profile: name, configPath: store.configPath, saved: true, ...(clearedAgentSettings ? { clearedAgentSettings: true } : {}) };
     if (args.has('check')) {
       reporter.progress(`Saved profile '${name}' at ${store.configPath}. Checking the selected credential...`);
       return api(ctx, 'GET', '/health/ready');
@@ -39,7 +49,9 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
     else if (profile.tokenName) tokenSource = `local-secret-store:${profile.tokenName}`;
     else if (store.loadSession(profile.name, profile.server, profile.tenant)) tokenSource = 'application-session';
     reporter.print({ configPath: store.configPath, activeProfile: profile.name,
-      profile: { server: profile.server, tenant: profile.tenant, tokenName: profile.tokenName, hasBearerToken: !!profile.bearerToken }, tokenSource });
+      profile: { server: profile.server, tenant: profile.tenant, tokenName: profile.tokenName, hasBearerToken: !!profile.bearerToken,
+        ...(profile.runtime ? { agentRuntime: profile.runtime } : {}), ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}),
+        ...(profile.invalidRuntime ? { agentRuntimeStatus: 'invalid' } : {}), ...(profile.invalidApplicationId ? { agentApplicationStatus: 'invalid' } : {}) }, tokenSource });
     return 0;
   }
   if (action === 'use' || action === 'remove') {

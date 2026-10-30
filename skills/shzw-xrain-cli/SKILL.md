@@ -6,7 +6,7 @@ metadata:
   source: SKILL.md
   documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
   products: XRain
-  runtime-requirements: Node.js 22.12+ and command execution; browser callback or device login.
+  runtime-requirements: Node.js 22.12+ and command execution; browser, device or native tenant login.
 ---
 
 # XRain CLI
@@ -31,7 +31,7 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 
 安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
 
-智能体定义归 Runtime，订阅和应用选用归平台。定义命令显式指定已核实的 `--runtime`，向该 Runtime 发送所选平台凭据；定义新建默认停用，编辑使用明确版本。先查选项和当前事实，不以管理权推断个人订阅，也不自动审批或替换应用选用。写入结果未知先按原 ID 回读；不新建同名定义或自动重放。
+智能体定义归 Runtime，订阅和应用选用归平台。将服务方提供的 Runtime 入口保存到对应 profile，或在单次命令显式指定 `--runtime`；所选平台凭据会发送到该入口。使用 `auth whoami --agent` 核对平台与 Runtime 实际确认的身份；旧 Runtime 或连接失败时保留平台结果并报告未验证，不把已配置的应用当成已授权。定义新建默认停用，编辑使用明确版本。先查选项和当前事实，不以管理权推断个人订阅，也不自动审批或替换应用选用。写入结果未知先按原 ID 回读；不新建同名定义或自动重放。
 
 智能体对话会使用定义的工作区、工具和当前主体的真实权限。按用户要求发送输入，区分接收与本轮完成；提问或审批须由用户明确作答，不自动放行。中断后用原 sessionId 和 requestId 查询或继续等待，不重复提交。
 

@@ -1,10 +1,11 @@
 import { CliError, isObject, nonempty } from './core.mjs';
-import { browserLogin } from './auth.mjs';
+import { browserLogin, nativeLogin } from './auth.mjs';
 import { request, responseError } from './http.mjs';
+import { applicationId, runtimeOrigin } from './agent-target.mjs';
 
 export async function authCommands(ctx) {
   const { args, store, reporter } = ctx;
-  if (args.command(1) === 'login') return browserLogin(ctx);
+  if (args.command(1) === 'login') return args.has('native') ? nativeLogin(ctx) : browserLogin(ctx);
   const market = args.has('exchange'), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === 'status') {
     reporter.print(store.authStatus(args, profile, market));
@@ -36,9 +37,46 @@ export async function authCommands(ctx) {
         (value.scope === 'tenant' ? !nonempty(value.tenantId) : value.tenantId !== null)) {
       throw new CliError('XRain returned an invalid identity context.', { code: 'invalid_response', details });
     }
-    reporter.print({ ...details, configuredTenant: profile.tenant ?? null,
+    const identity = { ...details, configuredTenant: profile.tenant ?? null,
       userId: value.userId, tenantId: value.tenantId, scope: value.scope,
-      remoteValidation: 'identity_confirmed' });
+      remoteValidation: 'identity_confirmed' };
+    const appId = profile.invalidApplicationId ? undefined : applicationId(profile);
+    const agentContext = { ...(profile.runtime ? { runtime: profile.runtime } : {}),
+      ...(appId ? { applicationId: appId } : {}), ...(profile.invalidRuntime ? { runtimeConfiguration: 'invalid' } : {}),
+      ...(profile.invalidApplicationId ? { applicationConfiguration: 'invalid' } : {}), runtimeIdentity: 'not_checked' };
+    if (!args.has('agent')) {
+      reporter.print({ ...identity, ...(profile.runtime || appId || profile.invalidRuntime || profile.invalidApplicationId ? { agentContext } : {}) });
+      return 0;
+    }
+    let runtime;
+    try { runtime = runtimeOrigin(profile); }
+    catch (error) {
+      if (error instanceof CliError) error.details = { ...error.details, platformIdentity: identity, agentContext };
+      throw error;
+    }
+    let runtimeResponse;
+    try {
+      runtimeResponse = await request(new URL('/v1/dsh/whoami', runtime), {
+        token, headers: { 'X-XRain-Authorization': `Bearer ${token}` }, timeout: args.timeout(), limit: 1024 * 1024,
+      });
+    } catch (error) {
+      if (error instanceof CliError) error.details = { platformIdentity: identity, agentContext: { ...agentContext, runtime, runtimeIdentity: 'unverified' } };
+      throw error;
+    }
+    if (!runtimeResponse.ok) throw responseError(runtimeResponse,
+      runtimeResponse.status === 404 ? 'This Runtime does not provide the identity endpoint. The platform identity remains confirmed.' : '',
+      { platformIdentity: identity, agentContext: { ...agentContext, runtime, runtimeIdentity: 'unverified' } });
+    let runtimeIdentity;
+    try { runtimeIdentity = runtimeResponse.json(); } catch { runtimeIdentity = undefined; }
+    if (!isObject(runtimeIdentity) || !nonempty(runtimeIdentity.userId) ||
+        !Object.hasOwn(runtimeIdentity, 'tenantId') || (runtimeIdentity.tenantId !== null && !nonempty(runtimeIdentity.tenantId)))
+      throw new CliError('Runtime returned an invalid identity context.', { code: 'invalid_response',
+        details: { platformIdentity: identity, agentContext: { ...agentContext, runtime, runtimeIdentity: 'unverified' } } });
+    const actual = { runtime, ...(appId ? { applicationId: appId } : {}), userId: runtimeIdentity.userId, tenantId: runtimeIdentity.tenantId };
+    if (runtimeIdentity.userId !== value.userId || runtimeIdentity.tenantId !== value.tenantId)
+      throw new CliError('Runtime and platform identities do not match.', { code: 'identity_mismatch',
+        details: { platformIdentity: identity, agentContext: { ...actual, runtimeIdentity: 'mismatch' } } });
+    reporter.print({ ...identity, agentContext: { ...actual, runtimeIdentity: 'identity_confirmed' } });
     return 0;
   }
   store.deleteSession(profile.name);

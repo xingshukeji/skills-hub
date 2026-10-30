@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, nonempty, origin, parseJson, readLimited, sha256 } from './core.mjs';
+import { identifier, samePlatformTarget } from './agent-target.mjs';
 
 export function writePrivate(path, bytes) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -71,6 +72,17 @@ export class Store {
       bearerToken: args.value('bearer') ?? this.env.XRAIN_TOKEN ?? saved.bearerToken,
       tokenName: args.value('token-name') ?? this.env.XRAIN_TOKEN_NAME ?? saved.tokenName,
     };
+    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant);
+    const runtime = args.value('runtime') ?? (sameTarget ? saved.runtime : undefined);
+    const application = args.has('personal') || args.has('mine') ? undefined
+      : args.value('application-id') ?? (sameTarget ? saved.applicationId : undefined);
+    if (runtime !== undefined && runtime !== null) {
+      try { profile.runtime = origin(runtime); } catch (error) { if (args.has('runtime')) throw error; profile.invalidRuntime = true; }
+    }
+    if (application !== undefined && application !== null) {
+      try { profile.applicationId = identifier(application, 'Application ID'); }
+      catch (error) { if (args.has('application-id')) throw error; profile.invalidApplicationId = true; }
+    }
     this.reporter?.secret(profile.bearerToken);
     if (requireTenant && !nonempty(profile.tenant)) throw new CliError('Tenant is required. Run auth login --tenant <tenantId>.', { code: 'tenant_required' });
     return profile;
@@ -150,8 +162,12 @@ export class Store {
     const selected = market ? { token: sessionToken, source: 'application-session' } : this.credential(args, profile, { createSecrets: false });
     return { profile: profile.name, server: profile.server, tenant: profile.tenant, mode: market ? 'session' : args.value('auth') ?? 'auto',
       credentialSource: selected.source, credentialConfigured: !!selected.token, session,
+      ...(profile.runtime ? { agentRuntime: profile.runtime } : {}),
+      ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}),
+      ...(profile.invalidRuntime ? { agentRuntimeStatus: 'invalid' } : {}),
+      ...(profile.invalidApplicationId ? { agentApplicationStatus: 'invalid' } : {}),
       remoteValidation: 'not_checked',
-      hints: sessionToken && selected.source !== 'application-session' ? ['The browser session is not selected. Use --auth session to select it explicitly.'] :
+      hints: sessionToken && selected.source !== 'application-session' ? ['The saved session is not selected. Use --auth session to select it explicitly.'] :
         !sessionToken && selected.source === 'application-session' ? ['Run auth login for this server, tenant and profile.'] : [] };
   }
 }
