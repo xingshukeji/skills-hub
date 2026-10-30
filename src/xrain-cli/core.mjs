@@ -18,8 +18,8 @@ export function segment(value) {
   return encodeURIComponent(value);
 }
 
-const flags = new Set(['help', 'json', 'device', 'no-browser', 'no-total', 'check', 'wait', 'maintain-installed-version', 'mine']);
-const valued = new Set(('server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset').split(' '));
+const flags = new Set(['help', 'json', 'device', 'no-browser', 'no-total', 'check', 'wait', 'maintain-installed-version', 'mine', 'all']);
+const valued = new Set(('server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file').split(' '));
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {

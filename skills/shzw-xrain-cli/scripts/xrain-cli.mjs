@@ -20,8 +20,8 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "no-total", "check", "wait", "maintain-installed-version", "mine"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset".split(" "));
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "no-total", "check", "wait", "maintain-installed-version", "mine", "all"]);
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -2120,6 +2120,13 @@ command("metadata entities", api2, [], "List the target environment object regis
 command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.");
 var runtime = [...api2, "runtime"];
 command("agent directory", [...runtime, "application-id", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
+command("agent chat start", [...runtime, "agent-id", "application-id", "message", "message-file", "request-id", "wait-timeout"], [slot("agent-id")], "Create a conversation, submit one message and wait for its own completed turn.");
+command("agent chat send", [...runtime, "session-id", "application-id", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
+command("agent chat wait", [...runtime, "session-id", "application-id", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
+command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
+command("agent chat history", [...runtime, "session-id"], [slot("session-id")], "Read visible messages and turn outcomes from an authorized conversation.");
+command("agent chat pending", [...runtime, "session-id"], [], "List your pending questions or approvals, optionally filtered by session.");
+command("agent chat respond", [...runtime, "action-ref", "application-id", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
 command("agent qualifications", [...api2, "application-id"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
 command("agent use", [...api2, "agent-id", "application-id"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
 for (const action of ["subscribe", "unsubscribe"]) command(
@@ -2254,10 +2261,17 @@ function validateCommand(args) {
       throw new CliError("--visibility must be public or private.", { code: "invalid_arguments" });
     if (spec.path === "agent subscription decide" && !["approved", "rejected", "revoked"].includes(args.required("decision")))
       throw new CliError("--decision must be approved, rejected or revoked.", { code: "invalid_arguments" });
+    if (["agent chat start", "agent chat send"].includes(spec.path)) {
+      exclusive(["message", "message-file"]);
+      if (!args.has("message") && !args.has("message-file")) throw new CliError("--message or --message-file is required.", { code: "invalid_arguments" });
+    }
+    if (spec.path === "agent chat wait") args.required("request-id");
+    if (spec.path === "agent chat respond" && !["values", "values-json", "file"].some((name) => args.has(name)))
+      throw new CliError("A JSON response is required.", { code: "invalid_arguments" });
   }
   if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
-    if (spec.path !== "app operation wait" && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
+    if (spec.path !== "app operation wait" && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
       throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
     for (const name of ["wait-timeout", "poll-interval"]) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: "invalid_arguments" });
@@ -2292,7 +2306,8 @@ function commandHelp(args) {
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
   if (!exact || exact.options.includes("request-json")) lines.push("Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.");
   if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
-  if (!exact || exact.options.includes("wait-timeout")) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
+  if (prefix[0] === "agent" && prefix[1] === "chat") lines.push("Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.");
+  if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
     "auth login authenticates; login/profile set only save settings. Applications require browser authentication.",
     "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed."
@@ -2309,7 +2324,7 @@ async function batchCommands(ctx) {
     if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
     if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and browser login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
-    if (["file", "query-json", "values-json", "filter-json", "request-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
+    if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
       throw new CliError("Batch steps must use files or inline JSON instead of sharing stdin.", { code: "invalid_arguments" });
     commands.push(spec.path);
   }
@@ -2343,6 +2358,313 @@ async function batchCommands(ctx) {
 
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes5 } from "node:crypto";
+
+// src/xrain-cli/agent-chat.mjs
+import { randomUUID } from "node:crypto";
+var sessions = "/v1/dsh/sessions";
+var pendingPath = "/v1/dsh/pending-actions";
+async function messageInput(args) {
+  let value = args.value("message");
+  const file = args.value("message-file");
+  if (file) {
+    let bytes;
+    if (file === "-") {
+      if (process.stdin.isTTY) throw new CliError("Pipe the message into stdin when using --message-file -.", { code: "invalid_arguments" });
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of process.stdin) {
+        const data = Buffer.from(chunk);
+        size += data.length;
+        if (size > 256 * 1024) throw new CliError("Message exceeds the size limit.", { code: "invalid_arguments" });
+        chunks.push(data);
+      }
+      bytes = Buffer.concat(chunks);
+    } else bytes = readLimited(file, 256 * 1024, "Message");
+    try {
+      value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new CliError("Message file must be UTF-8 text.", { code: "invalid_arguments" });
+    }
+  }
+  if (!nonempty(value) || value.length > 64e3 || value.includes("\0"))
+    throw new CliError("Message must contain 1 to 64000 characters.", { code: "invalid_arguments" });
+  return value;
+}
+function textOf(value) {
+  return isObject(value) && Array.isArray(value.content) ? value.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
+}
+function eventOf(record) {
+  return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null;
+}
+function toolResult(data) {
+  const message2 = isObject(data.message) ? data.message : {};
+  const block = Array.isArray(message2.content) ? message2.content.find((part) => isObject(part) && part.type === "tool-result") : void 0;
+  const callId = data.callId ?? message2.toolCallId ?? block?.toolCallId ?? (isObject(message2.source) ? message2.source.callId : void 0);
+  const failed = data.error !== void 0 || message2.isError === true || block?.isError === true;
+  const recognized = message2.role === "tool" || !!block;
+  return { callId, status: failed ? "failed" : recognized ? "succeeded" : "unknown" };
+}
+function collector(requestId, expectedText) {
+  let currentTurn, targetTurn, found = false, answer = "", result;
+  const tools = /* @__PURE__ */ new Map();
+  function accept(event) {
+    if (!event || result) return;
+    const data = event.data;
+    if (event.type === "turn/start") {
+      currentTurn = Number.isSafeInteger(data.turn) ? data.turn : void 0;
+      if (found && targetTurn === void 0) targetTurn = currentTurn;
+      return;
+    }
+    if (event.type === "user/message") {
+      const message2 = isObject(data.message) ? data.message : data;
+      const source = isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
+      if (source.rpcId === requestId && (expectedText === void 0 || textOf(message2) === expectedText)) {
+        found = true;
+        targetTurn = Number.isSafeInteger(data.turn) ? data.turn : currentTurn;
+      }
+      return;
+    }
+    if (found && targetTurn === void 0 && event.type === "assistant/message" && Number.isSafeInteger(data.turn)) targetTurn = data.turn;
+    if (!found || targetTurn === void 0 || Number.isSafeInteger(data.turn) && data.turn !== targetTurn || !Number.isSafeInteger(data.turn) && currentTurn !== void 0 && currentTurn !== targetTurn) return;
+    if (event.type === "assistant/message") {
+      const text = textOf(data.message ?? data);
+      if (text) answer = text;
+    } else if (event.type === "tool/call" && nonempty(data.callId) && nonempty(data.name)) {
+      tools.set(data.callId, { name: data.name, status: "pending" });
+    } else if (event.type === "tool/result") {
+      const result2 = toolResult(data), tool = tools.get(result2.callId);
+      if (tool) tool.status = result2.status;
+    } else if (event.type === "turn/end") {
+      const reason = isObject(data.reason) ? data.reason.kind : void 0;
+      result = { status: reason === "completed" ? "completed" : "failed", reason: typeof reason === "string" ? reason : "unknown", answer, toolCalls: [...tools.values()] };
+    }
+  }
+  return { accept, result: () => result, found: () => found };
+}
+function visibleHistory(frame, sessionId) {
+  if (!isObject(frame) || frame.type !== "snapshot" || !Array.isArray(frame.records))
+    throw new CliError("Runtime returned an invalid conversation history.", { code: "invalid_response" });
+  const items = [];
+  for (const record of frame.records) {
+    const event = eventOf(record);
+    if (!event) continue;
+    const data = event.data;
+    const base = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
+    if (event.type === "user/message" || event.type === "assistant/message") {
+      const message2 = isObject(data.message) ? data.message : data;
+      const source = isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
+      if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
+      const text = textOf(message2);
+      if (text) items.push({ ...base, type: event.type, text, ...source.rpcId ? { requestId: source.rpcId } : {} });
+    } else if (event.type === "turn/start" || event.type === "turn/end") {
+      items.push({ ...base, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
+    } else if (event.type === "tool/call" && typeof data.name === "string") {
+      items.push({ ...base, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
+    } else if (event.type === "tool/result") {
+      const result = toolResult(data);
+      items.push({ ...base, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
+    }
+  }
+  return { sessionId, ...frame.cursor !== void 0 ? { cursor: frame.cursor } : {}, hasMore: frame.hasMore === true, items };
+}
+async function openStream(ctx, sessionId, headers, runtimeConnection2) {
+  const { args } = ctx;
+  const { runtime: runtime2, token, profile, source } = runtimeConnection2(ctx);
+  const controller = new AbortController();
+  let expired = false;
+  const timeout = setTimeout(() => {
+    expired = true;
+    controller.abort();
+  }, args.integer("wait-timeout", 120) * 1e3);
+  const connectTimeout = setTimeout(() => controller.abort(), args.timeout());
+  let response;
+  try {
+    response = await fetch(new URL(`${sessions}/${segment(sessionId)}/stream`, runtime2), {
+      method: "GET",
+      redirect: "error",
+      signal: controller.signal,
+      headers: { Accept: "text/event-stream", Authorization: `Bearer ${token}`, "X-XRain-Authorization": `Bearer ${token}`, ...headers }
+    });
+  } catch (error) {
+    clearTimeout(timeout);
+    clearTimeout(connectTimeout);
+    throw new CliError(expired ? "Waiting for the conversation timed out." : "Could not open the conversation stream.", { code: expired ? "turn_timeout" : "network_error" });
+  }
+  clearTimeout(connectTimeout);
+  if (!response.ok) {
+    try {
+      const reader2 = response.body?.getReader(), chunks = [];
+      let size = 0;
+      if (reader2) while (true) {
+        const part = await reader2.read();
+        if (part.done) break;
+        size += part.value.length;
+        if (size > 1024 * 1024) throw new CliError("Runtime error response exceeds the size limit.", { code: "invalid_response" });
+        chunks.push(part.value);
+      }
+      const text = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
+      throw responseError({ status: response.status, headers: response.headers, json: () => JSON.parse(text) }, "", { credentialSource: source, profile: profile.name });
+    } catch (error) {
+      if (error instanceof CliError) throw error;
+      throw new CliError(expired ? "Waiting for the conversation timed out." : "Conversation response was interrupted.", { code: expired ? "turn_timeout" : "network_error" });
+    } finally {
+      clearTimeout(timeout);
+      controller.abort();
+    }
+  }
+  if (!response.body || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
+    controller.abort();
+    clearTimeout(timeout);
+    throw new CliError("Runtime returned an invalid conversation stream.", { code: "invalid_response" });
+  }
+  const reader = response.body.getReader(), decoder2 = new TextDecoder();
+  let buffer = "";
+  return {
+    async next() {
+      while (true) {
+        const boundary = /\r?\n\r?\n/.exec(buffer);
+        if (boundary) {
+          const block = buffer.slice(0, boundary.index);
+          buffer = buffer.slice(boundary.index + boundary[0].length);
+          const data = block.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).replace(/^ /, "")).join("\n");
+          if (!data) continue;
+          try {
+            return JSON.parse(data);
+          } catch {
+            throw new CliError("Runtime returned an invalid conversation event.", { code: "invalid_response" });
+          }
+        }
+        let part;
+        try {
+          part = await reader.read();
+        } catch {
+          throw new CliError(expired ? "Waiting for the conversation timed out." : "Conversation stream was interrupted.", { code: expired ? "turn_timeout" : "network_error" });
+        }
+        if (part.done) throw new CliError("Conversation stream ended before the turn completed.", { code: "stream_ended" });
+        buffer += decoder2.decode(part.value, { stream: true });
+        if (buffer.length > 32 * 1024 * 1024) throw new CliError("Conversation event exceeds the size limit.", { code: "invalid_response" });
+      }
+    },
+    close() {
+      clearTimeout(timeout);
+      controller.abort();
+    }
+  };
+}
+function actionRequired(sessionId, requestId, items, submitted = true) {
+  return new CliError("The conversation requires an explicit answer or approval.", {
+    code: "action_required",
+    hint: submitted ? "Inspect the pending action and respond explicitly; then wait on the same session and request ID." : "This session already has a pending action. The new input was not submitted.",
+    details: { sessionId, requestId, submitted, pendingActions: items }
+  });
+}
+function finish(sessionId, requestId, result) {
+  if (result.status !== "completed") throw new CliError("The agent turn did not complete successfully.", { code: "turn_failed", details: { sessionId, requestId, ...result } });
+  if (!nonempty(result.answer)) throw new CliError("The turn completed without a text reply.", { code: "no_answer", details: { sessionId, requestId, ...result } });
+  return { sessionId, requestId, ...result };
+}
+async function follow(ctx, sessionId, requestId, text, headers, helpers) {
+  let stream, submitted = text === void 0, snapshot = false, initialPending = [], incomplete = false;
+  const turn = collector(requestId, text);
+  try {
+    stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection);
+    while (!snapshot) {
+      const frame = await stream.next();
+      if (frame?.type === "stream-error") throw new CliError("Runtime could not follow the conversation.", { code: "stream_ended" });
+      if (frame?.type === "pending-actions" && Array.isArray(frame.items)) initialPending = frame.items;
+      if (frame?.type === "snapshot") {
+        if (!Array.isArray(frame.records)) throw new CliError("Runtime returned an invalid conversation snapshot.", { code: "invalid_response" });
+        snapshot = true;
+        incomplete = frame.hasMore === true;
+        if (submitted) for (const record of frame.records) turn.accept(eventOf(record));
+      }
+    }
+    if (turn.result()) return finish(sessionId, requestId, turn.result());
+    if (initialPending.length) throw actionRequired(sessionId, requestId, initialPending, submitted);
+    if (!submitted) {
+      const body = { requestId, content: [{ type: "text", text }] };
+      await helpers.writeOnce(async () => {
+        const accepted = await helpers.runtimeValue(ctx, "POST", `${sessions}/${segment(sessionId)}/inputs`, body, headers);
+        if (!isObject(accepted) || accepted.accepted !== true) throw new CliError("Runtime returned an invalid input receipt.", { code: "invalid_response" });
+      }, "Input outcome is unknown. Inspect the same conversation and request ID before deciding whether to retry.", { sessionId, requestId });
+      submitted = true;
+    }
+    while (true) {
+      const frame = await stream.next();
+      if (frame?.type === "stream-error") throw new CliError("Runtime could not follow the conversation.", { code: "stream_ended" });
+      if (frame?.type === "pending-actions" && Array.isArray(frame.items) && frame.items.length) throw actionRequired(sessionId, requestId, frame.items);
+      if (frame?.type === "event") turn.accept(eventOf(frame));
+      if (turn.result()) return finish(sessionId, requestId, turn.result());
+    }
+  } catch (error) {
+    if (error instanceof CliError) {
+      error.details = { ...error.details, sessionId, requestId, ...incomplete && !turn.found() ? { historyIncomplete: true } : {} };
+      if (["turn_timeout", "network_error", "stream_ended", "invalid_response"].includes(error.code))
+        error.hint = submitted ? "Do not resend. Read history or wait on this session and request ID." : "The input was not submitted. Inspect the created session before continuing.";
+    }
+    throw error;
+  } finally {
+    stream?.close();
+  }
+}
+async function chatCommands(ctx, helpers) {
+  const { args, reporter } = ctx, action = args.command(2);
+  const app2 = args.has("application-id") ? helpers.identifier(args.value("application-id"), "Application ID") : void 0;
+  const headers = app2 ? { "X-XRain-Application-Id": app2 } : {};
+  if (action === "list") {
+    const path = args.has("all") ? sessions : `${sessions}?source=xrain-cli`;
+    const result = await helpers.runtimeValue(ctx, "GET", path);
+    if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Runtime returned an invalid conversation list.", { code: "invalid_response" });
+    reporter.print(result);
+    return 0;
+  }
+  if (action === "pending") {
+    const result = await helpers.runtimeValue(ctx, "GET", pendingPath);
+    if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Runtime returned invalid pending actions.", { code: "invalid_response" });
+    const id = args.has("session-id") ? helpers.identifier(args.value("session-id"), "Session ID") : void 0;
+    reporter.print({ items: id ? result.items.filter((item) => item?.sessionId === id) : result.items });
+    return 0;
+  }
+  if (action === "respond") {
+    const ref = helpers.identifier(args.required("action-ref"), "Action reference");
+    const input2 = await jsonInput(args, "values");
+    if (!isObject(input2) || Object.keys(input2).some((key) => !["outcome", "answers"].includes(key)) || !Object.keys(input2).length)
+      throw new CliError("Response JSON must contain an explicit outcome or answers.", { code: "invalid_arguments" });
+    const responseId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Response ID");
+    reporter.progress(`Response ID: ${responseId}`);
+    const result = await helpers.writeOnce(async () => {
+      const accepted = await helpers.runtimeValue(ctx, "POST", `${pendingPath}/${segment(ref)}/responses`, { ...input2, responseId }, headers);
+      if (!isObject(accepted) || accepted.accepted !== true) throw new CliError("Runtime returned an invalid response receipt.", { code: "invalid_response" });
+      return accepted;
+    }, "Response outcome is unknown. Inspect this pending action before retrying.", { actionRef: ref, responseId });
+    reporter.print({ actionRef: ref, responseId, ...result });
+    return 0;
+  }
+  let sessionId = args.value("session-id");
+  if (action === "history") {
+    sessionId = helpers.identifier(sessionId, "Session ID");
+    reporter.print(visibleHistory(await helpers.runtimeValue(ctx, "GET", `${sessions}/${segment(sessionId)}/history`), sessionId));
+    return 0;
+  }
+  const text = action === "wait" ? void 0 : await messageInput(args);
+  const requestId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Request ID");
+  if (action === "start") {
+    const agentId = helpers.identifier(args.required("agent-id"), "Agent ID");
+    const created = await helpers.writeOnce(async () => {
+      const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli" }, headers);
+      if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError("Runtime returned an invalid session receipt.", { code: "invalid_response" });
+      return result;
+    }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, ...app2 ? { applicationId: app2 } : {} });
+    sessionId = created.sessionId;
+    reporter.progress(`Session ID: ${sessionId}`);
+  }
+  sessionId = helpers.identifier(sessionId, "Session ID");
+  reporter.progress(`Request ID: ${requestId}`);
+  reporter.print(await follow(ctx, sessionId, requestId, text, headers, helpers));
+  return 0;
+}
+
+// src/xrain-cli/agents.mjs
 var definitions = "/v1/dsh/agent-definitions";
 var platformAgents = "/api/xrain/v1/agents";
 var definitionFields = [
@@ -2396,12 +2718,17 @@ function workspaceChange(value) {
     value.agentPreset = "";
   }
 }
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+function runtimeConnection(ctx) {
   const { args, store } = ctx;
   const runtime2 = origin(args.required("runtime"));
   const profile = store.resolve(args, true);
   const { token, source } = store.credential(args, profile);
   if (!token) throw new CliError("A platform credential is required for the Runtime.", { code: "authentication_required", hint: "Check auth status for the selected platform profile." });
+  return { runtime: runtime2, profile, token, source };
+}
+async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+  const { args } = ctx;
+  const { runtime: runtime2, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime2), {
     method,
     token,
@@ -2511,6 +2838,7 @@ async function definitionCommands(ctx) {
 async function agentCommands(ctx) {
   const { args, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
+  if (action === "chat") return chatCommands(ctx, { identifier, runtimeConnection, runtimeValue, writeOnce });
   if (action === "definition") return definitionCommands(ctx);
   if (action === "directory") {
     if (args.has("mine") && args.has("application-id")) throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });

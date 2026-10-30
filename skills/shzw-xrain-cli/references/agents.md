@@ -23,6 +23,27 @@ agent use <agentId> [--application-id <应用ID>]
 
 `directory` 汇合 Runtime 定义与平台资格，默认展示可发现项；`--mine` 仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。
 
+## 发起和继续对话
+
+`agent chat` 使用 Runtime 的真实会话、所选定义及当前主体权限；工具可能读取或修改实际资料。按明确授权发送输入，验证时可使用不涉及业务写入的合成问题。应用入口带实际 `--application-id`；个人入口省略它并遵循本人订阅规则。续聊、等待和回答待处理事项时使用原会话相同的应用上下文。
+
+```text
+agent chat start <agentId> --message-file <输入.txt> --runtime <Runtime origin> [--application-id <应用ID>]
+agent chat send <sessionId> --message-file <输入.txt> --runtime <Runtime origin> [--application-id <应用ID>]
+agent chat list --runtime <Runtime origin>
+agent chat list --all --runtime <Runtime origin>
+agent chat history <sessionId> --runtime <Runtime origin>
+agent chat wait <sessionId> --request-id <原请求ID> --runtime <Runtime origin> [--application-id <应用ID>]
+agent chat pending --session-id <sessionId> --runtime <Runtime origin>
+agent chat respond <actionRef> --values-json <回答.json> --runtime <Runtime origin> [--application-id <应用ID>]
+```
+
+`--message-file -` 从标准输入读取 UTF-8 文本，也可用 `--message` 直接提供短输入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；也可通过 `--request-id` 显式指定本次输入的稳定 ID。
+
+命令等待本次请求自己的 `turn/end`，默认最多 120 秒，可用 `--wait-timeout` 调整。返回 `completed` 和文本答复只证明该轮运行完成，不证明答复正确或业务写入成功；`toolCalls` 的状态反映 Runtime 工具回执。历史只展示可见用户、助手、工具及结束状态，`hasMore` 表示当前返回并非完整历史。
+
+`action_required` 会给出待处理问题或审批的 actionRef；不能自动批准。用户明确选择后可发送 `{"outcome":"allowed-once"}` 或 `{"outcome":"rejected"}`，问题按服务返回的 question ID 提供 `{"answers":[{"id":"<问题ID>","selected":["<选择>"],"custom":"<可选文字>"}]}`。响应有独立的 responseId，结果未知时先检查原事项；提交后使用原 sessionId/requestId 的 `wait` 读取该轮结果，不重发对话。超时、断流、会话创建或输入结果未知也先查 `list`、`history` 或 `wait`；历史分页导致无法确认时不能把旧回复当作新结果。
+
 创建可提供 `--agent-id <稳定ID>`；省略时生成 ID 并在提交前写入 stderr。请保留此 ID，不按名称认领另一条定义。`--name` 给出名称，其他配置以 JSON 对象提供。下例的值须取自实际 `options`；工作要求可包含多行：
 
 ```json

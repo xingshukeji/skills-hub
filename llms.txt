@@ -51,7 +51,7 @@ XRain 支持新业务建模，也支持对管理完善的已有系统直接通�
 - [shzw-workspace-maintenance](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-workspace-maintenance/SKILL.md)：维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。
 - [shzw-xrain-access](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-access/SKILL.md)：处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。
 - [shzw-xrain-app-package](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-app-package/SKILL.md)：编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。
-- [shzw-xrain-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-cli/SKILL.md)：使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录、智能体定义及订阅和应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。
+- [shzw-xrain-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-cli/SKILL.md)：使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录、智能体定义、订阅与对话及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。
 <!-- skills:end -->
 
 ## 常用开发参考

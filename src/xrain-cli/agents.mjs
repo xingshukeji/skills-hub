@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { CliError, isObject, jsonInput, nonempty, origin, segment } from './core.mjs';
 import { apiValue, request, responseError } from './http.mjs';
+import { chatCommands } from './agent-chat.mjs';
 
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
@@ -8,7 +9,7 @@ const definitionFields = ['name', 'enabled', 'instructions', 'provider', 'model'
   'workspaceId', 'nativeTools', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools'];
 const inputFields = new Set([...definitionFields, 'workspaceChange']);
 
-function identifier(value, label) {
+export function identifier(value, label) {
   if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === '.' || value === '..')
     throw new CliError(`${label} must be a valid exact identifier.`, { code: 'invalid_arguments' });
   return value;
@@ -45,19 +46,24 @@ function workspaceChange(value) {
   }
 }
 
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+export function runtimeConnection(ctx) {
   const { args, store } = ctx;
   const runtime = origin(args.required('runtime'));
   const profile = store.resolve(args, true);
   const { token, source } = store.credential(args, profile);
   if (!token) throw new CliError('A platform credential is required for the Runtime.', { code: 'authentication_required', hint: 'Check auth status for the selected platform profile.' });
+  return { runtime, profile, token, source };
+}
+export async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+  const { args } = ctx;
+  const { runtime, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime), { method, token, json, timeout: args.timeout(),
     headers: { 'X-XRain-Authorization': `Bearer ${token}`, ...extraHeaders } });
   if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
   if (!response.bytes.length) return null;
   try { return response.json(); } catch { throw new CliError('Runtime returned invalid JSON.', { code: 'invalid_response' }); }
 }
-async function writeOnce(action, hint, details) {
+export async function writeOnce(action, hint, details) {
   try { return await action(); }
   catch (error) {
     if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
@@ -129,6 +135,7 @@ async function definitionCommands(ctx) {
 export async function agentCommands(ctx) {
   const { args, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
+  if (action === 'chat') return chatCommands(ctx, { identifier, runtimeConnection, runtimeValue, writeOnce });
   if (action === 'definition') return definitionCommands(ctx);
   if (action === 'directory') {
     if (args.has('mine') && args.has('application-id')) throw new CliError('--mine applies only to the personal directory.', { code: 'invalid_arguments' });

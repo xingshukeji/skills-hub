@@ -31,6 +31,13 @@ command('metadata entities', api, [], 'List the target environment object regist
 command('metadata describe', [...api, 'entity'], [slot('entity')], 'Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.');
 const runtime = [...api, 'runtime'];
 command('agent directory', [...runtime, 'application-id', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
+command('agent chat start', [...runtime, 'agent-id', 'application-id', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('agent-id')], 'Create a conversation, submit one message and wait for its own completed turn.');
+command('agent chat send', [...runtime, 'session-id', 'application-id', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
+command('agent chat wait', [...runtime, 'session-id', 'application-id', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
+command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations; --all includes other sources owned by the same identity.');
+command('agent chat history', [...runtime, 'session-id'], [slot('session-id')], 'Read visible messages and turn outcomes from an authorized conversation.');
+command('agent chat pending', [...runtime, 'session-id'], [], 'List your pending questions or approvals, optionally filtered by session.');
+command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
 command('agent qualifications', [...api, 'application-id'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
 command('agent use', [...api, 'agent-id', 'application-id'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
 for (const action of ['subscribe', 'unsubscribe']) command(`agent ${action}`, [...api, 'agent-id'], [slot('agent-id')],
@@ -144,10 +151,17 @@ export function validateCommand(args) {
       throw new CliError('--visibility must be public or private.', { code: 'invalid_arguments' });
     if (spec.path === 'agent subscription decide' && !['approved', 'rejected', 'revoked'].includes(args.required('decision')))
       throw new CliError('--decision must be approved, rejected or revoked.', { code: 'invalid_arguments' });
+    if (['agent chat start', 'agent chat send'].includes(spec.path)) {
+      exclusive(['message', 'message-file']);
+      if (!args.has('message') && !args.has('message-file')) throw new CliError('--message or --message-file is required.', { code: 'invalid_arguments' });
+    }
+    if (spec.path === 'agent chat wait') args.required('request-id');
+    if (spec.path === 'agent chat respond' && !['values', 'values-json', 'file'].some(name => args.has(name)))
+      throw new CliError('A JSON response is required.', { code: 'invalid_arguments' });
   }
   if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
-    if (spec.path !== 'app operation wait' && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
+    if (spec.path !== 'app operation wait' && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
       throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });
     for (const name of ['wait-timeout', 'poll-interval']) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: 'invalid_arguments' });
@@ -183,7 +197,8 @@ export function commandHelp(args) {
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
   if (!exact || exact.options.includes('request-json')) lines.push('Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.');
   if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
-  if (!exact || exact.options.includes('wait-timeout')) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
+  if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
+  if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
   lines.push('auth login authenticates; login/profile set only save settings. Applications require browser authentication.',
     'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed.');
   return lines.join('\n') + '\n';
