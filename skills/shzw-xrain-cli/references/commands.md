@@ -40,6 +40,10 @@ data delete <entity> <id>
 
 支持 --entity/--id 替代位置参数，每次只选一种。delete 仅单条 ID，不接 filter。更新并发条件按目标字段契约提供，完成后回读。
 
+## 智能体
+
+定义、工作区与工具由 Runtime 提供，订阅、审批及应用选用由 XRain 平台提供。命令、请求示例、版本冲突和写入结果恢复见[智能体命令](agents.md)。
+
 ## 用户、角色、权限集
 
 账号准备先读[账号与登录](login.md)。以下追加目标 --profile、--json；浏览器会话另加 --auth session，正常原生登录的 Bearer 使用配置中的当前进程路径：

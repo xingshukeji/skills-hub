@@ -1,4 +1,4 @@
-import { CliError } from './core.mjs';
+import { CliError, origin } from './core.mjs';
 
 const common = ['help', 'json'];
 const target = ['server', 'tenant', 'profile', 'timeout'];
@@ -29,6 +29,29 @@ for (const action of ['ready', 'live', 'healthz']) command('health ' + action, a
 command('metadata standards', api, [], 'Read entity design standards.');
 command('metadata entities', api, [], 'List the target environment object registry.');
 command('metadata describe', [...api, 'entity'], [slot('entity')], 'Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.');
+const runtime = [...api, 'runtime'];
+command('agent directory', [...runtime, 'application-id', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
+command('agent qualifications', [...api, 'application-id'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
+command('agent use', [...api, 'agent-id', 'application-id'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
+for (const action of ['subscribe', 'unsubscribe']) command(`agent ${action}`, [...api, 'agent-id'], [slot('agent-id')],
+  action === 'subscribe' ? 'Request a personal subscription; private definitions can require approval.' : 'Cancel your personal subscription; history and application selection remain unchanged.');
+command('agent policy list', api, [], 'List personal subscription policies.');
+command('agent policy set', [...api, 'agent-id', 'visibility'], [slot('agent-id')], 'Set the personal subscription policy to public or private.');
+command('agent subscription list', api, [], 'List pending and approved personal subscription requests when authorized.');
+command('agent subscription decide', [...api, 'id', 'decision'], [slot('id')], 'Approve, reject or revoke one exact subscription request.');
+command('agent application list', api, [], 'List accessible XRain applications.');
+command('agent application show', [...api, 'application-id'], [slot('application-id')], 'Read one application’s agent selection and default.');
+command('agent application set', [...api, 'application-id', 'values', 'values-json', 'file'], [slot('application-id')], 'Replace one application’s complete agent selection from JSON; preserve intended bindings and default.');
+command('agent definition list', runtime, [], 'List definitions owned by the explicitly selected Runtime.');
+command('agent definition show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read one definition and its revision by exact agent ID.');
+command('agent definition options', runtime, [], 'Read Runtime models, workspaces and presets available to this caller.');
+command('agent definition create', [...runtime, 'agent-id', 'name', 'values', 'values-json', 'file'], [], 'Create a disabled definition. An omitted ID is generated and printed before writing; JSON supplies optional definition fields.');
+command('agent definition update', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file'], [slot('agent-id')], 'Apply a JSON patch to one definition using its explicitly observed revision.');
+for (const action of ['enable', 'disable']) command(`agent definition ${action}`, [...runtime, 'agent-id', 'expected-revision'], [slot('agent-id')], 'Change enabled state using an explicitly observed revision; preserve other settings.');
+command('agent tool native', [...runtime, 'workspace-id', 'preset'], [], 'Read the selected workspace/preset’s available native tools.');
+command('agent tool business', runtime, [], 'Read the business tools available in the current Runtime context.');
+for (const action of ['browse', 'create', 'register']) command(`agent workspace ${action}`, [...runtime, 'values', 'values-json', 'file'], [],
+  action === 'browse' ? 'Browse a Runtime-side directory from a JSON request.' : action === 'create' ? 'Create a directory on the Runtime host from a JSON request.' : 'Register an existing Runtime-side directory as a workspace from a JSON request.');
 command('data query', [...api, 'entity', 'query', 'query-json', 'file', 'page', 'page-size', 'search', 'fields', 'filter', 'filter-json', 'sort', 'no-total'], [slot('entity')], 'Query runtime records using a complete JSON request or individual query options.');
 command('data get', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Read one runtime record.');
 command('data delete', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Delete exactly one runtime record. Filters are not accepted.');
@@ -106,6 +129,22 @@ export function validateCommand(args) {
       throw new CliError('A complete query JSON request cannot be combined with individual query options.', { code: 'invalid_arguments' });
   }
   if (['data create', 'data update', 'security user create', 'security user ensure', 'security permission-set create', 'security permission-set ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
+  if (spec.path.startsWith('agent ')) {
+    if (spec.options.includes('runtime')) origin(args.required('runtime'));
+    if (spec.options.includes('expected-revision')) { args.required('expected-revision'); args.integer('expected-revision'); }
+    if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
+    if (['agent definition update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
+        !['values', 'values-json', 'file'].some(name => args.has(name))) throw new CliError('A JSON input is required.', { code: 'invalid_arguments' });
+    if (spec.path === 'agent definition create' && !['name', 'values', 'values-json', 'file'].some(name => args.has(name)))
+      throw new CliError('A definition name is required.', { code: 'invalid_arguments' });
+    if (spec.path === 'agent directory' && args.has('mine') && args.has('application-id'))
+      throw new CliError('--mine applies only to the personal directory.', { code: 'invalid_arguments' });
+    if (spec.path === 'agent tool native') { args.required('workspace-id'); args.required('preset'); }
+    if (spec.path === 'agent policy set' && !['public', 'private'].includes(args.required('visibility')))
+      throw new CliError('--visibility must be public or private.', { code: 'invalid_arguments' });
+    if (spec.path === 'agent subscription decide' && !['approved', 'rejected', 'revoked'].includes(args.required('decision')))
+      throw new CliError('--decision must be approved, rejected or revoked.', { code: 'invalid_arguments' });
+  }
   if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
     if (spec.path !== 'app operation wait' && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
@@ -143,6 +182,7 @@ export function commandHelp(args) {
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
   if (!exact || exact.options.includes('request-json')) lines.push('Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.');
+  if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
   if (!exact || exact.options.includes('wait-timeout')) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
   lines.push('auth login authenticates; login/profile set only save settings. Applications require browser authentication.',
     'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed.');

@@ -20,8 +20,8 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "no-total", "check", "wait", "maintain-installed-version"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval".split(" "));
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "no-total", "check", "wait", "maintain-installed-version", "mine"]);
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -417,7 +417,7 @@ function responseError(response, hint = "", context = {}) {
   } catch {
     body = void 0;
   }
-  const candidate = body?.errorCode;
+  const candidate = body?.errorCode ?? body?.error;
   const serverCode = typeof candidate === "string" && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : void 0;
   const methodRejected = serverCode?.endsWith("authentication_method_not_allowed");
   const code = methodRejected ? "authentication_method_not_allowed" : response.status === 401 ? "authentication_failed" : response.status === 403 ? "permission_denied" : response.status === 404 ? "not_found" : response.status === 409 ? "conflict" : "http_error";
@@ -2118,6 +2118,37 @@ for (const action of ["ready", "live", "healthz"]) command("health " + action, a
 command("metadata standards", api2, [], "Read entity design standards.");
 command("metadata entities", api2, [], "List the target environment object registry.");
 command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.");
+var runtime = [...api2, "runtime"];
+command("agent directory", [...runtime, "application-id", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
+command("agent qualifications", [...api2, "application-id"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
+command("agent use", [...api2, "agent-id", "application-id"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
+for (const action of ["subscribe", "unsubscribe"]) command(
+  `agent ${action}`,
+  [...api2, "agent-id"],
+  [slot("agent-id")],
+  action === "subscribe" ? "Request a personal subscription; private definitions can require approval." : "Cancel your personal subscription; history and application selection remain unchanged."
+);
+command("agent policy list", api2, [], "List personal subscription policies.");
+command("agent policy set", [...api2, "agent-id", "visibility"], [slot("agent-id")], "Set the personal subscription policy to public or private.");
+command("agent subscription list", api2, [], "List pending and approved personal subscription requests when authorized.");
+command("agent subscription decide", [...api2, "id", "decision"], [slot("id")], "Approve, reject or revoke one exact subscription request.");
+command("agent application list", api2, [], "List accessible XRain applications.");
+command("agent application show", [...api2, "application-id"], [slot("application-id")], "Read one application’s agent selection and default.");
+command("agent application set", [...api2, "application-id", "values", "values-json", "file"], [slot("application-id")], "Replace one application’s complete agent selection from JSON; preserve intended bindings and default.");
+command("agent definition list", runtime, [], "List definitions owned by the explicitly selected Runtime.");
+command("agent definition show", [...runtime, "agent-id"], [slot("agent-id")], "Read one definition and its revision by exact agent ID.");
+command("agent definition options", runtime, [], "Read Runtime models, workspaces and presets available to this caller.");
+command("agent definition create", [...runtime, "agent-id", "name", "values", "values-json", "file"], [], "Create a disabled definition. An omitted ID is generated and printed before writing; JSON supplies optional definition fields.");
+command("agent definition update", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file"], [slot("agent-id")], "Apply a JSON patch to one definition using its explicitly observed revision.");
+for (const action of ["enable", "disable"]) command(`agent definition ${action}`, [...runtime, "agent-id", "expected-revision"], [slot("agent-id")], "Change enabled state using an explicitly observed revision; preserve other settings.");
+command("agent tool native", [...runtime, "workspace-id", "preset"], [], "Read the selected workspace/preset’s available native tools.");
+command("agent tool business", runtime, [], "Read the business tools available in the current Runtime context.");
+for (const action of ["browse", "create", "register"]) command(
+  `agent workspace ${action}`,
+  [...runtime, "values", "values-json", "file"],
+  [],
+  action === "browse" ? "Browse a Runtime-side directory from a JSON request." : action === "create" ? "Create a directory on the Runtime host from a JSON request." : "Register an existing Runtime-side directory as a workspace from a JSON request."
+);
 command("data query", [...api2, "entity", "query", "query-json", "file", "page", "page-size", "search", "fields", "filter", "filter-json", "sort", "no-total"], [slot("entity")], "Query runtime records using a complete JSON request or individual query options.");
 command("data get", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Read one runtime record.");
 command("data delete", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Delete exactly one runtime record. Filters are not accepted.");
@@ -2203,6 +2234,27 @@ function validateCommand(args) {
       throw new CliError("A complete query JSON request cannot be combined with individual query options.", { code: "invalid_arguments" });
   }
   if (["data create", "data update", "security user create", "security user ensure", "security permission-set create", "security permission-set ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
+  if (spec.path.startsWith("agent ")) {
+    if (spec.options.includes("runtime")) origin(args.required("runtime"));
+    if (spec.options.includes("expected-revision")) {
+      args.required("expected-revision");
+      args.integer("expected-revision");
+    }
+    if (spec.options.includes("values-json")) exclusive(["values", "values-json", "file"]);
+    if (["agent definition update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (spec.path === "agent definition create" && !["name", "values", "values-json", "file"].some((name) => args.has(name)))
+      throw new CliError("A definition name is required.", { code: "invalid_arguments" });
+    if (spec.path === "agent directory" && args.has("mine") && args.has("application-id"))
+      throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });
+    if (spec.path === "agent tool native") {
+      args.required("workspace-id");
+      args.required("preset");
+    }
+    if (spec.path === "agent policy set" && !["public", "private"].includes(args.required("visibility")))
+      throw new CliError("--visibility must be public or private.", { code: "invalid_arguments" });
+    if (spec.path === "agent subscription decide" && !["approved", "rejected", "revoked"].includes(args.required("decision")))
+      throw new CliError("--decision must be approved, rejected or revoked.", { code: "invalid_arguments" });
+  }
   if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
     if (spec.path !== "app operation wait" && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
@@ -2239,6 +2291,7 @@ function commandHelp(args) {
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the browser session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
   if (!exact || exact.options.includes("request-json")) lines.push("Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.");
+  if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands require an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
   if (!exact || exact.options.includes("wait-timeout")) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
     "auth login authenticates; login/profile set only save settings. Applications require browser authentication.",
@@ -2288,6 +2341,248 @@ async function batchCommands(ctx) {
   return 0;
 }
 
+// src/xrain-cli/agents.mjs
+import { randomBytes as randomBytes5 } from "node:crypto";
+var definitions = "/v1/dsh/agent-definitions";
+var platformAgents = "/api/xrain/v1/agents";
+var definitionFields = [
+  "name",
+  "enabled",
+  "instructions",
+  "provider",
+  "model",
+  "reasoningEffort",
+  "agentPreset",
+  "workspaceId",
+  "nativeTools",
+  "suggestedQuestions",
+  "businessActions",
+  "uiPlugins",
+  "assistantTools"
+];
+var inputFields = /* @__PURE__ */ new Set([...definitionFields, "workspaceChange"]);
+function identifier(value, label) {
+  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
+    throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
+  return value;
+}
+function revision(args) {
+  if (!args.has("expected-revision")) throw new CliError("--expected-revision is required. Read the definition first.", { code: "invalid_arguments" });
+  return args.integer("expected-revision");
+}
+async function objectInput(args, required = true) {
+  const value = await jsonInput(args, "values");
+  if (value === void 0 && !required) return {};
+  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  return value;
+}
+function validateDefinitionInput(value) {
+  const unknown = Object.keys(value).filter((key) => !inputFields.has(key));
+  if (unknown.length) throw new CliError(`Unexpected definition fields: ${unknown.join(", ")}.`, { code: "invalid_arguments" });
+  if (value.workspaceChange !== void 0 && !isObject(value.workspaceChange))
+    throw new CliError("workspaceChange must be an object.", { code: "invalid_arguments" });
+}
+function workspaceChange(value) {
+  const change = value.workspaceChange;
+  if (!change) return;
+  if (change.operation === "bind") {
+    if (value.workspaceId !== void 0 && value.workspaceId !== change.workspaceId || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
+      throw new CliError("workspaceChange conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
+    value.workspaceId = change.workspaceId;
+    value.agentPreset = change.agentPreset;
+  } else if (change.operation === "clear") {
+    if (value.workspaceId != null || value.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
+    value.workspaceId = null;
+    value.agentPreset = "";
+  }
+}
+async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+  const { args, store } = ctx;
+  const runtime2 = origin(args.required("runtime"));
+  const profile = store.resolve(args, true);
+  const { token, source } = store.credential(args, profile);
+  if (!token) throw new CliError("A platform credential is required for the Runtime.", { code: "authentication_required", hint: "Check auth status for the selected platform profile." });
+  const response = await request(new URL(path, runtime2), {
+    method,
+    token,
+    json,
+    timeout: args.timeout(),
+    headers: { "X-XRain-Authorization": `Bearer ${token}`, ...extraHeaders }
+  });
+  if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
+  if (!response.bytes.length) return null;
+  try {
+    return response.json();
+  } catch {
+    throw new CliError("Runtime returned invalid JSON.", { code: "invalid_response" });
+  }
+}
+async function writeOnce(action, hint, details) {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof CliError && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+      error.code = "outcome_unknown";
+      error.hint = hint;
+      error.details = { ...error.details, ...details };
+    }
+    throw error;
+  }
+}
+async function definition(ctx, id) {
+  const result = await runtimeValue(ctx, "GET", definitions);
+  if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Runtime returned an invalid definition list.", { code: "invalid_response" });
+  const matches = result.items.filter((item) => isObject(item) && item.agentId === id);
+  if (!matches.length) throw new CliError("Definition not found in this Runtime.", { code: "not_found", details: { agentId: id } });
+  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].revision) || matches[0].revision < 1)
+    throw new CliError("Runtime returned an ambiguous or invalid definition.", { code: "invalid_response" });
+  return matches[0];
+}
+async function saveDefinition(ctx, id, body) {
+  return writeOnce(
+    async () => {
+      const result = await runtimeValue(ctx, "POST", definitions, body);
+      if (!isObject(result) || result.agentId !== id || result.revision !== (body.revision ?? 0) + 1 || result.enabled !== body.enabled)
+        throw new CliError("Runtime returned an invalid save result.", { code: "invalid_response" });
+      return result;
+    },
+    "Save outcome is unknown. Read the same agent ID and revision before deciding whether to retry.",
+    { agentId: id, expectedRevision: body.revision }
+  );
+}
+async function definitionCommands(ctx) {
+  const { args, reporter } = ctx;
+  const action = args.command(2);
+  if (action === "list" || action === "options") {
+    reporter.print(await runtimeValue(ctx, "GET", definitions + (action === "options" ? "/options" : "")));
+    return 0;
+  }
+  if (action === "create") {
+    const value = await objectInput(args, false);
+    validateDefinitionInput(value);
+    if (value.enabled !== void 0 && value.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
+    if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
+    const name = args.value("name") ?? value.name;
+    if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
+    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
+    workspaceChange(value);
+    const body2 = {
+      aiUserId: "",
+      agentId: id2,
+      revision: null,
+      enabled: false,
+      instructions: "",
+      provider: "",
+      model: "",
+      agentPreset: "",
+      workspaceId: null,
+      nativeTools: [],
+      allowedCallerUserIds: [],
+      ...value,
+      name
+    };
+    reporter.progress(`Definition ID: ${id2}`);
+    reporter.print(await saveDefinition(ctx, id2, body2));
+    return 0;
+  }
+  const id = identifier(args.required("agent-id"), "Agent ID");
+  if (action === "show") {
+    reporter.print(await definition(ctx, id));
+    return 0;
+  }
+  const expected = revision(args);
+  const patch = action === "update" ? await objectInput(args) : { enabled: action === "enable" };
+  validateDefinitionInput(patch);
+  if (!Object.keys(patch).length) throw new CliError("The update has no fields.", { code: "invalid_arguments" });
+  if ((Object.hasOwn(patch, "workspaceId") || Object.hasOwn(patch, "agentPreset")) && !patch.workspaceChange)
+    throw new CliError("Changing workspace or preset requires an explicit workspaceChange.", { code: "invalid_arguments" });
+  workspaceChange(patch);
+  const current = await definition(ctx, id);
+  if (current.revision !== expected) throw new CliError("Definition revision changed. Review the current definition before saving.", {
+    code: "conflict",
+    details: { agentId: id, expectedRevision: expected, currentRevision: current.revision }
+  });
+  const base = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
+  const body = { ...base, ...patch, aiUserId: "", agentId: id, revision: expected, allowedCallerUserIds: [] };
+  if (!patch.workspaceChange) body.workspaceChange = { operation: "keep" };
+  reporter.print(await saveDefinition(ctx, id, body));
+  return 0;
+}
+async function agentCommands(ctx) {
+  const { args, reporter, spec } = ctx;
+  const action = args.command(1), sub = args.command(2);
+  if (action === "definition") return definitionCommands(ctx);
+  if (action === "directory") {
+    if (args.has("mine") && args.has("application-id")) throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });
+    const headers = args.has("application-id") ? { "X-XRain-Application-Id": identifier(args.value("application-id"), "Application ID") } : {};
+    reporter.print(await runtimeValue(ctx, "GET", `/v1/dsh/workbench-agents?mine=${args.has("mine")}`, void 0, headers));
+    return 0;
+  }
+  if (action === "tool") {
+    const body2 = sub === "native" ? { workspaceId: identifier(args.required("workspace-id"), "Workspace ID"), agentPreset: identifier(args.required("preset"), "Preset") } : {};
+    reporter.print(await runtimeValue(ctx, "POST", `${definitions}/tools/${sub}`, body2));
+    return 0;
+  }
+  if (action === "workspace") {
+    const body2 = await objectInput(args);
+    const path2 = sub === "register" ? "/workspaces/register" : `/directories/${sub === "browse" ? "list" : "create"}`;
+    const call2 = () => runtimeValue(ctx, "POST", definitions + path2, body2);
+    reporter.print(sub === "browse" ? await call2() : await writeOnce(call2, "Operation outcome is unknown. Inspect the original directory or workspace before retrying.", { operation: spec.path }));
+    return 0;
+  }
+  const appId = args.has("application-id") ? identifier(args.value("application-id"), "Application ID") : void 0;
+  let method = "GET", path, body;
+  if (action === "qualifications") path = platformAgents + "/qualifications" + (appId ? "?" + new URLSearchParams({ applicationId: appId }) : "");
+  else if (action === "use") {
+    method = "POST";
+    path = `${platformAgents}/${segment(identifier(args.required("agent-id"), "Agent ID"))}/use`;
+    body = { applicationId: appId ?? null };
+  } else if (action === "subscribe" || action === "unsubscribe") {
+    method = action === "subscribe" ? "POST" : "DELETE";
+    path = `${platformAgents}/${segment(identifier(args.required("agent-id"), "Agent ID"))}/subscription`;
+  } else if (action === "policy") {
+    path = sub === "list" ? `${platformAgents}/policies` : `${platformAgents}/${segment(identifier(args.required("agent-id"), "Agent ID"))}/policy`;
+    if (sub === "set") {
+      method = "PUT";
+      const visibility = args.required("visibility");
+      if (!["public", "private"].includes(visibility)) throw new CliError("--visibility must be public or private.", { code: "invalid_arguments" });
+      body = { visibility };
+    }
+  } else if (action === "subscription") {
+    path = `${platformAgents}/subscription-requests`;
+    if (sub === "decide") {
+      method = "POST";
+      path += `/${segment(identifier(args.required("id"), "Request ID"))}/decision`;
+      const decision = args.required("decision");
+      if (!["approved", "rejected", "revoked"].includes(decision)) throw new CliError("--decision must be approved, rejected or revoked.", { code: "invalid_arguments" });
+      body = { decision };
+    }
+  } else if (action === "application") {
+    path = "/api/xrain/v1/applications" + (sub === "list" ? "" : `/${segment(appId)}/agents`);
+    if (sub === "set") {
+      method = "PUT";
+      body = await objectInput(args);
+    }
+  }
+  const readOnly = method === "GET" || action === "use";
+  const call = async () => {
+    const result = await apiValue(ctx, method, path, body);
+    if (!readOnly) {
+      const id = args.value("agent-id");
+      const valid = action === "subscribe" ? isObject(result) && nonempty(result.id) && result.agentId === id && result.selected === true && ["pending", "approved"].includes(result.approvalStatus) : action === "unsubscribe" ? isObject(result) && result.cancelled === true : action === "policy" ? isObject(result) && result.agentId === id && result.visibility === body.visibility : action === "subscription" ? isObject(result) && result.id === args.value("id") && result.approvalStatus === body.decision : isObject(result) && Array.isArray(result.bindings) && Array.isArray(body.bindings) && result.bindings.length === body.bindings.length && result.bindings.every((row, index) => isObject(row) && row.agentId === body.bindings[index]?.agentId) && (result.defaultAgentId ?? null) === (body.defaultAgentId ?? null);
+      if (!valid) throw new CliError("XRain returned an invalid operation result.", { code: "invalid_response" });
+    }
+    return result;
+  };
+  reporter.print(readOnly ? await call() : await writeOnce(call, "Operation outcome is unknown. Read the original policy, subscription or application selection before retrying.", {
+    operation: spec.path,
+    ...args.has("agent-id") ? { agentId: args.value("agent-id") } : {},
+    ...args.has("id") ? { requestId: args.value("id") } : {},
+    ...appId ? { applicationId: appId } : {}
+  }));
+  return 0;
+}
+
 // src/xrain-cli/main.mjs
 var HELP = commandHelp(new Args([]));
 async function dispatch(ctx) {
@@ -2313,6 +2608,8 @@ async function dispatch(ctx) {
       return dataCommands(ctx);
     case "app":
       return appCommands(ctx);
+    case "agent":
+      return agentCommands(ctx);
     case "health": {
       const action = args.command(1) ?? "ready";
       return api(ctx, "GET", (/* @__PURE__ */ new Map([["ready", "/health/ready"], ["live", "/health/live"], ["healthz", "/healthz"]])).get(action));

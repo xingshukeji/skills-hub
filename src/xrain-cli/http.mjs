@@ -29,7 +29,7 @@ export async function request(url, { method = 'GET', token, json, body, headers 
 export function responseError(response, hint = '', context = {}) {
   let body;
   try { body = response.json(); } catch { body = undefined; }
-  const candidate = body?.errorCode;
+  const candidate = body?.errorCode ?? body?.error;
   const serverCode = typeof candidate === 'string' && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : undefined;
   const methodRejected = serverCode?.endsWith('authentication_method_not_allowed');
   const code = methodRejected ? 'authentication_method_not_allowed' : response.status === 401 ? 'authentication_failed' : response.status === 403 ? 'permission_denied' : response.status === 404 ? 'not_found' : response.status === 409 ? 'conflict' : 'http_error';

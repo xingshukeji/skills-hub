@@ -5,6 +5,7 @@ import { dataCommands, hostCommands, profileCommands, securityCommands } from '.
 import { appCommands } from './app.mjs';
 import { authCommands, doctor } from './diagnostics.mjs';
 import { batchCommands } from './batch.mjs';
+import { agentCommands } from './agents.mjs';
 import { commandHelp, validateCommand } from './schema.mjs';
 
 export const HELP = commandHelp(new Args([]));
@@ -22,6 +23,7 @@ async function dispatch(ctx) {
     case 'host': return hostCommands(ctx);
     case 'data': return dataCommands(ctx);
     case 'app': return appCommands(ctx);
+    case 'agent': return agentCommands(ctx);
     case 'health': {
       const action = args.command(1) ?? 'ready';
       return api(ctx, 'GET', new Map([['ready', '/health/ready'], ['live', '/health/live'], ['healthz', '/healthz']]).get(action));
