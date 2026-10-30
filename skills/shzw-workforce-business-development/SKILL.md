@@ -41,7 +41,7 @@ metadata:
 | 权限与记录协作 | [授权](references/authorization.md)、[人员/组织/分享/交接](references/organization-and-collaboration.md) |
 | 外部系统与配置 | [集成](references/integration.md)、[变量/设置/Token](references/configuration-and-api.md) |
 | 自动执行与时间 | [函数/Trigger/Routine](references/automation.md)、[地区与日期](references/regional-context.md) |
-| 页面与智能体 | [元数据与前端](references/metadata-and-ui.md)、[宿主与工具](references/implementation.md)、[智能体选用](references/agent-access.md) |
+| 页面与智能体 | [元数据与前端](references/metadata-and-ui.md)、[宿主与工具](references/implementation.md)、[智能体定义、文件与选用](references/agent-access.md) |
 | SDK 取得、版本、公开导出与调用 | [Workforce SDK](references/workforce-sdk.md) |
 | 独立应用接入、认证与业务使用 | [应用接入](modes/integration/GUIDE.md) |
 | 公共宿主装配、裁剪和生命周期 | [组合与裁剪](modes/composition/GUIDE.md) |
