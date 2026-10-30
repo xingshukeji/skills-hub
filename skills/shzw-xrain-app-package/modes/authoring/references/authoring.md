@@ -39,6 +39,8 @@ required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyT
 | RuntimeRecord | 只对包内对象，fieldValues 只含业务字段，数值用 JSON 数值且保持精度；lookup 值是包内种子 ID。循环引用的所有记录均声明完整 ID；实际约束检查由安装执行，不绕过。删除包种子仅停止管理，不删除用户数据。 |
 | Email / Feishu / SMS | 只放模板，不放账号、收件人数据、消息、provider 结果。Email/SMS accountId 必填绑定；Feishu 使用该租户已有唯一账户。SMS providerTemplateCode/signName 必须已有审核，安装 preflight 验证。 |
 
+支持该展示配置的目标可为 Text 字段设置 `presentation.editor={"kind":"textSelect","choices":["男","女"]}`。选项须为 1–100 个互不重复的非空单行字符串，每项最多 256 字符；文字即写入值。它只改变表单编辑方式，不改变字段类型、API 值域或导入规则；旧值不在列表中时保留并显示，只有用户主动选择才替换。旧客户端不识别时按未知配置只读处理。由旧包首次引入时，仅旧包和租户都没有 presentation 覆盖才采用包默认；租户显式清除或自定义保持原状。构建和安装前核对目标版本是否支持，离线容器检查不证明目标接受该编辑器。
+
 通用 inputModel 是 `{ "fields": [] }` 或 `{ "fields": [{"name":"customerName","label":"客户名称","type":"string","required":true}] }`。最多 100 字段，name 为 lowerCamelCase 字母数字且大小写无关唯一；type 是 string/integer/number/boolean/object/array；label 最多 100，description 最多 500，example 是最多 16384 字符的字符串，非 string 类型内容必须能解析为对应类型。
 
 支持通用 XLSX 导入的目标可在 `BizOrchestrationVersion.values.inputModel` 内增加官方 `import` 对象，不能放在 values 顶层或新增 kind。例如 `{"fields":[],"import":{"version":1,"inputColumns":[{"apiName":"sourceWeightKg","label":"来源重量","type":"Number","required":true,"unit":"kg"}],"transform":true,"normalizeIdentity":false,"prepareRecord":true,"validate":false,"recordMaintenance":true}}`。fields 仅定义入口固定参数，允许空数组；inputColumns 最多 100 项，API Name 不与 Id/删除或目标列冲突，类型为 Text/Number/Money/Date/DateTime/Boolean，不创建 BizField。先核对目标 capabilities，不向旧目标假定支持。

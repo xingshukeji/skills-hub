@@ -1,5 +1,6 @@
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, jsonInput, origin, segment } from './core.mjs';
 import { api, apiValue } from './http.mjs';
+import { dataImportCommands } from './data-import.mjs';
 import { identifier, samePlatformTarget } from './agent-target.mjs';
 
 export async function profileCommands(ctx, action = ctx.args.command(1)) {
@@ -77,6 +78,7 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
 export async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === 'import') return dataImportCommands(ctx);
   if (!['query', 'get', 'create', 'update', 'delete'].includes(action)) throw new CliError('Use data query, get, create, update or delete.');
   const entity = args.required('entity', args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;

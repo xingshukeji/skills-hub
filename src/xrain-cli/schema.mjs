@@ -64,6 +64,21 @@ command('data get', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Rea
 command('data delete', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Delete exactly one runtime record. Filters are not accepted.');
 command('data create', [...api, 'entity', 'values', 'values-json', 'file'], [slot('entity')], 'Create one record; JSON file options accept - for stdin.');
 command('data update', [...api, 'entity', 'id', 'values', 'values-json', 'file'], [slot('entity'), slot('id')], 'Update one record; a full values envelope can include expectedValues.');
+const importTarget = [...api, 'entity', 'application'];
+const importJob = [...importTarget, 'job'];
+const importWait = ['wait', 'wait-timeout', 'poll-interval'];
+command('data import template', [...importTarget, 'options-json', 'out'], [slot('entity')], 'Download a signed XLSX template for a supported import job.');
+command('data import check', [...importTarget, 'options-json', 'file', 'request-id', ...importWait], [slot('entity')], 'Upload and check one complete XLSX without writing business records; preserve the request ID.');
+command('data import list', [...importTarget, 'request-id', 'import-source-key', 'status', 'cursor', 'page-size'], [slot('entity')], 'List your jobs or find an interrupted upload by request ID.');
+command('data import show', importJob, [slot('entity'), slot('job')], 'Read one job without starting or resuming it.');
+command('data import wait', [...importJob, 'wait-timeout', 'poll-interval'], [slot('entity'), slot('job')], 'Wait for a job to need confirmation or finish; this does not confirm it.');
+command('data import rows', [...importJob, 'view-version', 'cursor', 'page-size', 'action', 'source-row', 'match-value'], [slot('entity'), slot('job')], 'Read one authorized page of preview or result rows.');
+command('data import issues', [...importJob, 'view-version', 'cursor', 'page-size', 'code', 'source-row'], [slot('entity'), slot('job')], 'Read one authorized page of issues.');
+command('data import confirm', [...importJob, 'plan-revision', ...importWait], [slot('entity'), slot('job')], 'Confirm the reviewed revision for chunked execution. Earlier successful chunks remain if a later chunk fails.');
+for (const action of ['pause', 'cancel']) command(`data import ${action}`, [...importJob, ...importWait], [slot('entity'), slot('job')],
+  action === 'pause' ? 'Request a pause that can be continued.' : 'End this import while keeping already committed records.');
+command('data import resume', [...importJob, 'plan-revision', 'action', ...importWait], [slot('entity'), slot('job')], 'Continue a paused job or recheck its uncommitted sources; recheck requires a new confirmation.');
+command('data import download', [...importJob, 'purpose', 'out'], [slot('entity'), slot('job')], 'Download result, issues, maintenance or remaining XLSX without overwriting the destination.');
 for (const action of ['ensure', 'show', 'path']) command('security tokens ' + action, [], [], 'Manage local test token aliases without printing token values.');
 for (const action of ['create', 'ensure']) command(`security user ${action}`, [...api, 'user', 'name', 'values', 'values-json', 'file'], [slot('user', ['name'])],
   action === 'ensure' ? 'Reuse an existing platform user unchanged, or create a missing user from JSON. Does not create an OIDC identity.' : 'Create a platform user from JSON; use ensure to reuse fixed test accounts. Does not create an OIDC identity.');
@@ -147,6 +162,29 @@ export function validateCommand(args) {
       throw new CliError('A complete query JSON request cannot be combined with individual query options.', { code: 'invalid_arguments' });
   }
   if (['data create', 'data update', 'security user create', 'security user ensure', 'security permission-set create', 'security permission-set ensure'].includes(spec.path)) exclusive(['values', 'values-json', 'file']);
+  if (spec.path.startsWith('data import ')) {
+    const importAction = spec.words[2];
+    const requireOption = name => {
+      if (!args.has(name)) throw new CliError(`--${name} is required.`, { code: 'invalid_arguments' });
+      return args.value(name);
+    };
+    if (['template', 'download'].includes(importAction)) requireOption('out');
+    if (importAction === 'check') requireOption('file');
+    for (const name of ['job', 'request-id']) if (args.has(name) && !/^[0-9a-f]{32}$/i.test(args.value(name)))
+      throw new CliError(`--${name} must be 32 hexadecimal characters.`, { code: 'invalid_arguments' });
+    if (args.has('page-size') && args.integer('page-size') > 200) throw new CliError('--page-size cannot exceed 200.', { code: 'invalid_arguments' });
+    if (args.has('source-row')) args.integer('source-row');
+    if (args.has('application') && (args.value('application').length > 100 || args.value('application') !== args.value('application').trim() || /[\x00-\x1f\x7f,]/.test(args.value('application'))))
+      throw new CliError('--application is invalid.', { code: 'invalid_arguments' });
+    if (importAction === 'confirm') { requireOption('plan-revision'); args.integer('plan-revision'); }
+    if (importAction === 'resume') {
+      const revision = requireOption('plan-revision');
+      if (!/^\d+$/.test(revision) || !Number.isSafeInteger(Number(revision))) throw new CliError('--plan-revision must be a nonnegative integer.', { code: 'invalid_arguments' });
+      if (!['continue', 'recheck'].includes(requireOption('action'))) throw new CliError('--action must be continue or recheck.', { code: 'invalid_arguments' });
+    }
+    if (importAction === 'download' && !['result', 'issues', 'maintenance', 'remaining'].includes(requireOption('purpose')))
+      throw new CliError('--purpose must be result, issues, maintenance or remaining.', { code: 'invalid_arguments' });
+  }
   if (spec.path.startsWith('agent ')) {
     if (spec.options.includes('expected-revision')) { args.required('expected-revision'); args.integer('expected-revision'); }
     if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
@@ -171,7 +209,7 @@ export function validateCommand(args) {
   }
   if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
-    if (spec.path !== 'app operation wait' && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
+    if (!['app operation wait', 'data import wait'].includes(spec.path) && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
       throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });
     for (const name of ['wait-timeout', 'poll-interval']) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: 'invalid_arguments' });

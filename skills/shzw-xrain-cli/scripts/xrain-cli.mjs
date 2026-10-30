@@ -5,9 +5,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 var CliError = class extends Error {
-  constructor(message2, { code = "invalid_input", hint, httpStatus, serverCode, details, requestId } = {}) {
+  constructor(message2, { code = "invalid_input", hint: hint2, httpStatus, serverCode, details, requestId } = {}) {
     super(message2);
-    Object.assign(this, { code, hint, httpStatus, serverCode, details, requestId });
+    Object.assign(this, { code, hint: hint2, httpStatus, serverCode, details, requestId });
   }
 };
 var DEFAULT_SERVER = "http://127.0.0.1:5410";
@@ -21,7 +21,7 @@ function segment(value) {
   return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file".split(" "));
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor view-version source-row match-value code purpose import-source-key".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -470,7 +470,7 @@ async function request(url, { method = "GET", token, json, body, headers = {}, t
     throw new CliError("HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.", { code: "network_error" });
   }
 }
-function responseError(response, hint = "", context = {}) {
+function responseError(response, hint2 = "", context = {}) {
   let body;
   try {
     body = response.json();
@@ -487,14 +487,14 @@ function responseError(response, hint = "", context = {}) {
     code,
     httpStatus: response.status,
     serverCode,
-    hint: hint || defaultHint || void 0,
+    hint: hint2 || defaultHint || void 0,
     requestId: requestId && /^[a-z0-9_.:-]{1,160}$/i.test(requestId) ? requestId : void 0,
     details: { ...context, ...body !== void 0 ? { response: body } : {} }
   });
 }
-function requireSuccess(response, hint = "") {
+function requireSuccess(response, hint2 = "") {
   if (response.ok) return response;
-  throw responseError(response, hint);
+  throw responseError(response, hint2);
 }
 async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
@@ -513,6 +513,380 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
 async function api(ctx, method, path, json, options) {
   ctx.reporter.print(await apiValue(ctx, method, path, json, options));
   return 0;
+}
+
+// src/xrain-cli/data-import.mjs
+import { randomBytes as randomBytes3 } from "node:crypto";
+import { openAsBlob } from "node:fs";
+import { link, lstat, open, stat, unlink } from "node:fs/promises";
+import { basename, dirname as dirname2, extname, join as join2, resolve as resolve2 } from "node:path";
+import { performance } from "node:perf_hooks";
+import { setTimeout as delay } from "node:timers/promises";
+var protocol = "xrain-import-jobs-v1";
+var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+var jsonLimit = 32 * 1024 * 1024;
+var idPattern = /^[0-9a-f]{32}$/i;
+var statuses = /* @__PURE__ */ new Set(["checking", "invalid", "ready", "queued", "running", "paused", "completed", "canceled", "expired"]);
+var defaultOptions = { uniqueField: "Id", filePurpose: "sourceImport", blankPolicy: "preserve" };
+var invalid = (message2) => new CliError(message2, { code: "invalid_arguments" });
+var invalidResponse = (message2) => new CliError(message2, { code: "invalid_response" });
+function requireId(value, label) {
+  if (!idPattern.test(value ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
+  return value.toLowerCase();
+}
+function makeClient(ctx, signal) {
+  const profile = ctx.store.resolve(ctx.args, true);
+  const { token, source } = ctx.store.credential(ctx.args, profile, { createSecrets: false });
+  if (ctx.args.value("auth") === "session" && !token)
+    throw new CliError("A matching browser session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
+  const application = ctx.args.value("application");
+  if (application !== void 0 && (application.length > 100 || application !== application.trim() || /[\x00-\x1f\x7f,]/.test(application))) throw invalid("--application is invalid.");
+  const entity = ctx.args.required("entity");
+  const root = `/api/data/v1/entities/${segment(entity)}`;
+  return { profile, source, token, signal, entity, root, timeout: ctx.args.timeout(), application };
+}
+function abortError(client2, error, deadline) {
+  if (error instanceof CliError) return error;
+  if (client2.signal.aborted) return new CliError("Stopped locally; the server job may still be running.", { code: "interrupted" });
+  if (deadline !== void 0 && performance.now() >= deadline)
+    return new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout" });
+  if (["TimeoutError", "AbortError"].includes(error?.name))
+    return new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout." });
+  return new CliError("HTTP request failed. Check the server URL and connectivity.", { code: "network_error" });
+}
+async function send(client2, method, path, { json, body, deadline, accept = "application/json" } = {}) {
+  const remaining2 = deadline === void 0 ? Infinity : deadline - performance.now();
+  if (remaining2 <= 0) throw abortError(client2, new Error(), deadline);
+  const timeout = Math.max(1, Math.ceil(Math.min(client2.timeout, remaining2)));
+  const headers = new Headers({ Accept: accept, "Accept-Encoding": "identity" });
+  if (client2.token) headers.set("Authorization", `Bearer ${client2.token}`);
+  if (client2.application) headers.set("X-XRain-Import-Application", client2.application);
+  const request2 = { method, headers, signal: AbortSignal.any([client2.signal, AbortSignal.timeout(timeout)]) };
+  if (json !== void 0) {
+    headers.set("Content-Type", "application/json");
+    request2.body = JSON.stringify(json);
+  } else if (body !== void 0) request2.body = body;
+  try {
+    return await fetch(new URL(path, client2.profile.server), request2);
+  } catch (error) {
+    throw abortError(client2, error, deadline);
+  }
+}
+async function boundedBytes(client2, response, limit, deadline) {
+  const length = response.headers.get("content-length");
+  if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {
+    await response.body?.cancel();
+    throw invalidResponse("The server response exceeds the supported size or has an invalid length.");
+  }
+  const chunks = [];
+  let size = 0;
+  try {
+    if (response.body) for await (const chunk of response.body) {
+      size += chunk.length;
+      if (size > limit) throw invalidResponse("The server response exceeds the supported size.");
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    throw abortError(client2, error, deadline);
+  }
+  return Buffer.concat(chunks);
+}
+async function requireResponse(client2, response, deadline) {
+  if (response.ok) return response;
+  const bytes = await boundedBytes(client2, response, jsonLimit, deadline);
+  throw responseError({
+    ok: false,
+    status: response.status,
+    headers: response.headers,
+    json: () => parseJson(bytes, "Server response")
+  }, "", { credentialSource: client2.source, profile: client2.profile.name });
+}
+async function jsonRequest(client2, method, path, options = {}) {
+  const response = await send(client2, method, path, options);
+  await requireResponse(client2, response, options.deadline);
+  const bytes = await boundedBytes(client2, response, jsonLimit, options.deadline);
+  try {
+    return parseJson(bytes, "Server response");
+  } catch {
+    throw invalidResponse("The server returned invalid JSON.");
+  }
+}
+function validatedJob(value, entity, expectedId, expectedRequest) {
+  const counts = value?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value.progress[key]);
+  const summary = value?.summary && [
+    "sourceRows",
+    "outputRows",
+    "created",
+    "updated",
+    "deleted",
+    "unchanged",
+    "notFoundSkipped",
+    "transformSkipped",
+    "clearedFields",
+    "sourceErrors",
+    "outputErrors"
+  ].map((key) => value.summary[key]);
+  if (!isObject(value) || value.entityCode !== entity || value.protocol !== protocol || value.commitMode !== "chunked" || !idPattern.test(value.jobId ?? "") || !idPattern.test(value.requestId ?? "") || expectedId && value.jobId.toLowerCase() !== expectedId || expectedRequest && value.requestId.toLowerCase() !== expectedRequest || !statuses.has(value.status) || !Number.isSafeInteger(value.version) || value.version < 0 || !Number.isSafeInteger(value.planRevision) || value.planRevision < 0 || !nonempty(value.phase) || !counts || counts.some((count) => !Number.isSafeInteger(count) || count < 0) || !isObject(value.summary) || !summary || summary.some((count) => !Number.isSafeInteger(count) || count < 0) || !["planned", "processed"].includes(value.summaryKind) || !["complete", "partial", "unavailable"].includes(value.detailsStatus) || !Number.isFinite(Date.parse(value.createdAt)) || !Number.isFinite(Date.parse(value.updatedAt)) || ["canConfirm", "canContinue", "canRecheck", "pauseRequested", "cancelRequested", "sourceComplete", "canDownloadRemaining"].some((key) => typeof value[key] !== "boolean") || value.viewVersion != null && !nonempty(value.viewVersion))
+    throw invalidResponse("The server returned an invalid or mismatched import job.");
+  return value;
+}
+async function capabilities(client2, options, requireSupported = true, deadline) {
+  const value = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
+  const jobs = value?.jobs;
+  if (!isObject(value) || value.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
+    throw new CliError("This server does not advertise the required import job protocol and file limit.", { code: "import_jobs_unavailable" });
+  if (requireSupported && jobs.supported !== true)
+    throw new CliError("Chunked import is unavailable for this object.", { code: "import_jobs_unavailable", details: { reasons: jobs.unavailableReasons ?? [] } });
+  const orchestrationId = options?.importBinding?.orchestrationId;
+  if (requireSupported && orchestrationId) {
+    const definition2 = Array.isArray(value.orchestrations) && value.orchestrations.find((item) => item.id === orchestrationId);
+    const contract = definition2?.import;
+    if (!contract || contract.version !== 2 || ["transform", "normalizeIdentity", "prepareRecord", "validate"].some((phase) => !(phase === "transform" && options.filePurpose === "recordMaintenance") && contract[phase] === true && contract.phaseScopes?.[phase] !== "independentRows"))
+      throw new CliError("The selected import binding does not advertise independent processing for every enabled stage.", {
+        code: "import_binding_unavailable",
+        hint: "Inspect the current object and import binding before continuing."
+      });
+  }
+  return jobs;
+}
+async function importOptions(args) {
+  const value = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
+  if (!isObject(value) || Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
+  return value;
+}
+function query(fields) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(fields)) if (value !== void 0 && value !== null && value !== "") params.set(key, String(value));
+  return params.size ? `?${params}` : "";
+}
+function pageSize(args) {
+  const value = args.integer("page-size", 50);
+  if (value > 200) throw invalid("--page-size cannot exceed 200.");
+  return value;
+}
+function hint(entity, jobId, requestId) {
+  return jobId ? `Use data import show --entity ${JSON.stringify(entity)} --job ${jobId} with the same server, identity, tenant and application.` : `Use data import list --entity ${JSON.stringify(entity)} --request-id ${requestId} with the same server, identity, tenant and application before retrying.`;
+}
+function contextualError(error, entity, requestId, job, knownJobId) {
+  const code = error.code ?? "operation_failed";
+  const serverRequestId = error.requestId;
+  const id = job?.requestId ?? requestId, jobId = job?.jobId ?? knownJobId;
+  return new CliError(error.message, {
+    code,
+    httpStatus: error.httpStatus,
+    serverCode: error.serverCode,
+    requestId: id ?? serverRequestId,
+    hint: [id || jobId ? hint(entity, jobId, id) : void 0, error.hint].filter(Boolean).join(" ") || void 0,
+    details: {
+      ...error.details,
+      ...serverRequestId && serverRequestId !== id ? { serverRequestId } : {},
+      ...id ? { requestId: id } : {},
+      ...jobId ? { jobId } : {},
+      ...job ? { job } : {}
+    }
+  });
+}
+function outputJob(ctx, job) {
+  const committed = job.progress.committedOutputRows;
+  const message2 = job.status === "ready" ? committed ? `已提交 ${committed} 条，剩余资料预检通过，待确认。` : "预检通过，待确认。" : job.status === "completed" ? "导入完成。" : job.status === "paused" ? "导入已暂停，可按允许的操作继续。" : job.status === "canceled" ? "本次导入已结束；已提交的记录保留。" : job.status === "invalid" ? "预检未通过，请查看问题。" : job.status === "expired" ? "预检计划已过期，请查看可用操作。" : job.cancelRequested ? "结束请求已记录，正在等待当前处理结束。" : job.pauseRequested ? "暂停请求已记录，正在等待当前处理结束。" : job.status === "checking" ? "文件正在预检，尚未确认写入。" : "请求已受理；请查看作业状态。";
+  ctx.reporter.print({ ...job, message: message2 });
+  return 0;
+}
+function waitDecision(job, mode) {
+  if (mode === "pause" && ["paused", "completed"].includes(job.status)) return "success";
+  if (mode === "cancel" && ["canceled", "completed"].includes(job.status)) return "success";
+  if (mode === "check" && ["ready", "completed"].includes(job.status)) return "success";
+  if (mode === "observe" && ["ready", "completed"].includes(job.status)) return "success";
+  if (mode === "execute" && job.status === "completed") return "success";
+  if (["invalid", "paused", "expired", "canceled"].includes(job.status) || mode === "execute" && job.status === "ready") return "failure";
+  return "continue";
+}
+async function waitJob(ctx, client2, initial, mode, deadline) {
+  let job = initial, lastVersion;
+  for (; ; ) {
+    const decision = waitDecision(job, mode);
+    if (decision === "success") return job;
+    if (decision === "failure") throw new CliError(`Import stopped in state ${job.status}.`, { code: "import_job_stopped", details: { job } });
+    if (job.version !== lastVersion) ctx.reporter.progress(`Import ${job.jobId}: ${job.status}; committed ${job.progress.committedOutputRows}.`);
+    lastVersion = job.version;
+    const left = deadline - performance.now();
+    if (left <= 0) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
+    try {
+      await delay(Math.min(ctx.args.integer("poll-interval", 2) * 1e3, left), void 0, { signal: client2.signal });
+    } catch (error) {
+      throw contextualError(abortError(client2, error, deadline), client2.entity, job.requestId, job);
+    }
+    if (performance.now() >= deadline) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
+    try {
+      const next = validatedJob(await jsonRequest(client2, "GET", `${client2.root}/imports/jobs/${segment(job.jobId)}`, { deadline }), client2.entity, job.jobId.toLowerCase(), job.requestId.toLowerCase());
+      if (next.version < job.version) throw invalidResponse("The server returned an older import job state.");
+      job = next;
+    } catch (error) {
+      throw contextualError(error, client2.entity, job.requestId, job);
+    }
+  }
+}
+async function checkDestination(path) {
+  try {
+    await lstat(path);
+    throw new CliError("Output already exists. Choose a new path.", { code: "output_exists" });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+async function saveFile(client2, method, path, outputPath, limit, json) {
+  const output2 = resolve2(outputPath);
+  await checkDestination(output2);
+  const response = await send(client2, method, path, { json, accept: mime });
+  await requireResponse(client2, response);
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  const encoding = response.headers.get("content-encoding");
+  const contentLength = response.headers.get("content-length");
+  if (contentType !== mime || encoding && encoding.toLowerCase() !== "identity" || contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit)) {
+    await response.body?.cancel();
+    throw invalidResponse("The download has an invalid content type, encoding or length.");
+  }
+  const temporary = join2(dirname2(output2), `.${basename(output2)}.${randomBytes3(12).toString("hex")}.part`);
+  let file, created = false, size = 0;
+  try {
+    file = await open(temporary, "wx", 384);
+    created = true;
+    if (response.body) for await (const chunk of response.body) {
+      size += chunk.length;
+      if (size > limit) throw invalidResponse("The download exceeds the import file limit.");
+      let offset = 0;
+      while (offset < chunk.length) {
+        const result = await file.write(chunk, offset, chunk.length - offset);
+        if (!result.bytesWritten) throw new Error("Failed to write download.");
+        offset += result.bytesWritten;
+      }
+    }
+    if (!size || contentLength !== null && size !== Number(contentLength)) throw invalidResponse("The download was incomplete.");
+    await file.sync();
+    await file.close();
+    file = void 0;
+    await link(temporary, output2);
+  } catch (error) {
+    if (error.code === "EEXIST") throw new CliError("Output already exists. Choose a new path.", { code: "output_exists" });
+    if (error instanceof CliError) throw error;
+    if (client2.signal.aborted) throw abortError(client2, error);
+    if (["TimeoutError", "AbortError"].includes(error.name)) throw abortError(client2, error);
+    if (error.code && !["ECONNRESET", "EPIPE", "UND_ERR_SOCKET"].includes(error.code)) throw error;
+    throw new CliError("The download did not complete; the existing destination was preserved.", { code: "download_incomplete" });
+  } finally {
+    if (file) await file.close().catch(() => {
+    });
+    if (created) await unlink(temporary).catch(() => {
+    });
+  }
+  return { output: output2, bytes: size };
+}
+async function dataImportCommands(ctx) {
+  const { args, reporter } = ctx;
+  const action = args.command(2);
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
+  process.on("SIGINT", interrupt);
+  let client2, requestId, job, requestedJobId;
+  try {
+    client2 = makeClient(ctx, controller.signal);
+    const root = `${client2.root}/imports/jobs`;
+    const wait2 = action === "wait" || args.has("wait");
+    const deadline = wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
+    if (action === "template") {
+      const options = await importOptions(args), out = args.required("out");
+      const jobs = await capabilities(client2, options, true, deadline);
+      reporter.print(await saveFile(client2, "POST", `${client2.root}/imports/template`, out, jobs.limits.maximumFileBytes, options));
+      return 0;
+    }
+    if (action === "check") {
+      requestId = requireId(args.value("request-id") ?? randomBytes3(16).toString("hex"), "--request-id");
+      reporter.progress(`Request ID: ${requestId}. ${hint(client2.entity, void 0, requestId)}`);
+      const options = await importOptions(args), input2 = resolve2(args.required("file"));
+      if (extname(input2).toLowerCase() !== ".xlsx") throw invalid("--file must be an XLSX file.");
+      const jobs = await capabilities(client2, options, true, deadline);
+      const info = await stat(input2);
+      if (!info.isFile() || info.size < 1 || info.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX is empty, not a regular file, or exceeds the server file limit.");
+      const blob = await openAsBlob(input2, { type: mime });
+      if (blob.size !== info.size || blob.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX changed or exceeds the server file limit.");
+      const form = new FormData();
+      form.set("file", blob, "import.xlsx");
+      form.set("options", JSON.stringify(options));
+      form.set("requestId", requestId);
+      form.set("coordination", protocol);
+      form.set("commitMode", "chunked");
+      job = validatedJob(await jsonRequest(client2, "POST", root, { body: form, deadline }), client2.entity, void 0, requestId);
+      if (wait2) job = await waitJob(ctx, client2, job, "check", deadline);
+      return outputJob(ctx, job);
+    }
+    if (action === "list") {
+      if (args.has("request-id")) requestId = requireId(args.value("request-id"), "--request-id");
+      const filter = { requestId, importSourceKey: args.value("import-source-key"), status: args.value("status"), cursor: args.value("cursor"), pageSize: pageSize(args) };
+      const result = await jsonRequest(client2, "GET", root + query(filter));
+      if (!isObject(result) || !Array.isArray(result.items) || result.nextCursor != null && !nonempty(result.nextCursor)) throw invalidResponse("The import job list is invalid.");
+      for (const item of result.items) validatedJob(item, client2.entity, void 0, requestId);
+      reporter.print(result);
+      return 0;
+    }
+    const jobId = requestedJobId = requireId(args.required("job"), "--job");
+    const path = `${root}/${segment(jobId)}`;
+    if (action === "download") {
+      const purpose = args.required("purpose"), out = args.required("out");
+      if (!["result", "issues", "maintenance", "remaining"].includes(purpose)) throw invalid("--purpose must be result, issues, maintenance or remaining.");
+      const jobs = await capabilities(client2, void 0, false);
+      reporter.print({ jobId, purpose, ...await saveFile(client2, "GET", `${path}/file${query({ purpose })}`, out, jobs.limits.maximumFileBytes) });
+      return 0;
+    }
+    if (action === "show" || action === "wait") {
+      job = validatedJob(await jsonRequest(client2, "GET", path, { deadline }), client2.entity, jobId);
+      if (wait2) job = await waitJob(ctx, client2, job, "observe", deadline);
+      return outputJob(ctx, job);
+    }
+    if (action === "rows" || action === "issues") {
+      let viewVersion = args.value("view-version");
+      if (!viewVersion) {
+        job = validatedJob(await jsonRequest(client2, "GET", path), client2.entity, jobId);
+        viewVersion = job.viewVersion;
+      }
+      if (!nonempty(viewVersion)) throw new CliError("The job does not yet have a readable view.", { code: "import_job_view_not_ready" });
+      const fields = {
+        viewVersion,
+        cursor: args.value("cursor"),
+        pageSize: pageSize(args),
+        sourceRow: args.integer("source-row"),
+        ...action === "rows" ? { action: args.value("action"), matchValue: args.value("match-value") } : { code: args.value("code") }
+      };
+      const result = await jsonRequest(client2, "GET", `${path}/${action}${query(fields)}`);
+      if (!isObject(result) || result.viewVersion !== viewVersion || !Array.isArray(result.items) || !Number.isSafeInteger(result.planRevision) || result.planRevision < 0 || !Number.isSafeInteger(result.totalCount) || result.totalCount < 0 || !["complete", "partial", "unavailable"].includes(result.detailsStatus) || result.nextCursor != null && !nonempty(result.nextCursor))
+        throw invalidResponse("The import page is invalid or belongs to another view.");
+      reporter.print(result);
+      return 0;
+    }
+    let body, mode;
+    if (action === "confirm") {
+      body = { planRevision: args.integer("plan-revision"), commitMode: "chunked" };
+      mode = "execute";
+    } else if (action === "resume") {
+      const resume = args.required("action");
+      if (!["continue", "recheck"].includes(resume)) throw invalid("--action must be continue or recheck.");
+      const revision2 = args.required("plan-revision");
+      if (!/^\d+$/.test(revision2) || !Number.isSafeInteger(Number(revision2))) throw invalid("--plan-revision must be a nonnegative integer.");
+      body = { planRevision: Number(revision2), action: resume };
+      mode = resume === "recheck" ? "check" : void 0;
+    } else if (action === "pause" || action === "cancel") mode = action;
+    else throw invalid("Unknown import command. Run data import --help.");
+    if (action === "confirm" && !body.planRevision) throw invalid("--plan-revision is required.");
+    job = validatedJob(await jsonRequest(client2, "POST", `${path}/${action}`, { json: body, deadline }), client2.entity, jobId);
+    if (action === "resume" && !mode) mode = job.status === "checking" || job.status === "ready" ? "check" : "execute";
+    if (wait2) job = await waitJob(ctx, client2, job, mode, deadline);
+    return outputJob(ctx, job);
+  } catch (error) {
+    const last = error.details?.job ?? job;
+    if (client2 && (requestId || last || requestedJobId)) throw contextualError(error, client2.entity, requestId, last, requestedJobId);
+    throw error;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+  }
 }
 
 // src/xrain-cli/commands.mjs
@@ -609,26 +983,27 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
 async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === "import") return dataImportCommands(ctx);
   if (!["query", "get", "create", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, update or delete.");
   const entity = args.required("entity", args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;
   if (action === "query") {
-    let query = await jsonInput(args, "query");
-    if (query === void 0) {
-      query = { page: args.integer("page", 1), pageSize: args.integer("page-size", args.integer("pageSize", 25)), includeTotalCount: !args.has("no-total") };
-      if (args.value("search")) query.search = args.value("search");
-      if (args.value("fields")) query.fields = args.value("fields").split(",").map((v) => v.trim()).filter(Boolean);
+    let query2 = await jsonInput(args, "query");
+    if (query2 === void 0) {
+      query2 = { page: args.integer("page", 1), pageSize: args.integer("page-size", args.integer("pageSize", 25)), includeTotalCount: !args.has("no-total") };
+      if (args.value("search")) query2.search = args.value("search");
+      if (args.value("fields")) query2.fields = args.value("fields").split(",").map((v) => v.trim()).filter(Boolean);
       const filter = await jsonInput(args, "filter", false);
-      if (filter !== void 0) query.filter = filter;
-      if (args.value("sort")) query.sort = args.value("sort").split(",").filter(Boolean).map((value) => {
+      if (filter !== void 0) query2.filter = filter;
+      if (args.value("sort")) query2.sort = args.value("sort").split(",").filter(Boolean).map((value) => {
         const parts = value.split(":").map((v) => v.trim());
         const [field, direction = "asc"] = parts;
         if (parts.length > 2 || !field || !["asc", "desc"].includes(direction)) throw new CliError("--sort must use field:asc or field:desc.", { code: "invalid_arguments" });
         return { field, direction };
       });
     }
-    if (!isObject(query)) throw new CliError("Query JSON must be an object.");
-    return api(ctx, "POST", root + ":query", query);
+    if (!isObject(query2)) throw new CliError("Query JSON must be an object.");
+    return api(ctx, "POST", root + ":query", query2);
   }
   const id = action === "create" ? void 0 : args.required("id", args.operand(args.has("entity") ? 2 : 3));
   const path = id === void 0 ? root : root + "/" + segment(id);
@@ -704,14 +1079,14 @@ async function hostCommands(ctx) {
   const root = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
   const options = { requireTenant: false };
   if (args.command(3) === "list") {
-    const query = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) });
-    if (args.has("search")) query.set("search", args.value("search"));
-    return api(ctx, "GET", `${root}?${query}`, void 0, options);
+    const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) });
+    if (args.has("search")) query2.set("search", args.value("search"));
+    return api(ctx, "GET", `${root}?${query2}`, void 0, options);
   }
   const userId = args.required("user-id");
   for (let page = 1; ; page++) {
-    const query = new URLSearchParams({ search: userId, page: String(page), pageSize: "100" });
-    const value = await apiValue(ctx, "GET", `${root}?${query}`, void 0, options);
+    const query2 = new URLSearchParams({ search: userId, page: String(page), pageSize: "100" });
+    const value = await apiValue(ctx, "GET", `${root}?${query2}`, void 0, options);
     if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
       throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
     const member2 = value.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
@@ -729,17 +1104,17 @@ async function hostCommands(ctx) {
 
 // src/xrain-cli/app.mjs
 import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2, copyFileSync, constants, unlinkSync as unlinkSync2, existsSync as existsSync2, accessSync } from "node:fs";
-import { dirname as dirname2, join as join3, resolve as resolve2 } from "node:path";
-import { randomBytes as randomBytes4 } from "node:crypto";
+import { dirname as dirname3, join as join4, resolve as resolve3 } from "node:path";
+import { randomBytes as randomBytes5 } from "node:crypto";
 
 // src/xrain-cli/auth.mjs
-import { createHash as createHash2, randomBytes as randomBytes3, timingSafeEqual } from "node:crypto";
+import { createHash as createHash2, randomBytes as randomBytes4, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { join as join2 } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { join as join3 } from "node:path";
+import { setTimeout as delay2 } from "node:timers/promises";
 
-// ../../../node_modules/jose/dist/webapi/lib/buffer_utils.js
+// node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var strictDecoder = new TextDecoder("utf-8", { fatal: true });
@@ -781,7 +1156,7 @@ function decodeBase64(encoded, url = false) {
   return bytes;
 }
 
-// ../../../node_modules/jose/dist/webapi/util/errors.js
+// node_modules/jose/dist/webapi/util/errors.js
 var JOSEError = class extends Error {
   static code = "ERR_JOSE_GENERIC";
   code = "ERR_JOSE_GENERIC";
@@ -853,17 +1228,17 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
   }
 };
 
-// ../../../node_modules/jose/dist/webapi/util/base64url.js
-var invalid = "The input to be decoded is not correctly encoded.";
+// node_modules/jose/dist/webapi/util/base64url.js
+var invalid2 = "The input to be decoded is not correctly encoded.";
 function decode(input2) {
   try {
     return decodeBase64(typeof input2 == "string" ? input2 : decoder.decode(input2), true);
   } catch (cause) {
-    throw new TypeError(invalid, { cause });
+    throw new TypeError(invalid2, { cause });
   }
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/validate.js
+// node_modules/jose/dist/webapi/lib/validate.js
 function isObject2(input2) {
   if (typeof input2 != "object" || input2 === null || Object.prototype.toString.call(input2) !== "[object Object]")
     return false;
@@ -943,7 +1318,7 @@ function validateB64(protectedHeader, extensions) {
   return true;
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/key.js
+// node_modules/jose/dist/webapi/lib/key.js
 var tag = (key) => key[Symbol.toStringTag];
 var jwkMatchesOp = (entry, key, usage) => {
   const { alg } = entry;
@@ -1074,7 +1449,7 @@ async function rawKey(key, expected, usage, extractable = false) {
   return key instanceof Uint8Array && (key = await crypto.subtle.importKey("raw", key, expected, extractable, [usage])), checkCryptoKey(key, expected, usage), key;
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/key_descriptor.js
+// node_modules/jose/dist/webapi/lib/key_descriptor.js
 function table(entries) {
   const out = { __proto__: null };
   for (const alg in entries)
@@ -1082,7 +1457,7 @@ function table(entries) {
   return out;
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/jws_algorithms.js
+// node_modules/jose/dist/webapi/lib/jws_algorithms.js
 var sig = [["verify"], ["sign"]];
 function hmac(bits) {
   const subtle = { name: "HMAC", hash: `SHA-${bits}` };
@@ -1152,7 +1527,7 @@ function jwsAlgorithm(alg) {
   return entry;
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/jws_verify.js
+// node_modules/jose/dist/webapi/lib/jws_verify.js
 function prepareVerify(options) {
   return [options && validateAlgorithms("algorithms", options.algorithms), options?.crit];
 }
@@ -1204,7 +1579,7 @@ async function verifyCompact(jws, shared, key) {
   return verifySignature({ payload, protected: protectedHeader, signature }, shared, key, encodeCompactUnencodedPayload);
 }
 
-// ../../../node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+// node_modules/jose/dist/webapi/lib/jwt_claims_set.js
 var epoch = (date) => Math.floor(date.getTime() / 1e3);
 var multipliers = {
   s: 1,
@@ -1290,7 +1665,7 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   return payload;
 }
 
-// ../../../node_modules/jose/dist/webapi/jwt/verify.js
+// node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
   const [verified, b64] = await verifyCompact(jwt, prepareVerify(options), key);
   if (!b64)
@@ -1299,7 +1674,7 @@ async function jwtVerify(jwt, key, options) {
   return { ...verified, payload };
 }
 
-// ../../../node_modules/jose/dist/webapi/jwks/local.js
+// node_modules/jose/dist/webapi/jwks/local.js
 function isUsableJWK(jwk, entry, alg, kid) {
   const { kty, key_ops: keyOps, ext, kid: jwkKid, alg: jwkAlg, use, crv } = jwk;
   return (ext === void 0 || typeof ext == "boolean") && (keyOps === void 0 || Array.isArray(keyOps) && keyOps.every((operation, index) => typeof operation == "string" && keyOps.indexOf(operation) === index) && keyOps.includes("verify")) && entry.kty.includes(kty) && (kid === void 0 || typeof kid == "string" && kid === jwkKid) && (jwkAlg === void 0 ? kty !== "AKP" : alg === jwkAlg) && (use === void 0 || use === "sig") && (!entry.crv || crv === entry.crv);
@@ -1377,9 +1752,9 @@ var OidcLogin = class {
   }
   async prepare() {
     await this.discover();
-    this.state = randomBytes3(32).toString("base64url");
-    this.nonce = randomBytes3(32).toString("base64url");
-    this.verifier = randomBytes3(32).toString("base64url");
+    this.state = randomBytes4(32).toString("base64url");
+    this.nonce = randomBytes4(32).toString("base64url");
+    this.verifier = randomBytes4(32).toString("base64url");
     const url = new URL(this.metadata.authorization_endpoint);
     for (const [key, value] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: "code", state: this.state, nonce: this.nonce, code_challenge: createHash2("sha256").update(this.verifier).digest("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value);
     return url.href;
@@ -1434,7 +1809,7 @@ var OidcLogin = class {
   }
 };
 var DeviceLogin = class extends OidcLogin {
-  constructor(config, reporter, { wait: wait2 = delay } = {}) {
+  constructor(config, reporter, { wait: wait2 = delay2 } = {}) {
     super(config, reporter);
     this.wait = wait2;
   }
@@ -1510,8 +1885,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve3, reject) => {
-    accept = resolve3;
+  const callback = new Promise((resolve4, reject) => {
+    accept = resolve4;
     fail = reject;
   });
   callback.catch(() => {
@@ -1540,9 +1915,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve3, reject) => {
+  await new Promise((resolve4, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve3);
+    server.listen(Number(expected.port), expected.hostname, resolve4);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -1558,20 +1933,20 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
 async function openBrowser(url) {
   let executable, args;
   if (process.platform === "win32") {
-    executable = join2(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    executable = join3(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
     const script = "$ErrorActionPreference='Stop'; Start-Process -FilePath ([Console]::In.ReadToEnd())";
     args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
   } else {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve3) => {
+  return new Promise((resolve4) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve3(false));
+    child.on("error", () => resolve4(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve3(code === 0));
+    child.on("exit", (code) => resolve4(code === 0));
   });
 }
 function tenantSession(response) {
@@ -1581,14 +1956,14 @@ function tenantSession(response) {
   return { token: data.access_token, tenant: data.tenantId, expiry: data.expires_at_utc };
 }
 async function exchangeTenant(server, accessToken, requestedTenant) {
-  const send = (suffix, json) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json, timeout: 3e4, limit: 1024 * 1024 });
+  const send2 = (suffix, json) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json, timeout: 3e4, limit: 1024 * 1024 });
   const selectedSession = (response) => {
     const session = tenantSession(response);
     if (!equalIgnoreCase(session.tenant, requestedTenant)) throw new CliError("The server returned a different tenant session.");
     return session;
   };
   if (nonempty(requestedTenant)) {
-    const selected = await send("/tenant", { tenantId: requestedTenant });
+    const selected = await send2("/tenant", { tenantId: requestedTenant });
     if (selected.ok) return selectedSession(selected);
     let code;
     try {
@@ -1597,9 +1972,9 @@ async function exchangeTenant(server, accessToken, requestedTenant) {
     }
     if (selected.status !== 403 || code !== "platform.authen.tenant_membership_required") requireSuccess(selected);
   }
-  const initial = tenantSession(await send("", {}));
+  const initial = tenantSession(await send2("", {}));
   if (!nonempty(requestedTenant) || equalIgnoreCase(initial.tenant, requestedTenant)) return initial;
-  return selectedSession(await send("/tenant", { tenantId: requestedTenant }));
+  return selectedSession(await send2("/tenant", { tenantId: requestedTenant }));
 }
 function savePlatformLogin(ctx, profile, session) {
   ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
@@ -1752,10 +2127,10 @@ function readManifest(archive) {
 }
 
 // src/xrain-cli/app-management.mjs
-import { setTimeout as delay2 } from "node:timers/promises";
-import { performance } from "node:perf_hooks";
+import { setTimeout as delay3 } from "node:timers/promises";
+import { performance as performance2 } from "node:perf_hooks";
 var activeStatuses = /* @__PURE__ */ new Set(["Pending", "Running", "Finalizing"]);
-var statuses = /* @__PURE__ */ new Set([...activeStatuses, "WaitingForResolution", "Succeeded", "Failed", "Cancelled"]);
+var statuses2 = /* @__PURE__ */ new Set([...activeStatuses, "WaitingForResolution", "Succeeded", "Failed", "Cancelled"]);
 var installFields = ["versionId", "expectedRevision", "tenantBindings", "confirmations", "maintainInstalledVersion"];
 var requestFields = {
   preview: installFields,
@@ -1763,7 +2138,7 @@ var requestFields = {
   resolve: ["expectedRevision", "resolutions", "tenantBindings", "confirmations", "configurationChanges"],
   retry: ["requestId", "expectedRevision"]
 };
-var invalid2 = (message2) => new CliError(message2, { code: "invalid_arguments" });
+var invalid3 = (message2) => new CliError(message2, { code: "invalid_arguments" });
 function exposeApplicationConfirmations(reporter, value) {
   for (const container of [value, value?.details]) {
     if (!Array.isArray(container?.requiredConfirmations)) continue;
@@ -1781,9 +2156,9 @@ function output(ctx, value) {
 async function input(args, action) {
   const path = args.value("request-json") ?? args.value("file");
   const value = path === void 0 ? {} : await readJsonInput(path, "Application request");
-  if (!isObject(value)) throw invalid2("Application request must be a JSON object.");
+  if (!isObject(value)) throw invalid3("Application request must be a JSON object.");
   if (Object.keys(value).some((key) => !requestFields[action].includes(key)))
-    throw invalid2(`Unsupported ${action} request field. Allowed fields: ${requestFields[action].join(", ")}.`);
+    throw invalid3(`Unsupported ${action} request field. Allowed fields: ${requestFields[action].join(", ")}.`);
   const body = { ...value };
   for (const [option, field] of [
     ["version-id", "versionId"],
@@ -1792,34 +2167,34 @@ async function input(args, action) {
     ["maintain-installed-version", "maintainInstalledVersion"]
   ]) {
     if (!args.has(option)) continue;
-    if (Object.hasOwn(body, field)) throw invalid2(`Supply ${field} in JSON or --${option}, not both.`);
+    if (Object.hasOwn(body, field)) throw invalid3(`Supply ${field} in JSON or --${option}, not both.`);
     const raw = args.value(option);
-    if (option === "expected-revision" && !/^[0-9]+$/.test(raw)) throw invalid2("--expected-revision must be a nonnegative integer.");
+    if (option === "expected-revision" && !/^[0-9]+$/.test(raw)) throw invalid3("--expected-revision must be a nonnegative integer.");
     body[field] = option === "expected-revision" ? Number(raw) : raw;
   }
   if (["preview", "install"].includes(action) && !nonempty(body.versionId))
-    throw invalid2("An exact versionId is required via --version-id or --request-json. Use app versions to select it.");
+    throw invalid3("An exact versionId is required via --version-id or --request-json. Use app versions to select it.");
   if (body.expectedRevision != null && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0) || action === "resolve" && body.expectedRevision == null)
-    throw invalid2("expectedRevision must be a nonnegative safe integer; resolve requires the revision you inspected.");
+    throw invalid3("expectedRevision must be a nonnegative safe integer; resolve requires the revision you inspected.");
   if (body.requestId != null && (typeof body.requestId !== "string" || body.requestId.length !== 20 || !/^apo[A-Za-z0-9]{17}$/.test(body.requestId)))
-    throw invalid2("requestId must be a 20-character operation ID starting with apo.");
+    throw invalid3("requestId must be a 20-character operation ID starting with apo.");
   if (Object.hasOwn(body, "maintainInstalledVersion") && typeof body.maintainInstalledVersion !== "boolean")
-    throw invalid2("maintainInstalledVersion must be a boolean.");
+    throw invalid3("maintainInstalledVersion must be a boolean.");
   for (const field of ["tenantBindings", "resolutions", "configurationChanges"])
-    if (body[field] != null && !isObject(body[field])) throw invalid2(`${field} must be a JSON object.`);
+    if (body[field] != null && !isObject(body[field])) throw invalid3(`${field} must be a JSON object.`);
   if (body.confirmations != null && (!Array.isArray(body.confirmations) || body.confirmations.some((item) => !isObject(item) || !nonempty(item.recordId) || !nonempty(item.unit) || !nonempty(item.token))))
-    throw invalid2("confirmations must contain the chosen server-provided {recordId,unit,token} entries.");
+    throw invalid3("confirmations must contain the chosen server-provided {recordId,unit,token} entries.");
   return body;
 }
 function operationResponse(value, expectedId, expectedVersion, previous) {
-  if (!isObject(value) || value.id !== expectedId || !nonempty(value.installationId) || !statuses.has(value.status) || expectedVersion !== void 0 && value.targetVersionId !== expectedVersion || previous && (value.installationId !== previous.installationId || value.targetVersionId !== previous.targetVersionId))
+  if (!isObject(value) || value.id !== expectedId || !nonempty(value.installationId) || !statuses2.has(value.status) || expectedVersion !== void 0 && value.targetVersionId !== expectedVersion || previous && (value.installationId !== previous.installationId || value.targetVersionId !== previous.targetVersionId))
     throw new CliError("The server returned an invalid or mismatched application operation.", { code: "invalid_response" });
   return value;
 }
 function queryHint(id) {
   return `Use app operation show --operation ${id} with the same target/profile before any further write.`;
 }
-function contextualError(error, context, operation) {
+function contextualError2(error, context, operation) {
   const needsQuery = !error.httpStatus || error.httpStatus >= 500;
   const recovery = context.operationId ? queryHint(context.operationId) : `Use app versions --package ${context.packageId} with the same platform profile to check whether the import was accepted.`;
   return new CliError(error instanceof CliError ? error.message : "Application request failed.", {
@@ -1831,11 +2206,11 @@ function contextualError(error, context, operation) {
     details: { ...error.details, ...context, ...operation ? { operation } : {} }
   });
 }
-function operationError(operation, code, message2, hint) {
+function operationError(operation, code, message2, hint2) {
   return new CliError(message2, {
     code,
     serverCode: operation.errorCode ?? void 0,
-    hint,
+    hint: hint2,
     details: { operationId: operation.id, installationId: operation.installationId, operation }
   });
 }
@@ -1861,39 +2236,39 @@ function checkOutcome(operation, cancel = false) {
 }
 function waitSettings(args, wait2) {
   return {
-    deadline: wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0,
+    deadline: wait2 ? performance2.now() + args.integer("wait-timeout", 300) * 1e3 : void 0,
     interval: args.integer("poll-interval", 2) * 1e3
   };
 }
 function remaining(settings) {
-  return settings.deadline === void 0 ? void 0 : Math.max(1, Math.ceil(settings.deadline - performance.now()));
+  return settings.deadline === void 0 ? void 0 : Math.max(1, Math.ceil(settings.deadline - performance2.now()));
 }
 async function waitOperation(ctx, api3, operation, settings) {
   let lastStatus;
   while (activeStatuses.has(operation.status)) {
     if (operation.status !== lastStatus) ctx.reporter.progress(`Operation ${operation.id}: ${operation.status}.`);
     lastStatus = operation.status;
-    const left = settings.deadline - performance.now();
+    const left = settings.deadline - performance2.now();
     if (left <= 0) throw operationError(
       operation,
       "operation_wait_timeout",
       "Stopped waiting; the server operation may still be running.",
       `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
     );
-    await delay2(Math.min(settings.interval, left));
-    if (performance.now() >= settings.deadline) continue;
+    await delay3(Math.min(settings.interval, left));
+    if (performance2.now() >= settings.deadline) continue;
     try {
       const response = requireSuccess(await api3.send("GET", `${api3.root}/operations/${segment(operation.id)}`, { timeout: remaining(settings) }));
       operation = operationResponse(response.json(), operation.id, void 0, operation);
     } catch (error) {
-      if (error.code === "timeout" && performance.now() >= settings.deadline)
+      if (error.code === "timeout" && performance2.now() >= settings.deadline)
         throw operationError(
           operation,
           "operation_wait_timeout",
           "Stopped waiting; the server operation may still be running.",
           `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
         );
-      throw contextualError(error, { operationId: operation.id, installationId: operation.installationId }, operation);
+      throw contextualError2(error, { operationId: operation.id, installationId: operation.installationId }, operation);
     }
   }
   return operation;
@@ -1911,7 +2286,7 @@ async function submit(ctx, api3, path, body, context, { cancel = false } = {}) {
   } catch (error) {
     const latest = error.details?.operation ?? operation;
     exposeApplicationConfirmations(ctx.reporter, latest);
-    throw contextualError(error, context, latest);
+    throw contextualError2(error, context, latest);
   }
 }
 async function appManagementCommands(ctx, createClient) {
@@ -1933,7 +2308,7 @@ async function appManagementCommands(ctx, createClient) {
         throw new CliError("The import response does not match the requested package version.", { code: "invalid_response" });
       return output(ctx, result);
     } catch (error) {
-      throw contextualError(error, { packageId, versionId });
+      throw contextualError2(error, { packageId, versionId });
     }
   }
   if (action === "preview" || action === "install") {
@@ -1960,7 +2335,7 @@ async function appManagementCommands(ctx, createClient) {
     const body = requestFields[operationAction] ? await input(args, operationAction) : void 0;
     if (operationAction === "retry") {
       body.requestId ??= randomId("apo");
-      if (body.requestId === id) throw invalid2("Retry requires a new requestId, different from the failed operation ID.");
+      if (body.requestId === id) throw invalid3("Retry requires a new requestId, different from the failed operation ID.");
     }
     const api3 = createClient(), path = `${api3.root}/operations/${segment(id)}`;
     if (operationAction === "show" || operationAction === "wait") {
@@ -1976,7 +2351,7 @@ async function appManagementCommands(ctx, createClient) {
       } catch (error) {
         const latest = error.details?.operation ?? operation;
         exposeApplicationConfirmations(ctx.reporter, latest);
-        throw contextualError(error, { operationId: id }, latest);
+        throw contextualError2(error, { operationId: id }, latest);
       }
     }
     const operationId = operationAction === "retry" ? body.requestId : id;
@@ -1989,7 +2364,7 @@ async function appManagementCommands(ctx, createClient) {
       { cancel: operationAction === "cancel" }
     );
   }
-  throw invalid2("Unknown application command. Run app --help.");
+  throw invalid3("Unknown application command. Run app --help.");
 }
 
 // src/xrain-cli/app.mjs
@@ -2016,8 +2391,8 @@ function initApp(ctx) {
   const label = ctx.args.required("label").trim();
   if (namespace.length < 2 || namespace.length > 16 || !/^[a-z][a-z0-9]+$/.test(namespace)) throw new CliError("Namespace must have 2-16 lowercase letters or digits and start with a letter.");
   if (!label.length || label.length > 256) throw new CliError("Label must have 1-256 characters.");
-  const directory = resolve2(ctx.args.value("dir") ?? namespace);
-  const path = join3(directory, "source.json");
+  const directory = resolve3(ctx.args.value("dir") ?? namespace);
+  const path = join4(directory, "source.json");
   const picklistId = randomId("006");
   const source = { packageId: randomId("apg"), namespace, label, versionId: randomId("apv"), version: "1.0.0", records: [
     { id: picklistId, kind: "BizPicklist", values: { label: "状态", name: namespace + "__status", isActive: true } },
@@ -2030,19 +2405,19 @@ function initApp(ctx) {
 }
 async function buildApp(ctx, save) {
   if (ctx.args.has("exchange")) throw new CliError("Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.");
-  const sourcePath = resolve2(ctx.args.value("source") ?? "source.json");
+  const sourcePath = resolve3(ctx.args.value("source") ?? "source.json");
   const source = readLimited(sourcePath, MAX_SOURCE, "Source JSON");
   const parsed = parseJson(source, "Source JSON");
   if (!isObject(parsed)) throw new CliError("Source JSON must be an object.");
-  let output2 = save && ctx.args.has("output") ? resolve2(ctx.args.value("output")) : void 0;
+  let output2 = save && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0;
   if (save && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
-    output2 = join3(dirname2(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
+    output2 = join4(dirname3(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
   if (output2) {
     if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
-    accessSync(dirname2(output2), constants.W_OK);
+    accessSync(dirname3(output2), constants.W_OK);
   }
-  const { send, root } = client(ctx);
-  const response = requireSuccess(await send("POST", root + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
+  const { send: send2, root } = client(ctx);
+  const response = requireSuccess(await send2("POST", root + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
   const sourceHash = sha256(source), fileHash = sha256(response.bytes);
   if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
   if (response.headers.get("x-appkg-file-sha256")?.trim().toLowerCase() !== fileHash) throw new CliError("Build response archive digest is invalid.");
@@ -2055,9 +2430,9 @@ async function buildApp(ctx, save) {
     ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
     return 0;
   }
-  output2 ??= join3(dirname2(sourcePath), `${packageId}-${version}.appkg`);
+  output2 ??= join4(dirname3(sourcePath), `${packageId}-${version}.appkg`);
   if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
-  const temporary = `${output2}.${randomBytes4(8).toString("hex")}.part`;
+  const temporary = `${output2}.${randomBytes5(8).toString("hex")}.part`;
   try {
     writeFileSync2(temporary, response.bytes, { flag: "wx" });
     copyFileSync(temporary, output2, constants.COPYFILE_EXCL);
@@ -2067,22 +2442,22 @@ async function buildApp(ctx, save) {
   ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
   return 0;
 }
-async function published(send, root) {
-  const result = requireSuccess(await send("GET", root + "/my-published")).json();
+async function published(send2, root) {
+  const result = requireSuccess(await send2("GET", root + "/my-published")).json();
   if (!Array.isArray(result) || result.some((item) => !item || !validPackageId(item.id))) throw new CliError("The server returned an invalid package list.");
   return result;
 }
 async function publishApp(ctx) {
-  const path = resolve2(ctx.args.required("file", ctx.args.operand(2)));
+  const path = resolve3(ctx.args.required("file", ctx.args.operand(2)));
   const bytes = readLimited(path, MAX_ARCHIVE, "Package");
   const manifest = readManifest(bytes);
-  const { send, root } = client(ctx);
-  const packages = await published(send, root);
+  const { send: send2, root } = client(ctx);
+  const packages = await published(send2, root);
   const current = packages.find((item) => item.id === manifest.packageId);
   const headers = { "Content-Type": "application/octet-stream" };
   if (nonempty(current?.publishedVersionId)) headers["X-Appkg-Expected-Published-Version"] = current.publishedVersionId;
   try {
-    const result = requireSuccess(await send("POST", root + "/packages:publish", { body: bytes, headers })).json();
+    const result = requireSuccess(await send2("POST", root + "/packages:publish", { body: bytes, headers })).json();
     if (result.packageId !== manifest.packageId || result.versionId !== manifest.versionId) throw new CliError("The publish response does not match the local package.");
     ctx.reporter.print({ packageId: result.packageId, versionId: result.versionId, version: result.version, published: true });
   } catch (error) {
@@ -2098,15 +2473,15 @@ async function publishApp(ctx) {
   return 0;
 }
 async function appStatus(ctx) {
-  const { send, root } = client(ctx);
-  const packages = await published(send, root);
+  const { send: send2, root } = client(ctx);
+  const packages = await published(send2, root);
   const filter = ctx.args.value("package");
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
-  const statuses2 = [];
+  const statuses3 = [];
   for (const item of selected) {
-    const versions = requireSuccess(await send("GET", `${root}/packages/${encodeURIComponent(item.id)}/versions`)).json();
+    const versions = requireSuccess(await send2("GET", `${root}/packages/${encodeURIComponent(item.id)}/versions`)).json();
     if (!Array.isArray(versions)) throw new CliError("The server returned an invalid version list.");
-    statuses2.push({
+    statuses3.push({
       id: item.id,
       namespace: item.namespace,
       label: item.label,
@@ -2114,7 +2489,7 @@ async function appStatus(ctx) {
       versions: versions.filter((v) => ctx.args.has("exchange") || v.publishedAt != null).map((v) => ({ id: v.id, version: v.version, digest: v.digest, publishedAt: v.publishedAt ?? v.createdAt }))
     });
   }
-  ctx.reporter.print(!ctx.reporter.json && statuses2.length === 1 ? statuses2[0] : statuses2);
+  ctx.reporter.print(!ctx.reporter.json && statuses3.length === 1 ? statuses3[0] : statuses3);
   return 0;
 }
 async function appCommands(ctx) {
@@ -2341,6 +2716,25 @@ command("data get", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Re
 command("data delete", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Delete exactly one runtime record. Filters are not accepted.");
 command("data create", [...api2, "entity", "values", "values-json", "file"], [slot("entity")], "Create one record; JSON file options accept - for stdin.");
 command("data update", [...api2, "entity", "id", "values", "values-json", "file"], [slot("entity"), slot("id")], "Update one record; a full values envelope can include expectedValues.");
+var importTarget = [...api2, "entity", "application"];
+var importJob = [...importTarget, "job"];
+var importWait = ["wait", "wait-timeout", "poll-interval"];
+command("data import template", [...importTarget, "options-json", "out"], [slot("entity")], "Download a signed XLSX template for a supported import job.");
+command("data import check", [...importTarget, "options-json", "file", "request-id", ...importWait], [slot("entity")], "Upload and check one complete XLSX without writing business records; preserve the request ID.");
+command("data import list", [...importTarget, "request-id", "import-source-key", "status", "cursor", "page-size"], [slot("entity")], "List your jobs or find an interrupted upload by request ID.");
+command("data import show", importJob, [slot("entity"), slot("job")], "Read one job without starting or resuming it.");
+command("data import wait", [...importJob, "wait-timeout", "poll-interval"], [slot("entity"), slot("job")], "Wait for a job to need confirmation or finish; this does not confirm it.");
+command("data import rows", [...importJob, "view-version", "cursor", "page-size", "action", "source-row", "match-value"], [slot("entity"), slot("job")], "Read one authorized page of preview or result rows.");
+command("data import issues", [...importJob, "view-version", "cursor", "page-size", "code", "source-row"], [slot("entity"), slot("job")], "Read one authorized page of issues.");
+command("data import confirm", [...importJob, "plan-revision", ...importWait], [slot("entity"), slot("job")], "Confirm the reviewed revision for chunked execution. Earlier successful chunks remain if a later chunk fails.");
+for (const action of ["pause", "cancel"]) command(
+  `data import ${action}`,
+  [...importJob, ...importWait],
+  [slot("entity"), slot("job")],
+  action === "pause" ? "Request a pause that can be continued." : "End this import while keeping already committed records."
+);
+command("data import resume", [...importJob, "plan-revision", "action", ...importWait], [slot("entity"), slot("job")], "Continue a paused job or recheck its uncommitted sources; recheck requires a new confirmation.");
+command("data import download", [...importJob, "purpose", "out"], [slot("entity"), slot("job")], "Download result, issues, maintenance or remaining XLSX without overwriting the destination.");
 for (const action of ["ensure", "show", "path"]) command("security tokens " + action, [], [], "Manage local test token aliases without printing token values.");
 for (const action of ["create", "ensure"]) command(
   `security user ${action}`,
@@ -2432,6 +2826,32 @@ function validateCommand(args) {
       throw new CliError("A complete query JSON request cannot be combined with individual query options.", { code: "invalid_arguments" });
   }
   if (["data create", "data update", "security user create", "security user ensure", "security permission-set create", "security permission-set ensure"].includes(spec.path)) exclusive(["values", "values-json", "file"]);
+  if (spec.path.startsWith("data import ")) {
+    const importAction = spec.words[2];
+    const requireOption = (name) => {
+      if (!args.has(name)) throw new CliError(`--${name} is required.`, { code: "invalid_arguments" });
+      return args.value(name);
+    };
+    if (["template", "download"].includes(importAction)) requireOption("out");
+    if (importAction === "check") requireOption("file");
+    for (const name of ["job", "request-id"]) if (args.has(name) && !/^[0-9a-f]{32}$/i.test(args.value(name)))
+      throw new CliError(`--${name} must be 32 hexadecimal characters.`, { code: "invalid_arguments" });
+    if (args.has("page-size") && args.integer("page-size") > 200) throw new CliError("--page-size cannot exceed 200.", { code: "invalid_arguments" });
+    if (args.has("source-row")) args.integer("source-row");
+    if (args.has("application") && (args.value("application").length > 100 || args.value("application") !== args.value("application").trim() || /[\x00-\x1f\x7f,]/.test(args.value("application"))))
+      throw new CliError("--application is invalid.", { code: "invalid_arguments" });
+    if (importAction === "confirm") {
+      requireOption("plan-revision");
+      args.integer("plan-revision");
+    }
+    if (importAction === "resume") {
+      const revision2 = requireOption("plan-revision");
+      if (!/^\d+$/.test(revision2) || !Number.isSafeInteger(Number(revision2))) throw new CliError("--plan-revision must be a nonnegative integer.", { code: "invalid_arguments" });
+      if (!["continue", "recheck"].includes(requireOption("action"))) throw new CliError("--action must be continue or recheck.", { code: "invalid_arguments" });
+    }
+    if (importAction === "download" && !["result", "issues", "maintenance", "remaining"].includes(requireOption("purpose")))
+      throw new CliError("--purpose must be result, issues, maintenance or remaining.", { code: "invalid_arguments" });
+  }
   if (spec.path.startsWith("agent ")) {
     if (spec.options.includes("expected-revision")) {
       args.required("expected-revision");
@@ -2461,7 +2881,7 @@ function validateCommand(args) {
   }
   if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
-    if (spec.path !== "app operation wait" && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
+    if (!["app operation wait", "data import wait"].includes(spec.path) && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
       throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
     for (const name of ["wait-timeout", "poll-interval"]) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: "invalid_arguments" });
@@ -2514,7 +2934,7 @@ async function batchCommands(ctx) {
     if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
     if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
-    if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
+    if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file", "options-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
       throw new CliError("Batch steps must use files or inline JSON instead of sharing stdin.", { code: "invalid_arguments" });
     commands.push(spec.path);
   }
@@ -2537,7 +2957,7 @@ async function batchCommands(ctx) {
     results.push({ index, ...result });
     if (stderr) ctx.reporter.progress(stderr.trimEnd());
     if (code !== 0) throw new CliError(`Batch stopped at step ${index + 1}.`, {
-      code: "batch_failed",
+      code: code === 130 ? "interrupted" : "batch_failed",
       hint: "Earlier completed operations remain in effect. Inspect the failed step and current state before retrying.",
       details: { results, failedIndex: index }
     });
@@ -2547,7 +2967,7 @@ async function batchCommands(ctx) {
 }
 
 // src/xrain-cli/agents.mjs
-import { randomBytes as randomBytes5 } from "node:crypto";
+import { randomBytes as randomBytes6 } from "node:crypto";
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
@@ -2941,13 +3361,13 @@ async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
     throw new CliError("Runtime returned invalid JSON.", { code: "invalid_response" });
   }
 }
-async function writeOnce(action, hint, details) {
+async function writeOnce(action, hint2, details) {
   try {
     return await action();
   } catch (error) {
     if (error instanceof CliError && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
       error.code = "outcome_unknown";
-      error.hint = hint;
+      error.hint = hint2;
       error.details = { ...error.details, ...details };
     }
     throw error;
@@ -2988,7 +3408,7 @@ async function definitionCommands(ctx) {
     if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
     const name = args.value("name") ?? value.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
-    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
+    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
     workspaceChange(value);
     const body2 = {
       aiUserId: "",
@@ -3180,7 +3600,7 @@ async function main(argv = process.argv.slice(2), { env = process.env, stdin = p
     }
   } catch (error) {
     reporter.error(localError(error));
-    code = 1;
+    code = error.code === "interrupted" ? 130 : 1;
   } finally {
     if (store) store.reporter = previousReporter;
     reporter.finish(code);

@@ -36,7 +36,7 @@ XRain 支持新业务建模，也支持对管理完善的已有系统直接通�
 <!-- skills:start -->
 - [shzw-aiinfra-development](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-aiinfra-development/SKILL.md)：使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。
 - [shzw-client-development](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-client-development/SKILL.md)：开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。
-- [shzw-code-review](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-code-review/SKILL.md)：审查项目、指定提交或变更的缺陷、遗漏与职责，包括前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化、退役及反复缺陷。页面评审从真实画面、用户任务与操作证据判断，不只检查错位和溢出。纯方案评审走方案入口；运行故障先定位故障链。
+- [shzw-code-review](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-code-review/SKILL.md)：审查项目、指定提交或变更的缺陷、遗漏与职责，包括分支合入或退役、前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化及反复缺陷。页面评审从真实画面、用户任务与操作证据判断，不只检查错位和溢出。纯方案评审走方案入口；运行故障先定位故障链。
 - [shzw-delivery](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-delivery/SKILL.md)：发布责任项目的公共包，或查询和执行已有流水线、部署及回滚。团队 Nexus 公共包复用台账中的固定发布凭据，无需个人 Nexus 账号或 CI 仓库；真正发布或部署沿用明确制品、目标与授权，构建和 Git 推送不自动授权发布。
 - [shzw-deskpilot-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-deskpilot-cli/SKILL.md)：使用本机 DeskPilot 观察和操作桌面客户端、Android 模拟器与 Chrome 网页，支持原生控件、截图和离线中文 OCR。用于明确要求操作本机界面的任务；已有业务 API 能完成目标时优先使用 API。按当前操作渠道加载对应指南，不决定业务授权、聊天人设或发言策略。
 - [shzw-human-documentation](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-human-documentation/SKILL.md)：编写、改写或审阅面向人的中文开发文档、上手指南、教程、教材与课程，包括过浅或重复的教学内容。操作指南核对前提、命令与结果；教学内容按任务、深度和实例组织。AGENTS、正式契约与 Runbook 治理走工作空间维护。

@@ -65,7 +65,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, st
       const ctx = { args, store, reporter, stdin, spec, execute: (next, io) => main(next, { env, store, ...io }) };
       code = await dispatch(ctx);
     }
-  } catch (error) { reporter.error(localError(error)); code = 1; }
+  } catch (error) { reporter.error(localError(error)); code = error.code === 'interrupted' ? 130 : 1; }
   finally {
     if (store) store.reporter = previousReporter;
     reporter.finish(code);

@@ -10,6 +10,8 @@
 
 工具不安装 ADB、不重启或修改设备，也不连接任意远程设备。密码节点及子节点不返回文字；parent 是当前数组的父节点下标。可用 limit 限定节点数，truncated: true 不能证明目标不存在。
 
+需要从同一次观察筛选目标和滚动容器时，可用[观察视图](observe-view.md)直接返回匹配项；视图不会减少设备侧的观察，也不改变遮挡与引用检查。
+
 ```json
 {"id":"observe","method":"android.observe","params":{"window_id":"已确认窗口ID"}}
 ```

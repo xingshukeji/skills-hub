@@ -4,7 +4,7 @@
 
 ## 输出与输入
 
---json 的 stdout 为单个 {ok:true,data:...} 或 {ok:false,error:{code,message,...}}；错误可带 httpStatus/serverCode/requestId/hint 及脱敏 details。登录链接和进度在 stderr。退出 0 成功、1 失败；app status 的 data 恒为数组。
+--json 的 stdout 为单个 {ok:true,data:...} 或 {ok:false,error:{code,message,...}}；错误可带 httpStatus/serverCode/requestId/hint 及脱敏 details。登录链接和进度在 stderr。退出 0 成功、1 失败；文件导入本地中断为 130。app status 的 data 恒为数组。
 
 JSON 首选 --values-json/--query-json/--filter-json 的文件或 -（stdin），也支持对应内联及 @file/@-。--file 是完整 query/values 别名。完整 query 与分页/filter/fields/sort 快捷参数互斥；重复、未知或无关参数报错。普通 values 自动包成 {values:...}；已有 values 的完整请求原样发送，可含 expectedValues。
 
@@ -39,6 +39,29 @@ data delete <entity> <id>
 ```
 
 支持 --entity/--id 替代位置参数，每次只选一种。delete 仅单条 ID，不接 filter。更新并发条件按目标字段契约提供，完成后回读。
+
+### 完整文件导入
+
+先核对目标服务和对象是否支持 `xrain-import-jobs-v1`。使用相同主体、租户和选项下载模板、检查完整文件；如应用限定导入范围，每条命令都带相同的 `--application <应用ID>`。服务尚未实现或未启用该协议时命令会拒绝，不能改为循环调用旧原子导入。
+
+```text
+data import template --entity <对象> --options-json <选项.json> --out <新模板.xlsx>
+data import check --entity <对象> --options-json <选项.json> --file <完整文件.xlsx> --wait
+data import issues --entity <对象> --job <作业ID>
+data import rows --entity <对象> --job <作业ID>
+data import confirm --entity <对象> --job <作业ID> --plan-revision <已核对的修订> --wait
+data import show --entity <对象> --job <作业ID>
+data import wait --entity <对象> --job <作业ID>
+data import pause --entity <对象> --job <作业ID> --wait
+data import resume --entity <对象> --job <作业ID> --plan-revision <当前修订> --action continue --wait
+data import resume --entity <对象> --job <作业ID> --plan-revision <当前修订> --action recheck --wait
+data import cancel --entity <对象> --job <作业ID> --wait
+data import download --entity <对象> --job <作业ID> --purpose result --out <新结果.xlsx>
+```
+
+选项文件使用平台 RuntimeImportOptions；省略时使用 Id 匹配、来源导入和保留空值。预检不写业务记录。`confirm` 确认指定修订；分块处理时，后续块失败不会撤销已提交的记录。上传前 stderr 会显示 requestId；响应丢失时使用 `data import list --entity <对象> --request-id <原请求ID>` 查找，不自动换键重传。确认响应丢失时可重发相同作业和修订的确认。
+
+暂停后 continue 保留原进度；检查阶段尚无计划时修订为 0。recheck 只检查未提交来源，形成的新修订仍须核对并确认。需要修改来源时先结束作业，再以 `--purpose remaining` 下载未完成资料，编辑后作为新作业检查；其他下载用途为 issues 和 maintenance。下载不覆盖已有文件。等待超时或 Ctrl+C 只结束本地等待；再次查询原作业，只有 pause 或 cancel 会改变服务端状态。
 
 ## 智能体
 
