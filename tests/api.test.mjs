@@ -118,6 +118,22 @@ test('ensuring an existing fixed user preserves all fields and accepts no creati
   ]);
 });
 
+test('tenant user commands display membership status without global account status', async t => {
+  const f = fixture(t);
+  const member = { userName: 'lisi', status: 'inactive', accountIsActive: true, roles: [], permissionSets: [], permissions: [] };
+  const server = await mockServer(t, (hit, res) => respond(res, member, hit.method === 'POST' ? 201 : 200));
+  f.profile(server.url, 't', 'test-bearer');
+  for (const [action, extra] of [['show', []], ['ensure', []], ['create', ['--values', '{"name":"李四","password":"test-only"}']], ['grant-role', ['--roles', 'reader']], ['revoke-role', ['--roles', 'reader']]]) {
+    const result = await f.run(['security', 'user', action, 'lisi', ...extra, '--json']);
+    assert.equal(result.code, 0, result.stdout);
+    const data = JSON.parse(result.stdout).data;
+    const user = action === 'ensure' ? data.user : data;
+    assert.equal(user.status, 'inactive');
+    assert.equal(Object.hasOwn(user, 'accountIsActive'), false);
+  }
+  assert.deepEqual(server.hits.map(hit => hit.method), ['GET', 'GET', 'POST', 'POST', 'DELETE']);
+});
+
 test('ensuring a missing fixed user creates it once and subsequent calls reuse its identity', async t => {
   const f = fixture(t);
   let user;

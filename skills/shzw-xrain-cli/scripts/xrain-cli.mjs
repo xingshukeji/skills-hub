@@ -1044,7 +1044,7 @@ async function securityCommands(ctx) {
     if (action === "ensure") {
       try {
         const value2 = await apiValue(ctx, "GET", path);
-        reporter.print({ created: false, [resultName]: value2 });
+        reporter.print({ created: false, [resultName]: isUser ? tenantMemberOutput(value2) : value2 });
         return 0;
       } catch (error) {
         if (error.httpStatus !== 404 || error.serverCode !== `platform.authen.${singular.replace("-", "_")}_not_found`) throw error;
@@ -1055,10 +1055,15 @@ async function securityCommands(ctx) {
       hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments."
     });
     const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name });
-    reporter.print(action === "ensure" ? { created: true, [resultName]: value } : value);
+    const result = isUser ? tenantMemberOutput(value) : value;
+    reporter.print(action === "ensure" ? { created: true, [resultName]: result } : result);
     return 0;
   }
-  if (action === "show") return api(ctx, "GET", path);
+  if (action === "show") {
+    if (singular !== "user") return api(ctx, "GET", path);
+    reporter.print(tenantMemberOutput(await apiValue(ctx, "GET", path)));
+    return 0;
+  }
   const match = /^(grant|revoke)-(role|permission-set|permission)$/.exec(action ?? "");
   const allowed = { user: ["role", "permission-set"], role: ["permission-set"], "permission-set": ["permission"] };
   if (!match || !allowed[singular].includes(match[2])) throw new CliError("Invalid security action. Run --help.");
@@ -1071,7 +1076,15 @@ async function securityCommands(ctx) {
   }
   if (!names.length) throw new CliError("At least one name is required.");
   const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match[2]];
-  return api(ctx, match[1] === "grant" ? "POST" : "DELETE", path + "/" + suffix, { names });
+  const method = match[1] === "grant" ? "POST" : "DELETE";
+  if (singular !== "user") return api(ctx, method, path + "/" + suffix, { names });
+  reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + "/" + suffix, { names })));
+  return 0;
+}
+function tenantMemberOutput(value) {
+  if (!isObject(value)) return value;
+  const { accountIsActive: _accountIsActive, ...member } = value;
+  return member;
 }
 async function hostCommands(ctx) {
   const { args, reporter } = ctx;

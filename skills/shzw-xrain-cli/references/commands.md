@@ -85,6 +85,8 @@ security permission-set ensure --permission-set <固定权限集名> --values-js
 
 grant 对应 revoke；user 也支持直接 grant/revoke-permission-set。资源单/复数可互换，--names 支持逗号/分号列表、忽略大小写去重。创建用户 JSON 用平台字段（password/name/email/isAI 等），userName 若出现须与 --user 一致。ensure 仅在明确 user_not_found 时创建，现有用户不更新；原始 create 无查重保证。
 
+`security user` 面向当前租户成员，输出中的状态是成员状态，不展示全局账号状态。停用或删除成员会阻止该成员的租户会话和 API token 通过准入；恢复后尚未到期或撤销的凭据可能再次生效。删除的成员从租户回收站恢复，不用 `ensure` 代替恢复。
+
 `security permissions catalog` 读取当前实际权限目录，不按名称拼造权限。权限集的 `create/ensure` 使用 `{name,label,helpText}`，`name` 必须与 `--permission-set` 一致。`ensure` 已存在返回 `{created:false,permissionSet}` 并保留名称、权限与绑定；只有明确 `404 / platform.authen.permission_set_not_found` 才按所给资料创建，返回 `created:true`。创建权限集不自动加权限或绑定用户，后续使用 grant 命令。
 
 ### 既有全局人物加入租户
