@@ -14,7 +14,7 @@ Generate and verify a backend from the repository scaffold. Default to `layered-
 2. 普通消费者读取已交付 CLI 的 help、模板清单及对应 README。维护脚手架本身时，才读取 `LLM_backend_packages/Main/scaffolding/src/AiInfra.ProjectScaffold.Cli/Program.cs` 和 `LLM_backend_packages/Main/scaffolding/templates/`；这些路径不是公开消费的必需条件。
 3. Read `references/standard-layered-project.md` or `references/simple-single-project.md` only for the selected shape.
 
-The CLI and templates are authoritative. If the requested shape is unsupported, register the scaffold gap instead of hand-writing a parallel architecture.
+The CLI and templates are authoritative. Confirm that the selected template supports the consumer's data model as well as its project shape. If it requires metadata initialization and the request excludes that model, identify the unsupported scaffold capability before generation; a package supporting several data models does not prove that every template does. Report the concrete gap and follow the target's task rules instead of hand-writing a parallel architecture.
 
 ## Generate
 
@@ -36,7 +36,7 @@ Use `--force` only for an intentional replacement and `--zip` only when an archi
 
 ## Verify
 
-From the generated root, run restore, build without restore, and tests without build. For `layered-api`, also run the report runner without a connection string to verify operator guidance, then against PostgreSQL when available.
+From the generated root, resolve the actual solution and project paths before executing README commands; conflicting guidance is a template/document defect owned by the scaffold project. Run restore, build without restore, and tests without build. For `layered-api`, also run the report runner without a connection string to verify operator guidance, then against isolated PostgreSQL when required by the changed risk. Missing database evidence is unverified, not a successful run. Confirm initialization matches the selected data model and precedes product setup; ordinary startup must follow the delivered startup contract.
 
 ## Boundaries and closeout
 

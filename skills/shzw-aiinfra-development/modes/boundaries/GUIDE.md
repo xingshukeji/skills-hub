@@ -14,9 +14,9 @@ When `shzw-solution` was required, consume its direction contract without reopen
 
 1. Read root entries, the matched project `AGENTS.md`, the current task row, and the touched code/tests.
 2. Read `references/layer-boundary-checklist.md` for general review.
-3. For AiInfra/XRain ownership, also use `本入口的 reuse 方法` and read `references/aiinfra-xrain-boundaries.md`.
+3. For AiInfra/XRain ownership, use the relevant [reuse topic](../reuse/GUIDE.md) and read `references/aiinfra-xrain-boundaries.md`.
 
-Stop scanning when the public surface, one request path, DI registrations, tests, and current owner are clear.
+Stop scanning when the affected public surface, actual entries and special branches, DI registrations, tests and current owner are clear; do not stop at the first ordinary request path.
 
 ## Workflow
 

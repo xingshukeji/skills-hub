@@ -6,13 +6,13 @@ Read this before changing an AiInfra public API, provider contract, DTO, schema,
 
 Establish all of the following before editing:
 
-- the inspected current capability and its source/tests;
+- the installed public capability and evidence; maintainers also inspect its source/tests;
 - why structured filters, query context, ABAC/grant facts, object projection, or a thin adapter cannot express the need;
 - whether the value is shared infrastructure or product semantics;
 - affected consumers, packages, migrations, tests, and docs;
 - the fail-closed behavior when the capability is absent or misconfigured.
 
-If any answer is unknown, investigate or register a blocking task. Do not use `object`, generic dictionaries, scope bags, or product-specific shared fields as shortcuts.
+Investigate missing facts and stop only the dependent change while continuing independent work. Task persistence follows the target entrypoint. Do not use `object`, generic dictionaries, scope bags, or product-specific shared fields as shortcuts; supported dynamic field-value contracts are not untyped scope bags.
 
 ## Security
 
@@ -24,13 +24,13 @@ If any answer is unknown, investigate or register a blocking task. Do not use `o
 
 ## Package-consumer loop
 
-1. Identify consumers and the repository's current version source.
-2. Build/test the package solution using `文档/项目/项目_LLM_backend_packages/运行/RUN-0003-AiInfra测试分层与验证.md`.
-3. Publish the changed packages to a temporary local feed.
-4. Restore each consumer with a temporary NuGet configuration and normal sources.
-5. Build and test consumers from `PackageReference`, not source-project references.
-6. Remove temporary configuration and keep secrets out of tracked files.
+1. Identify affected direct and transitive consumers, the version source and the candidate's actual input changes. A candidate built from mixed Local source proves that input, not an independent release.
+2. Maintainers use the current package Runbook, `文档/项目/项目_LLM_backend_packages/运行/RUN-0003-AiInfra测试分层与验证.md`. Prefer its existing `Test-ReleaseCandidate.ps1 -Mode Targeted` entry with explicit projects and filters rather than a parallel hand-written restore pipeline.
+3. Use the target's isolated build outputs, temporary candidate feed and package cache. Restore `AiInfra.Abp.*` only from that exact feed; third-party sources follow the target Runbook. Do not clear the user's global cache or change normal consumer project references.
+4. Verify package identities/content, consumer `project.assets.json` versions and `.nupkg.metadata` sources. Build and run the affected tests through `PackageReference`; require actual execution, not a zero-match or skipped result. Public consumers without the private runner use the delivered packages and equivalent isolated source checks.
+5. For already-published API changes, assess old binary compatibility and an ordered migration as required. Recompiling current consumers alone does not prove old binaries work. If all consumers are enumerable and the contract was never published, migrate them directly rather than adding an indefinite compatibility facade.
+6. Where the user result depends on a running consumer, verify its actual loaded package/version or content and the original action. HTTP/frontend consumers verify their affected public behavior; they are not NuGet consumers. Keep evidence and temporary state out of tracked files and clean only resources owned by this task.
 
-Run foundation migration and seed before product migration and seed. Product tables may hold product facts but must not duplicate Authen/Biz foundations or introduce replay/summary infrastructure without a current approved decision.
+Run the selected platform/metadata/tenant foundation migrations and seed before the dependent product initialization. Confirm the consumer's metadata-driven, consumer-owned or hybrid model; package availability alone does not require every consumer to create metadata tables. Product tables may hold product facts but must not duplicate foundations or introduce replay/summary infrastructure without a current approved decision.
 
-Record only unfinished migration or upstream work in `文档/TASK_CONTROL.md`; do not create review or task-sediment documents solely to restate the change.
+Report actual package/consumer evidence and concrete missing conditions. Recoverable work uses the target entrypoint's existing rules, not a second review or task ledger.

@@ -31,7 +31,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 <!-- skills:start -->
 | Skill | 用途 |
 | --- | --- |
-| [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问与 provider 边界。代码缺陷审查可按需读取此知识。 |
+| [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问、动态代码执行与 provider 边界。代码缺陷审查可按需读取此知识。 |
 | [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。 |
 | [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，包括分支合入或退役、前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化及反复缺陷。页面评审从真实画面、用户任务与操作证据判断，不只检查错位和溢出。纯方案评审走方案入口；运行故障先定位故障链。 |
 | [shzw-delivery](skills/shzw-delivery/SKILL.md) | 发布责任项目的公共包，或查询和执行已有流水线、部署及回滚。团队 Nexus 公共包复用台账中的固定发布凭据，无需个人 Nexus 账号或 CI 仓库；真正发布或部署沿用明确制品、目标与授权，构建和 Git 推送不自动授权发布。 |

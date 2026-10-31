@@ -8,16 +8,17 @@ Read this reference before adding shared infrastructure inside an application. C
 |---|---|
 | Module and DI | `LLMModule`, `DependsOnAttribute`, `ServiceDependencyAttribute`, module scanning |
 | Request context | `OnapiSession`, claims/header/tenant resolution, middleware |
-| Unit of work | `UnitOfWorkManager`, MVC action filter, Minimal API UoW endpoint filter |
+| Unit of work | `UnitOfWorkManager`, MVC/Minimal API filters, provider savepoints and UoW state restoration; see [transaction semantics](transaction-and-failure-semantics.md) |
 | Data access | `IPlatformDbContext`, `ITenantDbContext`, `AddAbpPlatformAndTenantDbContexts<TPlatform, TTenant>`, repositories, data filters, tenant connection resolver |
 | IDs and base fields | `IdGenerator`, `IdPrefixRegistry`, base entities, `StandardFieldNames` |
-| Foundation data | PostgreSQL foundation migrator/seeder and Authen/Biz/Ai/Log tables |
+| Foundation data | PostgreSQL platform, metadata and tenant migration/seed APIs; select the consumer's data model before choosing which foundations it needs |
 | Query | `FilterItem`, `QueryContext`, relational query builders, lookup/upward expansion, provider dialects |
 | Runtime records | runtime record managers, schema/CRUD/query/concurrency behavior |
 | Object metadata | `IObjectMetadataManager`, `ObjectMetadataDefinition`, `BizObject`, `BizField`, `BizListView` |
 | Security | permission managers, `ISecurityQueryBuilder`, `IAbacPolicyEvaluator`, sharing and record-team facts |
 | Audit and triggers | trigger manager, audit records, access-decision audit sink, logging |
-| Providers | PostgreSQL/SQL Server, Storage, RAG, ChatHub, file-security providers |
+| Dynamic code execution | `AiInfra.Abp.Http.Orchestration`, function bridges and source/definition validation; see [dynamic execution](dynamic-execution.md) |
+| Providers | PostgreSQL, Storage, RAG, ChatHub, file-security providers; verify the target version's exported support |
 
 Platform maintainers classify foundation, product and dynamic-object tables using their project document `文档/项目/项目_LLM_backend_packages/技术设计/DOC-0003-AiInfra表建设职责与落库规范.md`. Public consumers use the delivered table/API contract and keep application facts separate; private document access is not an adoption prerequisite.
 

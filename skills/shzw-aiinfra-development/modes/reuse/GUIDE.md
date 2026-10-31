@@ -4,7 +4,7 @@
 
 ## Goal
 
-Choose one grounded outcome for each need: reuse AiInfra directly, keep a thin product adapter, enhance AiInfra, migrate app code, or correct the app contract. Track only authorized work needing recovery in `文档/TASK_CONTROL.md`; evidence-backed uncommitted outcomes belong in `文档/WORK_CANDIDATES.md` only when later-work discovery needs them.
+Choose one grounded outcome for each need: reuse AiInfra directly, keep a thin product adapter, enhance AiInfra, migrate app code, or correct the app contract. Task persistence and closeout follow the target project's entrypoint.
 
 ## Load
 
@@ -15,17 +15,19 @@ Choose one grounded outcome for each need: reuse AiInfra directly, keep a thin p
 3. Before adding app-local infrastructure, read `references/capability-map.md`.
 4. For runtime query or object metadata, read `references/runtime-query-and-object-metadata.md`.
 5. Before changing a public contract, security model, schema, provider, or package, read `references/security-package-validation.md`.
+6. For transaction ownership, savepoints, collection failures or post-commit effects, read [transaction and failure semantics](references/transaction-and-failure-semantics.md).
+7. For executable source, function calls, admission probes or Trigger binding, read [dynamic execution](references/dynamic-execution.md); runtime-record queries alone do not require this topic.
 
 Stop loading once the touched source, current contract, tests, and consumer are clear.
 
 ## Workflow
 
-1. Identify the consumer, touched public surface, current package API, and affected task row.
+1. Identify the consumer, touched public surface, current package API, and any existing task context.
 2. 核对当前安装包的公开类型、导出、README 与最小调用后再判定缺口。维护公共实现时继续追源码、providers 和测试；消费者不能因无私有源码而被判为无法复用。
 3. Inspect only the corresponding app path for duplicate DI, connections, transactions, SQL/query compilers, IDs, permissions, ABAC, audit tables, metadata, runtime storage, or provider wrappers.
 4. Classify each finding as `reuse`, `thin adapter`, `upstream enhancement`, `app migration`, or `contract correction`.
 5. Put cross-cutting behavior upstream. Keep workspace, release, environment, and other product dimensions as filters, facts, predicates, grants, or adapter inputs.
-6. Validate the package and every affected consumer through package references and a temporary feed when public package behavior changes.
+6. Validate changed package behavior through actual package consumers. .NET callers use `PackageReference` and the target's candidate-package procedure; HTTP or frontend callers verify their own affected public paths.
 
 ## Boundaries
 
