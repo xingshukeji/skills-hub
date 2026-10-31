@@ -20,7 +20,7 @@ storage account check <id>
 storage account default <id>
 ```
 
-上传原始字节，最多 512 MiB，可用 --name 指定文件名。读取始终通过原文件授权；下载校验长度和内容类型，支持空文件，不覆盖已有文件；失败清理本次临时文件。服务没有文件摘要合同，CLI 不把长度校验写成摘要验证。上传回执丢失不自动重传。
+上传原始字节，最多 512 MiB，可用 --name 指定文件名。读取始终通过原文件授权；文件服务决定下载大小规则，CLI 不另设固定下载上限。原文件和预览资产均流式保存；下载校验长度和内容类型，支持空文件，不覆盖已有文件；失败清理本次临时文件。服务没有文件摘要合同，CLI 不把长度校验写成摘要验证。上传回执丢失不自动重传。
 
 S3 创建字段为 name、serviceUrl、signingRegion、forcePathStyle、bucketName、rootPrefix、accessKeyId、secretAccessKey；名称修改为 name，凭据修改为 accessKeyId、secretAccessKey。秘密只经 stdin 或私有文件输入。storage account 支持 Host 或租户，实际权限由原服务校验；连接检查不等于设为默认。
 

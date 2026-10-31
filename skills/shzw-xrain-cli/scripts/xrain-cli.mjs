@@ -727,10 +727,10 @@ async function send(client2, method, path, { json, body, deadline, accept = "app
   const remaining2 = deadline === void 0 ? Infinity : deadline - performance.now();
   if (remaining2 <= 0) throw abortError(client2, new Error(), deadline);
   const timeout = Math.max(1, Math.ceil(Math.min(client2.timeout, remaining2)));
-  const headers = new Headers({ Accept: accept, "Accept-Encoding": "identity" });
+  const headers = new Headers({ ...client2.headers, Accept: accept, "Accept-Encoding": "identity" });
   if (client2.token) headers.set("Authorization", `Bearer ${client2.token}`);
   if (client2.application) headers.set("X-XRain-Import-Application", client2.application);
-  const request2 = { method, headers, signal: AbortSignal.any([client2.signal, AbortSignal.timeout(timeout)]) };
+  const request2 = { method, headers, redirect: "error", signal: AbortSignal.any([client2.signal, AbortSignal.timeout(timeout)]) };
   if (json !== void 0) {
     headers.set("Content-Type", "application/json");
     request2.body = JSON.stringify(json);
@@ -903,7 +903,7 @@ async function checkDestination(path) {
     if (error.code !== "ENOENT") throw error;
   }
 }
-async function saveFile(client2, method, path, outputPath, limit, json, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false } = {}) {
+async function saveFile(client2, method, path, outputPath, limit = Infinity, json, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false } = {}) {
   const output2 = resolve2(outputPath);
   await checkDestination(output2);
   const response = await send(client2, method, path, { json, accept: contentType ?? "*/*" });
@@ -943,6 +943,8 @@ async function saveFile(client2, method, path, outputPath, limit, json, { conten
     if (error.code && !["ECONNRESET", "EPIPE", "UND_ERR_SOCKET"].includes(error.code)) throw error;
     throw new CliError("The download did not complete; the existing destination was preserved.", { code: "download_incomplete" });
   } finally {
+    await response.body?.cancel().catch(() => {
+    });
     if (file) await file.close().catch(() => {
     });
     if (created) await unlink(temporary).catch(() => {
@@ -3624,6 +3626,8 @@ async function managementCommand(ctx) {
 var base3 = "/api/cli/v1";
 var define6 = (path, method, route, options = {}) => ({ path: "workforce " + path, method, route: base3 + route, ...options });
 var workforceOperations = [
+  define6("application-message send", "POST", "/application-messages", { route: "/api/application-messages", input: "object", native: true, publication: true }),
+  define6("application-message lookup", "GET", "/application-messages/{application-id}/channels/{channel}/requests/{request-id}", { route: "/api/application-messages/{application-id}/channels/{channel}/requests/{request-id}", native: true, publication: true }),
   define6("context", "GET", "/context"),
   define6("people", "GET", "/people"),
   define6("employee profile", "GET", "/employees/me/work-profile"),
@@ -3686,6 +3690,11 @@ var workforceOperations = [
   define6("session pending", "GET", "/workbench/pending-actions"),
   define6("session respond", "POST", "/workbench/pending-actions/{action-ref}/responses", { input: "object" }),
   define6("session cancel-question", "POST", "/workbench/pending-actions/{action-ref}/cancel", { input: "object" }),
+  define6("session feedback list", "GET", "/workbench/sessions/{session-id}/feedback"),
+  define6("session feedback set", "POST", "/workbench/sessions/{session-id}/feedback", { input: "object", feedback: true }),
+  define6("speech catalog", "GET", "/workbench/speech"),
+  ...["configure", "prepare", "cancel-preparation"].map((action) => define6("speech " + action, "POST", "/workbench/speech/" + action, { input: "object" })),
+  define6("speech transcribe", "POST", "/workbench/speech/transcribe", { audio: true }),
   ...["list", "options", "bootstrap", "agents", "models"].map((action) => define6("schedule " + action, "GET", "/task-schedules" + (action === "list" ? "" : "/" + action))),
   define6("schedule create", "POST", "/task-schedules", { input: "object" }),
   define6("schedule update", "PUT", "/task-schedules/{schedule-id}", { input: "object" }),
@@ -3955,17 +3964,17 @@ for (const operation of workforceOperations) command(
   [
     ...target,
     "workforce",
-    "application-id",
-    "auth",
+    ...!operation.native ? ["application-id"] : [],
+    ...operation.native ? credentials : ["auth"],
     ...routeParameters(operation.route),
-    ...operation.input ? ["request-json", "file"] : [],
+    ...operation.input || operation.audio ? ["request-json", "file"] : [],
     ...operation.query ? ["query-json"] : [],
     ...operation.upload ? ["file"] : [],
     ...operation.download ? ["out"] : [],
     ...operation.browser ? ["no-browser"] : []
   ],
   routeParameters(operation.route).map((name) => slot(name)),
-  "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force."
+  operation.native ? "Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved." : operation.audio ? "Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON." : "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force."
 );
 for (const operation of applicationUserOperations) command(
   operation.path,
@@ -4030,8 +4039,9 @@ function validateCommand(args) {
     const operation = workforceOperations.find((row) => row.path === spec.path);
     if (operation.upload) args.required("file");
     if (operation.download) args.required("out");
+    if (operation.audio && !args.has("file") && !args.has("request-json")) throw new CliError("--file or --request-json is required.", { code: "invalid_arguments" });
     if (operation.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
-    if (args.has("auth") && args.value("auth") !== "session") throw new CliError("Workforce uses a matching saved platform session.", { code: "invalid_arguments" });
+    if (!operation.native && args.has("auth") && args.value("auth") !== "session") throw new CliError("Workforce uses a matching saved platform session.", { code: "invalid_arguments" });
   }
   if (["file download", "file preview-asset", "data export-file"].includes(spec.path)) args.required("out");
   if (spec.path.startsWith("market ")) {
@@ -4154,7 +4164,7 @@ function validateCommand(args) {
     if (spec.path === "agent chat respond" && !["values", "values-json", "file"].some((name) => args.has(name)))
       throw new CliError("A JSON response is required.", { code: "invalid_arguments" });
   }
-  if (spec.options.includes("request-json")) exclusive(["request-json", "file"]);
+  if (spec.options.includes("request-json") && spec.path !== "workforce speech transcribe") exclusive(["request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
     if (!["app operation wait", "data import wait"].includes(spec.path) && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
       throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
@@ -4191,7 +4201,8 @@ function commandHelp(args) {
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
-  if (!exact || exact.options.includes("request-json")) lines.push("Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.");
+  if (exact?.path === "workforce speech transcribe") lines.push("Speech: --file is the original PCM WAV, not a JSON alias. With --file, --request-json may select providerId/language; otherwise it supplies the complete native request.");
+  else if (!exact || exact.options.includes("request-json")) lines.push("Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.");
   if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
   if (prefix[0] === "agent" && prefix[1] === "chat") lines.push("Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.");
   if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
@@ -5438,7 +5449,7 @@ async function fileCommands(ctx) {
       "GET",
       assetId ? `${path}/preview/assets/${segment(assetId)}/content` : path + "/content",
       args.required("out"),
-      assetId ? maxBytes : metadata.length,
+      void 0,
       void 0,
       { contentType: assetId ? null : metadata.contentType, expectedBytes: assetId ? void 0 : metadata.length, allowEmpty: true }
     );
@@ -5535,7 +5546,8 @@ async function marketCommands(ctx) {
 }
 
 // src/xrain-cli/workforce.mjs
-import { closeSync as closeSync3, existsSync as existsSync4, openSync as openSync3, unlinkSync as unlinkSync5, writeFileSync as writeFileSync6 } from "node:fs";
+import { openAsBlob as openAsBlob3 } from "node:fs";
+import { stat as stat3 } from "node:fs/promises";
 import { basename as basename3, resolve as resolve9 } from "node:path";
 
 // src/xrain-cli/member-target.mjs
@@ -5544,16 +5556,16 @@ function memberValue(response) {
   if (!response.bytes.length) return null;
   return response.json();
 }
-async function memberTarget(ctx, option) {
+async function memberTarget(ctx, option, { applicationRequired = true, sessionOnly = true } = {}) {
   const { args, store } = ctx, profile = store.resolve(args, true);
-  const host3 = origin(args.required(option)), appId = applicationId(profile);
-  if (!appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
-  const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
-  if (!token) throw new CliError("A matching saved platform login is required.", { code: "authentication_required" });
+  const host3 = origin(args.required(option)), appId = applicationRequired ? applicationId(profile) : void 0;
+  if (applicationRequired && !appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
+  const token = sessionOnly ? store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) : store.credential(args, profile, { createSecrets: false }).token;
+  if (!token) throw new CliError(sessionOnly ? "A matching saved platform login is required." : "An authorized platform credential is required.", { code: "authentication_required" });
   const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
   if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
     throw new CliError("The platform identity does not match the selected target.", { code: "identity_mismatch" });
-  const headers = { "X-XRain-Application-Id": appId, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
+  const headers = { ...appId ? { "X-XRain-Application-Id": appId } : {}, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
   return {
     host: host3,
     profile,
@@ -5568,7 +5580,11 @@ async function memberTarget(ctx, option) {
 // src/xrain-cli/workforce.mjs
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
-  const { profile, host: host3, appId, identity, send: send2 } = await memberTarget(ctx, "workforce");
+  const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
+    ctx,
+    "workforce",
+    { applicationRequired: !operation.native, sessionOnly: !operation.native }
+  );
   if (operation.browser) {
     memberValue(await send2("GET", operation.route));
     const url = new URL("/#" + operation.browser, host3).href;
@@ -5597,59 +5613,75 @@ async function workforceCommands(ctx) {
     if (ctx.spec.path === "workforce session create" && Object.keys(body).some((key) => !["taskId", "agentId", "source", "requestId"].includes(key)))
       throw new CliError("Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.", { code: "invalid_arguments" });
   }
+  if (operation.audio) {
+    body = args.has("request-json") ? await readJsonInput(args.value("request-json"), "Speech request", { stdin: ctx.stdin }) : {};
+    if (!isObject(body)) throw new CliError("The speech request must be an object.", { code: "invalid_arguments" });
+    if (args.has("file")) {
+      if (Object.keys(body).some((key) => !["providerId", "language"].includes(key))) throw new CliError("With --file, speech JSON may select providerId and language.", { code: "invalid_arguments" });
+      const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
+      if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 1)
+        throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
+      body = { ...catalog.selection, ...body, audioBase64: readLimited(resolve9(args.required("file")), catalog.maxAudioBytes, "Audio").toString("base64") };
+    }
+  }
   const details = {
     workforce: host3,
     server: profile.server,
     tenantId: profile.tenant,
     userId: identity.userId,
-    applicationId: appId,
+    applicationId: operation.native ? body?.applicationId ?? args.value("application-id") : appId,
     operation: operation.path,
-    target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
+    target: operation.publication && isObject(body?.target) ? Object.fromEntries(["kind", "userId", "channelId"].filter((key) => typeof body.target[key] === "string").map((key) => [key, body.target[key]])) : Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
     ...Object.fromEntries(["requestId", "clientMessageId", "taskId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
   };
   const command2 = operation.path === "workforce session command";
   if (operation.download) {
-    const output2 = resolve9(args.required("out"));
-    if (existsSync4(output2)) throw new CliError("Output already exists.", { code: "output_exists" });
-    const response = await send2("GET", route, { limit: 25 * 1024 * 1024 });
-    if (!response.ok) memberValue(response);
-    let file, saved = false;
+    const controller = new AbortController(), interrupt = () => controller.abort();
+    process.once("SIGINT", interrupt);
     try {
-      file = openSync3(output2, "wx", 384);
-      writeFileSync6(file, response.bytes);
-      saved = true;
-    } catch (error) {
-      throw new CliError(error.code === "EEXIST" ? "Output already exists." : "Could not save the attachment.", { code: error.code === "EEXIST" ? "output_exists" : "output_write_failed" });
+      reporter.print(await saveFile(
+        { profile: { ...profile, server: host3 }, token, headers, source: "application-session", timeout: args.timeout(), signal: controller.signal },
+        "GET",
+        route,
+        args.required("out"),
+        void 0,
+        void 0,
+        { contentType: null, allowEmpty: true }
+      ));
+      return 0;
     } finally {
-      if (file !== void 0) {
-        closeSync3(file);
-        if (!saved) unlinkSync5(output2);
-      }
+      process.removeListener("SIGINT", interrupt);
     }
-    reporter.print({ output: output2, bytes: response.bytes.length });
-    return 0;
   }
   let upload;
   if (operation.upload) {
     const path = resolve9(args.required("file"));
-    upload = { body: readLimited(path, 25 * 1024 * 1024, "Attachment") };
-    upload.headers = { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(upload.body.length) };
+    const info = await stat3(path);
+    if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
+    const blob = await openAsBlob3(path);
+    if (blob.size !== info.size) throw new CliError("The attachment changed before upload.", { code: "invalid_input" });
+    upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
   }
   const call = async () => {
     const result2 = memberValue(await send2(operation.method, route, upload ?? { json: body }));
     if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
+    if (operation.feedback && result2?.saved !== true) throw new CliError("Workforce returned an invalid feedback receipt.", { code: "invalid_response" });
+    if (operation.audio && typeof result2?.text !== "string") throw new CliError("The speech service returned an invalid transcription.", { code: "invalid_response" });
+    if (operation.publication) {
+      const expectedId = body?.clientMessageId ?? args.value("request-id");
+      if (!isObject(result2) || !["accepted", "saved", "failed", ...operation.method === "GET" ? ["unknown"] : []].includes(result2.status) || result2.clientMessageId !== expectedId || typeof result2.channelId !== "string" || !result2.channelId || operation.method === "GET" && result2.channelId !== args.value("channel"))
+        throw new CliError("The application message receipt does not match the original request.", { code: "invalid_response" });
+    }
     return result2;
   };
-  const result = operation.method === "GET" ? await call() : await writeOnce(
-    call,
-    "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.",
-    details
-  );
+  const recovery2 = operation.publication ? "Application message outcome is unknown. Preserve the original application, target and clientMessageId. Look up the original request if its channelId is known; do not resend or replay a batch." : operation.path.startsWith("workforce speech ") ? "Speech outcome is unknown. Read the current speech catalog before another action; do not replay this write or a batch." : "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.";
+  const result = operation.method === "GET" ? await call() : await writeOnce(call, recovery2, details);
   if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", {
     code: "execution_failed",
     hint: "Inspect the original session and command result before another action. Do not replay the command or batch.",
     details: { ...details, result }
   });
+  if (operation.publication && result.status === "failed") throw new CliError("The application message was not saved.", { code: "execution_failed", details: { ...details, result } });
   reporter.print(result);
   return 0;
 }

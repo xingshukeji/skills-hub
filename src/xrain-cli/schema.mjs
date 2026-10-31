@@ -178,8 +178,10 @@ command('app operation cancel', [...app, 'operation'], [slot('operation')], 'Can
 command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument arrays in this process; stop at the first failure.');
 for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
-for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', 'application-id', 'auth', ...routeParameters(operation.route),
-  ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
+for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', ...(!operation.native ? ['application-id'] : []), ...(operation.native ? credentials : ['auth']), ...routeParameters(operation.route),
+  ...(operation.input || operation.audio ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  operation.native ? 'Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved.' :
+  operation.audio ? 'Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON.' :
   'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.');
 for (const operation of applicationUserOperations) command(operation.path, [...target, 'app-url', 'application-id', 'auth', ...routeParameters(operation.route),
   ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
@@ -234,8 +236,9 @@ export function validateCommand(args) {
     const operation = workforceOperations.find(row => row.path === spec.path);
     if (operation.upload) args.required('file');
     if (operation.download) args.required('out');
+    if (operation.audio && !args.has('file') && !args.has('request-json')) throw new CliError('--file or --request-json is required.', { code: 'invalid_arguments' });
     if (operation.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
-    if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
+    if (!operation.native && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
   }
   if (['file download', 'file preview-asset', 'data export-file'].includes(spec.path)) args.required('out');
   if (spec.path.startsWith('market ')) {
@@ -348,7 +351,7 @@ export function validateCommand(args) {
     if (spec.path === 'agent chat respond' && !['values', 'values-json', 'file'].some(name => args.has(name)))
       throw new CliError('A JSON response is required.', { code: 'invalid_arguments' });
   }
-  if (spec.options.includes('request-json')) exclusive(['request-json', 'file']);
+  if (spec.options.includes('request-json') && spec.path !== 'workforce speech transcribe') exclusive(['request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
     if (!['app operation wait', 'data import wait'].includes(spec.path) && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
       throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });
@@ -386,7 +389,8 @@ export function commandHelp(args) {
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
-  if (!exact || exact.options.includes('request-json')) lines.push('Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.');
+  if (exact?.path === 'workforce speech transcribe') lines.push('Speech: --file is the original PCM WAV, not a JSON alias. With --file, --request-json may select providerId/language; otherwise it supplies the complete native request.');
+  else if (!exact || exact.options.includes('request-json')) lines.push('Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.');
   if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
   if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
   if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');

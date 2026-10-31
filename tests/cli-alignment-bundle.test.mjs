@@ -30,6 +30,22 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
       assert.equal(hit.headers.authorization, 'Bearer original-session'); assert.equal(hit.headers['x-xrain-application-id'], 'APP');
       return respond(res, { tenantId: 'TEN', userId: 'human', applicationId: 'APP' });
     }
+    if (hit.url === '/api/cli/v1/workbench/sessions/original/feedback') {
+      assert.equal(hit.headers.authorization, 'Bearer original-session');
+      assert.equal(hit.json().messageId, '7'); return respond(res, { saved: true });
+    }
+    if (hit.url === '/api/cli/v1/workbench/speech') return respond(res, { selection: { providerId: 'native', language: 'auto' }, maxAudioBytes: 1000 });
+    if (hit.url === '/api/cli/v1/workbench/speech/transcribe') {
+      assert.deepEqual(hit.json(), { providerId: 'native', language: 'auto', audioBase64: Buffer.from('RIFF fixture').toString('base64') });
+      return respond(res, { text: '原语音文字' });
+    }
+    if (hit.url === '/api/application-messages') {
+      assert.equal(hit.headers.authorization, 'Bearer service-file-token'); assert.equal(hit.headers['x-xrain-application-id'], undefined);
+      assert.equal(hit.json().applicationId, 'publisher');
+      return respond(res, { status: 'accepted', channelId: 'announcement', clientMessageId: 'original-publish' });
+    }
+    if (hit.url === '/api/application-messages/publisher/channels/announcement/requests/original-publish')
+      return respond(res, { status: 'saved', channelId: 'announcement', clientMessageId: 'original-publish' });
     if (hit.url === '/api/cli/v1/mail/ais') {
       assert.equal(hit.headers.authorization, 'Bearer original-session');
       return respond(res, { items: [{ id: 'mail-ai', canUse: true }] });
@@ -52,6 +68,17 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   });
   const metadata = await run(['metadata', 'entity', 'show', 'customer']); assert.equal(metadata.code, 0, metadata.stdout); assert.equal(metadata.result.data.headers.etag, '"real-8"');
   const context = await run(['workforce', 'context', '--workforce', service.url]); assert.equal(context.code, 0, context.stdout); assert.equal(context.result.data.applicationId, 'APP');
+  const feedbackFile = join(f.directory, 'feedback.json'); writeFileSync(feedbackFile, JSON.stringify({ messageId: '7', rating: 'positive', category: null, note: '' }));
+  const feedback = await run(['workforce', 'session', 'feedback', 'set', 'original', '--workforce', service.url, '--request-json', feedbackFile]);
+  assert.equal(feedback.code, 0, feedback.stdout); assert.equal(feedback.result.data.saved, true);
+  const audioFile = join(f.directory, 'speech.wav'); writeFileSync(audioFile, 'RIFF fixture');
+  const speech = await run(['workforce', 'speech', 'transcribe', '--workforce', service.url, '--file', audioFile]);
+  assert.equal(speech.code, 0, speech.stdout); assert.equal(speech.result.data.text, '原语音文字');
+  const publicationFile = join(f.directory, 'publication.json'); writeFileSync(publicationFile, JSON.stringify({ applicationId: 'publisher', target: { kind: 'application' }, clientMessageId: 'original-publish', content: { type: 'text', text: '应用消息' } }));
+  const published = await run(['workforce', 'application-message', 'send', '--workforce', service.url, '--auth', 'auto', '--request-json', publicationFile]);
+  assert.equal(published.code, 0, published.stdout); assert.equal(published.result.data.status, 'accepted');
+  const receipt = await run(['workforce', 'application-message', 'lookup', 'publisher', 'announcement', 'original-publish', '--workforce', service.url, '--auth', 'auto']);
+  assert.equal(receipt.code, 0, receipt.stdout); assert.equal(receipt.result.data.status, 'saved');
   const mail = await run(['mail', 'ai', 'list', '--app-url', service.url]); assert.equal(mail.code, 0, mail.stdout); assert.equal(mail.result.data.items[0].id, 'mail-ai');
   const retail = await run(['retail', 'context', '--app-url', service.url]); assert.equal(retail.code, 0, retail.stdout); assert.equal(retail.result.data.objectType, 'native-customer');
   const tenants = await run(['auth', 'tenants']); assert.equal(tenants.code, 0, tenants.stdout); assert.equal(tenants.result.data[0].tenantId, 'TEN');

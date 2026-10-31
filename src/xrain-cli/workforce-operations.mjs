@@ -1,6 +1,8 @@
 const base = '/api/cli/v1';
 const define = (path, method, route, options = {}) => ({ path: 'workforce ' + path, method, route: base + route, ...options });
 export const workforceOperations = [
+  define('application-message send', 'POST', '/application-messages', { route: '/api/application-messages', input: 'object', native: true, publication: true }),
+  define('application-message lookup', 'GET', '/application-messages/{application-id}/channels/{channel}/requests/{request-id}', { route: '/api/application-messages/{application-id}/channels/{channel}/requests/{request-id}', native: true, publication: true }),
   define('context', 'GET', '/context'), define('people', 'GET', '/people'),
   define('employee profile', 'GET', '/employees/me/work-profile'), define('employee agents', 'GET', '/employees/{user-id}/agents'),
   define('channel list', 'GET', '/channels'),
@@ -51,6 +53,11 @@ export const workforceOperations = [
   define('session pending', 'GET', '/workbench/pending-actions'),
   define('session respond', 'POST', '/workbench/pending-actions/{action-ref}/responses', { input: 'object' }),
   define('session cancel-question', 'POST', '/workbench/pending-actions/{action-ref}/cancel', { input: 'object' }),
+  define('session feedback list', 'GET', '/workbench/sessions/{session-id}/feedback'),
+  define('session feedback set', 'POST', '/workbench/sessions/{session-id}/feedback', { input: 'object', feedback: true }),
+  define('speech catalog', 'GET', '/workbench/speech'),
+  ...['configure', 'prepare', 'cancel-preparation'].map(action => define('speech ' + action, 'POST', '/workbench/speech/' + action, { input: 'object' })),
+  define('speech transcribe', 'POST', '/workbench/speech/transcribe', { audio: true }),
   ...['list', 'options', 'bootstrap', 'agents', 'models'].map(action => define('schedule ' + action, 'GET', '/task-schedules' + (action === 'list' ? '' : '/' + action))),
   define('schedule create', 'POST', '/task-schedules', { input: 'object' }), define('schedule update', 'PUT', '/task-schedules/{schedule-id}', { input: 'object' }),
   ...['enable', 'pause'].map(action => define('schedule ' + action, 'POST', `/task-schedules/{schedule-id}/${action}`)),

@@ -62,10 +62,10 @@ async function send(client, method, path, { json, body, deadline, accept = 'appl
   const remaining = deadline === undefined ? Infinity : deadline - performance.now();
   if (remaining <= 0) throw abortError(client, new Error(), deadline);
   const timeout = Math.max(1, Math.ceil(Math.min(client.timeout, remaining)));
-  const headers = new Headers({ Accept: accept, 'Accept-Encoding': 'identity' });
+  const headers = new Headers({ ...client.headers, Accept: accept, 'Accept-Encoding': 'identity' });
   if (client.token) headers.set('Authorization', `Bearer ${client.token}`);
   if (client.application) headers.set('X-XRain-Import-Application', client.application);
-  const request = { method, headers, signal: AbortSignal.any([client.signal, AbortSignal.timeout(timeout)]) };
+  const request = { method, headers, redirect: 'error', signal: AbortSignal.any([client.signal, AbortSignal.timeout(timeout)]) };
   if (json !== undefined) { headers.set('Content-Type', 'application/json'); request.body = JSON.stringify(json); }
   else if (body !== undefined) request.body = body;
   try { return await fetch(new URL(path, client.profile.server), request); }
@@ -231,7 +231,7 @@ async function checkDestination(path) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
-export async function saveFile(client, method, path, outputPath, limit, json, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
+export async function saveFile(client, method, path, outputPath, limit = Infinity, json, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
   const output = resolve(outputPath);
   await checkDestination(output);
   const response = await send(client, method, path, { json, accept: contentType ?? '*/*' });
@@ -271,6 +271,7 @@ export async function saveFile(client, method, path, outputPath, limit, json, { 
     if (error.code && !['ECONNRESET', 'EPIPE', 'UND_ERR_SOCKET'].includes(error.code)) throw error;
     throw new CliError('The download did not complete; the existing destination was preserved.', { code: 'download_incomplete' });
   } finally {
+    await response.body?.cancel().catch(() => {});
     if (file) await file.close().catch(() => {});
     if (created) await unlink(temporary).catch(() => {});
   }

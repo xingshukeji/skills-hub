@@ -44,7 +44,7 @@ export async function fileCommands(ctx) {
     if (action === 'show') { reporter.print(metadata); return 0; }
     const assetId = args.value('asset-id');
     const value = await saveFile(client, 'GET', assetId ? `${path}/preview/assets/${segment(assetId)}/content` : path + '/content', args.required('out'),
-      assetId ? maxBytes : metadata.length, undefined,
+      undefined, undefined,
       { contentType: assetId ? null : metadata.contentType, expectedBytes: assetId ? undefined : metadata.length, allowEmpty: true });
     reporter.print({ fileId, ...(assetId ? { assetId } : {}), ...value }); return 0;
   } finally { process.removeListener('SIGINT', interrupt); }
