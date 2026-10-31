@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, renameSync, unlinkSync, chmodSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, renameSync, unlinkSync, chmodSync, existsSync, lstatSync, linkSync, openSync, closeSync, fsyncSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -28,6 +28,44 @@ export function dpapi(data, entropy, operation) {
   if (result.error || result.status !== 0 || !/^[A-Za-z0-9+/=]+$/.test(result.stdout.trim()))
     throw new CliError('Windows session protection is unavailable. Check Windows PowerShell and your current user account.', { code: 'session_protection_unavailable' });
   return Buffer.from(result.stdout.trim(), 'base64');
+}
+
+const credentialFormat = 'xrain-api-token-v1';
+export function requireNewCredentialPath(path) {
+  try { lstatSync(path); throw new CliError('Output already exists. Choose a new credential file.', { code: 'output_exists' }); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
+export function saveCredentialFile(path, token, profile, metadata = {}) {
+  requireNewCredentialPath(path);
+  const data = { server: profile.server, tenant: profile.tenant ?? null, scope: profile.scope ?? 'tenant', token, ...metadata };
+  const windows = process.platform === 'win32';
+  const envelope = { format: credentialFormat, protection: windows ? 'dpapi-current-user' : 'file-mode-0600',
+    data: windows ? dpapi(Buffer.from(JSON.stringify(data)), credentialFormat, 'protect').toString('base64') : data };
+  const temporary = `${path}.${randomBytes(12).toString('hex')}.tmp`;
+  let created = false, handle;
+  try {
+    handle = openSync(temporary, 'wx', 0o600); created = true;
+    writeFileSync(handle, JSON.stringify(envelope) + '\n'); fsyncSync(handle); closeSync(handle); handle = undefined;
+    linkSync(temporary, path);
+  } finally { if (handle !== undefined) closeSync(handle); if (created) unlinkSync(temporary); }
+}
+export function readCredentialFile(path, profile) {
+  const info = lstatSync(path);
+  if (!info.isFile() || process.platform !== 'win32' && (info.mode & 0o077) !== 0)
+    throw new CliError('Credential file must be a private regular file.', { code: 'credential_file_invalid' });
+  const envelope = parseJson(readLimited(path, 1024 * 1024, 'Credential file'), 'Credential file');
+  const windows = process.platform === 'win32';
+  if (!isObject(envelope) || envelope.format !== credentialFormat || envelope.protection !== (windows ? 'dpapi-current-user' : 'file-mode-0600'))
+    throw new CliError('Credential file has an unsupported format or protection.', { code: 'credential_file_invalid' });
+  let data;
+  try { data = windows ? parseJson(dpapi(Buffer.from(envelope.data, 'base64'), credentialFormat, 'unprotect'), 'Credential file') : envelope.data; }
+  catch { throw new CliError('Credential file cannot be decrypted by this user.', { code: 'credential_file_invalid' }); }
+  if (!isObject(data) || !nonempty(data.token) || data.server !== profile.server ||
+      data.scope !== (profile.scope ?? 'tenant') || !equalIgnoreCase(data.tenant, profile.tenant))
+    throw new CliError('Credential file does not match this server, tenant and scope.', { code: 'credential_target_mismatch' });
+  if (data.expiresAtUtc !== undefined && (!Number.isFinite(Date.parse(data.expiresAtUtc)) || Date.parse(data.expiresAtUtc) <= Date.now()))
+    throw new CliError('Credential file has expired or has an invalid expiry.', { code: 'credential_expired' });
+  return data.token;
 }
 
 export class Store {
@@ -151,7 +189,15 @@ export class Store {
   credential(args, profile, { createSecrets = true } = {}) {
     if (args.value('auth') === 'session') return { token: this.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' };
     if (nonempty(args.value('bearer'))) return { token: this.reporter?.secret(args.value('bearer')) ?? args.value('bearer'), source: 'option:bearer' };
+    if (nonempty(args.value('token-file'))) {
+      const token = readCredentialFile(args.value('token-file'), profile); this.reporter?.secret(token);
+      return { token, source: 'option:token-file' };
+    }
     if (nonempty(this.env.XRAIN_TOKEN)) return { token: this.reporter?.secret(this.env.XRAIN_TOKEN) ?? this.env.XRAIN_TOKEN, source: 'environment:XRAIN_TOKEN' };
+    if (nonempty(this.env.XRAIN_TOKEN_FILE)) {
+      const token = readCredentialFile(this.env.XRAIN_TOKEN_FILE, profile); this.reporter?.secret(token);
+      return { token, source: 'environment:XRAIN_TOKEN_FILE' };
+    }
     if (nonempty(profile.bearerToken)) return { token: profile.bearerToken, source: 'profile:bearer' };
     if (nonempty(profile.tokenName)) {
       const key = new Map([['admin', 'adminApiToken'], ['guest', 'guestApiToken']]).get(profile.tokenName.trim().toLowerCase());

@@ -8,11 +8,13 @@ import { batchCommands } from './batch.mjs';
 import { agentCommands } from './agents.mjs';
 import { commandHelp, validateCommand } from './schema.mjs';
 import { hostSettingsCommands, userSettingsCommands } from './settings.mjs';
+import { managementCommand } from './management.mjs';
 
 export const HELP = commandHelp(new Args([]));
 
 async function dispatch(ctx) {
   const { args } = ctx;
+  if (await managementCommand(ctx)) return 0;
   switch (args.command(0)) {
     case 'login': return profileCommands(ctx, 'set');
     case 'logout': return profileCommands(ctx, 'remove');

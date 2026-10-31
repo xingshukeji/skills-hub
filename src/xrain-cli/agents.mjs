@@ -3,11 +3,12 @@ import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CliError, isObject, jsonInput, nonempty, readJsonInput, segment } from './core.mjs';
 import { definitionFileChanges, exportDefinition, readDefinitionFile } from './definition-file.mjs';
-import { apiValue, request, responseError } from './http.mjs';
+import { apiValue, request, responseError, writeOnce } from './http.mjs';
 import { chatCommands } from './agent-chat.mjs';
 import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
 
 export { identifier } from './agent-target.mjs';
+export { writeOnce } from './http.mjs';
 
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
@@ -73,17 +74,6 @@ export async function runtimeValue(ctx, method, path, json, extraHeaders = {}, {
   if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
   if (!response.bytes.length) return null;
   try { return response.json(); } catch { throw new CliError('Runtime returned invalid JSON.', { code: 'invalid_response' }); }
-}
-export async function writeOnce(action, hint, details) {
-  try { return await action(); }
-  catch (error) {
-    if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
-      error.code = 'outcome_unknown';
-      error.hint = hint;
-      error.details = { ...error.details, ...details };
-    }
-    throw error;
-  }
 }
 const missingCapability = error => error.httpStatus === 404 && error.serverCode !== 'AGENT_DEFINITION_NOT_FOUND';
 const definitionRead = (ctx, path) => runtimeValue(ctx, 'GET', path, undefined, {}, { limit: Infinity });

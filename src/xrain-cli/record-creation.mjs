@@ -26,7 +26,9 @@ export async function createRecord(ctx, entity, path, input) {
     body.requestKey = ctx.args.value('request-key');
   }
   if (body.requestKey == null) {
-    ctx.reporter.print(await apiValue(ctx, 'POST', path, body));
+    ctx.reporter.print(await apiValue(ctx, 'POST', path, body, { mutation: { entityCode: entity,
+      readback: ['data', 'query', entity],
+      hint: 'Creation outcome is unknown. Inspect records using the same entity, profile and identity before another create. A matching current record does not prove this request succeeded; do not automatically replay it.' } }));
     return 0;
   }
   const key = creationKey(body.requestKey);

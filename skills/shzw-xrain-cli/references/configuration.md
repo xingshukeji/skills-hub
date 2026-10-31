@@ -23,12 +23,15 @@ xrain-cli auth whoami --profile <连接> --auth session --agent --json
 同一平台、作用域和租户重新登录会保留智能体配置；改变任一项时，未重新指定的 Runtime 和应用关联会清除。命令可用 `--runtime`、`--application-id` 单次覆盖；`--personal` 单次选择个人上下文，`profile set --personal` 清除已保存的默认应用。单次切换平台、作用域或租户时，不复用原 profile 的 Runtime 和应用，需显式指定相应入口或选择另一个 profile。
 
 普通 API 默认 --auth auto 顺序：
-1. --bearer / XRAIN_TOKEN。
-2. profile bearer。
-3. --token-name / XRAIN_TOKEN_NAME / profile tokenName。
-4. 目标、作用域和租户匹配且距过期至少一分钟的已保存会话。
+1. 显式 --bearer 或 --token-file；两者互斥。
+2. XRAIN_TOKEN，再检查 XRAIN_TOKEN_FILE。
+3. profile bearer。
+4. --token-name / XRAIN_TOKEN_NAME / profile tokenName。
+5. 目标、作用域和租户匹配且距过期至少一分钟的已保存会话。
 
-应用包管理命令使用 --auth session，忽略前三项，不与显式 bearer/token-name 混用；缺有效会话直接失败。其他命令也可用 --auth session 明确选择保存的会话。API Token 仅用于目标开放的数据接口，不能代替真实用户管理会话。`--tenant` 不发送切租户 header，身份由服务端验证的 token 绑定。
+应用包管理命令使用 --auth session，忽略其他凭据，不与显式 bearer/token-name/token-file 混用；缺有效会话直接失败。其他命令也可用 --auth session 明确选择保存的会话。API Token 仅用于目标开放的数据接口，不能代替真实用户管理会话。`--tenant` 不发送切租户 header，身份由服务端验证的 token 绑定。
+
+服务端 Token 的签发和读取使用[管理命令](management.md)，保存到明确的新凭据文件。Windows 文件由当前用户 DPAPI 保护，其他系统采用 0600 权限。--token-file 只接受 CLI 的原生凭据格式，核对原服务器、租户、作用域及已知过期时间；不把普通文本文件当 Token，不将文件路径保存为另一套全局凭据目录。
 
 通用 metadata/data/security 命令也可显式使用外部正常原生登录返回的短期 Bearer，优先通过本终端 `XRAIN_TOKEN` 提供；它是登录凭据，不是 API Token，不会自动保存为 CLI 会话。采用此路径时不指定 `--auth session`。Host 成员命令按 Host 登录合同验证资格，`--tenant-id` 只标识维护目标；应用包命令使用相应的已保存会话。
 

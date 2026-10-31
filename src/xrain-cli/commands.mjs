@@ -1,6 +1,7 @@
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, jsonInput, origin, segment } from './core.mjs';
 import { api, apiValue } from './http.mjs';
 import { dataImportCommands } from './data-import.mjs';
+import { dataOperations } from './data-operations.mjs';
 import { createRecord, creationResult } from './record-creation.mjs';
 import { identifier, samePlatformTarget } from './agent-target.mjs';
 
@@ -49,7 +50,9 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
     let tokenSource = 'none';
     if (args.value('auth') === 'session') tokenSource = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) ? 'application-session' : 'none';
     else if (args.has('bearer')) tokenSource = 'option:bearer';
+    else if (args.has('token-file')) tokenSource = 'option:token-file';
     else if (store.env.XRAIN_TOKEN) tokenSource = 'environment:XRAIN_TOKEN';
+    else if (store.env.XRAIN_TOKEN_FILE) tokenSource = 'environment:XRAIN_TOKEN_FILE';
     else if (profile.bearerToken) tokenSource = 'profile:bearer';
     else if (profile.tokenName) tokenSource = `local-secret-store:${profile.tokenName}`;
     else if (store.loadSession(profile.name, profile.server, profile.tenant, profile.scope)) tokenSource = 'application-session';
@@ -83,6 +86,7 @@ export async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === 'import') return dataImportCommands(ctx);
+  if (await dataOperations(ctx)) return 0;
   if (!['query', 'get', 'create', 'creation-result', 'update', 'delete'].includes(action)) throw new CliError('Use data query, get, create, creation-result, update or delete.');
   const entity = args.required('entity', args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;
@@ -107,11 +111,13 @@ export async function dataCommands(ctx) {
   }
   const id = action === 'create' ? undefined : args.required('id', args.operand(args.has('entity') ? 2 : 3));
   const path = id === undefined ? root : root + '/' + segment(id);
-  if (action === 'get' || action === 'delete') return api(ctx, action === 'get' ? 'GET' : 'DELETE', path);
+  const recovery = { mutation: { entityCode: entity, ...(id !== undefined ? { recordId: id } : {}),
+    readback: ['data', 'get', entity, id] } };
+  if (action === 'get' || action === 'delete') return api(ctx, action === 'get' ? 'GET' : 'DELETE', path, undefined, action === 'delete' ? recovery : undefined);
   const values = await jsonInput(args, 'values');
   if (!isObject(values)) throw new CliError('Values JSON must be an object. Use --values or --values-json.');
   const body = Object.hasOwn(values, 'values') ? values : { values };
-  return action === 'create' ? createRecord(ctx, entity, path, body) : api(ctx, 'PUT', path, body);
+  return action === 'create' ? createRecord(ctx, entity, path, body) : api(ctx, 'PUT', path, body, recovery);
 }
 
 export async function securityCommands(ctx) {
@@ -149,7 +155,9 @@ export async function securityCommands(ctx) {
     }
     if (!values) throw new CliError(`${label} creation requires values JSON.`, { code: action === 'ensure' ? 'creation_input_required' : 'invalid_arguments',
       hint: 'Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments.' });
-    const value = await apiValue(ctx, 'POST', `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name });
+    const value = await apiValue(ctx, 'POST', `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
+      mutation: { resource, name, readback: ['security', singular, 'show', name] },
+    });
     const result = isUser ? tenantMemberOutput(value) : value;
     reporter.print(action === 'ensure' ? { created: true, [resultName]: result } : result);
     return 0;
@@ -169,8 +177,9 @@ export async function securityCommands(ctx) {
   if (!names.length) throw new CliError('At least one name is required.');
   const suffix = { role: 'roles', 'permission-set': 'permission-sets', permission: 'permissions' }[match[2]];
   const method = match[1] === 'grant' ? 'POST' : 'DELETE';
-  if (singular !== 'user') return api(ctx, method, path + '/' + suffix, { names });
-  reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + '/' + suffix, { names })));
+  const recovery = { mutation: { resource, name, membership: suffix, names, readback: ['security', singular, 'show', name] } };
+  if (singular !== 'user') return api(ctx, method, path + '/' + suffix, { names }, recovery);
+  reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + '/' + suffix, { names }, recovery)));
   return 0;
 }
 
@@ -201,7 +210,8 @@ export async function hostCommands(ctx) {
     if (page * value.pageSize >= value.totalCount) break;
     if (!value.items.length) throw new CliError('Incomplete tenant member page; no member was created.', { code: 'invalid_response' });
   }
-  const member = await apiValue(ctx, 'POST', root, { userId, isAdministrator: false }, options);
+  const member = await apiValue(ctx, 'POST', root, { userId, isAdministrator: false }, { ...options,
+    mutation: { targetTenantId: tenantId, userId, readback: ['host', 'tenant', 'member', 'list', tenantId] } });
   reporter.print({ created: true, member });
   return 0;
 }

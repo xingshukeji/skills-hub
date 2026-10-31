@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { CliError, isObject, jsonInput, nonempty, readLimited, segment } from './core.mjs';
 import { responseError } from './http.mjs';
+import { sessionControl } from './runtime-controls.mjs';
 
 const sessions = '/v1/dsh/sessions';
 const pendingPath = '/v1/dsh/pending-actions';
@@ -330,20 +331,21 @@ export async function chatCommands(ctx, helpers) {
     const id = args.has('session-id') ? helpers.identifier(args.value('session-id'), 'Session ID') : undefined;
     reporter.print({ items: id ? result.items.filter(item => item?.sessionId === id) : result.items }); return 0;
   }
-  if (action === 'respond') {
+  if (action === 'respond' || action === 'cancel-question') {
     const ref = helpers.identifier(args.required('action-ref'), 'Action reference');
-    const input = await jsonInput(args, 'values');
-    if (!isObject(input) || Object.keys(input).some(key => !['outcome', 'answers'].includes(key)) || !Object.keys(input).length)
+    const input = action === 'respond' ? await jsonInput(args, 'values') : {};
+    if (!isObject(input) || Object.keys(input).some(key => !['outcome', 'answers'].includes(key)) || action === 'respond' && !Object.keys(input).length)
       throw new CliError('Response JSON must contain an explicit outcome or answers.', { code: 'invalid_arguments' });
     const responseId = helpers.identifier(args.value('request-id') ?? randomUUID(), 'Response ID');
     reporter.progress(`Response ID: ${responseId}`);
     const result = await helpers.writeOnce(async () => {
-      const accepted = await helpers.runtimeValue(ctx, 'POST', `${pendingPath}/${segment(ref)}/responses`, { ...input, responseId }, headers);
+      const accepted = await helpers.runtimeValue(ctx, 'POST', `${pendingPath}/${segment(ref)}/${action === 'respond' ? 'responses' : 'cancel'}`, { ...input, responseId }, headers);
       if (!isObject(accepted) || accepted.accepted !== true) throw new CliError('Runtime returned an invalid response receipt.', { code: 'invalid_response' });
       return accepted;
     }, 'Response outcome is unknown. Inspect this pending action before retrying.', { actionRef: ref, responseId, ...context });
     reporter.print({ actionRef: ref, responseId, ...result, ...context }); return 0;
   }
+  if (await sessionControl(ctx, helpers, connection)) return 0;
   let sessionId = args.value('session-id');
   if (action === 'history') {
     sessionId = helpers.identifier(sessionId, 'Session ID');

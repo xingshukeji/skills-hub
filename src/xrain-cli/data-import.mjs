@@ -16,6 +16,21 @@ const defaultOptions = { uniqueField: 'Id', filePurpose: 'sourceImport', blankPo
 const invalid = message => new CliError(message, { code: 'invalid_arguments' });
 const invalidResponse = message => new CliError(message, { code: 'invalid_response' });
 
+export async function exportRecordsFile(ctx) {
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.on('SIGINT', interrupt);
+  try {
+    const client = makeClient(ctx, controller.signal);
+    const body = await readJsonInput(ctx.args.required('request-json', ctx.args.value('file')), 'Export request');
+    if (!isObject(body) || !isObject(body.query)) throw invalid('Export request requires a query object.');
+    const capabilities = await jsonRequest(client, 'GET', `${client.root}/exports/capabilities`);
+    if (!Number.isSafeInteger(capabilities?.maximumFileBytes) || capabilities.maximumFileBytes < 1)
+      throw invalidResponse('This server does not advertise a supported export file limit.');
+    const value = await saveFile(client, 'POST', `${client.root}/records:exportFile`, ctx.args.required('out'), capabilities.maximumFileBytes, body);
+    ctx.reporter.print({ entityCode: client.entity, ...value });
+  } finally { process.removeListener('SIGINT', interrupt); }
+}
+
 function requireId(value, label) {
   if (!idPattern.test(value ?? '')) throw invalid(`${label} must be 32 hexadecimal characters.`);
   return value.toLowerCase();

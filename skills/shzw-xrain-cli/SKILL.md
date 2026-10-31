@@ -24,6 +24,8 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 连接、401、回调：[配置与认证](references/configuration.md)。
 - 平台账号准备：[账号与登录](references/login.md)。
 - 数据、权限、应用包、批量：[命令参考](references/commands.md)。
+- 记录集合、共享、历史、Owner 与 XLSX 导出：[记录操作](references/records.md)。
+- 成员、组织、角色、Token、租户内应用与 Host：[管理命令](references/management.md)。
 - 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
 - 平台定义上限、个人偏好和设置职责：[设置管理](references/settings.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。

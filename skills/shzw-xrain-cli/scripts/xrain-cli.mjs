@@ -22,6 +22,13 @@ function segment(value) {
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
+valued.add("line");
+valued.add("field");
+valued.add("share-id");
+valued.add("tree-id");
+valued.add("node-id");
+valued.add("if-match");
+valued.add("token-file");
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -145,7 +152,15 @@ async function jsonInput(args, name, allowFile = true, options = {}) {
     throw new CliError(`JSON input exceeds the ${options.limit} byte limit.`, { code: "input_too_large" });
   return inline === void 0 ? void 0 : parseJson(inline, "JSON input");
 }
-var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|adminApiToken|guestApiToken|client[_-]?secret|password)$/i;
+var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|client[_-]?secret|password|secret(?:Access)?Key|privateKey|connectionString)$/i;
+function registerSecrets(reporter, value) {
+  if (Array.isArray(value)) {
+    for (const item of value) registerSecrets(reporter, item);
+  } else if (isObject(value)) for (const [key, item] of Object.entries(value)) {
+    if (sensitiveKey.test(key) && typeof item === "string") reporter.secret(item);
+    else registerSecrets(reporter, item);
+  }
+}
 var Reporter = class {
   constructor(stdout = process.stdout, stderr = process.stderr) {
     this.stdout = stdout;
@@ -210,7 +225,7 @@ var Reporter = class {
 };
 
 // src/xrain-cli/store.mjs
-import { mkdirSync, writeFileSync, renameSync, unlinkSync, chmodSync, existsSync } from "node:fs";
+import { mkdirSync, writeFileSync, renameSync, unlinkSync, chmodSync, existsSync, lstatSync, linkSync, openSync, closeSync, fsyncSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { randomBytes as randomBytes2 } from "node:crypto";
@@ -222,10 +237,10 @@ function identifier(value, label) {
     throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
   return value;
 }
-function samePlatformTarget(saved, server, tenant, scope = "tenant") {
+function samePlatformTarget(saved, server, tenant2, scope = "tenant") {
   if (!nonempty(saved?.server)) return false;
   try {
-    return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant) && (saved.scope ?? "tenant") === scope;
+    return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant2) && (saved.scope ?? "tenant") === scope;
   } catch {
     return false;
   }
@@ -276,6 +291,59 @@ function dpapi(data, entropy, operation) {
   if (result.error || result.status !== 0 || !/^[A-Za-z0-9+/=]+$/.test(result.stdout.trim()))
     throw new CliError("Windows session protection is unavailable. Check Windows PowerShell and your current user account.", { code: "session_protection_unavailable" });
   return Buffer.from(result.stdout.trim(), "base64");
+}
+var credentialFormat = "xrain-api-token-v1";
+function requireNewCredentialPath(path) {
+  try {
+    lstatSync(path);
+    throw new CliError("Output already exists. Choose a new credential file.", { code: "output_exists" });
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
+function saveCredentialFile(path, token, profile, metadata = {}) {
+  requireNewCredentialPath(path);
+  const data = { server: profile.server, tenant: profile.tenant ?? null, scope: profile.scope ?? "tenant", token, ...metadata };
+  const windows = process.platform === "win32";
+  const envelope = {
+    format: credentialFormat,
+    protection: windows ? "dpapi-current-user" : "file-mode-0600",
+    data: windows ? dpapi(Buffer.from(JSON.stringify(data)), credentialFormat, "protect").toString("base64") : data
+  };
+  const temporary = `${path}.${randomBytes2(12).toString("hex")}.tmp`;
+  let created = false, handle;
+  try {
+    handle = openSync(temporary, "wx", 384);
+    created = true;
+    writeFileSync(handle, JSON.stringify(envelope) + "\n");
+    fsyncSync(handle);
+    closeSync(handle);
+    handle = void 0;
+    linkSync(temporary, path);
+  } finally {
+    if (handle !== void 0) closeSync(handle);
+    if (created) unlinkSync(temporary);
+  }
+}
+function readCredentialFile(path, profile) {
+  const info = lstatSync(path);
+  if (!info.isFile() || process.platform !== "win32" && (info.mode & 63) !== 0)
+    throw new CliError("Credential file must be a private regular file.", { code: "credential_file_invalid" });
+  const envelope = parseJson(readLimited(path, 1024 * 1024, "Credential file"), "Credential file");
+  const windows = process.platform === "win32";
+  if (!isObject(envelope) || envelope.format !== credentialFormat || envelope.protection !== (windows ? "dpapi-current-user" : "file-mode-0600"))
+    throw new CliError("Credential file has an unsupported format or protection.", { code: "credential_file_invalid" });
+  let data;
+  try {
+    data = windows ? parseJson(dpapi(Buffer.from(envelope.data, "base64"), credentialFormat, "unprotect"), "Credential file") : envelope.data;
+  } catch {
+    throw new CliError("Credential file cannot be decrypted by this user.", { code: "credential_file_invalid" });
+  }
+  if (!isObject(data) || !nonempty(data.token) || data.server !== profile.server || data.scope !== (profile.scope ?? "tenant") || !equalIgnoreCase(data.tenant, profile.tenant))
+    throw new CliError("Credential file does not match this server, tenant and scope.", { code: "credential_target_mismatch" });
+  if (data.expiresAtUtc !== void 0 && (!Number.isFinite(Date.parse(data.expiresAtUtc)) || Date.parse(data.expiresAtUtc) <= Date.now()))
+    throw new CliError("Credential file has expired or has an invalid expiry.", { code: "credential_expired" });
+  return data.token;
 }
 var Store = class {
   constructor(env = process.env, reporter) {
@@ -416,7 +484,17 @@ var Store = class {
   credential(args, profile, { createSecrets = true } = {}) {
     if (args.value("auth") === "session") return { token: this.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" };
     if (nonempty(args.value("bearer"))) return { token: this.reporter?.secret(args.value("bearer")) ?? args.value("bearer"), source: "option:bearer" };
+    if (nonempty(args.value("token-file"))) {
+      const token2 = readCredentialFile(args.value("token-file"), profile);
+      this.reporter?.secret(token2);
+      return { token: token2, source: "option:token-file" };
+    }
     if (nonempty(this.env.XRAIN_TOKEN)) return { token: this.reporter?.secret(this.env.XRAIN_TOKEN) ?? this.env.XRAIN_TOKEN, source: "environment:XRAIN_TOKEN" };
+    if (nonempty(this.env.XRAIN_TOKEN_FILE)) {
+      const token2 = readCredentialFile(this.env.XRAIN_TOKEN_FILE, profile);
+      this.reporter?.secret(token2);
+      return { token: token2, source: "environment:XRAIN_TOKEN_FILE" };
+    }
     if (nonempty(profile.bearerToken)) return { token: profile.bearerToken, source: "profile:bearer" };
     if (nonempty(profile.tokenName)) {
       const key = (/* @__PURE__ */ new Map([["admin", "adminApiToken"], ["guest", "guestApiToken"]])).get(profile.tokenName.trim().toLowerCase());
@@ -520,19 +598,49 @@ function requireSuccess(response, hint2 = "") {
   if (response.ok) return response;
   throw responseError(response, hint2);
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile } = {}) {
+async function writeOnce(action, hint2, details) {
+  try {
+    return await action();
+  } catch (error) {
+    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+      error.code = "outcome_unknown";
+      error.hint = hint2;
+      error.details = { ...error.details, ...details };
+    }
+    throw error;
+  }
+}
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = ctx.store.credential(ctx.args, profile);
   if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
-  const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
-  let result;
+  const perform = async () => {
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
+    if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
+    if (!response.bytes.length) return null;
+    try {
+      return response.json();
+    } catch {
+      if (mutation) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
+      return response.text();
+    }
+  };
+  if (!mutation) return perform();
+  const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation;
+  const details = {
+    operation: ctx.spec?.path,
+    profile: profile.name,
+    server: profile.server,
+    tenant: profile.tenant ?? null,
+    credentialSource: source,
+    ...recovery2
+  };
   try {
-    result = response.json();
-  } catch {
-    result = response.text();
+    return await writeOnce(perform, hint2, details);
+  } catch (error) {
+    if (error instanceof CliError) error.details = { ...error.details, ...details };
+    throw error;
   }
-  if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
-  return response.bytes.length ? result : null;
 }
 async function api(ctx, method, path, json, options) {
   ctx.reporter.print(await apiValue(ctx, method, path, json, options));
@@ -554,6 +662,22 @@ var statuses = /* @__PURE__ */ new Set(["checking", "invalid", "ready", "queued"
 var defaultOptions = { uniqueField: "Id", filePurpose: "sourceImport", blankPolicy: "preserve" };
 var invalid = (message2) => new CliError(message2, { code: "invalid_arguments" });
 var invalidResponse = (message2) => new CliError(message2, { code: "invalid_response" });
+async function exportRecordsFile(ctx) {
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.on("SIGINT", interrupt);
+  try {
+    const client2 = makeClient(ctx, controller.signal);
+    const body = await readJsonInput(ctx.args.required("request-json", ctx.args.value("file")), "Export request");
+    if (!isObject(body) || !isObject(body.query)) throw invalid("Export request requires a query object.");
+    const capabilities2 = await jsonRequest(client2, "GET", `${client2.root}/exports/capabilities`);
+    if (!Number.isSafeInteger(capabilities2?.maximumFileBytes) || capabilities2.maximumFileBytes < 1)
+      throw invalidResponse("This server does not advertise a supported export file limit.");
+    const value = await saveFile(client2, "POST", `${client2.root}/records:exportFile`, ctx.args.required("out"), capabilities2.maximumFileBytes, body);
+    ctx.reporter.print({ entityCode: client2.entity, ...value });
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+  }
+}
 function requireId(value, label) {
   if (!idPattern.test(value ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
   return value.toLowerCase();
@@ -826,12 +950,12 @@ async function dataImportCommands(ctx) {
     if (action === "check") {
       requestId = requireId(args.value("request-id") ?? randomBytes3(16).toString("hex"), "--request-id");
       reporter.progress(`Request ID: ${requestId}. ${hint(client2.entity, void 0, requestId)}`);
-      const options = await importOptions(args), input2 = resolve2(args.required("file"));
-      if (extname(input2).toLowerCase() !== ".xlsx") throw invalid("--file must be an XLSX file.");
+      const options = await importOptions(args), input3 = resolve2(args.required("file"));
+      if (extname(input3).toLowerCase() !== ".xlsx") throw invalid("--file must be an XLSX file.");
       const jobs = await capabilities(client2, options, true, deadline);
-      const info = await stat(input2);
+      const info = await stat(input3);
       if (!info.isFile() || info.size < 1 || info.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX is empty, not a regular file, or exceeds the server file limit.");
-      const blob = await openAsBlob(input2, { type: mime });
+      const blob = await openAsBlob(input3, { type: mime });
       if (blob.size !== info.size || blob.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX changed or exceeds the server file limit.");
       const form = new FormData();
       form.set("file", blob, "import.xlsx");
@@ -913,6 +1037,96 @@ async function dataImportCommands(ctx) {
   }
 }
 
+// src/xrain-cli/data-operations.mjs
+var queryActions = { export: "export", count: "count", distinct: "distinct", single: "single", "single-or-default": "singleOrDefault", first: "first", "first-or-default": "firstOrDefault" };
+var batchActions = { "batch-create": ["batchCreate", "records"], "batch-update": ["batchUpdate", "records"], "batch-delete": ["batchDelete", "recordIds"] };
+async function input(args) {
+  const value = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON");
+  if (!isObject(value)) throw new CliError("Request JSON must be an object.", { code: "invalid_arguments" });
+  return value;
+}
+function page(args, search = false) {
+  const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 25)) });
+  if (search && args.has("search")) query2.set("search", args.value("search"));
+  return "?" + query2;
+}
+async function dataOperations(ctx) {
+  const { args, reporter } = ctx, action = args.command(1);
+  if (action === "capabilities") {
+    await api(ctx, "GET", "/api/data/v1/query-capabilities");
+    return true;
+  }
+  if (action === "query-batch") {
+    const body = await input(args);
+    if (!Array.isArray(body.queries) || !body.queries.length || body.queries.some((item) => !isObject(item) || typeof item.entityCode !== "string" || !isObject(item.query)))
+      throw new CliError("queries must contain entityCode and query objects.", { code: "invalid_arguments" });
+    await api(ctx, "POST", "/api/data/v1/records:queryBatch", body);
+    return true;
+  }
+  if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) && !["field-options", "original-values", "history", "owner-transfer", "share", "export-file", "export-capabilities"].includes(action)) return false;
+  const entityCode = args.required("entity"), root = `/api/data/v1/entities/${segment(entityCode)}`, records = `${root}/records`;
+  if (action === "export-file") {
+    await exportRecordsFile(ctx);
+    return true;
+  }
+  if (action === "export-capabilities") {
+    await api(ctx, "GET", `${root}/exports/capabilities`);
+    return true;
+  }
+  if (Object.hasOwn(queryActions, action)) {
+    await api(ctx, "POST", `${records}:${queryActions[action]}`, await input(args));
+    return true;
+  }
+  if (Object.hasOwn(batchActions, action)) {
+    const [suffix, key] = batchActions[action], body = await input(args);
+    if (!Array.isArray(body[key]) || !body[key].length || body.allOrNone !== void 0 && typeof body.allOrNone !== "boolean")
+      throw new CliError(`Supply a nonempty ${key} array and optional boolean allOrNone.`, { code: "invalid_arguments" });
+    const recordIds = key === "recordIds" ? body.recordIds : action === "batch-update" ? body.records.map((item) => item?.recordId) : void 0;
+    if (recordIds?.some((id) => typeof id !== "string" || !id)) throw new CliError("Each record ID must be a nonempty string.", { code: "invalid_arguments" });
+    const value = await apiValue(ctx, "POST", `${records}:${suffix}`, body, { mutation: {
+      entityCode,
+      recordCount: body[key].length,
+      ...recordIds ? { recordIds } : {},
+      readback: ["data", "query", entityCode]
+    } });
+    if (isObject(value) && Array.isArray(value.results) && value.results.some((item) => item?.success === false))
+      throw new CliError("One or more collection items failed. Inspect each result before another write.", { code: "collection_failed", details: { entityCode, result: value } });
+    reporter.print(value);
+    return true;
+  }
+  if (action === "field-options") {
+    await api(ctx, "GET", `${root}/fields/${segment(args.required("field"))}/options${page(args, true)}`);
+    return true;
+  }
+  const recordId = args.required("id"), record = `${records}/${segment(recordId)}`;
+  const recovery2 = { mutation: { entityCode, recordId, readback: ["data", "get", entityCode, recordId] } };
+  if (action === "history") {
+    await api(ctx, "GET", `${record}/history${page(args)}`);
+    return true;
+  }
+  if (action === "original-values") {
+    const fields = args.required("fields").split(",").map((field) => field.trim()).filter(Boolean);
+    if (!fields.length) throw new CliError("--fields must name at least one field.", { code: "invalid_arguments" });
+    await api(ctx, "POST", `${record}/original-values`, { fields });
+    return true;
+  }
+  if (action === "owner-transfer") {
+    await api(ctx, "POST", `${record}:transferOwner`, await input(args), recovery2);
+    return true;
+  }
+  const sub = args.command(2), shares = `${record}/shares`;
+  if (sub === "list" || sub === "recipients") await api(ctx, "GET", shares + (sub === "list" ? page(args) : `/recipients${page(args, true)}`));
+  else if (sub === "capability") await api(ctx, "GET", shares + "/capability");
+  else if (sub === "eligibility") await api(ctx, "GET", shares + "/eligibility?" + new URLSearchParams({ userId: args.required("user-id") }));
+  else {
+    const path = sub === "grant" ? shares : `${shares}/${segment(args.required("share-id"))}`;
+    await api(ctx, sub === "grant" ? "POST" : sub === "update" ? "PATCH" : "DELETE", path, sub === "revoke" ? void 0 : await input(args), {
+      mutation: { entityCode, recordId, ...args.has("share-id") ? { shareId: args.value("share-id") } : {}, readback: ["data", "share", "list", entityCode, recordId] }
+    });
+  }
+  return true;
+}
+
 // src/xrain-cli/record-creation.mjs
 function creationKey(value) {
   if (!nonempty(value) || value.length > 160)
@@ -933,14 +1147,18 @@ function contextualError2(error, entity, key, write = false) {
     details: { ...error.details, entityCode: entity, requestKey: key }
   });
 }
-async function createRecord(ctx, entity, path, input2) {
-  const body = { ...input2 };
+async function createRecord(ctx, entity, path, input3) {
+  const body = { ...input3 };
   if (ctx.args.has("request-key")) {
     if (Object.hasOwn(body, "requestKey")) throw new CliError("Supply requestKey in JSON or --request-key, not both.", { code: "invalid_arguments" });
     body.requestKey = ctx.args.value("request-key");
   }
   if (body.requestKey == null) {
-    ctx.reporter.print(await apiValue(ctx, "POST", path, body));
+    ctx.reporter.print(await apiValue(ctx, "POST", path, body, { mutation: {
+      entityCode: entity,
+      readback: ["data", "query", entity],
+      hint: "Creation outcome is unknown. Inspect records using the same entity, profile and identity before another create. A matching current record does not prove this request succeeded; do not automatically replay it."
+    } }));
     return 0;
   }
   const key = creationKey(body.requestKey);
@@ -1022,7 +1240,9 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
     let tokenSource = "none";
     if (args.value("auth") === "session") tokenSource = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) ? "application-session" : "none";
     else if (args.has("bearer")) tokenSource = "option:bearer";
+    else if (args.has("token-file")) tokenSource = "option:token-file";
     else if (store.env.XRAIN_TOKEN) tokenSource = "environment:XRAIN_TOKEN";
+    else if (store.env.XRAIN_TOKEN_FILE) tokenSource = "environment:XRAIN_TOKEN_FILE";
     else if (profile.bearerToken) tokenSource = "profile:bearer";
     else if (profile.tokenName) tokenSource = `local-secret-store:${profile.tokenName}`;
     else if (store.loadSession(profile.name, profile.server, profile.tenant, profile.scope)) tokenSource = "application-session";
@@ -1066,6 +1286,7 @@ async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === "import") return dataImportCommands(ctx);
+  if (await dataOperations(ctx)) return 0;
   if (!["query", "get", "create", "creation-result", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, creation-result, update or delete.");
   const entity = args.required("entity", args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;
@@ -1090,11 +1311,16 @@ async function dataCommands(ctx) {
   }
   const id = action === "create" ? void 0 : args.required("id", args.operand(args.has("entity") ? 2 : 3));
   const path = id === void 0 ? root : root + "/" + segment(id);
-  if (action === "get" || action === "delete") return api(ctx, action === "get" ? "GET" : "DELETE", path);
+  const recovery2 = { mutation: {
+    entityCode: entity,
+    ...id !== void 0 ? { recordId: id } : {},
+    readback: ["data", "get", entity, id]
+  } };
+  if (action === "get" || action === "delete") return api(ctx, action === "get" ? "GET" : "DELETE", path, void 0, action === "delete" ? recovery2 : void 0);
   const values = await jsonInput(args, "values");
   if (!isObject(values)) throw new CliError("Values JSON must be an object. Use --values or --values-json.");
   const body = Object.hasOwn(values, "values") ? values : { values };
-  return action === "create" ? createRecord(ctx, entity, path, body) : api(ctx, "PUT", path, body);
+  return action === "create" ? createRecord(ctx, entity, path, body) : api(ctx, "PUT", path, body, recovery2);
 }
 async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
@@ -1138,7 +1364,9 @@ async function securityCommands(ctx) {
       code: action === "ensure" ? "creation_input_required" : "invalid_arguments",
       hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments."
     });
-    const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name });
+    const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
+      mutation: { resource, name, readback: ["security", singular, "show", name] }
+    });
     const result = isUser ? tenantMemberOutput(value) : value;
     reporter.print(action === "ensure" ? { created: true, [resultName]: result } : result);
     return 0;
@@ -1161,8 +1389,9 @@ async function securityCommands(ctx) {
   if (!names.length) throw new CliError("At least one name is required.");
   const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match[2]];
   const method = match[1] === "grant" ? "POST" : "DELETE";
-  if (singular !== "user") return api(ctx, method, path + "/" + suffix, { names });
-  reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + "/" + suffix, { names })));
+  const recovery2 = { mutation: { resource, name, membership: suffix, names, readback: ["security", singular, "show", name] } };
+  if (singular !== "user") return api(ctx, method, path + "/" + suffix, { names }, recovery2);
+  reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + "/" + suffix, { names }, recovery2)));
   return 0;
 }
 function tenantMemberOutput(value) {
@@ -1181,8 +1410,8 @@ async function hostCommands(ctx) {
     return api(ctx, "GET", `${root}?${query2}`, void 0, options);
   }
   const userId = args.required("user-id");
-  for (let page = 1; ; page++) {
-    const query2 = new URLSearchParams({ search: userId, page: String(page), pageSize: "100" });
+  for (let page3 = 1; ; page3++) {
+    const query2 = new URLSearchParams({ search: userId, page: String(page3), pageSize: "100" });
     const value = await apiValue(ctx, "GET", `${root}?${query2}`, void 0, options);
     if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
       throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
@@ -1191,10 +1420,13 @@ async function hostCommands(ctx) {
       reporter.print({ created: false, member: member2 });
       return 0;
     }
-    if (page * value.pageSize >= value.totalCount) break;
+    if (page3 * value.pageSize >= value.totalCount) break;
     if (!value.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
   }
-  const member = await apiValue(ctx, "POST", root, { userId, isAdministrator: false }, options);
+  const member = await apiValue(ctx, "POST", root, { userId, isAdministrator: false }, {
+    ...options,
+    mutation: { targetTenantId: tenantId, userId, readback: ["host", "tenant", "member", "list", tenantId] }
+  });
   reporter.print({ created: true, member });
   return 0;
 }
@@ -1327,23 +1559,23 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
 
 // node_modules/jose/dist/webapi/util/base64url.js
 var invalid2 = "The input to be decoded is not correctly encoded.";
-function decode(input2) {
+function decode(input3) {
   try {
-    return decodeBase64(typeof input2 == "string" ? input2 : decoder.decode(input2), true);
+    return decodeBase64(typeof input3 == "string" ? input3 : decoder.decode(input3), true);
   } catch (cause) {
     throw new TypeError(invalid2, { cause });
   }
 }
 
 // node_modules/jose/dist/webapi/lib/validate.js
-function isObject2(input2) {
-  if (typeof input2 != "object" || input2 === null || Object.prototype.toString.call(input2) !== "[object Object]")
+function isObject2(input3) {
+  if (typeof input3 != "object" || input3 === null || Object.prototype.toString.call(input3) !== "[object Object]")
     return false;
-  const prototype = Object.getPrototypeOf(input2);
+  const prototype = Object.getPrototypeOf(input3);
   return prototype === null || Object.getPrototypeOf(prototype) === null;
 }
-function isJwkSet(input2) {
-  return isObject2(input2) && Array.isArray(input2.keys) && Array.from(input2.keys).every(isObject2);
+function isJwkSet(input3) {
+  return isObject2(input3) && Array.isArray(input3.keys) && Array.from(input3.keys).every(isObject2);
 }
 function isDisjoint(...headers) {
   const parameters = /* @__PURE__ */ new Set();
@@ -1392,7 +1624,7 @@ function validateCrit(Err, recognizedDefault, recognizedOption, protectedHeader,
     throw new Err('"crit" (Critical) Header Parameter MUST be integrity protected');
   if (!protectedHeader || protectedHeader.crit === void 0)
     return [];
-  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input2) => typeof input2 != "string" || input2.length === 0))
+  if (!Array.isArray(protectedHeader.crit) || protectedHeader.crit.length === 0 || protectedHeader.crit.some((input3) => typeof input3 != "string" || input3.length === 0))
     throw new Err('"crit" (Critical) Header Parameter MUST be an array of non-empty strings when present');
   const recognized = recognizedOption === void 0 ? recognizedDefault : { __proto__: null, ...recognizedOption, ...recognizedDefault };
   for (const parameter of protectedHeader.crit) {
@@ -1698,10 +1930,10 @@ function secs(str) {
   const value = parseFloat(matched[2]), numericDate2 = Math.round(value * multipliers[matched[3][0].toLowerCase()]);
   return Number.isFinite(numericDate2) || invalidDuration(), matched[1] === "-" || matched[4] === "ago" ? -numericDate2 : numericDate2;
 }
-function validateInput(label, input2) {
-  if (!Number.isFinite(input2))
+function validateInput(label, input3) {
+  if (!Number.isFinite(input3))
     throw new TypeError(`Invalid ${label} input`);
-  return input2;
+  return input3;
 }
 var normalizeTyp = (value) => {
   const normalized = value.toLowerCase();
@@ -1982,8 +2214,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve5, reject) => {
-    accept = resolve5;
+  const callback = new Promise((resolve6, reject) => {
+    accept = resolve6;
     fail = reject;
   });
   callback.catch(() => {
@@ -2012,9 +2244,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve5, reject) => {
+  await new Promise((resolve6, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve5);
+    server.listen(Number(expected.port), expected.hostname, resolve6);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2037,13 +2269,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve5) => {
+  return new Promise((resolve6) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve5(false));
+    child.on("error", () => resolve6(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve5(code === 0));
+    child.on("exit", (code) => resolve6(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -2252,7 +2484,7 @@ function output(ctx, value) {
   ctx.reporter.print(value);
   return 0;
 }
-async function input(args, action) {
+async function input2(args, action) {
   const path = args.value("request-json") ?? args.value("file");
   const value = path === void 0 ? {} : await readJsonInput(path, "Application request");
   if (!isObject(value)) throw invalid3("Application request must be a JSON object.");
@@ -2412,7 +2644,7 @@ async function appManagementCommands(ctx, createClient) {
   }
   if (action === "preview" || action === "install") {
     const packageId = args.required("package");
-    const body = await input(args, action), api3 = createClient();
+    const body = await input2(args, action), api3 = createClient();
     const path = `${api3.root}/packages/${segment(packageId)}/${action}`;
     if (action === "preview") {
       const result = requireSuccess(await api3.send("POST", path, { json: body })).json();
@@ -2431,7 +2663,7 @@ async function appManagementCommands(ctx, createClient) {
   }
   if (action === "operation") {
     const id = args.required("operation"), operationAction = args.command(2);
-    const body = requestFields[operationAction] ? await input(args, operationAction) : void 0;
+    const body = requestFields[operationAction] ? await input2(args, operationAction) : void 0;
     if (operationAction === "retry") {
       body.requestId ??= randomId("apo");
       if (body.requestId === id) throw invalid3("Retry requires a new requestId, different from the failed operation ID.");
@@ -2743,12 +2975,212 @@ async function doctor(ctx) {
   return 0;
 }
 
+// src/xrain-cli/security-operations.mjs
+var base = "/api/service/authen/v1/security";
+var define = (path, method, route, options = {}) => ({ path: "security " + path, method, route: base + route, ...options });
+var page2 = ["page", "pageSize", "search"];
+var securityOperations = [
+  define("directory", "GET", "/directory"),
+  define("directory-visibility get", "GET", "/directory-visibility"),
+  define("directory-visibility set", "PUT", "/directory-visibility", { input: "object" }),
+  define("user list", "GET", "/users", { query: [...page2, "status", "sortField", "sortDirection", "excludeApplicationRobots"], members: true }),
+  define("user update", "PUT", "/users/{user}", { input: "object", members: true }),
+  define("user org-memberships", "GET", "/users/{user}/org-memberships"),
+  ...["activate", "deactivate"].map((action) => define("user " + action, "POST", `/users/{user}/${action}`, { members: true })),
+  define("user membership-validity", "PUT", "/users/{user}/membership-validity", { input: "object", members: true }),
+  define("user delete", "DELETE", "/users/{user}"),
+  define("role list", "GET", "/directory", { select: "roles" }),
+  define("role create", "POST", "/roles", { input: "object" }),
+  define("role update", "PUT", "/roles/{role}", { input: "object" }),
+  define("role deactivate", "POST", "/roles/{role}/deactivate"),
+  define("role delete", "DELETE", "/roles/{role}"),
+  define("role object-permissions", "GET", "/roles/{role}/object-permissions"),
+  define("role object-permission", "GET", "/roles/{role}/object-permissions/{entity}"),
+  define("role api-permissions", "GET", "/roles/{role}/api-permissions"),
+  ...[["grant-api", "POST"], ["revoke-api", "DELETE"]].map(([action, method]) => define("role " + action, method, "/roles/{role}/api-permissions", { input: "object" })),
+  define("role sharing-rules", "GET", "/roles/{id}/sharing-rules", { description: "Read sharing rules by role ID, rather than role name." }),
+  ...[["grant-sharing-rule", "POST"], ["revoke-sharing-rule", "DELETE"]].map(([action, method]) => define("role " + action, method, "/roles/{id}/sharing-rules", { input: "array" })),
+  define("permission-set list", "GET", "/permission-sets"),
+  define("permission-set update", "PUT", "/permission-sets/{permission-set}", { input: "object" }),
+  ...["activate", "deactivate"].map((action) => define("permission-set " + action, "POST", `/permission-sets/{permission-set}/${action}`)),
+  define("permission-set delete", "DELETE", "/permission-sets/{permission-set}"),
+  define("permission-set clone", "POST", "/permission-sets/{permission-set}/clone", { input: "object" }),
+  define("permission list", "GET", "/permissions"),
+  define("permission create", "POST", "/permissions", { input: "object" }),
+  define("permission show", "GET", "/permissions/{permission}"),
+  define("permission update", "PUT", "/permissions/{permission}", { input: "object" }),
+  define("permission delete", "DELETE", "/permissions/{permission}"),
+  define("org-tree list", "GET", "/org-trees"),
+  define("org-tree deleted", "GET", "/org-trees/deleted"),
+  define("org-tree create", "POST", "/org-trees", { input: "object" }),
+  define("org-tree show", "GET", "/org-trees/{tree-id}"),
+  define("org-tree update", "PUT", "/org-trees/{tree-id}", { input: "object" }),
+  define("org-tree delete", "DELETE", "/org-trees/{tree-id}"),
+  define("org-tree restore", "POST", "/org-trees/{tree-id}/restore"),
+  define("org-node create", "POST", "/org-trees/{tree-id}/nodes", { input: "object" }),
+  define("org-node update", "PUT", "/org-trees/{tree-id}/nodes/{node-id}", { input: "object" }),
+  define("org-node delete", "DELETE", "/org-trees/{tree-id}/nodes/{node-id}"),
+  ...[["add-members", "POST"], ["remove-members", "DELETE"]].map(([action, method]) => define("org-node " + action, method, "/org-trees/{tree-id}/nodes/{node-id}/members", { input: "array" })),
+  define("api-token list", "GET", "/api-tokens", { query: [...page2, "status", "subjectUserId"] }),
+  define("api-token subjects", "GET", "/api-token-subjects", { query: page2 }),
+  define("api-token create", "POST", "/api-tokens", { input: "object", credentialOutput: true, readback: ["security", "api-token", "list"] }),
+  define("api-token reveal", "POST", "/api-tokens/{id}/reveal", { credentialOutput: true, readOnly: true }),
+  define("api-token revoke", "POST", "/api-tokens/{id}/revoke"),
+  define("api-catalog", "GET", "/tenant-api-catalog", { query: ["catalog", "format"] }),
+  define("api-registry", "GET", "/api-registry", { host: true }),
+  define("api-debug", "POST", "/api-debug", { input: "object" }),
+  define("audit", "GET", "/audit-events", { query: ["from", "to", "resourceType", "pageSize", "cursor", "actorId", "agentId", "resourceId", "action", "outcome"], requiredQuery: ["from", "to", "resourceType"] })
+];
+
+// src/xrain-cli/application-operations.mjs
+var applications = "/api/xrain/v1/applications";
+var app = applications + "/{application-id}";
+var define2 = (path, method, route, options = {}) => ({ path: "application " + path, method, route, readback: ["application", "list"], ...options });
+var applicationOperations = [
+  define2("list", "GET", applications),
+  define2("capabilities", "GET", applications + "/capabilities"),
+  define2("show", "GET", app),
+  define2("create", "POST", applications, { input: "object" }),
+  define2("update", "PATCH", app, { input: "object" }),
+  define2("grant-baseline get", "GET", applications + "/grant-baseline"),
+  define2("grant-baseline set", "PUT", applications + "/grant-baseline", { input: "object" }),
+  define2("grant-baseline impact", "POST", applications + "/grant-baseline/impact", { input: "object", readOnly: true }),
+  ...[["publication", "publication-scope"], ["resources", "resources"], ["administrators", "administrators"], ["grant-ceiling", "grant-ceiling"]].flatMap(([name, suffix]) => [
+    define2(`${name} get`, "GET", `${app}/${suffix}`),
+    define2(`${name} set`, "PUT", `${app}/${suffix}`, { input: "object" })
+  ]),
+  define2("resource-catalog", "GET", app + "/resource-catalog"),
+  define2("grant-directory", "GET", app + "/grant-directory"),
+  define2("authorization-impact", "POST", app + "/authorization-impact", { input: "object", readOnly: true }),
+  ...[["role", "roles"], ["permission-set", "permission-sets"]].flatMap(([name, suffix]) => [
+    define2(`${name} list`, "GET", `${app}/${suffix}`),
+    define2(`${name} create`, "POST", `${app}/${suffix}`, { input: "object" }),
+    define2(`${name} update`, "PATCH", `${app}/${suffix}/{id}`, { input: "object" }),
+    define2(`${name} delete`, "DELETE", `${app}/${suffix}/{id}`, { input: "object" })
+  ]),
+  define2("role users", "PUT", app + "/roles/{id}/users", { input: "object" }),
+  define2("role permission-sets", "PUT", app + "/roles/{id}/permission-sets", { input: "object" }),
+  define2("permission-set items", "PUT", app + "/permission-sets/{id}/items", { input: "object" }),
+  define2("execution-authorization get", "GET", app + "/execution-authorization"),
+  define2("execution-authorization grant", "PUT", app + "/execution-authorization/grants", { input: "object" }),
+  define2("message-robot set", "PUT", app + "/message-robot", { input: "object" }),
+  define2("message-authorization", "POST", app + "/message-authorization", { input: "object" }),
+  define2("admission", "POST", app + "/admission", { input: "object", readOnly: true }),
+  define2("directory members", "GET", app + "/directory/members"),
+  define2("directory departments", "GET", app + "/directory/departments")
+];
+var tenants = "/api/service/authen/v1/host/tenants";
+var tenant = tenants + "/{tenant-id}";
+var host = (path, method, route, options = {}) => ({ path: "host " + path, method, route, host: true, readback: ["host", "tenant", "list"], ...options });
+var hostOperations = [
+  host("tenant list", "GET", tenants, { query: ["page", "pageSize", "search", "isActive"] }),
+  host("tenant create", "POST", tenants, { input: "object", headers: { "Idempotency-Key": "request-key" } }),
+  host("tenant show", "GET", tenant),
+  host("tenant update", "PATCH", tenant, { input: "object", headers: { "If-Match": "if-match" } }),
+  ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
+  host("tenant connection set", "PUT", tenant + "/connections/{name}", { input: "object" }),
+  host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true }),
+  host("tenant member create", "POST", tenant + "/members", { input: "object" }),
+  host("tenant member update", "PUT", tenant + "/members/{user-id}", { input: "object" }),
+  host("tenant member delete", "DELETE", tenant + "/members/{user-id}"),
+  host("user ai get", "GET", "/api/service/authen/v1/host/users/{user-id}/ai"),
+  host("user ai set", "PUT", "/api/service/authen/v1/host/users/{user-id}/ai", { input: "object" })
+];
+
+// src/xrain-cli/management.mjs
+import { resolve as resolve4 } from "node:path";
+var managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations];
+var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
+var operationOptions = (operation) => [
+  ...routeParameters(operation.route),
+  ...operation.credentialOutput ? ["out"] : [],
+  ...Object.values(operation.headers ?? {}),
+  ...operation.input ? ["request-json", "file"] : [],
+  ...operation.query ? ["query-json", ...[...pageOptions].filter(([, key]) => operation.query.includes(key)).map(([key]) => key)] : []
+];
+function memberOutput(value) {
+  if (Array.isArray(value)) return value.map(memberOutput);
+  if (!isObject(value)) return value;
+  const { accountIsActive: _account, ...item } = value;
+  if (Array.isArray(item.items)) item.items = item.items.map(memberOutput);
+  return item;
+}
+async function managementCommand(ctx) {
+  const operation = managementOperations.find((item) => item.path === ctx.spec.path);
+  if (!operation) return false;
+  const { args, reporter } = ctx;
+  const profile = ctx.store.resolve(args, !operation.host);
+  const credentialOutput = operation.credentialOutput ? resolve4(args.required("out")) : void 0;
+  if (credentialOutput) requireNewCredentialPath(credentialOutput);
+  const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
+    const value2 = args.required(option);
+    if (!/^[\x20-\x7e]{1,1024}$/.test(value2)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
+    return [header, value2];
+  }));
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name)));
+  if (operation.query) {
+    const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
+    if (args.has("query-json") && individual.length) throw new CliError("Use a complete --query-json file or individual query options.", { code: "invalid_arguments" });
+    const query2 = args.has("query-json") ? await readJsonInput(args.value("query-json"), "Query parameters", { stdin: ctx.stdin }) : Object.fromEntries(individual.map(([option, key]) => [key, option === "page" || option === "page-size" ? args.integer(option) : args.value(option)]));
+    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value2) => value2 !== null && !["string", "number", "boolean"].includes(typeof value2)))
+      throw new CliError("Query JSON must use supported parameter names and scalar values.", { code: "invalid_arguments" });
+    for (const key of operation.requiredQuery ?? []) if (query2[key] === void 0 || query2[key] === null || query2[key] === "")
+      throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: "invalid_arguments" });
+    const search = new URLSearchParams(Object.entries(query2).filter(([, value2]) => value2 !== null).map(([key, value2]) => [key, String(value2)]));
+    if (search.size) route += "?" + search;
+  }
+  let body;
+  if (operation.input) {
+    body = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON", { stdin: ctx.stdin });
+    if (operation.input === "object" ? !isObject(body) : !Array.isArray(body))
+      throw new CliError(`Request JSON must be an ${operation.input}.`, { code: "invalid_arguments" });
+    registerSecrets(reporter, body);
+  }
+  const write = operation.method !== "GET" && !operation.readOnly;
+  const selectors = isObject(body) ? Object.fromEntries(["requestId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
+  let value = await apiValue(ctx, operation.method, route, body, {
+    requireTenant: !operation.host,
+    resolvedProfile: profile,
+    headers,
+    ...write ? { mutation: {
+      resource: operation.route,
+      target: Object.fromEntries(routeParameters(operation.route).map((name) => [name, args.value(name)])),
+      ...selectors,
+      readback: operation.readback ?? ["security", "directory"]
+    } } : {}
+  });
+  if (operation.select) {
+    if (!isObject(value) || !Object.hasOwn(value, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
+    value = value[operation.select];
+  }
+  if (credentialOutput) {
+    const token = value?.api_token ?? value?.apiToken;
+    if (typeof token !== "string" || !token) throw new CliError("The server returned an invalid credential receipt.", {
+      code: write ? "outcome_unknown" : "invalid_response",
+      hint: "Inspect the existing server token list before issuing another token.",
+      details: { operation: operation.path }
+    });
+    reporter.secret(token);
+    const metadata = Object.fromEntries(["subjectUserId", "expiresAtUtc", "expires_at_utc"].filter((key) => value[key] !== void 0).map((key) => [key === "expires_at_utc" ? "expiresAtUtc" : key, value[key]]));
+    try {
+      saveCredentialFile(credentialOutput, token, profile, metadata);
+    } catch {
+      throw new CliError("The credential was returned by the server but could not be saved. Inspect the original token list; do not issue another automatically.", { code: "credential_save_failed", details: { operation: operation.path, ...metadata } });
+    }
+    reporter.print({ output: credentialOutput, ...metadata, protection: process.platform === "win32" ? "dpapi-current-user" : "file-mode-0600" });
+    return true;
+  }
+  reporter.print(operation.members ? memberOutput(value) : value);
+  return true;
+}
+
 // src/xrain-cli/schema.mjs
 var common = ["help", "json"];
 var target = ["server", "tenant", "scope", "profile", "timeout"];
-var credentials = ["bearer", "token-name", "auth"];
+var credentials = ["bearer", "token-name", "token-file", "auth"];
 var api2 = [...target, ...credentials];
-var app = [...target, "auth"];
+var app2 = [...target, "auth"];
 var slot = (name, aliases = []) => ({ name, aliases });
 var specs = [];
 function command(path, options = [], operands = [], description = "") {
@@ -2781,6 +3213,11 @@ command("agent chat list", [...runtime, "all"], [], "List your CLI conversations
 command("agent chat history", [...runtime, "session-id", "through-seq", "before-seq", "page-size"], [slot("session-id")], "Read visible history; page backwards at a fixed --through-seq using --before-seq.");
 command("agent chat pending", [...runtime, "session-id"], [], "List your pending questions or approvals, optionally filtered by session.");
 command("agent chat respond", [...runtime, "action-ref", "application-id", "personal", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
+command("agent chat cancel", [...runtime, "session-id"], [slot("session-id")], "Explicitly stop the original session run. Earlier external effects and history remain.");
+command("agent chat cancel-question", [...runtime, "action-ref", "request-id"], [slot("action-ref")], "Cancel one pending question. Approval decisions still require an explicit response.");
+for (const action of ["subagents", "commands", "models"]) command(`agent chat ${action}`, [...runtime, "session-id"], [slot("session-id")], `Read the original authorized session ${action} catalog.`);
+command("agent chat command", [...runtime, "session-id", "line"], [slot("session-id")], "Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.");
+command("agent chat model", [...runtime, "session-id", "values", "values-json", "file"], [slot("session-id")], "Select provider, model and optional reasoningEffort for the original session.");
 command("agent qualifications", [...api2, "application-id", "personal"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
 command("agent use", [...api2, "agent-id", "application-id", "personal"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
 for (const action of ["subscribe", "unsubscribe"]) command(
@@ -2819,6 +3256,33 @@ command("data delete", [...api2, "entity", "id"], [slot("entity"), slot("id")], 
 command("data create", [...api2, "entity", "request-key", "values", "values-json", "file"], [slot("entity")], "Create one record; optional requestKey enables recovery on a server that supports keyed creation. No automatic retry.");
 command("data creation-result", [...api2, "entity", "request-key"], [slot("entity")], "Read the original creation by --request-key without creating or retrying a record. Inspect status: unknown or completed.");
 command("data update", [...api2, "entity", "id", "values", "values-json", "file"], [slot("entity"), slot("id")], "Update one record; a full values envelope can include expectedValues.");
+var requestInput = ["request-json", "file"];
+var recordTarget = [...api2, "entity", "id"];
+var paging = ["page", "page-size"];
+command("data capabilities", api2, [], "Read server query capabilities.");
+command("data query-batch", [...api2, ...requestInput], [], "Query multiple objects through the native queryBatch endpoint using a queries JSON request.");
+for (const action of ["export", "count", "distinct", "single", "single-or-default", "first", "first-or-default"])
+  command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
+for (const action of ["batch-create", "batch-update", "batch-delete"]) command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], "Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.");
+command("data field-options", [...api2, "entity", "field", ...paging, "search"], [slot("entity"), slot("field")], "Read authorized field options.");
+command("data original-values", [...recordTarget, "fields"], [slot("entity"), slot("id")], "Read original values for explicit comma-separated fields.");
+command("data history", [...recordTarget, ...paging], [slot("entity"), slot("id")], "Read visible record history.");
+command("data owner-transfer", [...recordTarget, ...requestInput], [slot("entity"), slot("id")], "Transfer the original record to ownerId through the native owner operation.");
+for (const action of ["list", "recipients", "capability", "eligibility", "grant", "update", "revoke"]) command(
+  `data share ${action}`,
+  [
+    ...recordTarget,
+    ...["list", "recipients"].includes(action) ? paging : [],
+    ...action === "recipients" ? ["search"] : [],
+    ...action === "eligibility" ? ["user-id"] : [],
+    ...["update", "revoke"].includes(action) ? ["share-id"] : [],
+    ...["grant", "update"].includes(action) ? requestInput : []
+  ],
+  [slot("entity"), slot("id"), ...["update", "revoke"].includes(action) ? [slot("share-id")] : []],
+  "Read or change one record share through its native permission checks."
+);
+command("data export-capabilities", [...api2, "entity"], [slot("entity")], "Read server file export limits.");
+command("data export-file", [...api2, "entity", "application", ...requestInput, "out"], [slot("entity")], "Export authorized records as XLSX using a complete query/options request; --out must be a new file.");
 var importTarget = [...api2, "entity", "application"];
 var importJob = [...importTarget, "job"];
 var importWait = ["wait", "wait-timeout", "poll-interval"];
@@ -2859,35 +3323,41 @@ for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["
     command(`security ${kind} ${action}-${member}`, [...api2, kind, "name", names, "names"], [slot(kind, ["name"])], `Change ${member} relationships; the server enforces authorization.`);
   }
 }
-var host = ["server", "scope", "profile", "timeout", ...credentials];
-command("host settings get", [...host, "setting"], [slot("setting")], "Read agent-definition-limit from the Host settings API, showing bytes and MiB.");
-command("host settings set", [...host, "setting", "mib", "bytes", "expected-bytes"], [slot("setting")], "Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.");
+var host2 = ["server", "scope", "profile", "timeout", ...credentials];
+command("host settings get", [...host2, "setting"], [slot("setting")], "Read agent-definition-limit from the Host settings API, showing bytes and MiB.");
+command("host settings set", [...host2, "setting", "mib", "bytes", "expected-bytes"], [slot("setting")], "Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.");
 command("user settings get", [...api2, "setting"], [slot("setting")], "Read your Workforce send-shortcut or unread-badge preference.");
 command("user settings set", [...api2, "setting", "value"], [slot("setting")], "Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).");
-command("host tenant member list", [...host, "tenant-id", "page", "page-size", "search"], [slot("tenant-id")], "List one named tenant membership directory using an authorized Host login.");
-command("host tenant member ensure", [...host, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
+command("host tenant member list", [...host2, "tenant-id", "page", "page-size", "search"], [slot("tenant-id")], "List one named tenant membership directory using an authorized Host login.");
+command("host tenant member ensure", [...host2, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
 command("app login", [...target, "exchange", "device", "no-browser"], [], "Compatibility alias for auth login.");
 command("app logout", ["server", "tenant", "profile", "exchange"], [], "Compatibility alias for auth logout.");
 command("app init", ["namespace", "label", "dir"], [], "Create source.json without overwriting a file.");
-command("app check", [...app, "source"], [], "Build and validate remotely without saving; use build alone when an artifact is needed.");
-command("app build", [...app, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
-command("app publish", [...app, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
-command("app status", [...app, "exchange", "package"], [], "Read published applications and version history. JSON mode always returns an array.");
-command("app list", [...app, "exchange"], [], "List visible platform packages, or browse the independent market with --exchange.");
-command("app versions", [...app, "exchange", "package"], [slot("package")], "List versions of an exact package ID; availability for installation is decided by the platform.");
-command("app import", [...app, "package", "version-id"], [slot("package")], "Import an exact version from the platform-configured market; does not install or publish. --version-id is required.");
+command("app check", [...app2, "source"], [], "Build and validate remotely without saving; use build alone when an artifact is needed.");
+command("app build", [...app2, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
+command("app publish", [...app2, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
+command("app status", [...app2, "exchange", "package"], [], "Read published applications and version history. JSON mode always returns an array.");
+command("app list", [...app2, "exchange"], [], "List visible platform packages, or browse the independent market with --exchange.");
+command("app versions", [...app2, "exchange", "package"], [slot("package")], "List versions of an exact package ID; availability for installation is decided by the platform.");
+command("app import", [...app2, "package", "version-id"], [slot("package")], "Import an exact version from the platform-configured market; does not install or publish. --version-id is required.");
 var installInput = ["package", "version-id", "expected-revision", "maintain-installed-version", "request-json", "file"];
 var wait = ["wait", "wait-timeout", "poll-interval"];
-command("app preview", [...app, ...installInput], [slot("package")], "Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.");
-command("app install", [...app, ...installInput, "request-id", ...wait], [slot("package")], "Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.");
-command("app installation show", [...app, "installation"], [slot("installation")], "Read the installed version, revision and active/latest operation IDs.");
-command("app operation show", [...app, "operation"], [slot("operation")], "Read the original operation, including required inputs; successful inspection does not mean installation succeeded.");
-command("app operation wait", [...app, "operation", "wait-timeout", "poll-interval"], [slot("operation")], "Poll the original operation until success, required input, failure, cancellation or timeout. Never writes.");
-command("app operation resolve", [...app, "operation", "request-json", "file", "expected-revision", ...wait], [slot("operation")], "Submit chosen bindings, configuration and impact confirmations to the original waiting operation. Current expectedRevision is required.");
-command("app operation retry", [...app, "operation", "request-json", "file", "expected-revision", "request-id", ...wait], [slot("operation")], "Retry a failed operation with a new request ID; the platform checks its original revision.");
-command("app operation continue", [...app, "operation", ...wait], [slot("operation")], "Explicitly resume an interrupted executing operation; --wait then tracks the same operation.");
-command("app operation cancel", [...app, "operation"], [slot("operation")], "Cancel a pending or waiting operation when the platform permits it.");
+command("app preview", [...app2, ...installInput], [slot("package")], "Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.");
+command("app install", [...app2, ...installInput, "request-id", ...wait], [slot("package")], "Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.");
+command("app installation show", [...app2, "installation"], [slot("installation")], "Read the installed version, revision and active/latest operation IDs.");
+command("app operation show", [...app2, "operation"], [slot("operation")], "Read the original operation, including required inputs; successful inspection does not mean installation succeeded.");
+command("app operation wait", [...app2, "operation", "wait-timeout", "poll-interval"], [slot("operation")], "Poll the original operation until success, required input, failure, cancellation or timeout. Never writes.");
+command("app operation resolve", [...app2, "operation", "request-json", "file", "expected-revision", ...wait], [slot("operation")], "Submit chosen bindings, configuration and impact confirmations to the original waiting operation. Current expectedRevision is required.");
+command("app operation retry", [...app2, "operation", "request-json", "file", "expected-revision", "request-id", ...wait], [slot("operation")], "Retry a failed operation with a new request ID; the platform checks its original revision.");
+command("app operation continue", [...app2, "operation", ...wait], [slot("operation")], "Explicitly resume an interrupted executing operation; --wait then tracks the same operation.");
+command("app operation cancel", [...app2, "operation"], [slot("operation")], "Cancel a pending or waiting operation when the platform permits it.");
 command("batch", ["file"], [slot("file")], "Run a JSON array of command argument arrays in this process; stop at the first failure.");
+for (const operation of managementOperations) command(
+  operation.path,
+  [...api2, ...operationOptions(operation)],
+  routeParameters(operation.route).map((name) => slot(name)),
+  operation.description ?? `${operation.method} through the native management API. ${operation.input ? "--request-json supplies the original server DTO; writes are never replayed." : "The server enforces the original scope and permissions."}`
+);
 function words(args) {
   return args.commands.map((word, index) => {
     const lower = word.toLowerCase();
@@ -2895,8 +3365,8 @@ function words(args) {
   });
 }
 function findCommand(args) {
-  const input2 = words(args);
-  return specs.filter((spec) => spec.words.every((word, i) => input2[i] === word)).sort((a, b) => b.words.length - a.words.length)[0];
+  const input3 = words(args);
+  return specs.filter((spec) => spec.words.every((word, i) => input3[i] === word)).sort((a, b) => b.words.length - a.words.length)[0];
 }
 function validateCommand(args) {
   const spec = findCommand(args);
@@ -3033,13 +3503,15 @@ function validateCommand(args) {
   if (spec.path.startsWith("security ") && / (?:grant|revoke)-/.test(spec.path)) exclusive(["names", "roles", "permission-sets", "permissions"]);
   if (args.has("exchange")) {
     exclusive(["server", "exchange"]);
-    if (args.has("tenant") || args.has("scope") || args.has("bearer") || args.has("token-name")) throw new CliError("Independent market commands use their own browser session, without platform scope, tenant or API token options.", { code: "invalid_arguments" });
+    if (args.has("tenant") || args.has("scope") || args.has("bearer") || args.has("token-name") || args.has("token-file")) throw new CliError("Independent market commands use their own browser session, without platform scope, tenant or API token options.", { code: "invalid_arguments" });
     if (args.has("device")) throw new CliError("Device login is available for the XRain platform, not the independent market.", { code: "invalid_arguments" });
   }
   if (args.has("auth") && !["auto", "session"].includes(args.value("auth")))
     throw new CliError("--auth must be auto or session.", { code: "invalid_arguments" });
-  if (args.value("auth") === "session" && (args.has("bearer") || args.has("token-name")))
-    throw new CliError("--auth session cannot be combined with --bearer or --token-name.", { code: "invalid_arguments" });
+  if (args.has("token-file") && (args.has("bearer") || args.has("token-name")))
+    throw new CliError("--token-file cannot be combined with --bearer or --token-name.", { code: "invalid_arguments" });
+  if (args.value("auth") === "session" && (args.has("bearer") || args.has("token-name") || args.has("token-file")))
+    throw new CliError("--auth session cannot be combined with --bearer, --token-file or --token-name.", { code: "invalid_arguments" });
   args.timeout();
   return spec;
 }
@@ -3058,7 +3530,7 @@ function commandHelp(args) {
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
-  if (!exact || exact.options.includes("request-json")) lines.push("Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.");
+  if (!exact || exact.options.includes("request-json")) lines.push("Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.");
   if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
   if (prefix[0] === "agent" && prefix[1] === "chat") lines.push("Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.");
   if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
@@ -3113,7 +3585,7 @@ async function batchCommands(ctx) {
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve4 } from "node:path";
+import { resolve as resolve5 } from "node:path";
 
 // src/xrain-cli/definition-file.mjs
 var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -3230,6 +3702,46 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
 import { performance as performance3 } from "node:perf_hooks";
+
+// src/xrain-cli/runtime-controls.mjs
+var reads = { subagents: "subagents", commands: "commands", models: "models" };
+var writes = /* @__PURE__ */ new Set(["cancel", "command", "model"]);
+async function sessionControl(ctx, helpers, connection2) {
+  const { args, reporter } = ctx, action = args.command(2);
+  if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
+  const sessionId = helpers.identifier(args.required("session-id"), "Session ID");
+  const root = `/v1/dsh/sessions/${segment(sessionId)}`;
+  if (Object.hasOwn(reads, action)) {
+    const value2 = await helpers.runtimeValue(ctx, "GET", `${root}/${reads[action]}`);
+    if (!isObject(value2) || action === "commands" && !Array.isArray(value2.items) || action === "subagents" && (!isObject(value2.catalog) || !Array.isArray(value2.summaries)) || action === "models" && !isObject(value2.catalog))
+      throw new CliError("Runtime returned an invalid session catalog.", { code: "invalid_response" });
+    reporter.print(value2);
+    return true;
+  }
+  let body, suffix = action;
+  if (action === "command") {
+    const line = args.required("line");
+    if (line.length > 16384 || !/^\/[a-z][a-z0-9_-]*(?:\s|$)/u.test(line))
+      throw new CliError("--line must contain one Runtime slash command, at most 16384 characters.", { code: "invalid_arguments" });
+    body = { line };
+    suffix = "commands";
+  } else if (action === "model") {
+    body = await jsonInput(args, "values");
+    if (!isObject(body) || Object.keys(body).some((key) => !["provider", "model", "reasoningEffort"].includes(key)) || !nonempty(body.provider) || !nonempty(body.model) || body.reasoningEffort !== void 0 && !nonempty(body.reasoningEffort))
+      throw new CliError("Model selection requires provider and model, with optional reasoningEffort.", { code: "invalid_arguments" });
+  }
+  const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
+  const value = await helpers.writeOnce(async () => {
+    const result = await helpers.runtimeValue(ctx, "POST", `${root}/${suffix}`, body);
+    if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !Object.hasOwn(result, "execution"))
+      throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
+    return result;
+  }, action === "cancel" ? "Stop outcome is unknown. Inspect this session and its pending actions. Do not assume that earlier external effects were undone." : "Operation outcome is unknown. Read this session, its command catalog or model state before another write; do not automatically replay the command.", details);
+  reporter.print({ ...value, ...details });
+  return true;
+}
+
+// src/xrain-cli/agent-chat.mjs
 var sessions = "/v1/dsh/sessions";
 var pendingPath = "/v1/dsh/pending-actions";
 async function messageInput(args) {
@@ -3322,20 +3834,20 @@ function visibleHistory(frame, sessionId) {
     const event = eventOf(record);
     if (!event) continue;
     const data = event.data;
-    const base = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
+    const base2 = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
     if (event.type === "user/message" || event.type === "assistant/message") {
       const message2 = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
       if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
       const text2 = textOf(message2);
-      if (text2) items.push({ ...base, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
+      if (text2) items.push({ ...base2, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
     } else if (event.type === "turn/start" || event.type === "turn/end") {
-      items.push({ ...base, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
+      items.push({ ...base2, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
     } else if (event.type === "tool/call" && typeof data.name === "string") {
-      items.push({ ...base, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
+      items.push({ ...base2, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
     } else if (event.type === "tool/result") {
       const result = toolResult(data);
-      items.push({ ...base, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
+      items.push({ ...base2, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
     }
   }
   const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : void 0;
@@ -3347,18 +3859,18 @@ function visibleHistory(frame, sessionId) {
     items
   };
 }
-function historyBoundary(page, throughSeq, beforeSeq) {
-  if (!Number.isSafeInteger(throughSeq) || throughSeq < -1 || !isObject(page) || !Array.isArray(page.records) || typeof page.hasMore !== "boolean")
+function historyBoundary(page3, throughSeq, beforeSeq) {
+  if (!Number.isSafeInteger(throughSeq) || throughSeq < -1 || !isObject(page3) || !Array.isArray(page3.records) || typeof page3.hasMore !== "boolean")
     throw new CliError("Runtime returned an invalid history page.", { code: "invalid_response" });
   let previous = -1;
-  for (const record of page.records) {
+  for (const record of page3.records) {
     const seq = record?.event?.seq;
     if (!Number.isSafeInteger(seq) || seq <= previous || seq > throughSeq || beforeSeq !== void 0 && seq >= beforeSeq)
       throw new CliError("Runtime returned an unordered or mismatched history page.", { code: "invalid_response" });
     previous = seq;
   }
-  const first = page.records[0]?.event?.seq;
-  if (page.hasMore && (first === void 0 || first === 0))
+  const first = page3.records[0]?.event?.seq;
+  if (page3.hasMore && (first === void 0 || first === 0))
     throw new CliError("Runtime history pagination did not advance.", { code: "invalid_response" });
   return first;
 }
@@ -3366,9 +3878,9 @@ async function historyPage(ctx, sessionId, throughSeq, beforeSeq, maxMessages, h
   budget?.check();
   const query2 = new URLSearchParams({ throughSeq, maxMessages });
   if (beforeSeq !== void 0) query2.set("beforeSeq", beforeSeq);
-  let page;
+  let page3;
   try {
-    page = await helpers.runtimeValue(
+    page3 = await helpers.runtimeValue(
       ctx,
       "GET",
       `${sessions}/${segment(sessionId)}/history?${query2}`,
@@ -3381,13 +3893,13 @@ async function historyPage(ctx, sessionId, throughSeq, beforeSeq, maxMessages, h
     throw error;
   }
   budget?.check();
-  historyBoundary(page, throughSeq, beforeSeq);
-  return { ...page, type: "snapshot", cursor: throughSeq };
+  historyBoundary(page3, throughSeq, beforeSeq);
+  return { ...page3, type: "snapshot", cursor: throughSeq };
 }
 async function restoreHistory(ctx, sessionId, requestId, snapshot, headers, helpers, budget) {
   if (snapshot.hasMore !== true) return snapshot;
   const pages = [snapshot.records], throughSeq = snapshot.cursor;
-  let page = snapshot, seenRequest = false;
+  let page3 = snapshot, seenRequest = false;
   const anchored = (records) => {
     for (let i = records.length - 1; i >= 0; i--) {
       const event = eventOf(records[i]);
@@ -3396,13 +3908,13 @@ async function restoreHistory(ctx, sessionId, requestId, snapshot, headers, help
     }
     return false;
   };
-  let beforeSeq = historyBoundary(page, throughSeq);
-  while (page.hasMore && !anchored(page.records)) {
-    page = await historyPage(ctx, sessionId, throughSeq, beforeSeq, 100, headers, helpers, budget);
-    pages.push(page.records);
-    beforeSeq = page.records[0]?.event?.seq;
+  let beforeSeq = historyBoundary(page3, throughSeq);
+  while (page3.hasMore && !anchored(page3.records)) {
+    page3 = await historyPage(ctx, sessionId, throughSeq, beforeSeq, 100, headers, helpers, budget);
+    pages.push(page3.records);
+    beforeSeq = page3.records[0]?.event?.seq;
   }
-  return { records: pages.reverse().flat(), hasMore: page.hasMore };
+  return { records: pages.reverse().flat(), hasMore: page3.hasMore };
 }
 function turnBudget(args) {
   const controller = new AbortController(), milliseconds = args.integer("wait-timeout", 120) * 1e3;
@@ -3576,9 +4088,9 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
 async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
   const connection2 = helpers.runtimeConnection(ctx);
-  const app2 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection2.profile) : void 0;
-  const context = { runtime: connection2.runtime, applicationId: app2 ?? null };
-  const headers = app2 ? { "X-XRain-Application-Id": app2 } : {};
+  const app3 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection2.profile) : void 0;
+  const context = { runtime: connection2.runtime, applicationId: app3 ?? null };
+  const headers = app3 ? { "X-XRain-Application-Id": app3 } : {};
   if (action === "list") {
     const path = args.has("all") ? sessions : `${sessions}?source=xrain-cli`;
     const result = await helpers.runtimeValue(ctx, "GET", path);
@@ -3593,25 +4105,26 @@ async function chatCommands(ctx, helpers) {
     reporter.print({ items: id ? result.items.filter((item) => item?.sessionId === id) : result.items });
     return 0;
   }
-  if (action === "respond") {
+  if (action === "respond" || action === "cancel-question") {
     const ref = helpers.identifier(args.required("action-ref"), "Action reference");
-    const input2 = await jsonInput(args, "values");
-    if (!isObject(input2) || Object.keys(input2).some((key) => !["outcome", "answers"].includes(key)) || !Object.keys(input2).length)
+    const input3 = action === "respond" ? await jsonInput(args, "values") : {};
+    if (!isObject(input3) || Object.keys(input3).some((key) => !["outcome", "answers"].includes(key)) || action === "respond" && !Object.keys(input3).length)
       throw new CliError("Response JSON must contain an explicit outcome or answers.", { code: "invalid_arguments" });
     const responseId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Response ID");
     reporter.progress(`Response ID: ${responseId}`);
     const result = await helpers.writeOnce(async () => {
-      const accepted = await helpers.runtimeValue(ctx, "POST", `${pendingPath}/${segment(ref)}/responses`, { ...input2, responseId }, headers);
+      const accepted = await helpers.runtimeValue(ctx, "POST", `${pendingPath}/${segment(ref)}/${action === "respond" ? "responses" : "cancel"}`, { ...input3, responseId }, headers);
       if (!isObject(accepted) || accepted.accepted !== true) throw new CliError("Runtime returned an invalid response receipt.", { code: "invalid_response" });
       return accepted;
     }, "Response outcome is unknown. Inspect this pending action before retrying.", { actionRef: ref, responseId, ...context });
     reporter.print({ actionRef: ref, responseId, ...result, ...context });
     return 0;
   }
+  if (await sessionControl(ctx, helpers, connection2)) return 0;
   let sessionId = args.value("session-id");
   if (action === "history") {
     sessionId = helpers.identifier(sessionId, "Session ID");
-    const page = args.has("through-seq") ? await historyPage(
+    const page3 = args.has("through-seq") ? await historyPage(
       ctx,
       sessionId,
       Number(args.value("through-seq")),
@@ -3620,7 +4133,7 @@ async function chatCommands(ctx, helpers) {
       headers,
       helpers
     ) : await helpers.runtimeValue(ctx, "GET", `${sessions}/${segment(sessionId)}/history`);
-    reporter.print(visibleHistory(page, sessionId));
+    reporter.print(visibleHistory(page3, sessionId));
     return 0;
   }
   const text2 = action === "wait" ? void 0 : await messageInput(args);
@@ -3736,18 +4249,6 @@ async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal
     throw new CliError("Runtime returned invalid JSON.", { code: "invalid_response" });
   }
 }
-async function writeOnce(action, hint2, details) {
-  try {
-    return await action();
-  } catch (error) {
-    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
-      error.code = "outcome_unknown";
-      error.hint = hint2;
-      error.details = { ...error.details, ...details };
-    }
-    throw error;
-  }
-}
 var missingCapability = (error) => error.httpStatus === 404 && error.serverCode !== "AGENT_DEFINITION_NOT_FOUND";
 var definitionRead = (ctx, path) => runtimeValue(ctx, "GET", path, void 0, {}, { limit: Infinity });
 async function definitionList(ctx) {
@@ -3848,9 +4349,9 @@ function updatedDefinition(current, patch, expected) {
     code: "conflict",
     details: { agentId: current.agentId, expectedRevision: expected, currentRevision: current.revision }
   });
-  const base = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
+  const base2 = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
   return {
-    ...base,
+    ...base2,
     ...patch,
     aiUserId: "",
     agentId: current.agentId,
@@ -3925,7 +4426,7 @@ async function definitionCommands(ctx) {
     const current = await definition(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve4(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve5(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
     writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
@@ -4153,6 +4654,7 @@ async function userSettingsCommands(ctx) {
 var HELP = commandHelp(new Args([]));
 async function dispatch(ctx) {
   const { args } = ctx;
+  if (await managementCommand(ctx)) return 0;
   switch (args.command(0)) {
     case "login":
       return profileCommands(ctx, "set");

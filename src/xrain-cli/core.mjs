@@ -20,6 +20,13 @@ export function segment(value) {
 
 const flags = new Set(['help', 'json', 'device', 'no-browser', 'native', 'password-stdin', 'no-total', 'check', 'wait', 'maintain-installed-version', 'mine', 'all', 'agent', 'personal']);
 const valued = new Set(('server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value').split(' '));
+valued.add('line');
+valued.add('field');
+valued.add('share-id');
+valued.add('tree-id');
+valued.add('node-id');
+valued.add('if-match');
+valued.add('token-file');
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {
@@ -129,7 +136,14 @@ export async function jsonInput(args, name, allowFile = true, options = {}) {
   return inline === undefined ? undefined : parseJson(inline, 'JSON input');
 }
 
-const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|adminApiToken|guestApiToken|client[_-]?secret|password)$/i;
+const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|client[_-]?secret|password|secret(?:Access)?Key|privateKey|connectionString)$/i;
+export function registerSecrets(reporter, value) {
+  if (Array.isArray(value)) { for (const item of value) registerSecrets(reporter, item); }
+  else if (isObject(value)) for (const [key, item] of Object.entries(value)) {
+    if (sensitiveKey.test(key) && typeof item === 'string') reporter.secret(item);
+    else registerSecrets(reporter, item);
+  }
+}
 export class Reporter {
   constructor(stdout = process.stdout, stderr = process.stderr) {
     this.stdout = stdout; this.stderr = stderr; this.secrets = new Set(); this.json = false; this.results = [];

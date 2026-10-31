@@ -51,15 +51,41 @@ export function requireSuccess(response, hint = '') {
   throw responseError(response, hint);
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile } = {}) {
+export async function writeOnce(action, hint, details) {
+  try { return await action(); }
+  catch (error) {
+    if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+      error.code = 'outcome_unknown';
+      error.hint = hint;
+      error.details = { ...error.details, ...details };
+    }
+    throw error;
+  }
+}
+
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = ctx.store.credential(ctx.args, profile);
   if (ctx.args.value('auth') === 'session' && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
-  const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
-  let result;
-  try { result = response.json(); } catch { result = response.text(); }
-  if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
-  return response.bytes.length ? result : null;
+  const perform = async () => {
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
+    if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
+    if (!response.bytes.length) return null;
+    try { return response.json(); }
+    catch {
+      if (mutation) throw new CliError('The server returned an invalid write receipt.', { code: 'invalid_response' });
+      return response.text();
+    }
+  };
+  if (!mutation) return perform();
+  const { hint = 'The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.', ...recovery } = mutation;
+  const details = { operation: ctx.spec?.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null,
+    credentialSource: source, ...recovery };
+  try { return await writeOnce(perform, hint, details); }
+  catch (error) {
+    if (error instanceof CliError) error.details = { ...error.details, ...details };
+    throw error;
+  }
 }
 
 export async function api(ctx, method, path, json, options) {

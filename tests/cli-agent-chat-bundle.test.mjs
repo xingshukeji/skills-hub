@@ -15,6 +15,23 @@ function invoke(script, argv, f, env) {
   });
 }
 
+test('the copied CLI keeps explicit Runtime controls and write recovery after packaging', async t => {
+  const f = fixture(t); let stops = 0, updates = 0;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/sessions/original/cancel') { stops++; respond(res, { accepted: true }, 202); }
+    else { updates++; assert.equal(hit.url, '/api/data/v1/entities/customer/records/original'); res.destroy(); }
+  });
+  f.profile(service.url, 'tenant-demo', 'synthetic-bundle-token');
+  const skill = join(f.directory, 'isolated-skill'); cpSync('skills/shzw-xrain-cli', skill, { recursive: true });
+  const script = join(skill, 'scripts/xrain-cli.mjs');
+  const stopped = await invoke(script, ['agent', 'chat', 'cancel', 'original', '--runtime', service.url, '--json'], f, f.env);
+  assert.equal(stopped.code, 0, stopped.stdout); assert.equal(JSON.parse(stopped.stdout).data.sessionId, 'original');
+  const unknown = await invoke(script, ['data', 'update', 'customer', 'original', '--values', '{"name":"one"}', '--json'], f, f.env);
+  assert.equal(unknown.code, 1); assert.equal(JSON.parse(unknown.stdout).error.code, 'outcome_unknown');
+  assert.equal(JSON.parse(unknown.stdout).error.details.recordId, 'original');
+  assert.equal(stops, 1); assert.equal(updates, 1);
+});
+
 test('a copied standalone CLI starts and completes an agent conversation', async t => {
   const f = fixture(t); let stream, submissions = 0;
   const service = await mockServer(t, (hit, res) => {

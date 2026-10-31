@@ -42,6 +42,8 @@ data delete <entity> <id>
 
 支持 --entity/--id 替代位置参数，每次只选一种。delete 仅单条 ID，不接 filter。更新并发条件按目标字段契约提供，完成后回读。
 
+原生集合事务、跨对象查询、原值、共享、历史、Owner 与 XLSX 导出见[记录操作](records.md)。成员、组织、角色、服务端 Token、审计、租户应用与 Host 扩展见[管理命令](management.md)。普通写入的 `outcome_unknown` 会携带原目标和回读参数；当前值不证明原请求成功，不整批重放。
+
 ### 单记录创建恢复
 
 目标服务支持 keyed creation 时，在第一次创建前由调用者选定并保存稳定 `requestKey`（非空字符串，最多 160 字符）。可以用 `--request-key`，或在完整请求 JSON 中提供 `{"values":{"name":"示例"},"requestKey":"<业务请求稳定键>"}`；两种方式不能同时提供。CLI 在发送前将键写入 stderr，不自动生成、换键、查询或重试。未提供键时保留原创建请求，不向旧服务注入字段。

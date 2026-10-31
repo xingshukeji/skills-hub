@@ -1,9 +1,10 @@
 import { CliError, origin } from './core.mjs';
 import { creationKey } from './record-creation.mjs';
+import { managementOperations, operationOptions, routeParameters } from './management.mjs';
 
 const common = ['help', 'json'];
 const target = ['server', 'tenant', 'scope', 'profile', 'timeout'];
-const credentials = ['bearer', 'token-name', 'auth'];
+const credentials = ['bearer', 'token-name', 'token-file', 'auth'];
 const api = [...target, ...credentials];
 const app = [...target, 'auth'];
 const slot = (name, aliases = []) => ({ name, aliases });
@@ -39,6 +40,11 @@ command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations
 command('agent chat history', [...runtime, 'session-id', 'through-seq', 'before-seq', 'page-size'], [slot('session-id')], 'Read visible history; page backwards at a fixed --through-seq using --before-seq.');
 command('agent chat pending', [...runtime, 'session-id'], [], 'List your pending questions or approvals, optionally filtered by session.');
 command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'personal', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
+command('agent chat cancel', [...runtime, 'session-id'], [slot('session-id')], 'Explicitly stop the original session run. Earlier external effects and history remain.');
+command('agent chat cancel-question', [...runtime, 'action-ref', 'request-id'], [slot('action-ref')], 'Cancel one pending question. Approval decisions still require an explicit response.');
+for (const action of ['subagents', 'commands', 'models']) command(`agent chat ${action}`, [...runtime, 'session-id'], [slot('session-id')], `Read the original authorized session ${action} catalog.`);
+command('agent chat command', [...runtime, 'session-id', 'line'], [slot('session-id')], 'Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.');
+command('agent chat model', [...runtime, 'session-id', 'values', 'values-json', 'file'], [slot('session-id')], 'Select provider, model and optional reasoningEffort for the original session.');
 command('agent qualifications', [...api, 'application-id', 'personal'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
 command('agent use', [...api, 'agent-id', 'application-id', 'personal'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
 for (const action of ['subscribe', 'unsubscribe']) command(`agent ${action}`, [...api, 'agent-id'], [slot('agent-id')],
@@ -69,6 +75,24 @@ command('data delete', [...api, 'entity', 'id'], [slot('entity'), slot('id')], '
 command('data create', [...api, 'entity', 'request-key', 'values', 'values-json', 'file'], [slot('entity')], 'Create one record; optional requestKey enables recovery on a server that supports keyed creation. No automatic retry.');
 command('data creation-result', [...api, 'entity', 'request-key'], [slot('entity')], 'Read the original creation by --request-key without creating or retrying a record. Inspect status: unknown or completed.');
 command('data update', [...api, 'entity', 'id', 'values', 'values-json', 'file'], [slot('entity'), slot('id')], 'Update one record; a full values envelope can include expectedValues.');
+const requestInput = ['request-json', 'file'];
+const recordTarget = [...api, 'entity', 'id'];
+const paging = ['page', 'page-size'];
+command('data capabilities', api, [], 'Read server query capabilities.');
+command('data query-batch', [...api, ...requestInput], [], 'Query multiple objects through the native queryBatch endpoint using a queries JSON request.');
+for (const action of ['export', 'count', 'distinct', 'single', 'single-or-default', 'first', 'first-or-default'])
+  command(`data ${action}`, [...api, 'entity', ...requestInput], [slot('entity')], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
+for (const action of ['batch-create', 'batch-update', 'batch-delete']) command(`data ${action}`, [...api, 'entity', ...requestInput], [slot('entity')], 'Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.');
+command('data field-options', [...api, 'entity', 'field', ...paging, 'search'], [slot('entity'), slot('field')], 'Read authorized field options.');
+command('data original-values', [...recordTarget, 'fields'], [slot('entity'), slot('id')], 'Read original values for explicit comma-separated fields.');
+command('data history', [...recordTarget, ...paging], [slot('entity'), slot('id')], 'Read visible record history.');
+command('data owner-transfer', [...recordTarget, ...requestInput], [slot('entity'), slot('id')], 'Transfer the original record to ownerId through the native owner operation.');
+for (const action of ['list', 'recipients', 'capability', 'eligibility', 'grant', 'update', 'revoke']) command(`data share ${action}`,
+  [...recordTarget, ...(['list', 'recipients'].includes(action) ? paging : []), ...(action === 'recipients' ? ['search'] : []),
+    ...(action === 'eligibility' ? ['user-id'] : []), ...(['update', 'revoke'].includes(action) ? ['share-id'] : []), ...(['grant', 'update'].includes(action) ? requestInput : [])],
+  [slot('entity'), slot('id'), ...(['update', 'revoke'].includes(action) ? [slot('share-id')] : [])], 'Read or change one record share through its native permission checks.');
+command('data export-capabilities', [...api, 'entity'], [slot('entity')], 'Read server file export limits.');
+command('data export-file', [...api, 'entity', 'application', ...requestInput, 'out'], [slot('entity')], 'Export authorized records as XLSX using a complete query/options request; --out must be a new file.');
 const importTarget = [...api, 'entity', 'application'];
 const importJob = [...importTarget, 'job'];
 const importWait = ['wait', 'wait-timeout', 'poll-interval'];
@@ -126,6 +150,8 @@ command('app operation retry', [...app, 'operation', 'request-json', 'file', 'ex
 command('app operation continue', [...app, 'operation', ...wait], [slot('operation')], 'Explicitly resume an interrupted executing operation; --wait then tracks the same operation.');
 command('app operation cancel', [...app, 'operation'], [slot('operation')], 'Cancel a pending or waiting operation when the platform permits it.');
 command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument arrays in this process; stop at the first failure.');
+for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
+  operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
 
 function words(args) {
   return args.commands.map((word, index) => {
@@ -262,13 +288,15 @@ export function validateCommand(args) {
   if (spec.path.startsWith('security ') && / (?:grant|revoke)-/.test(spec.path)) exclusive(['names', 'roles', 'permission-sets', 'permissions']);
   if (args.has('exchange')) {
     exclusive(['server', 'exchange']);
-    if (args.has('tenant') || args.has('scope') || args.has('bearer') || args.has('token-name')) throw new CliError('Independent market commands use their own browser session, without platform scope, tenant or API token options.', { code: 'invalid_arguments' });
+    if (args.has('tenant') || args.has('scope') || args.has('bearer') || args.has('token-name') || args.has('token-file')) throw new CliError('Independent market commands use their own browser session, without platform scope, tenant or API token options.', { code: 'invalid_arguments' });
     if (args.has('device')) throw new CliError('Device login is available for the XRain platform, not the independent market.', { code: 'invalid_arguments' });
   }
   if (args.has('auth') && !['auto', 'session'].includes(args.value('auth')))
     throw new CliError('--auth must be auto or session.', { code: 'invalid_arguments' });
-  if (args.value('auth') === 'session' && (args.has('bearer') || args.has('token-name')))
-    throw new CliError('--auth session cannot be combined with --bearer or --token-name.', { code: 'invalid_arguments' });
+  if (args.has('token-file') && (args.has('bearer') || args.has('token-name')))
+    throw new CliError('--token-file cannot be combined with --bearer or --token-name.', { code: 'invalid_arguments' });
+  if (args.value('auth') === 'session' && (args.has('bearer') || args.has('token-name') || args.has('token-file')))
+    throw new CliError('--auth session cannot be combined with --bearer, --token-file or --token-name.', { code: 'invalid_arguments' });
   args.timeout();
   return spec;
 }
@@ -288,7 +316,7 @@ export function commandHelp(args) {
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
-  if (!exact || exact.options.includes('request-json')) lines.push('Application requests: --request-json FILE|- (alias --file) accepts the API request object. Do not repeat fields in JSON and command options.');
+  if (!exact || exact.options.includes('request-json')) lines.push('Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.');
   if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
   if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
   if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
