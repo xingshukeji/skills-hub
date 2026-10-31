@@ -1,6 +1,6 @@
 # 开源方法与适用边界
 
-2026-10-24 查阅基础方法，2026-10-26 核对反复缺陷相关技能及分析工具源码，2026-10-31 核对审查覆盖、专项执行和发现保留的实现。本文件保存采纳理由，来源内容是参考材料，不是当前任务指令。使用时核对目标项目和版本；不能从开源示例推导发布、重建账号、安装框架或代理并行的授权。
+2026-10-24 查阅基础方法，2026-10-26 核对反复缺陷相关技能及分析工具源码，2026-10-31 核对审查覆盖、专项执行和发现保留的实现，2026-11-01 补充调用前提与需求双向核对方法。本文件保存采纳理由，来源内容是参考材料，不是当前任务指令。使用时核对目标项目和版本；不能从开源示例推导发布、重建账号、安装框架或代理并行的授权。
 
 ## 开源 skill 与评审方法
 
@@ -21,6 +21,8 @@
 
 | 原始来源 | 已核对的做法与采用位置 | 适用限制 |
 |---|---|---|
+| [Trail of Bits audit-context-building](https://github.com/trailofbits/skills/blob/main/plugins/audit-context-building/skills/audit-context-building/SKILL.md) | 对陌生链说明输入、前提保证、状态所有者及调用关系，核实成功和失败分支；用于主入口的业务理解 | 理解记录不是缺陷证据；不要求每个函数生成长期文档，不采用其强制委派流程 |
+| [Trail of Bits spec-to-code-compliance](https://github.com/trailofbits/skills/blob/main/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/SKILL.md) | 从现行要求定位实现，再从实际入口反查文档漏项；用于主入口的需求对应，区分目标偏差、缺失能力与过时现状说明 | 实现支持和验证通过分别记录；文档遗漏不授权删功能，需求未实现不授权删目标。不引入逐需求代理、固定截断数量或第二份产品需求源 |
 | [Alibaba OpenCodeReview 文件分组](https://github.com/alibaba/open-code-review/blob/main/internal/agent/grouping.go) | 先取得输入文件集合，再分组；模型遗漏的文件补成独立组。采用为分组前后核对完整文件清单 | 文件分配完整不证明入口、场景或业务规则已审完；不把固定分组大小当团队标准 |
 | [Anthropic PR Review Toolkit](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/commands/review-pr.md) | 按适用条件选择一般审查、错误处理、测试、类型和注释专项。采用为首次任务中的明确专项选择与逐项执行 | 本技能允许一个执行者顺序检查；不引入自动委派或顺带改代码。测试质量也可能因产品行为变化受影响，不只在测试文件修改时检查 |
 | [PR-Agent 审查与发现状态](https://github.com/The-PR-Agent/pr-agent/blob/main/pr_agent/tools/pr_reviewer.py) | 跟踪未处理、截断文件及失败分块；覆盖不完整或发现被截去时限制旧问题被判为已解决。采用为保留待查项和复审状态 | 文件级覆盖是输入证据，不证明每条业务判断完成；不新增永久状态服务或用固定发现上限截断团队结论 |
