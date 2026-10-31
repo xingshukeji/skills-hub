@@ -6,6 +6,36 @@
     "workspace": "fixtures/review-consumers"
   },
   {
+    "id": "review-actions",
+    "request": "请用技能 review 当前协作操作实现，只审查。",
+    "context": "当前范围为本目录的公开操作、业务合同和实现。已有测试可运行；不使用真实平台，也不修复源码。",
+    "workspace": "fixtures/review-actions"
+  },
+  {
+    "id": "review-package",
+    "request": "请根据工程职责review, 使用技能",
+    "context": "本轮只读审查本目录的本地应用打包实现。业务合同、公开入口和已有测试已经提供；不包含发布或部署。",
+    "workspace": "fixtures/review-package"
+  },
+  {
+    "id": "review-views",
+    "request": "请用技能 review 当前共享视图与记录读取实现，只审查。",
+    "context": "按本目录本轮已确认的业务合同检查当前实现；这是隔离案例，不向其他仓库或真实平台查找缺失实现。",
+    "workspace": "fixtures/review-views"
+  },
+  {
+    "id": "review-submission",
+    "request": "请用技能 review 当前应用提交功能的实现，只审查。",
+    "context": "本目录提供完整客户端、服务协议模型、业务合同和已有测试；无需访问网络或真实平台，不修改源码。",
+    "workspace": "fixtures/review-submission"
+  },
+  {
+    "id": "review-session",
+    "request": "请 review 当前会话实现，只审查。",
+    "context": "本目录为完整的本地事件会话模型，包含合同、公开入口和已有测试；不涉及真实服务或其他仓库。",
+    "workspace": "fixtures/review-session"
+  },
+  {
     "id": "continue-business",
     "request": "正确，请执行，完成后直接告诉我结果。",
     "context": "前文已批准：在现有客户资料页完成手机号编辑、保存、回读及再次进入，保持客户身份和其他资料；复用现有接口与权限。只修改本目录的页面模型和必要定向测试。无需设计新的对象、表、角色、后端服务或部署。",
