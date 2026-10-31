@@ -224,3 +224,140 @@ test('failed turns are not successful and existing pending actions stop a new su
   assert.equal(result(pending).error.code, 'action_required'); assert.equal(result(pending).error.details.submitted, false);
   assert.equal(blockedMock.state().sends, 0);
 });
+
+function paginatedConversation(t, { pending = false, badPage = false, pageDelay = 0, active = false, applicationId = 'app-1', unavailable = false } = {}) {
+  const prior = [start(0, 1), user(1, 'older-request', 'old'), assistant(2, 1, 'old answer'), end(3, 1)];
+  const target = [start(4, 2), user(5, 'long-request', 'long task')];
+  for (let i = 0; i < 110; i++) {
+    const seq = 6 + i * 2;
+    target.push(event('tool/call', seq, { turn: 2, callId: `tool-${i}`, name: 'read' }),
+      event('tool/result', seq + 1, { turn: 2, message: { role: 'tool', toolCallId: `tool-${i}` } }));
+  }
+  target.push(assistant(226, 2, 'long task answer'));
+  if (!active) target.push(end(227, 2));
+  const records = [...prior, ...target], cursor = records.at(-1).event.seq;
+  const initial = records.slice(-100), timers = new Set();
+  let stream, terminalSent = false;
+  t.after(() => { for (const timer of timers) clearTimeout(timer); });
+  const servicePromise = mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-application-id'], applicationId ?? undefined);
+    const url = new URL(hit.url, 'http://local');
+    if (url.pathname.endsWith('/stream')) {
+      stream = res;
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(frame({ type: 'pending-actions', items: pending ? [{ actionRef: 'other-action', sessionId: 'long-session' }] : [] }));
+      res.write(frame({ type: 'snapshot', cursor, records: initial, hasMore: true })); return;
+    }
+    if (url.pathname.endsWith('/history')) {
+      if (!url.search) return respond(res, { type: 'snapshot', cursor, records: initial, hasMore: true });
+      if (unavailable) return respond(res, { error: 'HISTORY_PAGE_UNAVAILABLE' }, 501);
+      assert.equal(Number(url.searchParams.get('throughSeq')), cursor);
+      const before = Number(url.searchParams.get('beforeSeq'));
+      const eligible = records.filter(row => row.event.seq < before);
+      const page = badPage ? initial : eligible.slice(-Number(url.searchParams.get('maxMessages')));
+      const publish = () => {
+        respond(res, { records: page, hasMore: badPage || eligible.length > page.length });
+        // The terminal event arrives during paging and must still be consumed.
+        if (active && !terminalSent) {
+          terminalSent = true;
+          stream.write(frame({ type: 'event', ...end(227, 2) }));
+        }
+      };
+      if (pageDelay) timers.add(setTimeout(publish, pageDelay)); else publish();
+      return;
+    }
+    respond(res, {}, 404);
+  });
+  return { servicePromise, cursor, initial, records };
+}
+
+test('wait recovers a completed long turn across multiple pages without replay or another turn result', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { pending: true }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',
+    '--runtime', service.url, '--application-id', 'app-1', '--wait-timeout', '3', '--json']);
+  assert.equal(call.code, 0, call.stdout);
+  assert.equal(result(call).data.answer, 'long task answer');
+  assert.equal(result(call).data.toolCalls.length, 110);
+  assert.ok(result(call).data.toolCalls.every(tool => tool.status === 'succeeded'));
+  assert.equal(service.hits.filter(hit => hit.url.includes('/history?')).length, 2);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('history exposes a fixed cursor and an earlier page without sending an input', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { applicationId: null }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const options = ['--runtime', service.url, '--json'];
+  const first = await f.run(['agent', 'chat', 'history', 'long-session', ...options]);
+  assert.equal(first.code, 0, first.stdout);
+  const page = result(first).data;
+  assert.equal(page.cursor, mock.cursor);
+  assert.equal(page.nextBeforeSeq, mock.initial[0].event.seq);
+  const earlier = await f.run(['agent', 'chat', 'history', 'long-session', '--through-seq', String(page.cursor),
+    '--before-seq', String(page.nextBeforeSeq), '--page-size', '100', ...options]);
+  assert.equal(earlier.code, 0, earlier.stdout);
+  assert.equal(result(earlier).data.cursor, page.cursor);
+  assert.ok(result(earlier).data.items.every(item => item.seq < page.nextBeforeSeq));
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('wait keeps following live events while recovering the earlier turn history', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { active: true }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',
+    '--runtime', service.url, '--application-id', 'app-1', '--wait-timeout', '3', '--json']);
+  assert.equal(call.code, 0, call.stdout);
+  assert.equal(result(call).data.answer, 'long task answer');
+  assert.equal(result(call).data.toolCalls.length, 110);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('recovery rejects a nonadvancing history page and keeps the original request identifiers', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { badPage: true }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',
+    '--runtime', service.url, '--application-id', 'app-1', '--wait-timeout', '2', '--json']);
+  assert.equal(result(call).error.code, 'invalid_response');
+  assert.equal(result(call).error.details.sessionId, 'long-session');
+  assert.equal(result(call).error.details.requestId, 'long-request');
+  assert.equal(service.hits.filter(hit => hit.url.includes('/history?')).length, 1);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('history recovery shares the original turn deadline', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { pageDelay: 2000 }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const began = performance.now();
+  const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',
+    '--runtime', service.url, '--application-id', 'app-1', '--wait-timeout', '1', '--timeout', '5', '--json']);
+  assert.equal(result(call).error.code, 'turn_timeout');
+  assert.ok(performance.now() - began < 1800, call.stdout);
+  assert.equal(result(call).error.details.historyIncomplete, true);
+  assert.equal(service.hits.filter(hit => hit.url.includes('/history?')).length, 1);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('an older Runtime without history paging preserves the original request and never resends', async t => {
+  const f = fixture(t), mock = paginatedConversation(t, { unavailable: true }), service = await mock.servicePromise;
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',
+    '--runtime', service.url, '--application-id', 'app-1', '--json']);
+  assert.equal(result(call).error.serverCode, 'HISTORY_PAGE_UNAVAILABLE');
+  assert.equal(result(call).error.details.requestId, 'long-request');
+  assert.equal(result(call).error.details.historyIncomplete, true);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});
+
+test('invalid history page arguments fail batch validation before an earlier write', async t => {
+  const f = fixture(t), service = await mockServer(t, (_hit, res) => respond(res, {}));
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const file = join(f.directory, 'invalid-history-batch.json');
+  for (const options of [['--before-seq', '2'], ['--through-seq', '-2'], ['--through-seq', '2', '--before-seq', '-1'],
+    ['--through-seq', '2', '--page-size', '0']]) {
+    writeFileSync(file, JSON.stringify([['agent', 'subscribe', 'agent-one'],
+      ['agent', 'chat', 'history', 'long-session', ...options]]));
+    const call = await f.run(['batch', '--file', file, '--json']);
+    assert.equal(call.code, 1, call.stdout);
+  }
+  assert.equal(service.hits.length, 0);
+});

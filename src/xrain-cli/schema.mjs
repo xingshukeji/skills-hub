@@ -36,7 +36,7 @@ command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal
 command('agent chat send', [...runtime, 'session-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
 command('agent chat wait', [...runtime, 'session-id', 'application-id', 'personal', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
 command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations; --all includes other sources owned by the same identity.');
-command('agent chat history', [...runtime, 'session-id'], [slot('session-id')], 'Read visible messages and turn outcomes from an authorized conversation.');
+command('agent chat history', [...runtime, 'session-id', 'through-seq', 'before-seq', 'page-size'], [slot('session-id')], 'Read visible history; page backwards at a fixed --through-seq using --before-seq.');
 command('agent chat pending', [...runtime, 'session-id'], [], 'List your pending questions or approvals, optionally filtered by session.');
 command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'personal', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
 command('agent qualifications', [...api, 'application-id', 'personal'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
@@ -208,6 +208,15 @@ export function validateCommand(args) {
       if (!args.has('message') && !args.has('message-file')) throw new CliError('--message or --message-file is required.', { code: 'invalid_arguments' });
     }
     if (spec.path === 'agent chat wait') args.required('request-id');
+    if (spec.path === 'agent chat history' && ['through-seq', 'before-seq', 'page-size'].some(name => args.has(name))) {
+      args.required('through-seq');
+      for (const [name, minimum] of [['through-seq', -1], ['before-seq', 0]]) if (args.has(name)) {
+        const value = args.value(name);
+        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum)
+          throw new CliError(`--${name} must be an integer of at least ${minimum}.`, { code: 'invalid_arguments' });
+      }
+      args.integer('page-size', 100);
+    }
     if (spec.path === 'agent chat respond' && !['values', 'values-json', 'file'].some(name => args.has(name)))
       throw new CliError('A JSON response is required.', { code: 'invalid_arguments' });
   }

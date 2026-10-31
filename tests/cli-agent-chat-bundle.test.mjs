@@ -90,3 +90,37 @@ for (const earlyTerminal of [false, true]) test(`a copied CLI ${earlyTerminal ? 
   }
   assert.equal(inputs, 1); assert.ok(service.hits.every(hit => !hit.url.includes('/cancel')));
 });
+
+test('a copied standalone CLI recovers a long completed turn from older history pages', async t => {
+  const f = fixture(t);
+  const event = (type, seq, data) => ({ event: { type, seq, data } });
+  const records = [event('turn/start', 0, { turn: 1 }), event('user/message', 1,
+    { source: { kind: 'user', rpcId: 'long-bundle-request' }, content: [{ type: 'text', text: 'long task' }] })];
+  for (let i = 0; i < 110; i++) records.push(event('tool/call', 2 + i * 2, { turn: 1, callId: `call-${i}`, name: 'read' }),
+    event('tool/result', 3 + i * 2, { turn: 1, message: { role: 'tool', toolCallId: `call-${i}` } }));
+  records.push(event('assistant/message', 222, { turn: 1, message: { content: [{ type: 'text', text: 'recovered bundle answer' }] } }),
+    event('turn/end', 223, { turn: 1, reason: { kind: 'completed' } }));
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-application-id'], 'app-bundle');
+    const url = new URL(hit.url, 'http://local');
+    if (url.pathname.endsWith('/stream')) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ type: 'snapshot', cursor: 223, records: records.slice(-100), hasMore: true })}\n\n`); return;
+    }
+    if (url.pathname.endsWith('/history')) {
+      assert.equal(url.searchParams.get('throughSeq'), '223');
+      const eligible = records.filter(row => row.event.seq < Number(url.searchParams.get('beforeSeq')));
+      return respond(res, { records: eligible.slice(-100), hasMore: eligible.length > 100 });
+    }
+    respond(res, {}, 404);
+  });
+  const skill = join(f.directory, 'isolated-skill'); cpSync('skills/shzw-xrain-cli', skill, { recursive: true });
+  const env = { ...f.env, XRAIN_SERVER: service.url, XRAIN_TENANT: 'tenant-demo', XRAIN_TOKEN: 'synthetic-bundle-token' };
+  const call = await invoke(join(skill, 'scripts/xrain-cli.mjs'), ['agent', 'chat', 'wait', 'long-bundle-session',
+    '--request-id', 'long-bundle-request', '--runtime', service.url, '--application-id', 'app-bundle', '--wait-timeout', '3', '--json'], f, env);
+  assert.equal(call.code, 0, call.stdout);
+  assert.equal(JSON.parse(call.stdout).data.answer, 'recovered bundle answer');
+  assert.equal(JSON.parse(call.stdout).data.toolCalls.length, 110);
+  assert.equal(service.hits.filter(hit => hit.url.includes('/history?')).length, 2);
+  assert.ok(service.hits.every(hit => hit.method === 'GET'));
+});

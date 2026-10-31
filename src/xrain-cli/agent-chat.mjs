@@ -33,6 +33,10 @@ function textOf(value) {
     ? value.content.filter(item => isObject(item) && item.type === 'text' && typeof item.text === 'string').map(item => item.text).join('') : '';
 }
 function eventOf(record) { return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null; }
+function sourceOf(data) {
+  const message = isObject(data.message) ? data.message : data;
+  return isObject(message.source) ? message.source : isObject(data.source) ? data.source : {};
+}
 function toolResult(data) {
   const message = isObject(data.message) ? data.message : {};
   const block = Array.isArray(message.content) ? message.content.find(part => isObject(part) && part.type === 'tool-result') : undefined;
@@ -55,7 +59,7 @@ function collector(requestId, expectedText) {
     }
     if (event.type === 'user/message') {
       const message = isObject(data.message) ? data.message : data;
-      const source = isObject(message.source) ? message.source : isObject(data.source) ? data.source : {};
+      const source = sourceOf(data);
       if (source.rpcId === requestId && (expectedText === undefined || textOf(message) === expectedText)) {
         found = true;
         targetTurn = Number.isSafeInteger(data.turn) ? data.turn : currentTurn;
@@ -91,7 +95,7 @@ function visibleHistory(frame, sessionId) {
     const base = { ...(Number.isFinite(event.seq) ? { seq: event.seq } : {}), ...(Number.isSafeInteger(data.turn) ? { turn: data.turn } : {}) };
     if (event.type === 'user/message' || event.type === 'assistant/message') {
       const message = isObject(data.message) ? data.message : data;
-      const source = isObject(message.source) ? message.source : isObject(data.source) ? data.source : {};
+      const source = sourceOf(data);
       if (event.type === 'user/message' && source.kind && source.kind !== 'user') continue;
       const text = textOf(message);
       if (text) items.push({ ...base, type: event.type, text, ...(source.rpcId ? { requestId: source.rpcId } : {}) });
@@ -104,7 +108,63 @@ function visibleHistory(frame, sessionId) {
       items.push({ ...base, type: event.type, status: result.status, ...(typeof result.callId === 'string' ? { callId: result.callId } : {}) });
     }
   }
-  return { sessionId, ...(frame.cursor !== undefined ? { cursor: frame.cursor } : {}), hasMore: frame.hasMore === true, items };
+  const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : undefined;
+  return { sessionId, ...(frame.cursor !== undefined ? { cursor: frame.cursor } : {}), hasMore: frame.hasMore === true,
+    ...(nextBeforeSeq !== undefined ? { nextBeforeSeq } : {}), items };
+}
+
+function historyBoundary(page, throughSeq, beforeSeq) {
+  if (!Number.isSafeInteger(throughSeq) || throughSeq < -1 || !isObject(page) ||
+      !Array.isArray(page.records) || typeof page.hasMore !== 'boolean')
+    throw new CliError('Runtime returned an invalid history page.', { code: 'invalid_response' });
+  let previous = -1;
+  for (const record of page.records) {
+    const seq = record?.event?.seq;
+    if (!Number.isSafeInteger(seq) || seq <= previous || seq > throughSeq || (beforeSeq !== undefined && seq >= beforeSeq))
+      throw new CliError('Runtime returned an unordered or mismatched history page.', { code: 'invalid_response' });
+    previous = seq;
+  }
+  const first = page.records[0]?.event?.seq;
+  if (page.hasMore && (first === undefined || first === 0))
+    throw new CliError('Runtime history pagination did not advance.', { code: 'invalid_response' });
+  return first;
+}
+
+async function historyPage(ctx, sessionId, throughSeq, beforeSeq, maxMessages, headers, helpers, budget) {
+  budget?.check();
+  const query = new URLSearchParams({ throughSeq, maxMessages });
+  if (beforeSeq !== undefined) query.set('beforeSeq', beforeSeq);
+  let page;
+  try {
+    page = await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history?${query}`,
+      undefined, headers, { signal: budget?.signal });
+  } catch (error) { budget?.check(); throw error; }
+  budget?.check();
+  historyBoundary(page, throughSeq, beforeSeq);
+  return { ...page, type: 'snapshot', cursor: throughSeq };
+}
+
+async function restoreHistory(ctx, sessionId, requestId, snapshot, headers, helpers, budget) {
+  if (snapshot.hasMore !== true) return snapshot;
+  const pages = [snapshot.records], throughSeq = snapshot.cursor;
+  let page = snapshot, seenRequest = false;
+  // Read backwards until this request and its turn start are present, then
+  // replay forwards so tools and terminal events retain their original order.
+  const anchored = records => {
+    for (let i = records.length - 1; i >= 0; i--) {
+      const event = eventOf(records[i]);
+      if (event?.type === 'user/message' && sourceOf(event.data).rpcId === requestId) seenRequest = true;
+      if (seenRequest && event?.type === 'turn/start' && Number.isSafeInteger(event.data.turn)) return true;
+    }
+    return false;
+  };
+  let beforeSeq = historyBoundary(page, throughSeq);
+  while (page.hasMore && !anchored(page.records)) {
+    page = await historyPage(ctx, sessionId, throughSeq, beforeSeq, 100, headers, helpers, budget);
+    pages.push(page.records);
+    beforeSeq = page.records[0]?.event?.seq;
+  }
+  return { records: pages.reverse().flat(), hasMore: page.hasMore };
 }
 
 function turnBudget(args) {
@@ -202,7 +262,11 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
       if (frame?.type === 'snapshot') {
         if (!Array.isArray(frame.records)) throw new CliError('Runtime returned an invalid conversation snapshot.', { code: 'invalid_response' });
         snapshot = true; incomplete = frame.hasMore === true;
-        if (submitted) for (const record of frame.records) turn.accept(eventOf(record));
+        if (submitted) {
+          const history = await restoreHistory(ctx, sessionId, requestId, frame, headers, helpers, budget);
+          incomplete = history.hasMore === true;
+          for (const record of history.records) turn.accept(eventOf(record));
+        }
       }
     }
     if (turn.result()) return finish(sessionId, requestId, turn.result());
@@ -283,7 +347,11 @@ export async function chatCommands(ctx, helpers) {
   let sessionId = args.value('session-id');
   if (action === 'history') {
     sessionId = helpers.identifier(sessionId, 'Session ID');
-    reporter.print(visibleHistory(await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history`), sessionId)); return 0;
+    const page = args.has('through-seq')
+      ? await historyPage(ctx, sessionId, Number(args.value('through-seq')),
+        args.has('before-seq') ? Number(args.value('before-seq')) : undefined, args.integer('page-size', 100), headers, helpers)
+      : await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history`);
+    reporter.print(visibleHistory(page, sessionId)); return 0;
   }
   const text = action === 'wait' ? undefined : await messageInput(args);
   const requestId = helpers.identifier(args.value('request-id') ?? randomUUID(), 'Request ID');

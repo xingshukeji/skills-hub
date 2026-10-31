@@ -122,8 +122,8 @@
     },
     {
       "path": "scripts/deskpilot/android.py",
-      "bytes": 12608,
-      "sha256": "9722476ad6b5799aa887d4f8c601d8da871db1b579ef6a621736d82ae62ced2f",
+      "bytes": 12818,
+      "sha256": "28928d37b7b198df8d91fa33678bef80998f22da550451dc14d7117b2c45cdd2",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/android.py"
@@ -218,8 +218,8 @@
     },
     {
       "path": "scripts/deskpilot/session.py",
-      "bytes": 70971,
-      "sha256": "795550296d5e19f877b06da1a069408a1b540ab6c29eb7018190a032514513d2",
+      "bytes": 71577,
+      "sha256": "8eee1dd5f36bccb1447abb5c7e018b45d64821e943d3c437010cdeea7da80096",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/session.py"

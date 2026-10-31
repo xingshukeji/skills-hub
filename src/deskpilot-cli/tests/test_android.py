@@ -40,12 +40,33 @@ class FakeBridge:
         guard(); on_send(); self.events.append((x, y))
     def swipe(self, start, end, duration, guard, on_send):
         guard(); on_send(); self.events.append((start, end, duration))
-    def send_keys(self, events, guard, on_send):
-        guard(); on_send(); self.events.append(list(events))
+    def send_keys(self, events, guard, on_send, *, before_key):
+        before_key(); guard(); on_send(); self.events.append(list(events))
         if self.fail_after_dispatch:
             raise DeskPilotError("CANCELLED", "Cancelled after dispatch.", outcome="unknown")
         if self.next_value is not None:
             self.current["text"] = self.next_value
+
+
+def key_channel(on_key):
+    """Acknowledge real transport writes without an emulator or keyboard input."""
+    channel = queue.Queue()
+    class Input:
+        def write(self, data):
+            on_key(data)
+            marker = re.search(rb'(deskpilot_ack_[0-9a-f]+):%s', data).group(1)
+            channel.put(marker + b':0\n')
+        def flush(self): pass
+        def close(self): pass
+    class Output:
+        def readline(self): return channel.get()
+        def close(self): pass
+    class Process:
+        def __init__(self): self.stdin, self.stdout, self.dead = Input(), Output(), False
+        def poll(self): return 0 if self.dead else None
+        def kill(self): self.dead = True; channel.put(b'')
+        def wait(self, timeout): return 0
+    return Process()
 
 
 class AndroidTests(unittest.TestCase):
@@ -204,6 +225,88 @@ class AndroidTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'ANDROID_DEVICE_MISMATCH')
         self.assertEqual(self.bridge.events, [])
 
+    def test_secret_stops_after_first_key_when_guest_focus_or_identity_changes(self):
+        for change in ({'focused': False}, {'package': 'other.app'}, {'password': False},
+                       {'resource_id': 'fixture:id/other'}):
+            with self.subTest(change=change):
+                self.bridge.current = node(password=True)
+                ref = self.observed()
+                writes = []
+                def on_key(data):
+                    writes.append(data)
+                    self.bridge.current.update(change)
+                self.bridge.require_keys = lambda: None
+                self.bridge._process = lambda *args, **kwargs: key_channel(on_key)
+                self.bridge.send_keys = AndroidBridge.send_keys.__get__(self.bridge)
+                params = ref | {'target_kind': 'android_password', 'purpose': 'authorized_local_test',
+                                'confirmed': True, 'expected_package': 'local.fixture', 'secret_ref': {}}
+                with patch('deskpilot.secret.read_local_secret', return_value='abcdefgh'):
+                    with self.assertRaises(DeskPilotError) as caught:
+                        self.session.execute('input.secret', params)
+                self.assertEqual((caught.exception.code, caught.exception.outcome),
+                                 ('SENSITIVE_FOCUS_NOT_CONFIRMED', 'unknown'))
+                self.assertEqual(len(writes), 1, 'No later character may be sent to the changed guest target.')
+                with self.assertRaises(DeskPilotError) as stale:
+                    self.session.execute('input.secret', params)
+                self.assertEqual(stale.exception.code, 'STALE_OBSERVATION')
+
+    def test_secret_rechecks_guest_after_reading_the_reference_before_any_key(self):
+        self.bridge.current = node(password=True)
+        ref = self.observed()
+        writes = []
+        self.bridge.require_keys = lambda: None
+        self.bridge._process = lambda *args, **kwargs: key_channel(writes.append)
+        self.bridge.send_keys = AndroidBridge.send_keys.__get__(self.bridge)
+        def read_secret(_):
+            self.bridge.current['focused'] = False
+            return 'abcdefgh'
+        with patch('deskpilot.secret.read_local_secret', side_effect=read_secret):
+            with self.assertRaises(DeskPilotError) as caught:
+                self.session.execute('input.secret', ref | {'target_kind': 'android_password',
+                    'purpose': 'authorized_local_test', 'confirmed': True, 'expected_package': 'local.fixture', 'secret_ref': {}})
+        self.assertEqual((caught.exception.code, caught.exception.outcome),
+                         ('SENSITIVE_FOCUS_NOT_CONFIRMED', 'not_dispatched'))
+        self.assertEqual(writes, [])
+
+    def test_regular_input_stops_before_delete_if_focus_changes_after_select_all(self):
+        ref = self.observed()
+        writes = []
+        def on_key(data):
+            writes.append(data)
+            self.bridge.current['focused'] = False
+        self.bridge.require_keys = lambda: None
+        self.bridge._process = lambda *args, **kwargs: key_channel(on_key)
+        self.bridge.send_keys = AndroidBridge.send_keys.__get__(self.bridge)
+        with self.assertRaises(DeskPilotError) as caught:
+            self.session.execute('android.set_value', ref | {'value': 'replacement'})
+        self.assertEqual((caught.exception.code, caught.exception.outcome), ('ANDROID_FOCUS_NOT_CONFIRMED', 'unknown'))
+        self.assertEqual(len(writes), 1)
+
+    def test_real_key_channel_preserves_a_stable_password_or_editable_target(self):
+        for password in (False, True):
+            with self.subTest(password=password):
+                self.bridge.current = node(password=password)
+                ref = self.observed()
+                writes = []
+                def on_key(data):
+                    writes.append(data)
+                    if not password:
+                        self.bridge.current['text'] = 'aB1!'[:max(0, len(writes) - 2)]
+                self.bridge.require_keys = lambda: None
+                self.bridge._process = lambda *args, **kwargs: key_channel(on_key)
+                self.bridge.send_keys = AndroidBridge.send_keys.__get__(self.bridge)
+                if password:
+                    with patch('deskpilot.secret.read_local_secret', return_value='aB1!'):
+                        value = self.session.execute('input.secret', ref | {'target_kind': 'android_password',
+                            'purpose': 'authorized_local_test', 'confirmed': True, 'expected_package': 'local.fixture', 'secret_ref': {}})
+                    self.assertEqual(value['verification'], 'not_read')
+                    self.assertEqual(len(writes), 4)
+                else:
+                    value = self.session.execute('android.set_value', ref | {'value': 'aB1!'})
+                    self.assertEqual(value['verification']['status'], 'matched')
+                    self.assertEqual(len(writes), 6)
+                self.assertNotIn('aB1!', repr(writes))
+
     def test_cancelled_after_dispatch_is_unknown_and_invalidates_reference(self):
         ref = self.observed()
         self.bridge.fail_after_dispatch = True
@@ -240,7 +343,7 @@ class AndroidTests(unittest.TestCase):
         arguments = []
         bridge._process = lambda args, **kwargs: (arguments.append(args) or Process())
         sent = []
-        bridge.send_keys(key_events(marker), lambda: None, lambda: sent.append(True))
+        bridge.send_keys(key_events(marker), lambda: None, lambda: sent.append(True), before_key=lambda: None)
         self.assertEqual(arguments, [['shell']])
         self.assertNotIn(marker, repr(arguments))
         self.assertNotIn(marker.encode(), b''.join(captured))

@@ -21,7 +21,7 @@ function segment(value) {
   return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor view-version source-row match-value code purpose import-source-key".split(" "));
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -2754,7 +2754,7 @@ command("agent chat start", [...runtime, "agent-id", "application-id", "personal
 command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
 command("agent chat wait", [...runtime, "session-id", "application-id", "personal", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
 command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
-command("agent chat history", [...runtime, "session-id"], [slot("session-id")], "Read visible messages and turn outcomes from an authorized conversation.");
+command("agent chat history", [...runtime, "session-id", "through-seq", "before-seq", "page-size"], [slot("session-id")], "Read visible history; page backwards at a fixed --through-seq using --before-seq.");
 command("agent chat pending", [...runtime, "session-id"], [], "List your pending questions or approvals, optionally filtered by session.");
 command("agent chat respond", [...runtime, "action-ref", "application-id", "personal", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
 command("agent qualifications", [...api2, "application-id", "personal"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
@@ -2954,6 +2954,15 @@ function validateCommand(args) {
       if (!args.has("message") && !args.has("message-file")) throw new CliError("--message or --message-file is required.", { code: "invalid_arguments" });
     }
     if (spec.path === "agent chat wait") args.required("request-id");
+    if (spec.path === "agent chat history" && ["through-seq", "before-seq", "page-size"].some((name) => args.has(name))) {
+      args.required("through-seq");
+      for (const [name, minimum] of [["through-seq", -1], ["before-seq", 0]]) if (args.has(name)) {
+        const value = args.value(name);
+        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum)
+          throw new CliError(`--${name} must be an integer of at least ${minimum}.`, { code: "invalid_arguments" });
+      }
+      args.integer("page-size", 100);
+    }
     if (spec.path === "agent chat respond" && !["values", "values-json", "file"].some((name) => args.has(name)))
       throw new CliError("A JSON response is required.", { code: "invalid_arguments" });
   }
@@ -3085,6 +3094,10 @@ function textOf(value) {
 function eventOf(record) {
   return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null;
 }
+function sourceOf(data) {
+  const message2 = isObject(data.message) ? data.message : data;
+  return isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
+}
 function toolResult(data) {
   const message2 = isObject(data.message) ? data.message : {};
   const block = Array.isArray(message2.content) ? message2.content.find((part) => isObject(part) && part.type === "tool-result") : void 0;
@@ -3106,7 +3119,7 @@ function collector(requestId, expectedText) {
     }
     if (event.type === "user/message") {
       const message2 = isObject(data.message) ? data.message : data;
-      const source = isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
+      const source = sourceOf(data);
       if (source.rpcId === requestId && (expectedText === void 0 || textOf(message2) === expectedText)) {
         found = true;
         targetTurn = Number.isSafeInteger(data.turn) ? data.turn : currentTurn;
@@ -3141,7 +3154,7 @@ function visibleHistory(frame, sessionId) {
     const base = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
     if (event.type === "user/message" || event.type === "assistant/message") {
       const message2 = isObject(data.message) ? data.message : data;
-      const source = isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
+      const source = sourceOf(data);
       if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
       const text = textOf(message2);
       if (text) items.push({ ...base, type: event.type, text, ...source.rpcId ? { requestId: source.rpcId } : {} });
@@ -3154,7 +3167,71 @@ function visibleHistory(frame, sessionId) {
       items.push({ ...base, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
     }
   }
-  return { sessionId, ...frame.cursor !== void 0 ? { cursor: frame.cursor } : {}, hasMore: frame.hasMore === true, items };
+  const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : void 0;
+  return {
+    sessionId,
+    ...frame.cursor !== void 0 ? { cursor: frame.cursor } : {},
+    hasMore: frame.hasMore === true,
+    ...nextBeforeSeq !== void 0 ? { nextBeforeSeq } : {},
+    items
+  };
+}
+function historyBoundary(page, throughSeq, beforeSeq) {
+  if (!Number.isSafeInteger(throughSeq) || throughSeq < -1 || !isObject(page) || !Array.isArray(page.records) || typeof page.hasMore !== "boolean")
+    throw new CliError("Runtime returned an invalid history page.", { code: "invalid_response" });
+  let previous = -1;
+  for (const record of page.records) {
+    const seq = record?.event?.seq;
+    if (!Number.isSafeInteger(seq) || seq <= previous || seq > throughSeq || beforeSeq !== void 0 && seq >= beforeSeq)
+      throw new CliError("Runtime returned an unordered or mismatched history page.", { code: "invalid_response" });
+    previous = seq;
+  }
+  const first = page.records[0]?.event?.seq;
+  if (page.hasMore && (first === void 0 || first === 0))
+    throw new CliError("Runtime history pagination did not advance.", { code: "invalid_response" });
+  return first;
+}
+async function historyPage(ctx, sessionId, throughSeq, beforeSeq, maxMessages, headers, helpers, budget) {
+  budget?.check();
+  const query2 = new URLSearchParams({ throughSeq, maxMessages });
+  if (beforeSeq !== void 0) query2.set("beforeSeq", beforeSeq);
+  let page;
+  try {
+    page = await helpers.runtimeValue(
+      ctx,
+      "GET",
+      `${sessions}/${segment(sessionId)}/history?${query2}`,
+      void 0,
+      headers,
+      { signal: budget?.signal }
+    );
+  } catch (error) {
+    budget?.check();
+    throw error;
+  }
+  budget?.check();
+  historyBoundary(page, throughSeq, beforeSeq);
+  return { ...page, type: "snapshot", cursor: throughSeq };
+}
+async function restoreHistory(ctx, sessionId, requestId, snapshot, headers, helpers, budget) {
+  if (snapshot.hasMore !== true) return snapshot;
+  const pages = [snapshot.records], throughSeq = snapshot.cursor;
+  let page = snapshot, seenRequest = false;
+  const anchored = (records) => {
+    for (let i = records.length - 1; i >= 0; i--) {
+      const event = eventOf(records[i]);
+      if (event?.type === "user/message" && sourceOf(event.data).rpcId === requestId) seenRequest = true;
+      if (seenRequest && event?.type === "turn/start" && Number.isSafeInteger(event.data.turn)) return true;
+    }
+    return false;
+  };
+  let beforeSeq = historyBoundary(page, throughSeq);
+  while (page.hasMore && !anchored(page.records)) {
+    page = await historyPage(ctx, sessionId, throughSeq, beforeSeq, 100, headers, helpers, budget);
+    pages.push(page.records);
+    beforeSeq = page.records[0]?.event?.seq;
+  }
+  return { records: pages.reverse().flat(), hasMore: page.hasMore };
 }
 function turnBudget(args) {
   const controller = new AbortController(), milliseconds = args.integer("wait-timeout", 120) * 1e3;
@@ -3275,7 +3352,11 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
         if (!Array.isArray(frame.records)) throw new CliError("Runtime returned an invalid conversation snapshot.", { code: "invalid_response" });
         snapshot = true;
         incomplete = frame.hasMore === true;
-        if (submitted) for (const record of frame.records) turn.accept(eventOf(record));
+        if (submitted) {
+          const history = await restoreHistory(ctx, sessionId, requestId, frame, headers, helpers, budget);
+          incomplete = history.hasMore === true;
+          for (const record of history.records) turn.accept(eventOf(record));
+        }
       }
     }
     if (turn.result()) return finish(sessionId, requestId, turn.result());
@@ -3359,7 +3440,16 @@ async function chatCommands(ctx, helpers) {
   let sessionId = args.value("session-id");
   if (action === "history") {
     sessionId = helpers.identifier(sessionId, "Session ID");
-    reporter.print(visibleHistory(await helpers.runtimeValue(ctx, "GET", `${sessions}/${segment(sessionId)}/history`), sessionId));
+    const page = args.has("through-seq") ? await historyPage(
+      ctx,
+      sessionId,
+      Number(args.value("through-seq")),
+      args.has("before-seq") ? Number(args.value("before-seq")) : void 0,
+      args.integer("page-size", 100),
+      headers,
+      helpers
+    ) : await helpers.runtimeValue(ctx, "GET", `${sessions}/${segment(sessionId)}/history`);
+    reporter.print(visibleHistory(page, sessionId));
     return 0;
   }
   const text = action === "wait" ? void 0 : await messageInput(args);

@@ -393,6 +393,19 @@ class Session:
                 "The selected emulator must remain in the foreground during input.",
                 details=details, outcome="unknown" if self._dispatched else "not_dispatched")
 
+    def _android_input_guard(self, window, bridge, node):
+        from .android import signature
+        self._android_guard(window)
+        current, truncated = bridge.observe(limit=5000)
+        matches = [value for value in current if value["path"] == node["path"]]
+        require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(node)
+                and matches[0]["enabled"] and matches[0]["editable"] and matches[0]["focused"],
+                "SENSITIVE_FOCUS_NOT_CONFIRMED" if node["password"] else "ANDROID_FOCUS_NOT_CONFIRMED",
+                "The Android input target or focus changed; observe before any retry.",
+                outcome="unknown" if self._dispatched else "not_dispatched")
+        # A hierarchy read may take seconds; the host must still match afterwards.
+        self._android_guard(window)
+
     def _android_mutation(self, method, params):
         from .android import key_events, signature
         events = None
@@ -450,7 +463,8 @@ class Session:
                 bridge.swipe(start, end, duration, guard, dispatched)
                 verification = {"status": "not_checked"}
             else:
-                bridge.send_keys(events, guard, dispatched)
+                bridge.send_keys(events, guard, dispatched,
+                                 before_key=lambda: self._android_input_guard(window, bridge, node))
                 current, truncated = bridge.observe(limit=5000)
                 matches = [value for value in current if value["path"] == node["path"]]
                 require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(node)
@@ -468,7 +482,7 @@ class Session:
         return {"dispatched": True, "verification": verification, "window": self._public_window(window_id, window)}
 
     def _android_secret(self, params):
-        from .android import key_events, signature
+        from .android import key_events
         from .secret import read_local_secret
         require(params.get("confirmed") is True and params.get("purpose") == "authorized_local_test",
                 "SENSITIVE_INPUT_BLOCKED", "Sensitive input requires an authorized local test and explicit acknowledgement.")
@@ -485,13 +499,9 @@ class Session:
             self._activity(window, "input.secret", params)
             def dispatched():
                 self._dispatched = True
-            bridge.send_keys(events, lambda: self._android_guard(window), dispatched)
-            current, truncated = bridge.observe(limit=5000)
-            matches = [value for value in current if value["path"] == node["path"]]
-            require(not truncated and len(matches) == 1 and signature(matches[0]) == signature(node)
-                    and matches[0]["focused"] and matches[0]["password"],
-                    "SENSITIVE_FOCUS_NOT_CONFIRMED", "The Android password focus changed; inspect the application before any retry.",
-                    outcome="unknown")
+            bridge.send_keys(events, lambda: self._android_guard(window), dispatched,
+                             before_key=lambda: self._android_input_guard(window, bridge, node))
+            self._android_input_guard(window, bridge, node)
         except DeskPilotError as error:
             if self._dispatched:
                 error.outcome = "unknown"

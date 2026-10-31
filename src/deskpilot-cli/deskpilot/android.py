@@ -196,7 +196,7 @@ class AndroidBridge:
             error.outcome = "unknown"
             raise
 
-    def send_keys(self, events, guard, on_send):
+    def send_keys(self, events, guard, on_send, *, before_key):
         self.require_keys()
         guard()
         try:
@@ -219,6 +219,9 @@ class AndroidBridge:
         dispatched = False
         try:
             for event in events:
+                # Guest focus can change independently of the emulator window.
+                # Reobserve before every key; keep ACK polling on the fast host guard.
+                before_key()
                 guard()
                 marker = "deskpilot_ack_" + uuid.uuid4().hex
                 payload = f"{event} >/dev/null 2>&1; printf '{marker}:%s\\n' $?\n".encode("ascii")
