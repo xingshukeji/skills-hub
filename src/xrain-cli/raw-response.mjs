@@ -1,4 +1,4 @@
-import { closeSync, openSync, unlinkSync, writeSync, fsyncSync, fstatSync, lstatSync } from 'node:fs';
+import { closeSync, constants, openSync, unlinkSync, writeSync, fsyncSync, fstatSync, lstatSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CliError, registerSecrets } from './core.mjs';
 import { responseError, requestError } from './http.mjs';
@@ -9,7 +9,18 @@ export async function rawOutput(ctx, call, context) {
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once('SIGINT', interrupt);
   let file, saved = false, result, response, created;
-  const ownsOutput = () => { try { const current = lstatSync(output, { bigint: true }); return current.ino === created.ino && current.dev === created.dev; } catch { return false; } };
+  const ownsOutput = () => {
+    let observed;
+    try {
+      if (lstatSync(output).isSymbolicLink()) return false;
+      // Compare two file handles: Windows path and handle stat may report
+      // different device or inode values for the same file.
+      observed = openSync(output, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+      const current = fstatSync(observed, { bigint: true });
+      return current.ino === created.ino && current.dev === created.dev;
+    } catch { return false; }
+    finally { if (observed !== undefined) closeSync(observed); }
+  };
   try {
     if (output) {
       try { file = openSync(output, 'wx', 0o600); created = fstatSync(file, { bigint: true }); }

@@ -3567,7 +3567,7 @@ for (const operation of deliveryOperations) {
 }
 
 // src/xrain-cli/raw-response.mjs
-import { closeSync as closeSync3, openSync as openSync3, unlinkSync as unlinkSync2, writeSync, fsyncSync as fsyncSync2, fstatSync as fstatSync2, lstatSync as lstatSync2 } from "node:fs";
+import { closeSync as closeSync3, constants as constants3, openSync as openSync3, unlinkSync as unlinkSync2, writeSync, fsyncSync as fsyncSync2, fstatSync as fstatSync2, lstatSync as lstatSync2 } from "node:fs";
 import { resolve as resolve4 } from "node:path";
 async function rawOutput(ctx, call, context) {
   const output2 = ctx.args.has("out") ? resolve4(ctx.args.required("out")) : void 0;
@@ -3575,11 +3575,16 @@ async function rawOutput(ctx, call, context) {
   process.once("SIGINT", interrupt);
   let file, saved = false, result, response, created;
   const ownsOutput = () => {
+    let observed;
     try {
-      const current = lstatSync2(output2, { bigint: true });
+      if (lstatSync2(output2).isSymbolicLink()) return false;
+      observed = openSync3(output2, constants3.O_RDONLY | (constants3.O_NOFOLLOW ?? 0));
+      const current = fstatSync2(observed, { bigint: true });
       return current.ino === created.ino && current.dev === created.dev;
     } catch {
       return false;
+    } finally {
+      if (observed !== void 0) closeSync3(observed);
     }
   };
   try {
@@ -5636,20 +5641,20 @@ async function fileCommands(ctx) {
 }
 
 // src/xrain-cli/market.mjs
-import { accessSync as accessSync2, constants as constants3, copyFileSync, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, resolve as resolve8 } from "node:path";
 import { randomBytes as randomBytes6 } from "node:crypto";
 function newOutput(value) {
   const path = resolve8(value);
   if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
-  accessSync2(dirname4(path), constants3.W_OK);
+  accessSync2(dirname4(path), constants4.W_OK);
   return path;
 }
 function save(path, bytes) {
   const temporary = path + "." + randomBytes6(8).toString("hex") + ".part";
   try {
     writeFileSync4(temporary, bytes, { flag: "wx" });
-    copyFileSync(temporary, path, constants3.COPYFILE_EXCL);
+    copyFileSync(temporary, path, constants4.COPYFILE_EXCL);
   } finally {
     if (existsSync3(temporary)) unlinkSync3(temporary);
   }

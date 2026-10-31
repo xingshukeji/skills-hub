@@ -47,6 +47,33 @@ test('raw file output streams beyond the JSON budget, retains HTTP errors, and r
   assert.equal(JSON.parse(readFileSync(deniedOut)).error.code, 'native.forbidden');
 });
 
+test('raw output remains usable and cleans up when path and handle stat identities differ', async t => {
+  const f = fixture(t); let disconnect = false, activeOutput;
+  const service = await mockServer(t, (_hit, response) => {
+    if (disconnect) return response.destroy();
+    response.writeHead(200, { 'content-type': 'application/octet-stream' }); response.end(Buffer.from([0, 255, 1]));
+  });
+  login(f, service.url); const input = request(f), originalLstat = fs.lstatSync;
+  fs.lstatSync = (path, ...options) => {
+    const stat = originalLstat(path, ...options);
+    if (path === activeOutput) {
+      stat.dev = typeof stat.dev === 'bigint' ? stat.dev + 1n : stat.dev + 1;
+      stat.ino = typeof stat.ino === 'bigint' ? stat.ino + 1n : stat.ino + 1;
+    }
+    return stat;
+  };
+  syncBuiltinESMExports();
+  try {
+    activeOutput = join(f.directory, 'identity.bin');
+    const saved = await f.run(rawArgs(input, activeOutput));
+    assert.equal(saved.code, 0, saved.stdout); assert.deepEqual(readFileSync(activeOutput), Buffer.from([0, 255, 1]));
+    activeOutput = join(f.directory, 'identity-failed.bin'); disconnect = true;
+    const failed = await f.run(rawArgs(input, activeOutput));
+    assert.equal(failed.code, 1); assert.equal(existsSync(activeOutput), false);
+    assert.equal(service.hits.length, 2);
+  } finally { fs.lstatSync = originalLstat; syncBuiltinESMExports(); }
+});
+
 test('interrupted, cancelled and locally failed raw output cleans only the owned file and never replays a request', async t => {
   const f = fixture(t); let mode = 'disconnect', activeOutput;
   const service = await mockServer(t, async (_hit, response) => {
