@@ -269,7 +269,7 @@
       "refPermissionSetId"
     ],
     "prefix": "00f",
-    "description": "Exactly one reference: package custom permission ID, generated standard ID, or standard/custom/registered tenant API permission name. Field export is retired."
+    "description": "Exactly one reference: refPermissionId for a custom permission declared in this package, or refPermissionName for a standard/custom/registered tenant API permission. Field export is retired."
   },
   "InfraEmailTemplate": {
     "optional": [

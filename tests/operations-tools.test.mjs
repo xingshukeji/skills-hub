@@ -51,16 +51,68 @@ test('successful installation and Passed object do not conceal NotChecked or sta
   assert.deepEqual(result.checkCounts, { passed: 1, failed: 0, notChecked: 1, unknown: 0 });
   assert.equal(result.businessVerified, false); assert(result.evidenceGaps.includes('runtime-check-incomplete'));
   assert.equal(result.installedVersionMatchesTarget, true);
+  assert.equal(result.currentOperationCommitted, true);
   const otherTenant = structuredClone(value); otherTenant.installation.tenantId = 'tenant-other';
   const mismatched = inspectOperation(otherTenant);
   assert.equal(mismatched.installedVersionMatchesTarget, true);
   assert(mismatched.blockers.includes('tenant-mismatch'));
   assert.equal(mismatched.next, 'reconcile-evidence-before-mutation');
+  assert.equal(mismatched.currentOperationCommitted, false);
   assert(!Object.hasOwn(mismatched, 'installationMatchesTarget'));
   value.check.revision = 4;
   assert(inspectOperation(value).blockers.includes('runtime-check-stale-or-mismatched'));
   value.installation.installedVersionId = 'apv-other';
   assert(inspectOperation(value).blockers.includes('successful-operation-not-current-installation'));
+});
+test('successful receipts distinguish an uncommitted revision, an unreleased pointer and missing evidence', () => {
+  const succeeded = () => {
+    const value = fixture('Succeeded');
+    Object.assign(value.installation, { installedVersionId: 'apv-new', revision: 5, activeOperationId: null });
+    return value;
+  };
+  for (const installedRevision of [3, 4]) {
+    const value = succeeded(); value.installation.revision = installedRevision;
+    const result = inspectOperation(value);
+    assert(result.blockers.includes('successful-operation-revision-not-committed'));
+    assert.equal(result.next, 'reconcile-evidence-before-mutation');
+    assert.equal(result.operationStatus, 'Succeeded');
+    assert.equal(result.currentOperationCommitted, false);
+  }
+  const active = succeeded(); active.installation.activeOperationId = active.operation.id;
+  const unreleased = inspectOperation(active);
+  assert(unreleased.blockers.includes('successful-operation-still-active'));
+  assert.equal(unreleased.currentOperationCommitted, false);
+  const incomplete = succeeded(); delete incomplete.installation.activeOperationId;
+  const missing = inspectOperation(incomplete);
+  assert.deepEqual(missing.blockers, []);
+  assert(missing.evidenceGaps.includes('active-operation-pointer-unavailable'));
+  assert.equal(missing.next, 'read-current-installation');
+  assert.equal(missing.currentOperationCommitted, false);
+});
+test('later maintenance preserves historical success without proving the current operation committed', () => {
+  for (const installedVersionId of ['apv-new', 'apv-later', null]) {
+    for (const activeOperationId of [null, 'apo-later']) {
+      const value = fixture('Succeeded');
+      Object.assign(value.installation, { installedVersionId, revision: 7, activeOperationId });
+      const result = inspectOperation(value);
+      assert.deepEqual(result.blockers, []);
+      assert.equal(result.operationStatus, 'Succeeded');
+      assert.equal(result.next, 'read-subsequent-operation-history');
+      assert(result.evidenceGaps.includes('installation-advanced-since-success'));
+      assert.equal(result.currentOperationCommitted, false);
+      assert.equal(result.installedVersionMatchesTarget, installedVersionId === value.target.versionId);
+      assert.equal(result.businessVerified, false);
+    }
+  }
+});
+test('a committed uninstall has a null version and still needs independent business evidence', () => {
+  const value = fixture('Succeeded');
+  value.target.versionId = value.operation.targetVersionId = value.installation.installedVersionId = null;
+  value.installation.revision = 5; value.installation.activeOperationId = null;
+  const result = inspectOperation(value);
+  assert.deepEqual(result.blockers, []);
+  assert.equal(result.currentOperationCommitted, true);
+  assert.equal(result.businessVerified, false);
 });
 const event = (seq, type, data) => ({ event: { seq, type, data } });
 test('history ignores old completed turns and preserves failed tools despite later assistant text', () => {

@@ -16,6 +16,8 @@ node "<模式目录>/scripts/inspect-operation.mjs" "<回执.json>"
 
 退出 2 表示无效输入/未知状态，1 表示关联/版本/revision 冲突，0 仅表示检查完成。始终读 next、blockers、evidenceGaps；installedVersionMatchesTarget 只比版本，不证明租户/包/操作匹配。建议的 resolve/continue/retry 仍受[实际状态](operations.md)约束，businessVerified 不自动为真。
 
+`currentOperationCommitted=true` 仅表示原成功操作与目标/安装关联一致、当前版本匹配、revision=sourceRevision+1 且活动指针为空；组件与业务验证仍独立。成功操作的 revision 未递增或原活动指针未释放会列出 blocker；活动指针缺失则要求重读 installation。revision 已增加更多表示安装发生过后续维护，保留原 Succeeded，提示读取后续操作历史；当前已换版本或有另一活动操作，不据此把历史成功判为安装失败，仍须核对后续操作。NotChecked 只说明检查范围未覆盖，不反转安装提交事实。
+
 ## 生成原操作的 resolve 请求
 
 原 target/installation/operation 必须属于同一活动 WaitingForResolution 操作，当前 revision 与 sourceRevision 一致。已有决定后加入 selections：

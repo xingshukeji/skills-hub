@@ -15,10 +15,11 @@ export function inspectOperation(bundle) {
   assert(id(target.tenantId) && id(target.packageId) && (target.versionId === null || id(target.versionId)));
   assert(id(installed.id) && id(installed.tenantId) && id(installed.packageId) && revision(installed.revision));
   assert(installed.installedVersionId === null || id(installed.installedVersionId));
+  if (installed.activeOperationId !== undefined) assert(installed.activeOperationId === null || id(installed.activeOperationId));
   const blockers = [], gaps = [];
   if (target.tenantId !== installed.tenantId) blockers.push('tenant-mismatch');
   if (target.packageId !== installed.packageId) blockers.push('package-mismatch');
-  let next = 'read-original-operation', counts = null;
+  let next = 'read-original-operation', counts = null, currentOperationCommitted = false;
   if (op !== undefined) {
     assert(object(op) && id(op.id) && id(op.installationId) && revision(op.sourceRevision) && statuses.includes(op.status));
     assert(op.targetVersionId === null || id(op.targetVersionId));
@@ -27,7 +28,8 @@ export function inspectOperation(bundle) {
     if (op.installationId !== installed.id) blockers.push('installation-mismatch');
     if (target.operationId !== undefined) { assert(id(target.operationId)); if (target.operationId !== op.id) blockers.push('operation-mismatch'); }
     if (target.versionId !== op.targetVersionId) blockers.push('target-version-mismatch');
-    if (installed.activeOperationId && installed.activeOperationId !== op.id) blockers.push('another-active-operation');
+    const historicalSuccess = op.status === 'Succeeded' && installed.revision > op.sourceRevision + 1;
+    if (installed.activeOperationId && installed.activeOperationId !== op.id && !historicalSuccess) blockers.push('another-active-operation');
     next = {
       Pending: 'observe-original-operation', WaitingForResolution: 'resolve-original-operation',
       Running: 'observe-or-continue-if-interrupted', Finalizing: 'observe-or-continue-if-interrupted',
@@ -35,7 +37,20 @@ export function inspectOperation(bundle) {
     }[op.status];
     if (['Pending', 'WaitingForResolution', 'Failed'].includes(op.status) && op.sourceRevision !== installed.revision) blockers.push('source-revision-changed');
     if (op.status === 'Failed' && (op.details.result?.requiresResubmission === true || op.errorCode === 'application_operation_resubmission_required')) next = 'restore-input-and-repreview-before-resubmission';
-    if (op.status === 'Succeeded' && installed.installedVersionId !== op.targetVersionId) blockers.push('successful-operation-not-current-installation');
+    if (op.status === 'Succeeded') {
+      if (installed.revision <= op.sourceRevision) blockers.push('successful-operation-revision-not-committed');
+      else if (installed.revision > op.sourceRevision + 1) {
+        gaps.push('installation-advanced-since-success');
+        next = 'read-subsequent-operation-history';
+      } else if (installed.installedVersionId !== op.targetVersionId) blockers.push('successful-operation-not-current-installation');
+      if (installed.activeOperationId === op.id) blockers.push('successful-operation-still-active');
+      if (installed.activeOperationId === undefined) {
+        gaps.push('active-operation-pointer-unavailable');
+        next = 'read-current-installation';
+      }
+      currentOperationCommitted = blockers.length === 0 && installed.revision === op.sourceRevision + 1 &&
+        installed.installedVersionId === op.targetVersionId && installed.activeOperationId === null;
+    }
   } else gaps.push('original-operation-unavailable');
   if (preview !== undefined) {
     assert(object(preview) && revision(preview.revision) && typeof preview.ready === 'boolean');
@@ -61,7 +76,7 @@ export function inspectOperation(bundle) {
   gaps.push('original-user-business-action-not-proven');
   return { operationStatus: op?.status ?? null, next: blockers.length ? 'reconcile-evidence-before-mutation' : next,
     blockers, evidenceGaps: gaps, required: counts, checkCounts,
-    installedVersionMatchesTarget: installed.installedVersionId === target.versionId, businessVerified: false };
+    installedVersionMatchesTarget: installed.installedVersionId === target.versionId, currentOperationCommitted, businessVerified: false };
 }
 if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(resolve(process.argv[1]))).href) {
   try {
