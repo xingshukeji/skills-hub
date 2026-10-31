@@ -626,11 +626,11 @@ function requireSuccess(response, hint2 = "") {
   if (response.ok) return response;
   throw responseError(response, hint2);
 }
-async function writeOnce(action, hint2, details) {
+async function writeOnce(action, hint2, details, unknownServerCodes = []) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
       error.code = "outcome_unknown";
       error.hint = hint2;
       error.details = { ...error.details, ...details };
@@ -638,7 +638,7 @@ async function writeOnce(action, hint2, details) {
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
@@ -678,7 +678,7 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     ...recovery2
   };
   try {
-    return await writeOnce(perform, hint2, details);
+    return await writeOnce(perform, hint2, details, unknownServerCodes);
   } catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...details };
     throw error;
@@ -3498,6 +3498,12 @@ for (const operation of [...workflowOperations, ...settingsOperations]) {
 }
 
 // src/xrain-cli/delivery-operations.mjs
+var personalMailDraftUnknownCodes = ["email_draft_outcome_unknown"];
+function validatePersonalMailDraftReceipt(value, accountId) {
+  if (!isObject(value) || value.status !== "Saved" || !nonempty(value.internetMessageId) || value.reference != null && (!isObject(value.reference) || value.reference.accountId !== accountId))
+    throw new CliError("The mailbox did not return a matching saved draft receipt.", { code: "invalid_response", details: { result: value } });
+  return true;
+}
 var define5 = (path, method, route, options = {}) => ({ path, method, route, ...options });
 var s3 = "/api/service/storage/v1/s3-accounts";
 var email = "/api/delivery/v1/email";
@@ -3558,12 +3564,17 @@ var deliveryOperations = [
   define5("mail folders", "GET", personal + "/accounts/{id}/folders"),
   define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true }),
   define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true }),
-  define5("mail draft", "POST", personal + "/accounts/{id}/drafts", { input: "object" })
+  define5("mail draft", "POST", personal + "/accounts/{id}/drafts", {
+    input: "object",
+    unknownServerCodes: personalMailDraftUnknownCodes,
+    validate: (value, { args }) => validatePersonalMailDraftReceipt(value, args.value("id")),
+    readback: ["mail", "folders"]
+  })
 ];
 for (const operation of deliveryOperations) {
   const root2 = operation.path.split(" ")[0];
   if (root2 === "storage") operation.host = true;
-  operation.readback = root2 === "storage" ? ["storage", "account", "list"] : root2 === "mail" ? ["mail", "account", "list"] : root2 === "sms" ? ["sms", "records"] : [root2, "message", "list"];
+  operation.readback ??= root2 === "storage" ? ["storage", "account", "list"] : root2 === "mail" ? ["mail", "account", "list"] : root2 === "sms" ? ["sms", "records"] : [root2, "message", "list"];
 }
 
 // src/xrain-cli/raw-response.mjs
@@ -3763,6 +3774,7 @@ async function managementCommand(ctx) {
     responseHeaders: operation.responseHeaders,
     sessionOnly: operation.sessionOnly,
     signal,
+    unknownServerCodes: operation.unknownServerCodes,
     raw: operation.raw,
     validate: (value2) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value2))) && (!operation.validate || operation.validate(value2, { args, body })),
     ...write ? { mutation: mutation2 } : {}
@@ -3992,7 +4004,7 @@ command("agent subscription decide", [...api2, "id", "decision"], [slot("id")], 
 command("agent application list", api2, [], "List accessible XRain applications.");
 command("agent application show", [...api2, "application-id"], [slot("application-id")], "Read one application’s agent selection and default.");
 command("agent application set", [...api2, "application-id", "values", "values-json", "file"], [slot("application-id")], "Replace one application’s complete agent selection from JSON; preserve intended bindings and default.");
-command("agent definition list", runtime, [], "List definition summaries without full instructions; older Runtimes use their original list.");
+command("agent definition list", runtime, [], "List definition summaries without full instructions.");
 command("agent definition show", [...runtime, "agent-id"], [slot("agent-id")], "Read one definition and its revision by exact agent ID.");
 command("agent definition options", runtime, [], "Read Runtime models, workspaces and presets available to this caller.");
 command("agent definition limits", runtime, [], "Read the current Runtime write limit and lightweight status capability.");
@@ -4510,7 +4522,7 @@ function sameWorkspacePath(left, right) {
   if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return left === right;
 }
-function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = true) {
+function definitionFileChanges(file, draft, workspaces) {
   const v = file.definition, warnings = [];
   const changes = {
     name: v.name,
@@ -4524,8 +4536,7 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     uiPlugins: v.uiPlugins ?? void 0
   };
   if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
-  else if (canRestoreInheritance) changes.nativeTools = void 0;
-  else warnings.push("当前运行环境暂不支持恢复沿用工作模式提供的工具，已保留现有选择。");
+  else changes.nativeTools = void 0;
   const w = v.workspace;
   if (w.kind === "direct") Object.assign(changes, {
     workspaceId: null,
@@ -5179,51 +5190,18 @@ async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal
     throw new CliError("Runtime returned invalid JSON.", { code: "invalid_response" });
   }
 }
-var missingCapability = (error) => error.httpStatus === 404 && error.serverCode !== "AGENT_DEFINITION_NOT_FOUND";
 var definitionRead = (ctx, path) => runtimeValue(ctx, "GET", path, void 0, {}, { limit: Infinity });
-async function definitionList(ctx) {
-  try {
-    return await runtimeValue(ctx, "GET", definitions + "/summaries");
-  } catch (error) {
-    if (!missingCapability(error)) throw error;
-    ctx.reporter.progress("This Runtime uses the legacy full definition list.");
-    return definitionRead(ctx, definitions);
-  }
-}
 async function definition(ctx, id) {
-  try {
-    const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
-    if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
-      throw new CliError("Runtime returned an invalid definition.", { code: "invalid_response" });
-    return item;
-  } catch (error) {
-    if (!missingCapability(error)) throw error;
-  }
-  ctx.reporter.progress("This Runtime lacks single-definition reads; using its legacy list.");
-  const result = await definitionRead(ctx, definitions);
-  if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Runtime returned an invalid definition list.", { code: "invalid_response" });
-  const matches = result.items.filter((item) => isObject(item) && item.agentId === id);
-  if (!matches.length) throw new CliError("Definition not found in this Runtime.", { code: "not_found", details: { agentId: id } });
-  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].revision) || matches[0].revision < 1)
-    throw new CliError("Runtime returned an ambiguous or invalid definition.", { code: "invalid_response" });
-  return matches[0];
+  const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
+  if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
+    throw new CliError("Runtime returned an invalid definition.", { code: "invalid_response" });
+  return item;
 }
 async function definitionLimits(ctx) {
-  let value, legacy = false;
-  try {
-    value = await runtimeValue(ctx, "GET", definitions + "/limits");
-  } catch (error) {
-    if (!missingCapability(error)) throw error;
-    legacy = true;
-    value = await runtimeValue(ctx, "GET", definitions + "/options");
-  }
-  if (!isObject(value) || !(Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0 || legacy && value.maxDefinitionBytes === void 0))
+  const value = await runtimeValue(ctx, "GET", definitions + "/limits");
+  if (!isObject(value) || !Number.isSafeInteger(value.maxDefinitionBytes) || value.maxDefinitionBytes <= 0)
     throw new CliError("Runtime returned an invalid definition write limit.", { code: "invalid_response" });
-  return {
-    maxDefinitionBytes: value.maxDefinitionBytes ?? 65536,
-    supportsDefinitionStatusUpdate: value.supportsDefinitionStatusUpdate === true,
-    ...legacy ? { legacy: true } : {}
-  };
+  return value;
 }
 function checkDefinitionSize(body, limits) {
   const bytes = Buffer.byteLength(JSON.stringify(body), "utf8");
@@ -5306,9 +5284,9 @@ async function importDefinition(ctx) {
   if (expected !== null) updatedDefinition(current, {}, expected);
   const options = await runtimeValue(ctx, "GET", definitions + "/options");
   if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError("Runtime returned invalid definition options.", { code: "invalid_response" });
-  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, options.supportsNativeToolInheritanceReset === true);
+  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
-  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset === true) patch.nativeTools = null;
+  if (file.definition.nativeTools === null) patch.nativeTools = null;
   workspaceChange(patch);
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);
@@ -5320,7 +5298,7 @@ async function definitionCommands(ctx) {
   const { args, reporter } = ctx;
   const action = args.command(2);
   if (action === "list") {
-    reporter.print(await definitionList(ctx));
+    reporter.print(await runtimeValue(ctx, "GET", definitions + "/summaries"));
     return 0;
   }
   if (action === "options") {
@@ -5363,13 +5341,12 @@ async function definitionCommands(ctx) {
     return 0;
   }
   const expected = revision(args);
-  const limits = await definitionLimits(ctx);
-  if (action !== "update" && limits.supportsDefinitionStatusUpdate) {
-    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === "enable" }, limits, true));
+  if (action !== "update") {
+    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === "enable" }, void 0, true));
     return 0;
   }
-  if (action !== "update") reporter.progress("This Runtime does not support lightweight status updates; using its full-save contract.");
-  const patch = action === "update" ? await definitionInput(ctx, limits, !args.has("workspace-path")) : { enabled: action === "enable" };
+  const limits = await definitionLimits(ctx);
+  const patch = await definitionInput(ctx, limits, !args.has("workspace-path"));
   selectDirectory(args, patch);
   if (!Object.keys(patch).length) throw new CliError("The update has no fields.", { code: "invalid_arguments" });
   if ((Object.hasOwn(patch, "workspaceId") || Object.hasOwn(patch, "agentPreset")) && !patch.workspaceChange)
@@ -5940,15 +5917,15 @@ async function applicationUserCommand(ctx) {
   const command2 = operation.path === "retail session command";
   const call = async () => {
     const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, { json: body }));
-    if (operation.draft && (result2?.status !== "Saved" || typeof result2.internetMessageId !== "string" || !result2.internetMessageId))
-      throw new CliError("The mailbox did not return a saved draft receipt.", { code: "invalid_response" });
+    if (operation.draft) validatePersonalMailDraftReceipt(result2, args.value("id"));
     if (command2 && !commandOutcome(result2)) throw new CliError("The Runtime command receipt is invalid.", { code: "invalid_response" });
     return result2;
   };
   const result = operation.method === "GET" || operation.readOnly ? await call() : await writeOnce(
     call,
     "The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.",
-    details
+    details,
+    operation.draft ? personalMailDraftUnknownCodes : []
   );
   if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", { code: "execution_failed", details: { ...details, result } });
   reporter.print(result);

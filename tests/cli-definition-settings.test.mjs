@@ -13,11 +13,13 @@ const inline = value => ['--values', JSON.stringify(value)];
 const empty = { aiUserId: '', name: 'Target', enabled: false, instructions: '', provider: '', model: '', agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [] };
 
 async function definitions(t, options = {}) {
-  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true, inheritance: true, lose: false, ...options };
+  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true, lose: false, ...options };
   const server = await mockServer(t, (hit, res) => {
-    if (hit.url === root + '/limits') return respond(res, { maxDefinitionBytes: state.maxDefinitionBytes, supportsDefinitionStatusUpdate: state.supportsDefinitionStatusUpdate });
+    if (hit.url === root + '/limits') return state.limitUnavailable
+      ? respond(res, { error: 'AGENT_DEFINITION_LIMIT_UNAVAILABLE' }, 503)
+      : respond(res, { maxDefinitionBytes: state.maxDefinitionBytes, supportsDefinitionStatusUpdate: state.supportsDefinitionStatusUpdate });
     if (hit.url === root + '/options') return respond(res, { workspaces: [{ id: 'registered', cwd: '/same', agentPresets: ['standard'] }], presets: ['standard'], models: {},
-      maxDefinitionBytes: state.maxDefinitionBytes, supportsNativeToolInheritanceReset: state.inheritance });
+      maxDefinitionBytes: state.maxDefinitionBytes });
     if (hit.url === root + '/summaries') return respond(res, { canManage: true, items: [...records.values()].map(({ agentId, revision, name, enabled }) => ({ agentId, revision, name, enabled })) });
     if (hit.url.startsWith(root + '/items/')) {
       const item = records.get(decodeURIComponent(hit.url.split('/').at(-1)));
@@ -47,12 +49,12 @@ async function definitions(t, options = {}) {
   return { f, records, state, server, run };
 }
 
-test('lightweight status keeps a large definition stoppable after limit decreases and never replays unknown writes', async t => {
-  const { records, state, server, run } = await definitions(t, { maxDefinitionBytes: 100 });
+test('status remains available when full-save limits decrease or become unavailable and never replays unknown writes', async t => {
+  const { records, state, server, run } = await definitions(t, { maxDefinitionBytes: 100, limitUnavailable: true });
   records.set('large', { ...empty, agentId: 'large', revision: 6, enabled: true, instructions: '字'.repeat(10000) });
   const stopped = output(await run(['disable', 'large', '--expected-revision', '6']));
   assert.equal(stopped.data.enabled, false); assert.equal(records.get('large').instructions.length, 10000);
-  assert.deepEqual(server.hits.map(hit => hit.url), [root + '/limits', root + '/enabled']);
+  assert.deepEqual(server.hits.map(hit => hit.url), [root + '/enabled']);
   const conflict = output(await run(['enable', 'large', '--expected-revision', '6']));
   assert.equal(conflict.error.code, 'conflict'); assert.equal(records.get('large').revision, 7);
   state.lose = true;
@@ -114,7 +116,7 @@ test('files larger than 32 MiB use dynamic write limits; single reads and export
 });
 
 test('page exchange file import/export preserves identity, revision, enabled state, fields and inheritance without changing usage relations', async t => {
-  const { f, records, state, server, run } = await definitions(t);
+  const { f, records, server, run } = await definitions(t);
   const path = join(f.directory, 'page.json'); writeFileSync(path, JSON.stringify(sample));
   const created = output(await run(['import', '--file', path]));
   assert.equal(created.ok, true, JSON.stringify(created));
@@ -137,14 +139,35 @@ test('page exchange file import/export preserves identity, revision, enabled sta
     assert.equal(output(await run(['import', '--agent-id', id, '--expected-revision', '2', '--file', path])).error.code, 'invalid_definition_file');
   }
   assert.equal(server.hits.filter(hit => hit.method === 'POST').length, before);
-  state.inheritance = false;
   records.get(id).nativeTools = ['keep-tool'];
   const unmatched = structuredClone(sample); unmatched.definition.workspace = { kind: 'registered', id: 'registered', path: '/different' };
   writeFileSync(path, JSON.stringify(unmatched));
   const preserved = output(await run(['import', '--agent-id', id, '--expected-revision', '2', '--file', path]));
-  assert.equal(preserved.data.warnings.length, 2);
-  assert.deepEqual(records.get(id).nativeTools, ['keep-tool']); assert.equal(records.get(id).workspacePath, sample.definition.workspace.path);
+  assert.equal(preserved.data.warnings.length, 1);
+  assert.equal(Object.hasOwn(records.get(id), 'nativeTools'), false); assert.equal(records.get(id).workspacePath, sample.definition.workspace.path);
   assert.ok(server.hits.every(hit => hit.url.startsWith(root)));
+});
+
+test('missing current Runtime endpoints retain the original failure without alternate reads or full saves', async t => {
+  const f = fixture(t), server = await mockServer(t, (_hit, res) => respond(res, { error: 'NOT_FOUND' }, 404));
+  f.profile(server.url, 'tenant-demo', 'synthetic-token');
+  for (const [args, path] of [
+    [['list'], '/summaries'], [['show', 'a'], '/items/a'], [['limits'], '/limits'],
+    [['create', '--name', 'Name'], '/limits'], [['enable', 'a', '--expected-revision', '1'], '/enabled'],
+  ]) {
+    const before = server.hits.length;
+    const failed = output(await f.run(['agent', 'definition', ...args, '--runtime', server.url, '--json']));
+    assert.equal(failed.error.httpStatus, 404); assert.equal(failed.error.serverCode, 'NOT_FOUND');
+    assert.deepEqual(server.hits.slice(before).map(hit => hit.url), [root + path]);
+  }
+});
+
+test('a missing definition limit is an invalid response and never becomes a guessed write budget', async t => {
+  const f = fixture(t), server = await mockServer(t, (_hit, res) => respond(res, { supportsDefinitionStatusUpdate: true }));
+  f.profile(server.url, 'tenant-demo', 'synthetic-token');
+  const failed = output(await f.run(['agent', 'definition', 'create', '--name', 'Name', '--runtime', server.url, '--json']));
+  assert.equal(failed.error.code, 'invalid_response');
+  assert.deepEqual(server.hits.map(hit => [hit.method, hit.url]), [['GET', root + '/limits']]);
 });
 
 test('direct directory selection only sends the explicit definition change, and omitted fields remain unchanged', async t => {

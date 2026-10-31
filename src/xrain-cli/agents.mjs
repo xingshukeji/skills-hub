@@ -76,44 +76,18 @@ export async function runtimeValue(ctx, method, path, json, extraHeaders = {}, {
   if (!response.bytes.length) return null;
   try { return response.json(); } catch { throw new CliError('Runtime returned invalid JSON.', { code: 'invalid_response' }); }
 }
-const missingCapability = error => error.httpStatus === 404 && error.serverCode !== 'AGENT_DEFINITION_NOT_FOUND';
 const definitionRead = (ctx, path) => runtimeValue(ctx, 'GET', path, undefined, {}, { limit: Infinity });
-async function definitionList(ctx) {
-  try { return await runtimeValue(ctx, 'GET', definitions + '/summaries'); }
-  catch (error) {
-    if (!missingCapability(error)) throw error;
-    ctx.reporter.progress('This Runtime uses the legacy full definition list.');
-    return definitionRead(ctx, definitions);
-  }
-}
 async function definition(ctx, id) {
-  try {
-    const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
-    if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
-      throw new CliError('Runtime returned an invalid definition.', { code: 'invalid_response' });
-    return item;
-  } catch (error) { if (!missingCapability(error)) throw error; }
-  ctx.reporter.progress('This Runtime lacks single-definition reads; using its legacy list.');
-  const result = await definitionRead(ctx, definitions);
-  if (!isObject(result) || !Array.isArray(result.items)) throw new CliError('Runtime returned an invalid definition list.', { code: 'invalid_response' });
-  const matches = result.items.filter(item => isObject(item) && item.agentId === id);
-  if (!matches.length) throw new CliError('Definition not found in this Runtime.', { code: 'not_found', details: { agentId: id } });
-  if (matches.length !== 1 || !Number.isSafeInteger(matches[0].revision) || matches[0].revision < 1)
-    throw new CliError('Runtime returned an ambiguous or invalid definition.', { code: 'invalid_response' });
-  return matches[0];
+  const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
+  if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
+    throw new CliError('Runtime returned an invalid definition.', { code: 'invalid_response' });
+  return item;
 }
 async function definitionLimits(ctx) {
-  let value, legacy = false;
-  try { value = await runtimeValue(ctx, 'GET', definitions + '/limits'); }
-  catch (error) {
-    if (!missingCapability(error)) throw error;
-    legacy = true;
-    value = await runtimeValue(ctx, 'GET', definitions + '/options');
-  }
-  if (!isObject(value) || !(Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0 || legacy && value.maxDefinitionBytes === undefined))
+  const value = await runtimeValue(ctx, 'GET', definitions + '/limits');
+  if (!isObject(value) || !Number.isSafeInteger(value.maxDefinitionBytes) || value.maxDefinitionBytes <= 0)
     throw new CliError('Runtime returned an invalid definition write limit.', { code: 'invalid_response' });
-  return { maxDefinitionBytes: value.maxDefinitionBytes ?? 65536, supportsDefinitionStatusUpdate: value.supportsDefinitionStatusUpdate === true,
-    ...(legacy ? { legacy: true } : {}) };
+  return value;
 }
 function checkDefinitionSize(body, limits) {
   const bytes = Buffer.byteLength(JSON.stringify(body), 'utf8');
@@ -171,9 +145,9 @@ async function importDefinition(ctx) {
   if (expected !== null) updatedDefinition(current, {}, expected);
   const options = await runtimeValue(ctx, 'GET', definitions + '/options');
   if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError('Runtime returned invalid definition options.', { code: 'invalid_response' });
-  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, options.supportsNativeToolInheritanceReset === true);
+  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
-  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset === true) patch.nativeTools = null;
+  if (file.definition.nativeTools === null) patch.nativeTools = null;
   workspaceChange(patch);
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);
@@ -184,7 +158,7 @@ async function importDefinition(ctx) {
 async function definitionCommands(ctx) {
   const { args, reporter } = ctx;
   const action = args.command(2);
-  if (action === 'list') { reporter.print(await definitionList(ctx)); return 0; }
+  if (action === 'list') { reporter.print(await runtimeValue(ctx, 'GET', definitions + '/summaries')); return 0; }
   if (action === 'options') { reporter.print(await runtimeValue(ctx, 'GET', definitions + '/options')); return 0; }
   if (action === 'limits') { reporter.print({ ...await definitionLimits(ctx), runtime: runtimeConnection(ctx).runtime }); return 0; }
   if (action === 'import') return importDefinition(ctx);
@@ -215,12 +189,11 @@ async function definitionCommands(ctx) {
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output, bytes: bytes.length, format: file.format, version: file.version }); return 0;
   }
   const expected = revision(args);
-  const limits = await definitionLimits(ctx);
-  if (action !== 'update' && limits.supportsDefinitionStatusUpdate) {
-    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === 'enable' }, limits, true)); return 0;
+  if (action !== 'update') {
+    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === 'enable' }, undefined, true)); return 0;
   }
-  if (action !== 'update') reporter.progress('This Runtime does not support lightweight status updates; using its full-save contract.');
-  const patch = action === 'update' ? await definitionInput(ctx, limits, !args.has('workspace-path')) : { enabled: action === 'enable' };
+  const limits = await definitionLimits(ctx);
+  const patch = await definitionInput(ctx, limits, !args.has('workspace-path'));
   selectDirectory(args, patch);
   if (!Object.keys(patch).length) throw new CliError('The update has no fields.', { code: 'invalid_arguments' });
   if ((Object.hasOwn(patch, 'workspaceId') || Object.hasOwn(patch, 'agentPreset')) && !patch.workspaceChange)

@@ -6,8 +6,10 @@ import { spawn } from 'node:child_process';
 import { fixture, mockServer, respond } from './helpers.mjs';
 
 test('the copied standalone skill runs agent commands without the authoring source or dependencies', async t => {
+  let missing = false;
   const f = fixture(t), service = await mockServer(t, (hit, res) => {
     assert.equal(hit.headers.authorization, 'Bearer synthetic-bundle-token');
+    if (missing) return respond(res, { error: 'NOT_FOUND' }, 404);
     if (hit.url === '/v1/dsh/agent-definitions/limits') return respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true });
     if (hit.url === '/v1/dsh/agent-definitions' && hit.method === 'POST') return respond(res, { ...hit.json(), revision: 1 }, 201);
     if (hit.url === '/api/xrain/v1/agents/a/subscription') return respond(res, { id: 'request-a', agentId: 'a', selected: true, approvalStatus: 'pending' });
@@ -31,4 +33,14 @@ test('the copied standalone skill runs agent commands without the authoring sour
   const subscribed = await run(['agent', 'subscribe', 'a']);
   assert.equal(subscribed.code, 0, subscribed.stdout); assert.equal(JSON.parse(subscribed.stdout).data.approvalStatus, 'pending');
   assert.ok(!(created.stdout + created.stderr + subscribed.stdout + subscribed.stderr).includes('synthetic-bundle-token'));
+  missing = true;
+  for (const [args, path] of [
+    [['list'], '/summaries'], [['show', 'fixed-id'], '/items/fixed-id'],
+    [['limits'], '/limits'], [['disable', 'fixed-id', '--expected-revision', '1'], '/enabled'],
+  ]) {
+    const before = service.hits.length;
+    const failed = JSON.parse((await run(['agent', 'definition', ...args, '--runtime', service.url])).stdout);
+    assert.equal(failed.error.httpStatus, 404); assert.equal(failed.error.serverCode, 'NOT_FOUND');
+    assert.deepEqual(service.hits.slice(before).map(hit => hit.url), ['/v1/dsh/agent-definitions' + path]);
+  }
 });

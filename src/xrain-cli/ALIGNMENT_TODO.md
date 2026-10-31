@@ -6,11 +6,11 @@
 
 按用户从发现入口、读取与操作、取得回执、保存后重入到失败后继续的任务核对。命令存在只证明可达；源码、CLI 替身、原处理器隔离验证和共享环境实读分别记录。旧 .NET CLI 保持退役。
 
-本轮复审当前源码，新增修复三项差距：对话丢失工具结果正文、元数据误用记录请求键及额外 Header 长度限制、记录创建回执超出读取预算时未保留未知结果语义。下表保留模板、Task 和顾客选项的已修复结果。“实现对齐”表示已找到对应业务入口及恢复路径，不表示每个真实角色都完成了实环境验收。
+本轮复审修复了邮箱草稿的结果未知误判及保存回执检查。按用户要求删除旧 Runtime 的定义读取、限额、启停和工具继承兼容分支，直接消费当前接口。下表保留前轮工具回执、元数据请求键、记录恢复、模板、Task 和顾客选项的已修复结果。“实现对齐”表示已找到对应业务入口及恢复路径，不表示每个真实角色都完成了实环境验收。
 
 ## 用户任务对照
 
-| 用户任务 | 当前 CLI 与原业务结果 | 本轮判断和证据范围 |
+| 用户任务 | 当前 CLI 与原业务结果 | 当前判断和证据范围 |
 |---|---|---|
 | 连接、统一登录、发现与切换企业、核对身份和应用准入 | profile 与 auth 使用平台登录；会话绑定服务器、租户和作用域。Workforce、邮箱和接待使用本人会话及实际应用。切换后不借用旧目标配置。 | 实现对齐。重新实读既有管理员的当前身份和可用企业；企业发现与原接口结果一致。浏览器全新登录、真实跨企业操作仍未验证。 |
 | 设计对象、字段、视图、选项和记录类型，删除后恢复 | metadata 保留 ETag、创建请求键、删除影响令牌及失败部署恢复；请求键按原 Header 传递，不借用记录创建的 160 字符规则或额外 Header 长度上限。recycle 使用平台原回收站。 | 已修复元数据误拒。对象创建、字段创建和失败部署修正均验证较长原键、服务拒绝及回执丢失；记录创建的原限制保留。未在共享租户修改结构。 |
@@ -21,20 +21,24 @@
 | 应用机器人发通知并查回执 | application-message 使用原执行者凭据和 clientMessageId，区分 accepted、saved、failed 和 unknown；不借成员接口发布。 | 实现对齐；原发布处理器及独立 CLI 消费验证，未向真实群或公告发布。 |
 | 建立和交办 Task、改派、状态、挂载、提醒及执行对话 | workforce task 保留原任务；创建、确认、改派或重开后的挂载/AI 接纳失败返回 partial_success，batch 停止并保留失败步骤回执。 | 已修复部分完成误报。原处理器验证 AI 拒绝后原任务恢复且不重复执行；CLI 验证只写一次、停止后续步骤、读取原任务和服务拒绝。accepted 不表示 AI 已完成。 |
 | 建立和修改计划、启用暂停、读历史、处理问题和取消运行 | workforce schedule 调用原计划及运行接口；主体凭据、调度和执行历史由宿主持有。 | 实现对齐；按原服务已有动作核对，不编造原产品未提供的计划删除等功能。真实调度运行未验证。 |
-| 定义、工具、工作区、订阅和应用选用 | agent definition/tool/workspace/policy/subscription/application 使用原版本、工具目录和资格；保存后读原定义，申请不等于批准。 | 实现对齐；现有定向测试覆盖并发、启停、导入导出、工作区切换及上下文，未改真实定义或订阅。 |
+| 定义、工具、工作区、订阅和应用选用 | agent definition/tool/workspace/policy/subscription/application 使用原版本、工具目录和资格；定义直接读摘要、单条及当前限额，启停使用状态接口，导入 null 恢复工具继承。保存后读原定义，申请不等于批准。 | 已删除旧 Runtime 回退与猜定上限。源码及独立包验证缺失接口不改用旧列表、限额或完整保存；限额无效时不写，限额查询不可用仍可停用已有大定义。并发、导入导出、目录和继承验证保留；未改真实定义或订阅。 |
 | 与助手对话、续聊、回读工具和终态、提问审批、取消与恢复 | agent chat 与 workforce session 保留原 sessionId/requestId；等待或回读不重发。toolCalls 和 history 保留原 callId 及工具结果 result，包含正文、错误和元数据；凭据脱敏。轮次完成但没有文字仍成功，工具失败单独保留。Ctrl+C 只结束本地观察。 | 已修复工具回执丢失。源码及独立包验证成功、工具失败、轮次失败、新进程重入历史、原权限拒绝和凭据脱敏；已有迟到回执、断流及分页回归保留。真实模型与工具闭环未验证。 |
 | 受管单次执行与临时文本 | agent run start/show 按原 runId 查询服务的有界结果；ephemeral 使用原纯文本协议，没有持久会话、工具和历史。 | 与当前服务能力对齐。受管回执丢失没有客户端请求键可恢复，当前服务也无受管 runId 取消接口；CLI 如实保留未知，不另造恢复状态或自动重放。 |
 | 回答反馈和语音 | workforce session feedback 与 speech 复用原会话、回答、本人反馈和 speech Remote；语音识别不自动发送。 | 实现对齐；原处理器与 CLI 隔离验证已覆盖撤销、非助手回答、失权、服务未就绪及原音频输入。未下载模型或录制真实音频。 |
 | 本人功能组合、应用目录、账号绑定和企业管理 | composition 保存本人的选择；applications 返回实际准入和打开地址。account/enterprise open 返回或打开原确认页面；平台 security/host 管理已有成员和角色。 | 实现对齐；组合回读和身份隔离为原处理器证据。成员代登录、本人绑定及返回保留网页确认，未改变真实账号或权限。 |
-| 独立邮箱：账户、文件夹、搜索、原邮件、AI 和草稿 | mail 访问原邮箱；app search/read 保留原 reference，assist 仅返回建议，app draft 显式保存并校验原草稿回执。 | 实现对齐；原应用和 CLI 隔离证据覆盖原引用及明确保存。没有真实邮箱收读/草稿验收；发信、删除、移动、归档不属于当前个人邮箱范围。 |
+| 独立邮箱：账户、文件夹、搜索、原邮件、AI 和草稿 | mail 访问原邮箱；app search/read 保留原 reference，assist 仅返回建议。平台和应用的 draft 共享 Saved、internetMessageId 和原账号检查；服务的 email_draft_outcome_unknown 保留未知语义。 | 已修复 HTTP 409 结果未知被误报冲突的问题。源码、独立包及原应用处理器隔离验证保留原错误码、真正冲突和拒绝；未知结果停止 batch，查询原草稿且只保存一次。没有真实邮箱收读/草稿验收；发信、删除、移动、归档不属于当前个人邮箱范围。 |
 | 顾客接待：查询、登记、编辑、字段选项和继续原对话 | retail context/customer/options 使用实际对象和字段；selected 可传多个原值。conversation 复用原顾客、本人和 AI 的会话，明确 createNew 才另开。 | 已补字段选项。原应用用相同身份、租户、应用和输入对照网页与 CLI 路径，结果一致；失去字段权限、换对象或撤销准入后拒绝。保存、冲突和顾客关联由原处理器隔离验证。 |
 | 应用管理、市场和应用包开发安装 | application 管理治理；app 构建、发布、导入、安装、升级及操作恢复；market 按精确版本读包，核验身份和摘要，公开包允许匿名浏览。 | 实现对齐；继续区分包已安装、应用已准入和 Workforce 目录可打开。现有定向测试覆盖服务拒绝、恢复和制品完整性，本轮未发布或安装真实包。 |
 
-## 本轮验证与未验证范围
+## 验证与未验证范围
 
 CLI 定向及完整 Skill 消费测试见 [导入](../../tests/data-import.test.mjs)、[Task 回执](../../tests/workforce-cli.test.mjs)、[用户功能](../../tests/user-functions.test.mjs)和[独立消费](../../tests/cli-alignment-bundle.test.mjs)。顾客原入口对照见 [独立应用测试](../../../xrain-workforce/applications/retail-assistant/tests/server.test.mjs)，Task 的保存和重入见 [原回执测试](../../../xrain-workforce/tests/task-write-receipts.test.mjs)。
 
-本轮新增证据见[工具回执与重入](../../tests/cli-tool-receipts.test.mjs)、[元数据请求键](../../tests/metadata-operations.test.mjs)及[记录创建恢复](../../tests/cli-record-creation.test.mjs)。CLI 隔离验证覆盖原工作台的 tool-role 和嵌套 tool-result 格式，保留正文、错误及元数据。历史查询仍由 Runtime 按原会话授权，不建立另一套历史。
+前轮证据见[工具回执与重入](../../tests/cli-tool-receipts.test.mjs)、[元数据请求键](../../tests/metadata-operations.test.mjs)及[记录创建恢复](../../tests/cli-record-creation.test.mjs)。CLI 隔离验证覆盖原工作台的 tool-role 和嵌套 tool-result 格式，保留正文、错误及元数据。历史查询仍由 Runtime 按原会话授权，不建立另一套历史。
+
+本轮新增证据见[草稿结果与查询恢复](../../tests/mail-draft-outcome.test.mjs)、[当前定义接口](../../tests/cli-definition-settings.test.mjs)和[独立包定义消费](../../tests/cli-agents-bundle.test.mjs)。草稿的 Saved 回执允许 reference 为空；缺少 internetMessageId、非 Saved 状态或引用了其他账号时，保留原结果为未知。恢复只查询原邮箱的文件夹、草稿搜索和原引用，没有再次保存。定义测试覆盖缺失接口、无效限额、原版本冲突、限额不可用时的启停，以及导入恢复工具继承。
+
+Workforce 原邮箱 HTTP 处理器与原 MailXRainClient 在隔离上游下，对 CLI 和网页入口返回相同的未知结果、账号冲突和身份拒绝。原 XRain PersonalEmailApiTests 的稳定错误测试也验证了 HTTP 409 的 email_draft_outcome_unknown。该组件证据没有连接真实 IMAP 邮箱。
 
 本机已构建的原 XRain 元数据 AppService 在隔离测试存储中接受 2160 字符请求键，对象创建、字段创建及失败部署修正均成功；重复同键没有重复创建。使用的是 2026-10-31 23:52 的既有构建，当前源码的相应请求键处理未变化。此证据属于原服务组件验证，不代表共享租户结构写入已验证。
 

@@ -1,4 +1,12 @@
-import { booleanOutcome, nonempty } from './core.mjs';
+import { CliError, booleanOutcome, isObject, nonempty } from './core.mjs';
+
+export const personalMailDraftUnknownCodes = ['email_draft_outcome_unknown'];
+export function validatePersonalMailDraftReceipt(value, accountId) {
+  if (!isObject(value) || value.status !== 'Saved' || !nonempty(value.internetMessageId) ||
+      value.reference != null && (!isObject(value.reference) || value.reference.accountId !== accountId))
+    throw new CliError('The mailbox did not return a matching saved draft receipt.', { code: 'invalid_response', details: { result: value } });
+  return true;
+}
 
 const define = (path, method, route, options = {}) => ({ path, method, route, ...options });
 const s3 = '/api/service/storage/v1/s3-accounts';
@@ -58,11 +66,12 @@ export const deliveryOperations = [
   define('mail folders', 'GET', personal + '/accounts/{id}/folders'),
   define('mail search', 'POST', personal + '/accounts/{id}/messages/search', { input: 'object', readOnly: true }),
   define('mail read', 'POST', personal + '/accounts/{id}/messages/read', { input: 'object', readOnly: true }),
-  define('mail draft', 'POST', personal + '/accounts/{id}/drafts', { input: 'object' }),
+  define('mail draft', 'POST', personal + '/accounts/{id}/drafts', { input: 'object', unknownServerCodes: personalMailDraftUnknownCodes,
+    validate: (value, { args }) => validatePersonalMailDraftReceipt(value, args.value('id')), readback: ['mail', 'folders'] }),
 ];
 for (const operation of deliveryOperations) {
   const root = operation.path.split(' ')[0];
   if (root === 'storage') operation.host = true;
-  operation.readback = root === 'storage' ? ['storage', 'account', 'list'] : root === 'mail' ? ['mail', 'account', 'list'] :
+  operation.readback ??= root === 'storage' ? ['storage', 'account', 'list'] : root === 'mail' ? ['mail', 'account', 'list'] :
     root === 'sms' ? ['sms', 'records'] : [root, 'message', 'list'];
 }

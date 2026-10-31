@@ -13,14 +13,18 @@ test('definition lifecycle preserves settings, requires explicit revisions and r
   const service = await mockServer(t, (hit, res) => {
     assert.equal(hit.headers.authorization, `Bearer ${secret}`);
     assert.equal(hit.headers['x-xrain-authorization'], `Bearer ${secret}`);
+    if (hit.url === '/v1/dsh/agent-definitions/limits') return respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true });
     if (hit.url === '/v1/dsh/agent-definitions/options') return respond(res, { workspaces: [{ id: 'ws' }], presets: ['normal'], models: {} });
-    if (hit.url !== '/v1/dsh/agent-definitions') return respond(res, { error: 'NOT_FOUND' }, 404);
-    if (hit.method === 'GET') return respond(res, { items: [...records.values()], canManage: true });
+    if (hit.url.startsWith('/v1/dsh/agent-definitions/items/')) {
+      const item = records.get(hit.url.split('/').at(-1));
+      return respond(res, item ?? { error: 'AGENT_DEFINITION_NOT_FOUND' }, item ? 200 : 404);
+    }
+    if (hit.method !== 'POST' || !['/v1/dsh/agent-definitions', '/v1/dsh/agent-definitions/enabled'].includes(hit.url)) return respond(res, { error: 'NOT_FOUND' }, 404);
     const value = hit.json(), old = records.get(value.agentId);
     if ((old?.revision ?? null) !== value.revision) return respond(res, { error: 'AGENT_DEFINITION_CONFLICT' }, 409);
     if (value.revision === null && value.enabled) return respond(res, { error: 'INVALID_AGENT_DEFINITION' }, 422);
     const { workspaceChange, ...stored } = value;
-    records.set(value.agentId, { ...stored, revision: (value.revision ?? 0) + 1 });
+    records.set(value.agentId, { ...(hit.url.endsWith('/enabled') ? old : {}), ...stored, revision: (value.revision ?? 0) + 1 });
     if (loseResult) { loseResult = false; hit && res.destroy(); return; }
     respond(res, records.get(value.agentId), old ? 200 : 201);
   });
@@ -44,8 +48,9 @@ test('definition lifecycle preserves settings, requires explicit revisions and r
   assert.deepEqual(output(updated).data.assistantTools, initial.assistantTools);
   assert.deepEqual(service.hits.at(-1).json().workspaceChange, { operation: 'keep' });
   const stale = await f.run(['agent', 'definition', 'enable', id, '--expected-revision', '1', ...target]);
-  assert.equal(output(stale).error.code, 'conflict'); assert.equal(output(stale).error.details.currentRevision, 2);
-  assert.equal(service.hits.at(-1).method, 'GET');
+  assert.equal(output(stale).error.code, 'conflict'); assert.equal(output(stale).error.serverCode, 'AGENT_DEFINITION_CONFLICT');
+  assert.equal(records.get(id).revision, 2);
+  assert.equal(service.hits.at(-1).url, '/v1/dsh/agent-definitions/enabled');
   const enabled = await f.run(['agent', 'definition', 'enable', id, '--expected-revision', '2', ...target]);
   assert.equal(output(enabled).data.enabled, true); assert.equal(output(enabled).data.revision, 3);
   loseResult = true;

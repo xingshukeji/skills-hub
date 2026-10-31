@@ -63,7 +63,7 @@ command('agent subscription decide', [...api, 'id', 'decision'], [slot('id')], '
 command('agent application list', api, [], 'List accessible XRain applications.');
 command('agent application show', [...api, 'application-id'], [slot('application-id')], 'Read one application’s agent selection and default.');
 command('agent application set', [...api, 'application-id', 'values', 'values-json', 'file'], [slot('application-id')], 'Replace one application’s complete agent selection from JSON; preserve intended bindings and default.');
-command('agent definition list', runtime, [], 'List definition summaries without full instructions; older Runtimes use their original list.');
+command('agent definition list', runtime, [], 'List definition summaries without full instructions.');
 command('agent definition show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read one definition and its revision by exact agent ID.');
 command('agent definition options', runtime, [], 'Read Runtime models, workspaces and presets available to this caller.');
 command('agent definition limits', runtime, [], 'Read the current Runtime write limit and lightweight status capability.');

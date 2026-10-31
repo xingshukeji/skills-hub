@@ -3,6 +3,7 @@ import { memberTarget, memberValue } from './member-target.mjs';
 import { writeOnce } from './http.mjs';
 import { commandOutcome } from './runtime-controls.mjs';
 import { applicationUserOperations } from './application-user-operations.mjs';
+import { personalMailDraftUnknownCodes, validatePersonalMailDraftReceipt } from './delivery-operations.mjs';
 
 export async function applicationUserCommand(ctx) {
   const operation = applicationUserOperations.find(row => row.path === ctx.spec.path);
@@ -33,13 +34,13 @@ export async function applicationUserCommand(ctx) {
   const command = operation.path === 'retail session command';
   const call = async () => {
     const result = memberValue(await target.send(operation.method, url.pathname + url.search, { json: body }));
-    if (operation.draft && (result?.status !== 'Saved' || typeof result.internetMessageId !== 'string' || !result.internetMessageId))
-      throw new CliError('The mailbox did not return a saved draft receipt.', { code: 'invalid_response' });
+    if (operation.draft) validatePersonalMailDraftReceipt(result, args.value('id'));
     if (command && !commandOutcome(result)) throw new CliError('The Runtime command receipt is invalid.', { code: 'invalid_response' });
     return result;
   };
   const result = operation.method === 'GET' || operation.readOnly ? await call() : await writeOnce(call,
-    'The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.', details);
+    'The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.', details,
+    operation.draft ? personalMailDraftUnknownCodes : []);
   if (command && commandOutcome(result) === 'failed') throw new CliError('The Runtime command reported failure.', { code: 'execution_failed', details: { ...details, result } });
   reporter.print(result); return true;
 }

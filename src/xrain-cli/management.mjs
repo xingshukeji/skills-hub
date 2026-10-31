@@ -72,6 +72,7 @@ export async function managementCommand(ctx) {
       ...(headers['If-Match'] ? { ifMatch: headers['If-Match'] } : {}),
       ...selectors, readback: operation.readback ?? ['security', 'directory'] };
   const call = signal => apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly, signal,
+    unknownServerCodes: operation.unknownServerCodes,
     raw: operation.raw, validate: value => (!operation.outcome || ['succeeded', 'failed', 'unknown'].includes(operation.outcome(value))) && (!operation.validate || operation.validate(value, { args, body })),
     ...(write ? { mutation } : {}) });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation };

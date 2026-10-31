@@ -5,7 +5,7 @@
 ## 在原邮件中使用 AI
 
 1. 运行 `mail app accounts`，选定本人的邮箱。使用 `mail app folders <accountId>` 查询原文件夹。
-2. 运行 `mail app search <accountId> --request-json <搜索.json>`。查询使用 folder、text、limit 和原 nextCursor；按发件人筛选时用 sender，不能同时指定 text。
+2. 运行 `mail app search <accountId> --request-json <搜索.json>`。查询使用 folder、text、limit；将上次返回的 nextCursor 作为 cursor。按发件人筛选时用 sender，不能同时指定 text。
 3. 运行 `mail app read <accountId> --request-json <原邮件.json>`。请求为 `{"reference":<搜索返回的完整reference>}`，保留 accountId、mailbox、folder、uidValidity 和 uid。
 4. 运行 `mail ai list`，从目录中选择当前 canUse 的 AI。需要申请个人订阅时运行 `mail ai subscribe <agentId>`；申请不等于已获批准。
 5. 运行 `mail assist <accountId> --request-json <协助.json>`，取得摘要或可编辑回复。
@@ -24,7 +24,9 @@
 
 action 为 summary 或 draft；instructions 可省略，最多 2000 字符。协助读取原邮件并使用应用的临时 AI 请求，不建立持续对话，不发送或自动保存。结果的 materialTruncated 和 attachmentsRead 说明材料范围。邮箱被修改、停用或撤权时，应用拒绝交付过期结果。
 
-新草稿使用 to、cc、bcc 地址对象数组、subject、textBody；回复关联放在 source 中，值为原完整 reference。保存新草稿成功返回 status=Saved 和 internetMessageId；可能同时返回新草稿 reference。保存回执丢失时保留原邮箱与原邮件，先检查原邮箱草稿，不自动重复保存。个人邮箱命令不增加发送、删除、移动或归档动作。
+新草稿的 to、cc、bcc 使用地址字符串数组，例如 `{"to":["person@example.test"],"subject":"确认参加","textBody":"收到，谢谢。"}`。回复关联放在 source 中，值为原完整 reference。
+
+保存成功须返回 status=Saved 和非空 internetMessageId；reference 可以为空，若提供则须属于原 accountId。服务以 HTTP 409 和 `email_draft_outcome_unknown` 表示可能已保存，CLI 保留为 `outcome_unknown`，停止 batch。回执丢失、无效或结果未知时，用原账号的 folders、search 和 read 查询草稿，再决定下一步，不自动重复保存。真正的冲突和权限拒绝保留原错误。个人邮箱命令不增加发送、删除、移动或归档动作。
 
 ## 从顾客资料继续原接待
 

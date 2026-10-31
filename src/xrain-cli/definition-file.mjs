@@ -62,7 +62,7 @@ function sameWorkspacePath(left, right) {
   if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return left === right;
 }
-function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = true) {
+function definitionFileChanges(file, draft, workspaces) {
   const v = file.definition, warnings = [];
   const changes = {
     name: v.name,
@@ -76,8 +76,7 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     uiPlugins: v.uiPlugins ?? void 0
   };
   if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
-  else if (canRestoreInheritance) changes.nativeTools = void 0;
-  else warnings.push("\u5F53\u524D\u8FD0\u884C\u73AF\u5883\u6682\u4E0D\u652F\u6301\u6062\u590D\u6CBF\u7528\u5DE5\u4F5C\u6A21\u5F0F\u63D0\u4F9B\u7684\u5DE5\u5177\uFF0C\u5DF2\u4FDD\u7559\u73B0\u6709\u9009\u62E9\u3002");
+  else changes.nativeTools = void 0;
   const w = v.workspace;
   if (w.kind === "direct") Object.assign(changes, {
     workspaceId: null,

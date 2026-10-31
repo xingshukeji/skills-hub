@@ -338,7 +338,7 @@ test('history recovery shares the original turn deadline', async t => {
   assert.ok(service.hits.every(hit => hit.method === 'GET'));
 });
 
-test('an older Runtime without history paging preserves the original request and never resends', async t => {
+test('an unavailable Runtime history page preserves the original request and never resends', async t => {
   const f = fixture(t), mock = paginatedConversation(t, { unavailable: true }), service = await mock.servicePromise;
   f.profile(service.url, 'tenant-demo', 'synthetic-token');
   const call = await f.run(['agent', 'chat', 'wait', 'long-session', '--request-id', 'long-request',

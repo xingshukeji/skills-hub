@@ -64,10 +64,12 @@ export function requireSuccess(response, hint = '') {
   throw responseError(response, hint);
 }
 
-export async function writeOnce(action, hint, details) {
+export async function writeOnce(action, hint, details, unknownServerCodes = []) {
   try { return await action(); }
   catch (error) {
-    if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+    // A native API can use a 4xx for an uncertain write. Its caller declares
+    // those exact codes; unrelated conflicts keep their original meaning.
+    if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
       error.code = 'outcome_unknown';
       error.hint = hint;
       error.details = { ...error.details, ...details };
@@ -76,7 +78,7 @@ export async function writeOnce(action, hint, details) {
   }
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal } = {}) {
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
@@ -101,7 +103,7 @@ export async function apiValue(ctx, method, path, json, { requireTenant = true, 
   const { hint = 'The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.', ...recovery } = mutation;
   const details = { operation: ctx.spec?.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null,
     credentialSource: source, ...recovery };
-  try { return await writeOnce(perform, hint, details); }
+  try { return await writeOnce(perform, hint, details, unknownServerCodes); }
   catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...details };
     throw error;
