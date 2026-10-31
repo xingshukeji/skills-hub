@@ -25,7 +25,7 @@ Use the project's established builder first. Common candidates to verify against
 3. Generate platform-specific packages with the established framework or installer tool. Do not wrap a native package manager solely to claim an installer exists.
 4. Include only installer-owned bootstrap, shortcuts, registration, uninstall/repair data, licenses, and required prerequisites. Keep replaceable application payloads separate when thin delivery is selected.
 5. Sign/notarize where the product contract requires it. Calculate size and SHA-256 after final signing because signing changes bytes.
-6. Install the exact artifact on a clean supported environment; launch the installed binary and verify registration, shortcut, repair/repeat install, uninstall boundary, first-run bootstrap, and no transient terminal or second frontend window.
+6. Verify the exact artifact against the changed installation boundary. Exercise installed startup and any affected registration, shortcut, repair/repeat install, upgrade, uninstall or first-run bootstrap behavior, including relevant process/window behavior and user-state preservation. Keep update staging, activation, health and recovery checks when update behavior changes. Select clean-machine/platform cases when the change or existing acceptance requires them. A full independent campaign needs its own original authorization; an affected focused check stays Development even on a clean machine.
 
 On Windows, keep the existing packager and supported install format. A current-user scope may be sufficient when no machine-wide resource is required; this does not select MSI. For a project that already uses MSI plus Launcher, after `InstallFinalize` run one Launcher setup; request normal shutdown for old product processes and follow the project-owned wait and takeover contract. Force termination requires that explicit boundary and a verified executable inside the installation root; elapsed time alone does not authorize it. Preserve registration, settings, and business state across repair and in-place upgrade.
 
@@ -69,7 +69,7 @@ Keep application, installer/launcher, and managed capability versions separate w
 
 ## Design The User Interaction
 
-Default to a deliberate two-step interaction:
+When the client owns an in-app update surface, use a deliberate two-step interaction. A headless capability or store/package-manager-owned update retains its existing command, status and interaction contract; it does not need a new update button or window.
 
 1. `Check for updates` performs a bounded read-only check. Show current version and one result: up to date, update available with target version, or failed with retry. It must not install, restart, or alter active work.
 2. For a Manager-style desktop UI, reuse the same fixed primary control for the applicable explicit update intent only when an update is available or staged. Before starting, show download/restart requirements and whether active work must finish. Disable the control while loading, checking, or updating; periodic responses must not unlock foreground work early. Allow defer and cancellation until the updater's safe commit boundary.

@@ -16,6 +16,8 @@ metadata:
 
 普通功能直接实现并验证。涉及交付、托管进程或能力程序时，沿实际入口追踪最终候选、依赖准备、健康、关闭及用户状态保留；采用与本次改变相称的安装或候选检查，不要求每个 UI 修复打完整安装包。
 
+接续原任务或扩大功能、跨端验证时，按[本次边界与实际消费者](modes/application/references/client-verification-matrix.md#task-boundary-and-consumer-evidence)接续原目标、允许的持久写入及恢复要求，并核对新增入口实际加载的页面、宿主和相关服务。
+
 前端页面或截图 review 使用 `shzw-code-review` 的[视觉与体验方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/frontend/GUIDE.md)。开发后的视觉自查沿用该方法，只覆盖受影响页面、视口和状态；不因评审展开完整客户端交付。
 
 需要复验实际界面，而当前可用入口无法观察、截取可信画面或完成必要操作时，在当前工具和授权允许的范围内，使用 [shzw-deskpilot-cli](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-deskpilot-cli/SKILL.md) 检查已有安装和目标能力，按桌面、浏览器或 Android 对应指南操作并回读结果。用户明确指定 DeskPilot 时直接使用。保持指定的应用、浏览器、会话和身份；不能换一个页面或合成画面冒充原场景。DeskPilot 提供观察与操作证据，视觉质量仍按上述方法判断；原目标不可达时说明具体限制。

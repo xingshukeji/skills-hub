@@ -1,6 +1,6 @@
 # Develop Managed Client Capability
 
-本模式的参考、脚本和资源位于加载结果的 resourceBase.path + "/modes/managed-capability"。命令工作目录与项目事实由当前责任项目入口确定；相对资源链接按本模式目录解析。
+相对资源链接按本 GUIDE.md 所在目录解析；若加载结果提供 resourceBase.path，模式目录为该路径下的 modes/managed-capability。命令工作目录与项目事实由当前责任项目入口确定。
 
 Treat a request called "plugin" as a managed capability only when the current product owns its distribution and lifecycle. Never imply that a public plugin SDK, dynamic loader, or stable third-party ABI exists without source and contract evidence.
 
@@ -46,6 +46,8 @@ Select common and conditional acceptance from [capability acceptance](references
 - Keep capability delivery inside the application's existing installer/release. Do not create another installer, launcher, updater, frontend entry, or release stream for one capability unless it is independently installed and that product boundary is explicit.
 
 ## Preserve Update UX
+
+Apply the interaction rules below when this client owns an update UI. A capability without UI keeps the established command/status contract of its package manager, store or host; do not add a button or window for this checklist.
 
 - Default to an explicit `Check for updates` action. The first click only checks and reports `up to date`, `update available`, or a retryable failure; it must not install, restart, or interrupt work.
 - When the product uses a Manager update control, change that existing control to the applicable update action after an update is available or staged with version, expected download/restart impact, and any active-work block. Keep it disabled while loading, checking, or updating, and keep the current version usable when the user defers or cancels.

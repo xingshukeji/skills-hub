@@ -8,6 +8,8 @@ Use this reference when the request affects client ownership, packaging, runtime
 
 Record one sentence for the observable result and one sentence for what is explicitly out of scope. Classify the request from the user's goal:
 
+When resuming or expanding verification, carry forward the original target, permitted persistent writes and restoration requirements using [task boundary and consumer evidence](client-verification-matrix.md#task-boundary-and-consumer-evidence).
+
 | User goal | Execution type |
 |---|---|
 | Build, change, fix, refactor, or govern client behavior | Development |
@@ -32,7 +34,7 @@ Fill these fields before choosing a framework or installer:
 | Recovery | automatic rollback / forward repair / external replacement path |
 | Completion | observable result for this request |
 
-If the UI owner is another product, the shell may own native lifecycle and diagnostics but must not add a web page, fallback page, duplicate route, or business interaction.
+If the business UI belongs to another product, load its existing surface and routes. The shell retains project-owned native lifecycle, loading, error and recovery feedback without recreating business pages.
 
 ### 3. Choose the smallest path
 

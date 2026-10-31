@@ -9,15 +9,15 @@ Start at the affected client entry. Use [client-fast-path.md](references/client-
 1. Read the root and project entrypoints, then the smallest formal owner for the requested client facts.
 2. Classify this request as Development, SystemTest, or Deployment from the user's goal.
 3. Resolve only affected contract fields. A UI change needs the existing UI owner, user action, data/identity contract and completion rule; packaging/runtime/update work additionally needs the corresponding owners below.
-4. If an existing product owns the UI, keep that UI as the only visual owner; do not invent a shell page, fallback page, or duplicate interaction.
+4. Keep the existing product as the owner of its business UI and routes. Preserve project-owned native loading, error and recovery feedback without duplicating business interactions.
 5. When delivery shape is in scope, choose thin/full/hybrid only from measured payload size, offline requirements, prerequisites, and component ownership.
 6. Verify the changed user behavior in its actual consumer. When packaging, runtime or installed behavior changed, also build the relevant candidate and check that exact artifact; do not require a launcher doctor for a web-only fix.
 7. Report Development evidence separately from any later SystemTest, Deployment, and Git result.
 
-If a decision changes the outcome, ownership, persisted/public contract, compatibility promise, or external target, stop and expose two or three mutually exclusive choices. Do not stop for discoverable implementation details.
+If a material choice about the outcome, ownership, persisted/public contract, compatibility promise, or external target remains unresolved after checking the request and project sources, pause only the dependent path and explain two or three mutually exclusive choices. Continue from already approved decisions; discoverable implementation details do not require another decision.
 
 ## Minimum Contract
-Resolve each field from the authority shown below. Keep working assumptions visible and reversible; never promote them to requirements merely because a reference or earlier plan used them.
+Resolve only the fields affected by this request from the authority shown below. Keep working assumptions visible and reversible; never promote them to requirements merely because a reference or earlier plan used them.
 
 | Field | Required question | Preferred source |
 |---|---|---|

@@ -16,8 +16,8 @@ When taking over an existing installation, identify processes by verified execut
 
 ## WebView2 And Desktop Web
 
-Treat WebView2 as a platform prerequisite owned by Microsoft and the installer/framework integration. Probe and repair it through the supported platform path, then re-probe. If another product owns the web surface, the native host must load that exact surface and must not add a startup, error, update, or fallback page.
+Treat WebView2 as a platform prerequisite owned by Microsoft and the installer/framework integration. Probe and repair it through the supported platform path, then re-probe. If another product owns the web surface, load that business surface without a duplicate page or route. Preserve the native host's project-owned loading, error, update and recovery feedback; those controls must not take over business state or interactions.
 
 ## Windows Acceptance
 
-Verify the exact generated installer and the installed executable. Check registration, shortcut target, repair/repeat install, upgrade state preservation, final uninstall boundary, no terminal flash, no duplicate frontend, and no owned process after normal exit. Clean-machine candidate acceptance is a separate SystemTest unless explicitly requested in the current task.
+Verify the exact generated installer and installed executable for affected behavior: registration, shortcut target, repair/repeat install, upgrade state preservation, final uninstall boundary, terminal/window behavior and owned-process cleanup. Select cases from the change and existing acceptance requirements. A focused install check may require a clean environment while remaining Development; an independent clean-machine candidate campaign requires the user's request.
