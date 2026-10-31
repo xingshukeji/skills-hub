@@ -21,7 +21,7 @@ function segment(value) {
   return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key".split(" "));
+var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -100,9 +100,9 @@ function origin(value) {
   if (url.pathname !== "/" || url.search) throw new CliError("Server URL must be an origin without a path or query.");
   return url.origin;
 }
-function parseJson(text, label = "Input") {
+function parseJson(text2, label = "Input") {
   try {
-    return JSON.parse(String(text).replace(/^\uFEFF/, ""));
+    return JSON.parse(String(text2).replace(/^\uFEFF/, ""));
   } catch {
     throw new CliError(`${label} must be valid JSON.`);
   }
@@ -113,24 +113,36 @@ function readLimited(path, limit, label = "File") {
   if (data.length > limit) throw new CliError(`${label} exceeds its size limit.`);
   return data;
 }
-async function readJsonInput(path, label = "JSON input") {
-  if (path !== "-") return parseJson(readLimited(path, 32 * 1024 * 1024, label), label);
-  if (process.stdin.isTTY) throw new CliError("Pipe JSON into stdin when using -.", { code: "invalid_arguments" });
+async function readJsonInput(path, label = "JSON input", { limit = 32 * 1024 * 1024, stdin = process.stdin, utf8 = false } = {}) {
+  const parse = (bytes) => {
+    if (!utf8) return parseJson(bytes, label);
+    let text2;
+    try {
+      text2 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new CliError(`${label} must be UTF-8.`, { code: "invalid_arguments" });
+    }
+    return parseJson(text2, label);
+  };
+  if (path !== "-") return parse(readLimited(path, limit, label));
+  if (stdin.isTTY) throw new CliError("Pipe JSON into stdin when using -.", { code: "invalid_arguments" });
   const chunks = [];
   let total = 0;
-  for await (const chunk of process.stdin) {
+  for await (const chunk of stdin) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += bytes.length;
-    if (total > 32 * 1024 * 1024) throw new CliError("JSON stdin exceeds the 32 MiB limit.");
+    if (total > limit) throw new CliError(`${label} exceeds the ${limit} byte limit.`, { code: "input_too_large" });
     chunks.push(bytes);
   }
-  return parseJson(Buffer.concat(chunks), label);
+  return parse(Buffer.concat(chunks));
 }
-async function jsonInput(args, name, allowFile = true) {
+async function jsonInput(args, name, allowFile = true, options = {}) {
   const file = args.value(`${name}-json`) ?? (allowFile ? args.value("file") : void 0);
   const inline = args.value(name);
-  if (file) return readJsonInput(file);
-  if (inline?.startsWith("@")) return readJsonInput(inline.slice(1));
+  if (file) return readJsonInput(file, "JSON input", options);
+  if (inline?.startsWith("@")) return readJsonInput(inline.slice(1), "JSON input", options);
+  if (inline !== void 0 && options.limit !== void 0 && Buffer.byteLength(inline, "utf8") > options.limit)
+    throw new CliError(`JSON input exceeds the ${options.limit} byte limit.`, { code: "input_too_large" });
   return inline === void 0 ? void 0 : parseJson(inline, "JSON input");
 }
 var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|adminApiToken|guestApiToken|client[_-]?secret|password)$/i;
@@ -149,9 +161,9 @@ var Reporter = class {
   }
   // Only a command that owns a non-credential field may exempt its key. Known
   // credential values are still removed by clean(), including from that field.
-  visibleField(object, key) {
-    if (!this.visibleFields.has(object)) this.visibleFields.set(object, /* @__PURE__ */ new Set());
-    this.visibleFields.get(object).add(key);
+  visibleField(object2, key) {
+    if (!this.visibleFields.has(object2)) this.visibleFields.set(object2, /* @__PURE__ */ new Set());
+    this.visibleFields.get(object2).add(key);
   }
   clean(value) {
     if (Array.isArray(value)) return value.map((item) => this.clean(item));
@@ -169,8 +181,8 @@ var Reporter = class {
       this.results.push(value);
       return;
     }
-    const text = typeof value === "string" ? this.clean(value) : JSON.stringify(this.clean(value), null, 2);
-    (error ? this.stderr : this.stdout).write(text + "\n");
+    const text2 = typeof value === "string" ? this.clean(value) : JSON.stringify(this.clean(value), null, 2);
+    (error ? this.stderr : this.stdout).write(text2 + "\n");
   }
   progress(value) {
     this.stderr.write(this.clean(value) + "\n");
@@ -210,10 +222,10 @@ function identifier(value, label) {
     throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
   return value;
 }
-function samePlatformTarget(saved, server, tenant) {
+function samePlatformTarget(saved, server, tenant, scope = "tenant") {
   if (!nonempty(saved?.server)) return false;
   try {
-    return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant);
+    return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant) && (saved.scope ?? "tenant") === scope;
   } catch {
     return false;
   }
@@ -302,14 +314,18 @@ var Store = class {
     if (args.has("profile") && !allowMissing && !Object.hasOwn(config.profiles, name))
       throw new CliError(`Profile '${name}' does not exist.`, { code: "profile_not_found", hint: "Run profile list, or create the connection with auth login/profile set." });
     const saved = config.profiles[name] ?? {};
+    const scope = args.value("scope") ?? (args.has("tenant") || this.env.XRAIN_TENANT ? "tenant" : saved.scope ?? "tenant");
+    if (!["tenant", "host"].includes(scope) || scope === "host" && args.has("tenant"))
+      throw new CliError("Choose scope tenant or host; Host connections cannot select a tenant.", { code: "invalid_arguments" });
     const profile = {
       name,
+      scope,
       server: origin(args.value("server") ?? this.env.XRAIN_SERVER ?? saved.server ?? DEFAULT_SERVER),
-      tenant: args.value("tenant") ?? this.env.XRAIN_TENANT ?? saved.tenant,
+      tenant: scope === "host" ? null : args.value("tenant") ?? this.env.XRAIN_TENANT ?? saved.tenant,
       bearerToken: args.value("bearer") ?? this.env.XRAIN_TOKEN ?? saved.bearerToken,
       tokenName: args.value("token-name") ?? this.env.XRAIN_TOKEN_NAME ?? saved.tokenName
     };
-    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant);
+    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant, scope);
     const runtime2 = args.value("runtime") ?? (sameTarget ? saved.runtime : void 0);
     const application = args.has("personal") || args.has("mine") ? void 0 : args.value("application-id") ?? (sameTarget ? saved.applicationId : void 0);
     if (runtime2 !== void 0 && runtime2 !== null) {
@@ -346,18 +362,18 @@ var Store = class {
   sessionPath(name) {
     return join(this.sessionDir, sha256(this.canonical(name)) + ".bin");
   }
-  saveSession(name, server, tenantId, token, expiry) {
+  saveSession(name, server, tenantId, token, expiry, scope = "tenant") {
     if (!nonempty(token) || !Number.isFinite(new Date(expiry).getTime()) || new Date(expiry).getTime() <= Date.now()) throw new CliError("The server returned an invalid session.");
     name = this.canonical(name);
     this.reporter?.secret(token);
-    let bytes = Buffer.from(JSON.stringify({ server: origin(server), tenantId, token, expiresAtUtc: new Date(expiry).toISOString() }));
+    let bytes = Buffer.from(JSON.stringify({ server: origin(server), tenantId, scope, token, expiresAtUtc: new Date(expiry).toISOString() }));
     if (process.platform === "win32") bytes = dpapi(bytes, name, "protect");
     mkdirSync(this.sessionDir, { recursive: true, mode: 448 });
     if (process.platform !== "win32") chmodSync(this.sessionDir, 448);
     writePrivate(this.sessionPath(name), bytes);
     this.sessionCache.delete(this.sessionPath(name));
   }
-  inspectSession(name, server, tenantId) {
+  inspectSession(name, server, tenantId, scope = "tenant") {
     name = this.canonical(name);
     try {
       const path = this.sessionPath(name), bytes = readLimited(path, 1024 * 1024, "Session"), digest = sha256(bytes);
@@ -371,6 +387,7 @@ var Store = class {
       this.reporter?.secret(session.token);
       const info = { expiresAtUtc: session.expiresAtUtc };
       if (origin(session.server) !== origin(server)) return { ...info, status: "server_mismatch" };
+      if ((session.scope ?? "tenant") !== scope) return { ...info, status: "scope_mismatch" };
       if (!equalIgnoreCase(session.tenantId, tenantId)) return { ...info, status: "tenant_mismatch" };
       if (Date.parse(session.expiresAtUtc) <= Date.now()) return { ...info, status: "expired" };
       if (Date.parse(session.expiresAtUtc) <= Date.now() + 6e4) return { ...info, status: "expiring" };
@@ -380,8 +397,8 @@ var Store = class {
       return { status: error.code === "session_protection_unavailable" ? "protection_unavailable" : "unreadable" };
     }
   }
-  loadSession(name, server, tenantId) {
-    return this.inspectSession(name, server, tenantId).token ?? null;
+  loadSession(name, server, tenantId, scope = "tenant") {
+    return this.inspectSession(name, server, tenantId, scope).token ?? null;
   }
   deleteSession(name) {
     try {
@@ -397,7 +414,7 @@ var Store = class {
     return { server, name: `exchange:${sha256(server)}:${name}`, tenant: "" };
   }
   credential(args, profile, { createSecrets = true } = {}) {
-    if (args.value("auth") === "session") return { token: this.loadSession(profile.name, profile.server, profile.tenant), source: "application-session" };
+    if (args.value("auth") === "session") return { token: this.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" };
     if (nonempty(args.value("bearer"))) return { token: this.reporter?.secret(args.value("bearer")) ?? args.value("bearer"), source: "option:bearer" };
     if (nonempty(this.env.XRAIN_TOKEN)) return { token: this.reporter?.secret(this.env.XRAIN_TOKEN) ?? this.env.XRAIN_TOKEN, source: "environment:XRAIN_TOKEN" };
     if (nonempty(profile.bearerToken)) return { token: profile.bearerToken, source: "profile:bearer" };
@@ -407,16 +424,17 @@ var Store = class {
       const token2 = this.secrets(createSecrets)[key];
       return { token: token2, source: `local-secret-store:${profile.tokenName}` };
     }
-    const token = this.loadSession(profile.name, profile.server, profile.tenant);
+    const token = this.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
     return { token, source: token ? "application-session" : "none" };
   }
   authStatus(args, profile, market = false) {
-    const { token: sessionToken, ...session } = this.inspectSession(profile.name, profile.server, profile.tenant);
+    const { token: sessionToken, ...session } = this.inspectSession(profile.name, profile.server, profile.tenant, profile.scope);
     const selected = market ? { token: sessionToken, source: "application-session" } : this.credential(args, profile, { createSecrets: false });
     return {
       profile: profile.name,
       server: profile.server,
       tenant: profile.tenant,
+      scope: profile.scope ?? "tenant",
       mode: market ? "session" : args.value("auth") ?? "auto",
       credentialSource: selected.source,
       credentialConfigured: !!selected.token,
@@ -450,14 +468,14 @@ async function request(url, { method = "GET", token, json, body, headers = {}, t
     const response = await fetch(url, options);
     if (Number(response.headers.get("content-length")) > limit) {
       await response.body?.cancel();
-      throw new CliError("HTTP response exceeds the size limit.");
+      throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
     }
     const chunks = [];
     let size = 0;
     if (response.body) for await (const chunk of response.body) {
       size += chunk.length;
       if (size > limit) {
-        throw new CliError("HTTP response exceeds the size limit.");
+        throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
       }
       chunks.push(chunk);
     }
@@ -963,6 +981,7 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
       active: equalIgnoreCase(name, config.activeProfile),
       server: profile.server,
       tenant: profile.tenant,
+      scope: profile.scope ?? "tenant",
       ...profile.runtime ? { agentRuntime: profile.runtime } : {},
       ...profile.applicationId ? { agentApplicationId: profile.applicationId } : {}
     })));
@@ -971,13 +990,15 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
   if (action === "set") {
     const name = store.canonical(args.value("profile") ?? config.activeProfile, config);
     const existing = config.profiles[name] ?? {};
+    const scope = args.value("scope") ?? (args.has("tenant") ? "tenant" : existing.scope ?? "tenant");
     const profile = {
+      scope,
       server: origin(args.value("server") ?? existing.server ?? DEFAULT_SERVER),
-      tenant: args.value("tenant") ?? existing.tenant,
+      tenant: scope === "host" ? null : args.value("tenant") ?? existing.tenant,
       bearerToken: args.has("bearer") ? args.value("bearer") : args.has("token-name") ? void 0 : existing.bearerToken,
       tokenName: args.value("token-name") ?? store.env.XRAIN_TOKEN_NAME ?? existing.tokenName
     };
-    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant);
+    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant, scope);
     const runtime2 = args.value("runtime") ?? (sameTarget ? existing.runtime : void 0);
     const application = args.has("personal") ? void 0 : args.value("application-id") ?? (sameTarget ? existing.applicationId : void 0);
     if (runtime2 !== void 0 && runtime2 !== null) profile.runtime = origin(runtime2);
@@ -999,18 +1020,19 @@ async function profileCommands(ctx, action = ctx.args.command(1)) {
   if (action === "show") {
     const profile = store.resolve(args);
     let tokenSource = "none";
-    if (args.value("auth") === "session") tokenSource = store.loadSession(profile.name, profile.server, profile.tenant) ? "application-session" : "none";
+    if (args.value("auth") === "session") tokenSource = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) ? "application-session" : "none";
     else if (args.has("bearer")) tokenSource = "option:bearer";
     else if (store.env.XRAIN_TOKEN) tokenSource = "environment:XRAIN_TOKEN";
     else if (profile.bearerToken) tokenSource = "profile:bearer";
     else if (profile.tokenName) tokenSource = `local-secret-store:${profile.tokenName}`;
-    else if (store.loadSession(profile.name, profile.server, profile.tenant)) tokenSource = "application-session";
+    else if (store.loadSession(profile.name, profile.server, profile.tenant, profile.scope)) tokenSource = "application-session";
     reporter.print({
       configPath: store.configPath,
       activeProfile: profile.name,
       profile: {
         server: profile.server,
         tenant: profile.tenant,
+        scope: profile.scope,
         tokenName: profile.tokenName,
         hasBearerToken: !!profile.bearerToken,
         ...profile.runtime ? { agentRuntime: profile.runtime } : {},
@@ -1960,8 +1982,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve4, reject) => {
-    accept = resolve4;
+  const callback = new Promise((resolve5, reject) => {
+    accept = resolve5;
     fail = reject;
   });
   callback.catch(() => {
@@ -1990,9 +2012,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve4, reject) => {
+  await new Promise((resolve5, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve4);
+    server.listen(Number(expected.port), expected.hostname, resolve5);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2015,20 +2037,20 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve4) => {
+  return new Promise((resolve5) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve4(false));
+    child.on("error", () => resolve5(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve4(code === 0));
+    child.on("exit", (code) => resolve5(code === 0));
   });
 }
-function tenantSession(response) {
+function tenantSession(response, scope = "tenant") {
   const data = requireSuccess(response).json();
-  if (!nonempty(data.access_token) || data.token_type !== void 0 && !equalIgnoreCase(data.token_type, "Bearer") || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
-    throw new CliError("XRain returned an invalid tenant session.");
-  return { token: data.access_token, tenant: data.tenantId, expiry: data.expires_at_utc };
+  if (!nonempty(data.access_token) || data.token_type !== void 0 && !equalIgnoreCase(data.token_type, "Bearer") || (scope === "host" ? data.scope !== "host" || data.tenantId != null : !nonempty(data.tenantId) || data.scope !== void 0 && data.scope !== "tenant") || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
+    throw new CliError(`XRain returned an invalid ${scope} session.`);
+  return { token: data.access_token, tenant: data.tenantId ?? null, scope, expiry: data.expires_at_utc };
 }
 async function exchangeTenant(server, accessToken, requestedTenant) {
   const send2 = (suffix, json) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json, timeout: 3e4, limit: 1024 * 1024 });
@@ -2052,15 +2074,16 @@ async function exchangeTenant(server, accessToken, requestedTenant) {
   return selectedSession(await send2("/tenant", { tenantId: requestedTenant }));
 }
 function savePlatformLogin(ctx, profile, session) {
-  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
+  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry, session.scope);
   const saved = ctx.store.load();
   const existing = saved.profiles[profile.name] ?? {};
-  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant);
+  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant, session.scope);
   const clearedAgentSettings = !sameTarget && !!(existing.runtime || existing.applicationId);
   saved.activeProfile = profile.name;
   saved.profiles[profile.name] = {
     server: profile.server,
     tenant: session.tenant,
+    scope: session.scope,
     ...sameTarget && existing.runtime ? { runtime: existing.runtime } : {},
     ...sameTarget && existing.applicationId ? { applicationId: existing.applicationId } : {}
   };
@@ -2088,10 +2111,10 @@ async function nativeLogin(ctx) {
   if (!nonempty(password)) throw new CliError("Password input is empty.", { code: "invalid_arguments" });
   const session = tenantSession(await request(new URL("/api/service/authen/v1/account/login", profile.server), {
     method: "POST",
-    json: { userName: ctx.args.required("user"), password, ...profile.tenant ? { tenantId: profile.tenant } : {} },
+    json: { userName: ctx.args.required("user"), password, ...profile.scope === "host" ? { scope: "host" } : profile.tenant ? { tenantId: profile.tenant } : {} },
     timeout: ctx.args.timeout(),
     limit: 1024 * 1024
-  }));
+  }), profile.scope);
   if (nonempty(profile.tenant) && !equalIgnoreCase(session.tenant, profile.tenant))
     throw new CliError("The server returned a different tenant session.");
   savePlatformLogin(ctx, profile, session);
@@ -2101,6 +2124,7 @@ async function nativeLogin(ctx) {
 async function browserLogin(ctx) {
   const market = ctx.args.has("exchange");
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, false, { allowMissing: true });
+  if (profile.scope === "host") throw new CliError("Host login requires --native --user and --password-stdin.", { code: "invalid_arguments" });
   const apiRoot = market ? "/api/exchange/v1" : "/api/application/v1";
   const config = requireSuccess(await request(new URL(apiRoot + "/cli-config", profile.server), { timeout: 3e4, limit: 1024 * 1024 })).json();
   if (!nonempty(config.authority) || !nonempty(config.clientId) || !nonempty(config.scope) || config.redirectUri !== REDIRECT_URI || market && config.scope !== "openid profile")
@@ -2721,7 +2745,7 @@ async function doctor(ctx) {
 
 // src/xrain-cli/schema.mjs
 var common = ["help", "json"];
-var target = ["server", "tenant", "profile", "timeout"];
+var target = ["server", "tenant", "scope", "profile", "timeout"];
 var credentials = ["bearer", "token-name", "auth"];
 var api2 = [...target, ...credentials];
 var app = [...target, "auth"];
@@ -2738,7 +2762,7 @@ command("profile set", [...target, "bearer", "token-name", "check", "runtime", "
 command("profile use", ["name", "profile"], [slot("name", ["profile"])], "Select a saved profile.");
 command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), optional: true }], "Remove a saved profile and session.");
 command("profile path", [], [], "Show the profile store path.");
-command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native tenant account. Native login reads its password from stdin.");
+command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
 command("auth whoami", [...api2, "agent", "runtime", "application-id", "personal"], [], "Read the verified XRain identity; --agent also checks the selected Runtime caller.");
 command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the saved session, keeping the platform profile.");
@@ -2772,13 +2796,16 @@ command("agent subscription decide", [...api2, "id", "decision"], [slot("id")], 
 command("agent application list", api2, [], "List accessible XRain applications.");
 command("agent application show", [...api2, "application-id"], [slot("application-id")], "Read one application’s agent selection and default.");
 command("agent application set", [...api2, "application-id", "values", "values-json", "file"], [slot("application-id")], "Replace one application’s complete agent selection from JSON; preserve intended bindings and default.");
-command("agent definition list", runtime, [], "List definitions owned by the explicitly selected Runtime.");
+command("agent definition list", runtime, [], "List definition summaries without full instructions; older Runtimes use their original list.");
 command("agent definition show", [...runtime, "agent-id"], [slot("agent-id")], "Read one definition and its revision by exact agent ID.");
 command("agent definition options", runtime, [], "Read Runtime models, workspaces and presets available to this caller.");
-command("agent definition create", [...runtime, "agent-id", "name", "values", "values-json", "file"], [], "Create a disabled definition. An omitted ID is generated and printed before writing; JSON supplies optional definition fields.");
-command("agent definition update", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file"], [slot("agent-id")], "Apply a JSON patch to one definition using its explicitly observed revision.");
+command("agent definition limits", runtime, [], "Read the current Runtime write limit and lightweight status capability.");
+command("agent definition export", [...runtime, "agent-id", "out"], [slot("agent-id")], "Export one saved definition as a version 1 exchange file; --out must name a new file.");
+command("agent definition import", [...runtime, "agent-id", "expected-revision", "file"], [], "Import a version 1 exchange file. No ID creates a disabled definition; an existing ID requires --expected-revision and retains its enabled state.");
+command("agent definition create", [...runtime, "agent-id", "name", "values", "values-json", "file", "workspace-path", "preset"], [], "Create a disabled definition. --workspace-path and --preset select an existing Runtime directory.");
+command("agent definition update", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file", "workspace-path", "preset"], [slot("agent-id")], "Apply a JSON patch or select an existing directory using an explicitly observed revision.");
 for (const action of ["enable", "disable"]) command(`agent definition ${action}`, [...runtime, "agent-id", "expected-revision"], [slot("agent-id")], "Change enabled state using an explicitly observed revision; preserve other settings.");
-command("agent tool native", [...runtime, "workspace-id", "preset"], [], "Read the selected workspace/preset’s available native tools.");
+command("agent tool native", [...runtime, "workspace-id", "workspace-path", "preset"], [], "Read native tools for an existing directory or registered workspace and its preset.");
 command("agent tool business", runtime, [], "Read the business tools available in the current Runtime context.");
 for (const action of ["browse", "create", "register"]) command(
   `agent workspace ${action}`,
@@ -2832,7 +2859,11 @@ for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["
     command(`security ${kind} ${action}-${member}`, [...api2, kind, "name", names, "names"], [slot(kind, ["name"])], `Change ${member} relationships; the server enforces authorization.`);
   }
 }
-var host = ["server", "profile", "timeout", ...credentials];
+var host = ["server", "scope", "profile", "timeout", ...credentials];
+command("host settings get", [...host, "setting"], [slot("setting")], "Read agent-definition-limit from the Host settings API, showing bytes and MiB.");
+command("host settings set", [...host, "setting", "mib", "bytes", "expected-bytes"], [slot("setting")], "Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.");
+command("user settings get", [...api2, "setting"], [slot("setting")], "Read your Workforce send-shortcut or unread-badge preference.");
+command("user settings set", [...api2, "setting", "value"], [slot("setting")], "Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).");
 command("host tenant member list", [...host, "tenant-id", "page", "page-size", "search"], [slot("tenant-id")], "List one named tenant membership directory using an authorized Host login.");
 command("host tenant member ensure", [...host, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
 command("app login", [...target, "exchange", "device", "no-browser"], [], "Compatibility alias for auth login.");
@@ -2884,6 +2915,24 @@ function validateCommand(args) {
   const exclusive = (names) => {
     if (names.filter((name) => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map((name) => "--" + name).join(", ")}.`, { code: "invalid_arguments" });
   };
+  if (args.has("scope") && (!["host", "tenant"].includes(args.value("scope")) || args.value("scope") === "host" && args.has("tenant")))
+    throw new CliError("--scope must be tenant or host; Host connections cannot select --tenant.", { code: "invalid_arguments" });
+  if (spec.path === "auth login" && args.value("scope") === "host" && !args.has("native"))
+    throw new CliError("Host login requires --native.", { code: "invalid_arguments" });
+  if (spec.path.startsWith("host settings ")) {
+    if (args.required("setting") !== "agent-definition-limit") throw new CliError("Supported Host setting: agent-definition-limit.", { code: "invalid_arguments" });
+    if (spec.path.endsWith(" set")) {
+      exclusive(["mib", "bytes"]);
+      if (!args.has("mib") && !args.has("bytes")) throw new CliError("--mib or --bytes is required.", { code: "invalid_arguments" });
+    }
+  }
+  if (spec.path.startsWith("user settings ")) {
+    const setting = args.required("setting");
+    const choices = { "send-shortcut": ["enter", "ctrlEnter"], "unread-badge": ["true", "false"] };
+    if (!Object.hasOwn(choices, setting)) throw new CliError("Supported personal settings: send-shortcut, unread-badge.", { code: "invalid_arguments" });
+    if (spec.path.endsWith(" set") && !choices[setting].includes(args.required("value")))
+      throw new CliError(`--value must be ${choices[setting].join(" or ")}.`, { code: "invalid_arguments" });
+  }
   if (spec.path === "auth login") {
     if (args.has("native")) {
       args.required("user");
@@ -2931,18 +2980,26 @@ function validateCommand(args) {
       throw new CliError("--purpose must be result, issues, maintenance or remaining.", { code: "invalid_arguments" });
   }
   if (spec.path.startsWith("agent ")) {
-    if (spec.options.includes("expected-revision")) {
+    if (spec.options.includes("expected-revision") && (spec.path !== "agent definition import" || args.has("agent-id"))) {
       args.required("expected-revision");
       args.integer("expected-revision");
     }
     if (spec.options.includes("values-json")) exclusive(["values", "values-json", "file"]);
-    if (["agent definition update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (["agent definition update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name)) && !(spec.path === "agent definition update" && args.has("workspace-path"))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (spec.path === "agent definition export") args.required("out");
+    if (spec.path === "agent definition import") {
+      args.required("file");
+      if (args.has("expected-revision") && !args.has("agent-id")) throw new CliError("--expected-revision requires a target --agent-id.", { code: "invalid_arguments" });
+    }
+    if (spec.path.startsWith("agent definition ") && args.has("workspace-path") !== args.has("preset"))
+      throw new CliError("Select a directory with both --workspace-path and --preset.", { code: "invalid_arguments" });
     if (spec.path === "agent definition create" && !["name", "values", "values-json", "file"].some((name) => args.has(name)))
       throw new CliError("A definition name is required.", { code: "invalid_arguments" });
     if (spec.path === "agent directory" && args.has("mine") && args.has("application-id"))
       throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });
     if (spec.path === "agent tool native") {
-      args.required("workspace-id");
+      exclusive(["workspace-id", "workspace-path"]);
+      if (!args.has("workspace-path")) args.required("workspace-id");
       args.required("preset");
     }
     if (spec.path === "agent policy set" && !["public", "private"].includes(args.required("visibility")))
@@ -2976,7 +3033,7 @@ function validateCommand(args) {
   if (spec.path.startsWith("security ") && / (?:grant|revoke)-/.test(spec.path)) exclusive(["names", "roles", "permission-sets", "permissions"]);
   if (args.has("exchange")) {
     exclusive(["server", "exchange"]);
-    if (args.has("tenant") || args.has("bearer") || args.has("token-name")) throw new CliError("Independent market commands use their own browser session, without platform tenant or API token options.", { code: "invalid_arguments" });
+    if (args.has("tenant") || args.has("scope") || args.has("bearer") || args.has("token-name")) throw new CliError("Independent market commands use their own browser session, without platform scope, tenant or API token options.", { code: "invalid_arguments" });
     if (args.has("device")) throw new CliError("Device login is available for the XRain platform, not the independent market.", { code: "invalid_arguments" });
   }
   if (args.has("auth") && !["auto", "session"].includes(args.value("auth")))
@@ -3055,6 +3112,120 @@ async function batchCommands(ctx) {
 
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
+import { writeFileSync as writeFileSync3 } from "node:fs";
+import { resolve as resolve4 } from "node:path";
+
+// src/xrain-cli/definition-file.mjs
+var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+var text = (v, max) => typeof v === "string" && v.length <= max && !v.includes("\0");
+var strings = (v) => Array.isArray(v) && v.every((item) => text(item, 160));
+var nullableArray = (v, valid) => v === null || Array.isArray(v) && v.every(valid);
+var optionalObject = (v) => v === void 0 || object(v);
+var optionalStrings = (v) => v === void 0 || strings(v);
+var optionalText = (v) => v === void 0 || text(v, 4096);
+function validTool(v) {
+  return object(v) && text(v.name, 160) && text(v.description, 4e3) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters);
+}
+function validQuestion(v) {
+  return text(v, 160) || object(v) && text(v.text, 160) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
+}
+function validAction(v) {
+  return object(v) && text(v.businessSourceId, 160) && text(v.objectType, 160) && ["read", "create", "edit"].includes(String(v.action)) && optionalStrings(v.createFields) && optionalObject(v.when) && (!v.when || ["conversation", "object"].every((key) => object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
+}
+function validView(v) {
+  if (!object(v) || !text(v.id, 160) || !text(v.label, 160) || !["list", "detail", "create", "extension"].includes(String(v.kind)) || !optionalStrings(v.fields) || !optionalText(v.listViewName) || !optionalText(v.extensionId) || !optionalObject(v.parameters) || !optionalObject(v.fieldExtensions) || v.inlineEditable !== void 0 && typeof v.inlineEditable !== "boolean") return false;
+  if (v.groups !== void 0 && (!Array.isArray(v.groups) || !v.groups.every((g) => object(g) && text(g.id, 160) && text(g.label, 160) && strings(g.fields) && (g.columns === void 0 || g.columns === 1 || g.columns === 2) && (g.initiallyExpanded === void 0 || typeof g.initiallyExpanded === "boolean")))) return false;
+  if (v.related !== void 0 && (!Array.isArray(v.related) || !v.related.every((r) => object(r) && text(r.id, 160) && text(r.label, 160) && text(r.objectType, 160) && optionalText(r.relationField) && optionalText(r.listViewName) && optionalStrings(r.fields) && optionalObject(r.through) && (!r.through || object(r.through) && text(r.through.objectType, 160) && text(r.through.parentField, 160) && text(r.through.childField, 160))))) return false;
+  return v.actions === void 0 || Array.isArray(v.actions) && v.actions.every((a) => object(a) && text(a.id, 160) && text(a.label, 160) && text(a.extensionId, 160) && optionalObject(a.parameters));
+}
+function validSidebar(v) {
+  if (!object(v) || !text(v.pluginId, 160) || !["always", "conditional"].includes(String(v.availability)) || !optionalObject(v.when) || !optionalStrings(v.allowedOperations) || !optionalObject(v.settings) || ["entryId", "businessName", "initialLabel"].some((key) => v[key] !== void 0 && !text(v[key], 160)) || ["initiallyLoaded", "defaultActive"].some((key) => v[key] !== void 0 && typeof v[key] !== "boolean")) return false;
+  if (object(v.when) && (!optionalStrings(v.when.objectTypes) || !optionalStrings(v.when.permissions) || ["conversation", "object", "businessSourceId"].some((key) => v.when && object(v.when) && v.when[key] !== void 0 && !text(v.when[key], 160)))) return false;
+  if (v.pluginId !== "xrain-records") return true;
+  if (!object(v.settings) || v.settings.objects === void 0) return true;
+  return Array.isArray(v.settings.objects) && v.settings.objects.every((item) => object(item) && text(item.objectType, 160) && optionalText(item.listViewId) && optionalText(item.detailViewId) && optionalText(item.createViewId) && optionalObject(item.application) && (!item.application || object(item.application) && text(item.application.applicationId, 160) && optionalText(item.application.path)) && Array.isArray(item.views) && item.views.every(validView));
+}
+function exportDefinition(value, workspaces) {
+  const workspace = value.workspaceDirect ? value.workspacePath ? { kind: "direct", path: value.workspacePath } : { kind: "unavailable" } : value.workspaceId ? {
+    kind: "registered",
+    id: value.workspaceId,
+    ...workspaces.find((item) => item.id === value.workspaceId)?.cwd ? { path: workspaces.find((item) => item.id === value.workspaceId).cwd } : {}
+  } : { kind: "none" };
+  return { format: "xrain-workforce-agent-definition", version: 1, definition: {
+    name: value.name ?? "",
+    enabled: value.enabled,
+    instructions: value.instructions,
+    provider: value.provider,
+    model: value.model,
+    reasoningEffort: value.reasoningEffort ?? null,
+    agentPreset: value.agentPreset,
+    workspace,
+    nativeTools: value.nativeTools ?? null,
+    assistantTools: value.assistantTools ?? [],
+    suggestedQuestions: value.suggestedQuestions ?? null,
+    businessActions: value.businessActions ?? null,
+    uiPlugins: value.uiPlugins ?? null
+  } };
+}
+function readDefinitionFile(value) {
+  if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
+  const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+  if (Object.keys(v).length !== keys.length || Object.keys(v).some((key) => !keys.includes(key)) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
+  return value;
+}
+function sameWorkspacePath(left, right) {
+  const windows = (value) => /^[a-z]:[\\/]/i.test(value) || /^(?:\\\\|\/\/)[^\\/]/.test(value);
+  if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return left === right;
+}
+function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = true) {
+  const v = file.definition, warnings = [];
+  const changes = {
+    name: v.name,
+    instructions: v.instructions,
+    provider: v.provider,
+    model: v.model,
+    reasoningEffort: v.reasoningEffort ?? void 0,
+    assistantTools: v.assistantTools,
+    suggestedQuestions: v.suggestedQuestions ?? void 0,
+    businessActions: v.businessActions ?? void 0,
+    uiPlugins: v.uiPlugins ?? void 0
+  };
+  if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
+  else if (canRestoreInheritance) changes.nativeTools = void 0;
+  else warnings.push("当前运行环境暂不支持恢复沿用工作模式提供的工具，已保留现有选择。");
+  const w = v.workspace;
+  if (w.kind === "direct") Object.assign(changes, {
+    workspaceId: null,
+    workspaceDirect: true,
+    workspaceUnavailable: false,
+    workspacePath: w.path,
+    agentPreset: v.agentPreset,
+    workspaceChange: { operation: "direct", path: w.path, agentPreset: v.agentPreset }
+  });
+  else if (w.kind === "registered") {
+    const match = w.path && workspaces.find((item) => item.id === w.id && item.cwd && sameWorkspacePath(item.cwd, w.path));
+    if (match && match.agentPresets.includes(v.agentPreset)) Object.assign(changes, {
+      workspaceId: w.id,
+      workspaceDirect: void 0,
+      workspaceUnavailable: false,
+      workspacePath: void 0,
+      agentPreset: v.agentPreset,
+      workspaceChange: { operation: "bind", workspaceId: w.id, agentPreset: v.agentPreset }
+    });
+    else warnings.push("文件中的工作目录无法在当前环境确认，已保留当前目录和工作模式。");
+  } else if (w.kind === "none" && !draft.enabled) Object.assign(changes, {
+    workspaceId: null,
+    workspaceDirect: void 0,
+    workspaceUnavailable: false,
+    workspacePath: void 0,
+    agentPreset: "",
+    workspaceChange: { operation: "clear" }
+  });
+  else if (w.kind === "unavailable" || w.kind === "none" && (draft.workspaceId || draft.workspaceDirect))
+    warnings.push("文件没有可用的工作目录，已保留当前目录和工作模式。");
+  return { changes, warnings };
+}
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
@@ -3129,8 +3300,8 @@ function collector(requestId, expectedText) {
     if (found && targetTurn === void 0 && event.type === "assistant/message" && Number.isSafeInteger(data.turn)) targetTurn = data.turn;
     if (!found || targetTurn === void 0 || Number.isSafeInteger(data.turn) && data.turn !== targetTurn || !Number.isSafeInteger(data.turn) && currentTurn !== void 0 && currentTurn !== targetTurn) return;
     if (event.type === "assistant/message") {
-      const text = textOf(data.message ?? data);
-      if (text) answer = text;
+      const text2 = textOf(data.message ?? data);
+      if (text2) answer = text2;
     } else if (event.type === "tool/call" && nonempty(data.callId) && nonempty(data.name)) {
       tools.set(data.callId, { name: data.name, status: "pending" });
     } else if (event.type === "tool/result") {
@@ -3156,8 +3327,8 @@ function visibleHistory(frame, sessionId) {
       const message2 = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
       if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
-      const text = textOf(message2);
-      if (text) items.push({ ...base, type: event.type, text, ...source.rpcId ? { requestId: source.rpcId } : {} });
+      const text2 = textOf(message2);
+      if (text2) items.push({ ...base, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
     } else if (event.type === "turn/start" || event.type === "turn/end") {
       items.push({ ...base, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
     } else if (event.type === "tool/call" && typeof data.name === "string") {
@@ -3280,8 +3451,8 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
         if (size > 1024 * 1024) throw new CliError("Runtime error response exceeds the size limit.", { code: "invalid_response" });
         chunks.push(part.value);
       }
-      const text = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
-      throw responseError({ status: response.status, headers: response.headers, json: () => JSON.parse(text) }, "", { credentialSource: source, profile: profile.name });
+      const text2 = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
+      throw responseError({ status: response.status, headers: response.headers, json: () => JSON.parse(text2) }, "", { credentialSource: source, profile: profile.name });
     } catch (error) {
       if (error instanceof CliError) throw error;
       throw new CliError(budget.expired() ? "Waiting for the conversation timed out." : "Conversation response was interrupted.", { code: budget.expired() ? "turn_timeout" : "network_error" });
@@ -3338,9 +3509,9 @@ function finish(sessionId, requestId, result) {
   if (!nonempty(result.answer)) throw new CliError("The turn completed without a text reply.", { code: "no_answer", details: { sessionId, requestId, ...result } });
   return { sessionId, requestId, ...result };
 }
-async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
-  let stream, submitted = text === void 0, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
-  const turn = collector(requestId, text);
+async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget) {
+  let stream, submitted = text2 === void 0, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
+  const turn = collector(requestId, text2);
   try {
     budget.check();
     stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
@@ -3364,7 +3535,7 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
     let submission = Promise.resolve();
     if (!submitted) {
       budget.check();
-      const body = { requestId, content: [{ type: "text", text }] };
+      const body = { requestId, content: [{ type: "text", text: text2 }] };
       inputAttempted = true;
       submission = helpers.writeOnce(async () => {
         const accepted = await helpers.runtimeValue(ctx, "POST", `${sessions}/${segment(sessionId)}/inputs`, body, headers, { signal: budget.signal });
@@ -3404,9 +3575,9 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
 }
 async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
-  const connection = helpers.runtimeConnection(ctx);
-  const app2 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection.profile) : void 0;
-  const context = { runtime: connection.runtime, applicationId: app2 ?? null };
+  const connection2 = helpers.runtimeConnection(ctx);
+  const app2 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection2.profile) : void 0;
+  const context = { runtime: connection2.runtime, applicationId: app2 ?? null };
   const headers = app2 ? { "X-XRain-Application-Id": app2 } : {};
   if (action === "list") {
     const path = args.has("all") ? sessions : `${sessions}?source=xrain-cli`;
@@ -3452,7 +3623,7 @@ async function chatCommands(ctx, helpers) {
     reporter.print(visibleHistory(page, sessionId));
     return 0;
   }
-  const text = action === "wait" ? void 0 : await messageInput(args);
+  const text2 = action === "wait" ? void 0 : await messageInput(args);
   const requestId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Request ID");
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
@@ -3468,7 +3639,7 @@ async function chatCommands(ctx, helpers) {
       reporter.progress(`Session ID: ${sessionId}`);
     }
     sessionId = helpers.identifier(sessionId, "Session ID");
-    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers, budget), ...context });
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text2, headers, helpers, budget), ...context });
   } catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...context };
     throw error;
@@ -3522,6 +3693,11 @@ function workspaceChange(value) {
       throw new CliError("workspaceChange conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
     value.workspaceId = change.workspaceId;
     value.agentPreset = change.agentPreset;
+  } else if (change.operation === "direct") {
+    if (value.workspaceId != null || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
+      throw new CliError("A direct directory conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
+    value.workspaceId = null;
+    value.agentPreset = change.agentPreset;
   } else if (change.operation === "clear") {
     if (value.workspaceId != null || value.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
     value.workspaceId = null;
@@ -3536,11 +3712,11 @@ function runtimeConnection(ctx) {
   const runtime2 = runtimeOrigin(profile);
   const { token, source } = store.credential(args, profile);
   if (!token) throw new CliError("A platform credential is required for the Runtime.", { code: "authentication_required", hint: "Check auth status for the selected platform profile." });
-  const connection = { runtime: runtime2, profile, token, source };
-  runtimeConnections.set(ctx, connection);
-  return connection;
+  const connection2 = { runtime: runtime2, profile, token, source };
+  runtimeConnections.set(ctx, connection2);
+  return connection2;
 }
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal } = {}) {
+async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal, limit } = {}) {
   const { args } = ctx;
   const { runtime: runtime2, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime2), {
@@ -3549,6 +3725,7 @@ async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal
     json,
     timeout: args.timeout(),
     signal,
+    limit,
     headers: { "X-XRain-Authorization": `Bearer ${token}`, ...extraHeaders }
   });
   if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
@@ -3563,7 +3740,7 @@ async function writeOnce(action, hint2, details) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof CliError && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
+    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500)) {
       error.code = "outcome_unknown";
       error.hint = hint2;
       error.details = { ...error.details, ...details };
@@ -3571,8 +3748,28 @@ async function writeOnce(action, hint2, details) {
     throw error;
   }
 }
+var missingCapability = (error) => error.httpStatus === 404 && error.serverCode !== "AGENT_DEFINITION_NOT_FOUND";
+var definitionRead = (ctx, path) => runtimeValue(ctx, "GET", path, void 0, {}, { limit: Infinity });
+async function definitionList(ctx) {
+  try {
+    return await runtimeValue(ctx, "GET", definitions + "/summaries");
+  } catch (error) {
+    if (!missingCapability(error)) throw error;
+    ctx.reporter.progress("This Runtime uses the legacy full definition list.");
+    return definitionRead(ctx, definitions);
+  }
+}
 async function definition(ctx, id) {
-  const result = await runtimeValue(ctx, "GET", definitions);
+  try {
+    const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
+    if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
+      throw new CliError("Runtime returned an invalid definition.", { code: "invalid_response" });
+    return item;
+  } catch (error) {
+    if (!missingCapability(error)) throw error;
+  }
+  ctx.reporter.progress("This Runtime lacks single-definition reads; using its legacy list.");
+  const result = await definitionRead(ctx, definitions);
   if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Runtime returned an invalid definition list.", { code: "invalid_response" });
   const matches = result.items.filter((item) => isObject(item) && item.agentId === id);
   if (!matches.length) throw new CliError("Definition not found in this Runtime.", { code: "not_found", details: { agentId: id } });
@@ -3580,10 +3777,35 @@ async function definition(ctx, id) {
     throw new CliError("Runtime returned an ambiguous or invalid definition.", { code: "invalid_response" });
   return matches[0];
 }
-async function saveDefinition(ctx, id, body) {
+async function definitionLimits(ctx) {
+  let value, legacy = false;
+  try {
+    value = await runtimeValue(ctx, "GET", definitions + "/limits");
+  } catch (error) {
+    if (!missingCapability(error)) throw error;
+    legacy = true;
+    value = await runtimeValue(ctx, "GET", definitions + "/options");
+  }
+  if (!isObject(value) || !(Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0 || legacy && value.maxDefinitionBytes === void 0))
+    throw new CliError("Runtime returned an invalid definition write limit.", { code: "invalid_response" });
+  return {
+    maxDefinitionBytes: value.maxDefinitionBytes ?? 65536,
+    supportsDefinitionStatusUpdate: value.supportsDefinitionStatusUpdate === true,
+    ...legacy ? { legacy: true } : {}
+  };
+}
+function checkDefinitionSize(body, limits) {
+  const bytes = Buffer.byteLength(JSON.stringify(body), "utf8");
+  if (bytes > limits.maxDefinitionBytes) throw new CliError("The complete UTF-8 save request exceeds the current Runtime limit.", {
+    code: "definition_too_large",
+    details: { requestBytes: bytes, maxDefinitionBytes: limits.maxDefinitionBytes }
+  });
+}
+async function saveDefinition(ctx, id, body, limits, statusOnly = false) {
+  if (!statusOnly) checkDefinitionSize(body, limits);
   return writeOnce(
     async () => {
-      const result = await runtimeValue(ctx, "POST", definitions, body);
+      const result = await runtimeValue(ctx, "POST", definitions + (statusOnly ? "/enabled" : ""), body, {}, { limit: Infinity });
       if (!isObject(result) || result.agentId !== id || result.revision !== (body.revision ?? 0) + 1 || result.enabled !== body.enabled)
         throw new CliError("Runtime returned an invalid save result.", { code: "invalid_response" });
       return result;
@@ -3592,39 +3814,106 @@ async function saveDefinition(ctx, id, body) {
     { agentId: id, expectedRevision: body.revision }
   );
 }
+function selectDirectory(args, value) {
+  if (!args.has("workspace-path")) return;
+  if (["workspaceChange", "workspaceId", "agentPreset"].some((key) => Object.hasOwn(value, key)))
+    throw new CliError("Choose the directory once, using options or JSON.", { code: "invalid_arguments" });
+  value.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
+}
+async function definitionInput(ctx, limits, required = true) {
+  const value = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  if (value === void 0 && !required) return {};
+  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  validateDefinitionInput(value);
+  return value;
+}
+function newDefinition(id, value) {
+  return {
+    aiUserId: "",
+    agentId: id,
+    revision: null,
+    enabled: false,
+    instructions: "",
+    provider: "",
+    model: "",
+    agentPreset: "",
+    workspaceId: null,
+    nativeTools: [],
+    allowedCallerUserIds: [],
+    ...value
+  };
+}
+function updatedDefinition(current, patch, expected) {
+  if (current.revision !== expected) throw new CliError("Definition revision changed. Review the current definition before saving.", {
+    code: "conflict",
+    details: { agentId: current.agentId, expectedRevision: expected, currentRevision: current.revision }
+  });
+  const base = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
+  return {
+    ...base,
+    ...patch,
+    aiUserId: "",
+    agentId: current.agentId,
+    revision: expected,
+    allowedCallerUserIds: [],
+    workspaceChange: patch.workspaceChange ?? { operation: "keep" }
+  };
+}
+async function importDefinition(ctx) {
+  const { args, reporter } = ctx;
+  const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
+  const expected = args.has("agent-id") ? revision(args) : null;
+  const limits = await definitionLimits(ctx);
+  const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  let file;
+  try {
+    file = readDefinitionFile(value);
+  } catch {
+    throw new CliError("Expected a version 1 xrain-workforce-agent-definition exchange file.", { code: "invalid_definition_file" });
+  }
+  const current = expected === null ? newDefinition(id, {}) : await definition(ctx, id);
+  if (expected !== null) updatedDefinition(current, {}, expected);
+  const options = await runtimeValue(ctx, "GET", definitions + "/options");
+  if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError("Runtime returned invalid definition options.", { code: "invalid_response" });
+  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, options.supportsNativeToolInheritanceReset === true);
+  const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
+  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset === true) patch.nativeTools = null;
+  workspaceChange(patch);
+  const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
+  for (const warning of warnings) reporter.progress(warning);
+  reporter.progress(`Definition ID: ${id}`);
+  reporter.print({ ...await saveDefinition(ctx, id, body, limits), ...warnings.length ? { warnings } : {} });
+  return 0;
+}
 async function definitionCommands(ctx) {
   const { args, reporter } = ctx;
   const action = args.command(2);
-  if (action === "list" || action === "options") {
-    reporter.print(await runtimeValue(ctx, "GET", definitions + (action === "options" ? "/options" : "")));
+  if (action === "list") {
+    reporter.print(await definitionList(ctx));
     return 0;
   }
+  if (action === "options") {
+    reporter.print(await runtimeValue(ctx, "GET", definitions + "/options"));
+    return 0;
+  }
+  if (action === "limits") {
+    reporter.print({ ...await definitionLimits(ctx), runtime: runtimeConnection(ctx).runtime });
+    return 0;
+  }
+  if (action === "import") return importDefinition(ctx);
   if (action === "create") {
-    const value = await objectInput(args, false);
-    validateDefinitionInput(value);
+    const limits2 = await definitionLimits(ctx);
+    const value = await definitionInput(ctx, limits2, false);
+    selectDirectory(args, value);
     if (value.enabled !== void 0 && value.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
     if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
     const name = args.value("name") ?? value.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
     const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
     workspaceChange(value);
-    const body2 = {
-      aiUserId: "",
-      agentId: id2,
-      revision: null,
-      enabled: false,
-      instructions: "",
-      provider: "",
-      model: "",
-      agentPreset: "",
-      workspaceId: null,
-      nativeTools: [],
-      allowedCallerUserIds: [],
-      ...value,
-      name
-    };
+    const body2 = newDefinition(id2, { ...value, name });
     reporter.progress(`Definition ID: ${id2}`);
-    reporter.print(await saveDefinition(ctx, id2, body2));
+    reporter.print(await saveDefinition(ctx, id2, body2, limits2));
     return 0;
   }
   const id = identifier(args.required("agent-id"), "Agent ID");
@@ -3632,22 +3921,31 @@ async function definitionCommands(ctx) {
     reporter.print(await definition(ctx, id));
     return 0;
   }
+  if (action === "export") {
+    const current = await definition(ctx, id);
+    const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
+    if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
+    const file = exportDefinition(current, workspaces), output2 = resolve4(args.required("out"));
+    const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
+    writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
+    reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
+    return 0;
+  }
   const expected = revision(args);
-  const patch = action === "update" ? await objectInput(args) : { enabled: action === "enable" };
-  validateDefinitionInput(patch);
+  const limits = await definitionLimits(ctx);
+  if (action !== "update" && limits.supportsDefinitionStatusUpdate) {
+    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === "enable" }, limits, true));
+    return 0;
+  }
+  if (action !== "update") reporter.progress("This Runtime does not support lightweight status updates; using its full-save contract.");
+  const patch = action === "update" ? await definitionInput(ctx, limits, !args.has("workspace-path")) : { enabled: action === "enable" };
+  selectDirectory(args, patch);
   if (!Object.keys(patch).length) throw new CliError("The update has no fields.", { code: "invalid_arguments" });
   if ((Object.hasOwn(patch, "workspaceId") || Object.hasOwn(patch, "agentPreset")) && !patch.workspaceChange)
     throw new CliError("Changing workspace or preset requires an explicit workspaceChange.", { code: "invalid_arguments" });
   workspaceChange(patch);
-  const current = await definition(ctx, id);
-  if (current.revision !== expected) throw new CliError("Definition revision changed. Review the current definition before saving.", {
-    code: "conflict",
-    details: { agentId: id, expectedRevision: expected, currentRevision: current.revision }
-  });
-  const base = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
-  const body = { ...base, ...patch, aiUserId: "", agentId: id, revision: expected, allowedCallerUserIds: [] };
-  if (!patch.workspaceChange) body.workspaceChange = { operation: "keep" };
-  reporter.print(await saveDefinition(ctx, id, body));
+  const body = updatedDefinition(await definition(ctx, id), patch, expected);
+  reporter.print(await saveDefinition(ctx, id, body, limits));
   return 0;
 }
 async function agentCommands(ctx) {
@@ -3663,7 +3961,7 @@ async function agentCommands(ctx) {
     return 0;
   }
   if (action === "tool") {
-    const body2 = sub === "native" ? { workspaceId: identifier(args.required("workspace-id"), "Workspace ID"), agentPreset: identifier(args.required("preset"), "Preset") } : {};
+    const body2 = sub === "native" ? { ...args.has("workspace-path") ? { workspacePath: args.value("workspace-path") } : { workspaceId: identifier(args.required("workspace-id"), "Workspace ID") }, agentPreset: identifier(args.required("preset"), "Preset") } : {};
     reporter.print(await runtimeValue(ctx, "POST", `${definitions}/tools/${sub}`, body2));
     return 0;
   }
@@ -3728,6 +4026,129 @@ async function agentCommands(ctx) {
   return 0;
 }
 
+// src/xrain-cli/settings.mjs
+var MIB = 1024 * 1024;
+var hostPath = "/api/host/v1/settings/agent-definition-limit";
+var validBytes = (value) => Number.isSafeInteger(value) && value > 0;
+function settingBytes(args) {
+  const raw = args.value("mib") ?? args.value("bytes");
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw ?? ""))
+    throw new CliError("Supply a positive numeric size.", { code: "invalid_arguments" });
+  const value = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
+  if (!validBytes(value) || Number(raw) <= 0)
+    throw new CliError("Size must convert to a positive safe integer number of bytes.", { code: "invalid_arguments" });
+  return value;
+}
+function expectedBytes(args) {
+  if (!args.has("expected-bytes")) return void 0;
+  const raw = args.value("expected-bytes");
+  if (raw === "null") return null;
+  if (!/^\d+$/.test(raw) || !validBytes(Number(raw)))
+    throw new CliError("--expected-bytes must be a positive safe integer or null.", { code: "invalid_arguments" });
+  return Number(raw);
+}
+function connection(ctx, personal = false) {
+  const profile = ctx.store.resolve(ctx.args, personal);
+  const { token, source } = ctx.store.credential(ctx.args, profile, { createSecrets: false });
+  if (!token) throw new CliError("A matching credential is required.", { code: "authentication_required", hint: "Use auth login and --auth session for this profile." });
+  const target2 = { server: profile.server, profile: profile.name, scope: personal ? "user" : "host", ...personal ? { tenantId: profile.tenant } : {} };
+  return { target: target2, async call(method, path, json) {
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
+    if (!response.ok) throw responseError(response, "", { ...target2, credentialSource: source });
+    try {
+      return response.json();
+    } catch {
+      throw new CliError("Settings API returned invalid JSON.", { code: "invalid_response", details: target2 });
+    }
+  } };
+}
+function limitValue(value) {
+  if (!isObject(value) || !(value.maxDefinitionBytes === null || validBytes(value.maxDefinitionBytes)) || !validBytes(value.defaultMaxDefinitionBytes))
+    throw new CliError("Settings API returned an invalid definition limit.", { code: "invalid_response" });
+  return {
+    maxDefinitionBytes: value.maxDefinitionBytes,
+    maxDefinitionMiB: value.maxDefinitionBytes === null ? null : value.maxDefinitionBytes / MIB,
+    defaultMaxDefinitionBytes: value.defaultMaxDefinitionBytes,
+    defaultMaxDefinitionMiB: value.defaultMaxDefinitionBytes / MIB
+  };
+}
+async function hostSettingsCommands(ctx) {
+  const setting = ctx.args.required("setting"), settingValue = ctx.args.command(2) === "set" ? settingBytes(ctx.args) : void 0;
+  const expected = expectedBytes(ctx.args);
+  const { target: target2, call } = connection(ctx);
+  const read = async () => limitValue(await call("GET", hostPath));
+  const current = await read();
+  if (settingValue === void 0) {
+    ctx.reporter.print({ ...target2, setting, ...current });
+    return 0;
+  }
+  if (expected !== void 0 && expected !== current.maxDefinitionBytes)
+    throw new CliError("The observed Host setting changed. Review it before saving.", { code: "conflict", details: {
+      ...target2,
+      setting,
+      expectedMaxDefinitionBytes: expected,
+      currentMaxDefinitionBytes: current.maxDefinitionBytes,
+      requestedMaxDefinitionBytes: settingValue
+    } });
+  if (current.maxDefinitionBytes === settingValue) {
+    ctx.reporter.print({ ...target2, setting, changed: false, ...current });
+    return 0;
+  }
+  const body = { maxDefinitionBytes: settingValue, expectedMaxDefinitionBytes: expected === void 0 ? current.maxDefinitionBytes : expected };
+  try {
+    const result = await writeOnce(async () => {
+      const saved = limitValue(await call("PUT", hostPath, body));
+      if (saved.maxDefinitionBytes !== settingValue) throw new CliError("Settings API returned a mismatched save receipt.", { code: "invalid_response" });
+      return saved;
+    }, "The write outcome is unknown. Read the same Host setting; do not repeat the PUT automatically.", { ...target2, setting, request: body });
+    ctx.reporter.print({ ...target2, setting, changed: true, previousMaxDefinitionBytes: current.maxDefinitionBytes, ...result });
+  } catch (error) {
+    if (error.code === "conflict") error.details = { ...error.details, ...target2, setting, request: body };
+    if (error.code === "outcome_unknown") {
+      try {
+        const observed = await read();
+        error.details.readBack = { ...observed, matchesRequested: observed.maxDefinitionBytes === settingValue, provesThisWrite: false };
+      } catch (readError) {
+        error.details.readBack = { status: "unavailable", code: readError.code, httpStatus: readError.httpStatus };
+      }
+    }
+    throw error;
+  }
+  return 0;
+}
+var preferences = {
+  "send-shortcut": { key: "sendShortcut", values: ["enter", "ctrlEnter"], defaultValue: "enter" },
+  "unread-badge": { key: "showUnreadBadge", values: ["true", "false"], defaultValue: "true" }
+};
+async function userSettingsCommands(ctx) {
+  const setting = ctx.args.required("setting"), preference = preferences[setting];
+  const { target: target2, call } = connection(ctx, true), settingApp = "workforce";
+  const path = `/api/tenant/v1/settings/${settingApp}/${preference.key}`;
+  const validate = (value) => {
+    if (!isObject(value) || value.settingApp !== settingApp || value.key !== preference.key || !preference.values.includes(value.value))
+      throw new CliError("The personal setting response is invalid.", { code: "invalid_response" });
+    return value;
+  };
+  let result;
+  if (ctx.args.command(2) === "get") {
+    try {
+      result = { configured: true, ...validate(await call("GET", path)) };
+    } catch (error) {
+      if (error.httpStatus !== 404) throw error;
+      result = { configured: false, settingApp, key: preference.key, value: null, defaultValue: preference.defaultValue };
+    }
+  } else {
+    const value = ctx.args.required("value");
+    result = await writeOnce(async () => {
+      const saved = validate(await call("PUT", path, { value }));
+      if (saved.value !== value) throw new CliError("The personal setting receipt does not match the requested value.", { code: "invalid_response" });
+      return { configured: true, ...saved };
+    }, "Read the same personal setting before deciding whether to retry. This API has no conditional-write contract.", { ...target2, setting, requestedValue: value });
+  }
+  ctx.reporter.print({ ...target2, setting, ...result });
+  return 0;
+}
+
 // src/xrain-cli/main.mjs
 var HELP = commandHelp(new Args([]));
 async function dispatch(ctx) {
@@ -3748,7 +4169,9 @@ async function dispatch(ctx) {
     case "security":
       return securityCommands(ctx);
     case "host":
-      return hostCommands(ctx);
+      return args.command(1) === "settings" ? hostSettingsCommands(ctx) : hostCommands(ctx);
+    case "user":
+      return userSettingsCommands(ctx);
     case "data":
       return dataCommands(ctx);
     case "app":

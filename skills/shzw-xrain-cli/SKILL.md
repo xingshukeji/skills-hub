@@ -1,12 +1,12 @@
 ---
 name: shzw-xrain-cli
-description: 使用自带 CLI 查询或操作 XRain 平台、应用市场的用户、授权、元数据、业务记录、智能体定义、订阅与对话及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。
+description: 使用自带 CLI 管理 XRain 连接、Host 设置、个人偏好、用户、授权、元数据、业务记录、智能体定义文件、订阅与对话及应用包。用于明确要求 CLI、命令或批量 API 操作的请求；登录失败、403、人员开通及业务开发通常由对应任务入口组织，按需调用本工具。认证中心身份通过其自身网页管理。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
   documentation: https://xingshukeji.github.io/xrainTrain/developers/skills
   products: XRain
-  runtime-requirements: Node.js 22.12+ and command execution; browser, device or native tenant login.
+  runtime-requirements: Node.js 22.12+ and command execution; browser, device or native tenant/Host login.
 ---
 
 # XRain CLI
@@ -25,6 +25,7 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 平台账号准备：[账号与登录](references/login.md)。
 - 数据、权限、应用包、批量：[命令参考](references/commands.md)。
 - 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
+- 平台定义上限、个人偏好和设置职责：[设置管理](references/settings.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。
 
 管理操作选 `--auth session`，避免旧 API Token 抢先；应用包命令检查身份也选 `--auth session`，与其实际凭据一致。租户由 token 绑定，`--tenant` 不能换身份；Host 身份的 tenantId 为 null，目标租户由操作参数单独确定。身份查询不证明具体业务权限，检查后会话若被并发替换也不构成强绑定。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。支持 keyed creation 的服务可在单记录创建时显式提供 `--request-key`；结果未知先用原对象、身份和键执行 `data creation-result`，不自动重放或改键。记录操作按目标服务实际返回判断。
@@ -32,6 +33,8 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
 
 智能体定义归 Runtime，订阅和应用选用归平台。将服务方提供的 Runtime 入口保存到对应 profile，或在单次命令显式指定 `--runtime`；所选平台凭据会发送到该入口。使用 `auth whoami --agent` 核对平台与 Runtime 实际确认的身份；旧 Runtime 或连接失败时保留平台结果并报告未验证，不把已配置的应用当成已授权。定义新建默认停用，编辑使用明确版本。先查选项和当前事实，不以管理权推断个人订阅，也不自动审批或替换应用选用。写入结果未知先按原 ID 回读；不新建同名定义或自动重放。
+
+Host 设置使用显式 `--scope host` 原生登录及实际 Host 管理权限。定义上限通过同一平台接口读取、比较旧值并保存；个人偏好不能代替 Host 或租户设置。定义文件用 `export/import` 与页面互通，`update --values-json` 接收字段补丁。按当前 Runtime 限额检查 UTF-8 文件和完整保存请求；轻量停用与读取已有定义不受降低后的写入限额阻断。
 
 智能体对话会使用定义的工作区、工具和当前主体的真实权限。按用户要求发送输入，区分接收与本轮完成；提问或审批须由用户明确作答，不自动放行。中断后用原 sessionId 和 requestId 查询或继续等待，不重复提交。
 

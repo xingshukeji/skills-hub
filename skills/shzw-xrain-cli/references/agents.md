@@ -12,6 +12,7 @@ Runtime 持有智能体定义、工作区和工具配置；XRain 持有个人订
 
 ```text
 agent definition options
+agent definition limits
 agent definition list
 agent definition show <agentId>
 agent directory
@@ -22,6 +23,8 @@ agent use <agentId> [--application-id <应用ID> | --personal]
 ```
 
 `directory` 汇合 Runtime 定义与平台资格，默认使用 profile 配置的应用上下文；`--personal` 单次选择个人上下文，`--mine` 始终仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。个人订阅命令始终以当前人为主体。
+
+新版 `list` 返回不含完整工作要求的摘要，`show` 按 ID 读取单条定义。旧服务只在新读取接口返回 404 时使用原列表，鉴权失败、服务故障或无效响应不会降级。读取和导出已有定义不采用当前写入限额，也不再受通用 32 MiB 响应限制。
 
 ## 发起和继续对话
 
@@ -47,6 +50,8 @@ agent chat respond <actionRef> --values-json <回答.json>
 
 `action_required` 会给出待处理问题或审批的 actionRef；不能自动批准。用户明确选择后可发送 `{"outcome":"allowed-once"}` 或 `{"outcome":"rejected"}`，问题按服务返回的 question ID 提供 `{"answers":[{"id":"<问题ID>","selected":["<选择>"],"custom":"<可选文字>"}]}`。响应有独立的 responseId，结果未知时先检查原事项；提交后使用原 sessionId/requestId 的 `wait` 读取该轮结果，不重发对话。超时只结束本地等待，不发出服务端取消请求，也不证明输入未接收。输入已尝试提交但未确认时返回 `outcome_unknown` 并保留原 ID；超时、断流、会话创建或输入结果未知先查 `list`、`history` 或 `wait`。历史分页导致无法确认时不能把旧回复当作新结果。
 
+## 定义创建与修改
+
 创建可提供 `--agent-id <稳定ID>`；省略时生成 ID 并在提交前写入 stderr。请保留此 ID，不按名称认领另一条定义。`--name` 给出名称，其他配置以 JSON 对象提供。下例的值须取自实际 `options`；工作要求可包含多行：
 
 ```json
@@ -70,10 +75,29 @@ agent definition disable <agentId> --expected-revision <读到的版本>
 
 如果写入返回 `outcome_unknown`，用同一 Runtime 和 agentId `show`，对照修改及版本，再决定是否重试。不要仅凭名称新建，也不要自动重放。新建本身不运行模型。
 
+直接选择已有目录使用 `create/update --workspace-path <Runtime机器上的绝对路径> --preset <已有工作方式>`，也可在 JSON 中提供 `workspaceChange: {operation:"direct",path:"...",agentPreset:"..."}`。CLI 同步对应目录字段并交 Runtime 核验，不创建文件夹或登记可选列表。原生工具的 `null` 表示恢复继承，与省略、空数组分别处理。
+
+每次完整保存前读取 Runtime 当次限额，按 UTF-8 字节检查文件、stdin、内联 JSON 和合并后的完整请求。部分字段补丁很小也可能因原定义太大而被拒绝。支持轻量启停时只提交 ID、明确版本和状态；降低上限后仍可停用旧大定义。旧 Runtime 的启停沿用原完整保存合同，并明确提示能力差异。
+
+## 定义文件交换
+
+```text
+agent definition export <agentId> --out <新文件.json>
+agent definition import --file <定义文件.json>
+agent definition import --file <定义文件.json> --agent-id <已有ID> --expected-revision <读到的版本>
+```
+
+文件与页面的 `xrain-workforce-agent-definition`、`version: 1` 格式相同。[完整合成样本](examples/definition-file-v1.json)包含模型、直接目录、继承工具、业务工具、推荐问题、业务操作、侧栏及录入字段；实际目录和业务引用须换成目标环境提供的值。它不是 `update` 的字段补丁，也不是 Runtime schema 3 存储文件。
+
+导出排他创建文件，保留已有文件。导入支持 `--file -`，无需强制预览；不指定 ID 时创建停用定义，提交前输出生成 ID。指定已有 ID 时要求明确版本，保留目标启用状态；不会修改订阅、应用选用或员工关系。文件记录的启用状态不直接应用。
+
+直接目录在保存时由 Runtime 核验。登记目录只有 ID、路径及工作方式在目标环境匹配时重新绑定，否则保留目标目录并报告警告。文件未提供目录且目标已启用时保留原目录；停用目标可以清除目录。工具继承恢复需 Runtime 声明支持；旧服务不支持时保留目标选择并警告。格式或保存校验失败不覆盖原定义，结果未知仍按原 ID 回读。
+
 ## 工作区与工具
 
 ```text
 agent tool native --workspace-id <工作区ID> --preset <工作方式>
+agent tool native --workspace-path <已有目录> --preset <工作方式>
 agent tool business
 agent workspace browse --values-json <目录查询.json>
 agent workspace create --values-json <目录创建.json>

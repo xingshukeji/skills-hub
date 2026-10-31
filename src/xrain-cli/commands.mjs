@@ -10,19 +10,22 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
   const config = store.load();
   if (action === 'list') {
     reporter.print(Object.entries(config.profiles).map(([name, profile]) => ({ name, active: equalIgnoreCase(name, config.activeProfile), server: profile.server, tenant: profile.tenant,
+      scope: profile.scope ?? 'tenant',
       ...(profile.runtime ? { agentRuntime: profile.runtime } : {}), ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}) })));
     return 0;
   }
   if (action === 'set') {
     const name = store.canonical(args.value('profile') ?? config.activeProfile, config);
     const existing = config.profiles[name] ?? {};
+    const scope = args.value('scope') ?? (args.has('tenant') ? 'tenant' : existing.scope ?? 'tenant');
     const profile = {
+      scope,
       server: origin(args.value('server') ?? existing.server ?? DEFAULT_SERVER),
-      tenant: args.value('tenant') ?? existing.tenant,
+      tenant: scope === 'host' ? null : args.value('tenant') ?? existing.tenant,
       bearerToken: args.has('bearer') ? args.value('bearer') : args.has('token-name') ? undefined : existing.bearerToken,
       tokenName: args.value('token-name') ?? store.env.XRAIN_TOKEN_NAME ?? existing.tokenName,
     };
-    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant);
+    const sameTarget = samePlatformTarget(existing, profile.server, profile.tenant, scope);
     const runtime = args.value('runtime') ?? (sameTarget ? existing.runtime : undefined);
     const application = args.has('personal') ? undefined : args.value('application-id') ?? (sameTarget ? existing.applicationId : undefined);
     if (runtime !== undefined && runtime !== null) profile.runtime = origin(runtime);
@@ -44,14 +47,14 @@ export async function profileCommands(ctx, action = ctx.args.command(1)) {
   if (action === 'show') {
     const profile = store.resolve(args);
     let tokenSource = 'none';
-    if (args.value('auth') === 'session') tokenSource = store.loadSession(profile.name, profile.server, profile.tenant) ? 'application-session' : 'none';
+    if (args.value('auth') === 'session') tokenSource = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) ? 'application-session' : 'none';
     else if (args.has('bearer')) tokenSource = 'option:bearer';
     else if (store.env.XRAIN_TOKEN) tokenSource = 'environment:XRAIN_TOKEN';
     else if (profile.bearerToken) tokenSource = 'profile:bearer';
     else if (profile.tokenName) tokenSource = `local-secret-store:${profile.tokenName}`;
-    else if (store.loadSession(profile.name, profile.server, profile.tenant)) tokenSource = 'application-session';
+    else if (store.loadSession(profile.name, profile.server, profile.tenant, profile.scope)) tokenSource = 'application-session';
     reporter.print({ configPath: store.configPath, activeProfile: profile.name,
-      profile: { server: profile.server, tenant: profile.tenant, tokenName: profile.tokenName, hasBearerToken: !!profile.bearerToken,
+      profile: { server: profile.server, tenant: profile.tenant, scope: profile.scope, tokenName: profile.tokenName, hasBearerToken: !!profile.bearerToken,
         ...(profile.runtime ? { agentRuntime: profile.runtime } : {}), ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}),
         ...(profile.invalidRuntime ? { agentRuntimeStatus: 'invalid' } : {}), ...(profile.invalidApplicationId ? { agentApplicationStatus: 'invalid' } : {}) }, tokenSource });
     return 0;

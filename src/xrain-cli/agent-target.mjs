@@ -6,9 +6,9 @@ export function identifier(value, label) {
   return value;
 }
 
-export function samePlatformTarget(saved, server, tenant) {
+export function samePlatformTarget(saved, server, tenant, scope = 'tenant') {
   if (!nonempty(saved?.server)) return false;
-  try { return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant); }
+  try { return origin(saved.server) === origin(server) && equalIgnoreCase(saved.tenant, tenant) && (saved.scope ?? 'tenant') === scope; }
   catch { return false; }
 }
 

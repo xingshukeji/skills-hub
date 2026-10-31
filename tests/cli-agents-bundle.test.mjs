@@ -8,6 +8,7 @@ import { fixture, mockServer, respond } from './helpers.mjs';
 test('the copied standalone skill runs agent commands without the authoring source or dependencies', async t => {
   const f = fixture(t), service = await mockServer(t, (hit, res) => {
     assert.equal(hit.headers.authorization, 'Bearer synthetic-bundle-token');
+    if (hit.url === '/v1/dsh/agent-definitions/limits') return respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true });
     if (hit.url === '/v1/dsh/agent-definitions' && hit.method === 'POST') return respond(res, { ...hit.json(), revision: 1 }, 201);
     if (hit.url === '/api/xrain/v1/agents/a/subscription') return respond(res, { id: 'request-a', agentId: 'a', selected: true, approvalStatus: 'pending' });
     respond(res, { error: 'NOT_FOUND' }, 404);

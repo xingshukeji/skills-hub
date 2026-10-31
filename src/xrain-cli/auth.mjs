@@ -180,11 +180,13 @@ async function openBrowser(url) {
   });
 }
 
-function tenantSession(response) {
+function tenantSession(response, scope = 'tenant') {
   const data = requireSuccess(response).json();
-  if (!nonempty(data.access_token) || (data.token_type !== undefined && !equalIgnoreCase(data.token_type, 'Bearer')) || !nonempty(data.tenantId) || !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
-    throw new CliError('XRain returned an invalid tenant session.');
-  return { token: data.access_token, tenant: data.tenantId, expiry: data.expires_at_utc };
+  if (!nonempty(data.access_token) || (data.token_type !== undefined && !equalIgnoreCase(data.token_type, 'Bearer')) ||
+      (scope === 'host' ? data.scope !== 'host' || data.tenantId != null : !nonempty(data.tenantId) || data.scope !== undefined && data.scope !== 'tenant') ||
+      !Number.isFinite(Date.parse(data.expires_at_utc)) || Date.parse(data.expires_at_utc) <= Date.now())
+    throw new CliError(`XRain returned an invalid ${scope} session.`);
+  return { token: data.access_token, tenant: data.tenantId ?? null, scope, expiry: data.expires_at_utc };
 }
 
 export async function exchangeTenant(server, accessToken, requestedTenant) {
@@ -207,13 +209,13 @@ export async function exchangeTenant(server, accessToken, requestedTenant) {
 }
 
 function savePlatformLogin(ctx, profile, session) {
-  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry);
+  ctx.store.saveSession(profile.name, profile.server, session.tenant, session.token, session.expiry, session.scope);
   const saved = ctx.store.load();
   const existing = saved.profiles[profile.name] ?? {};
-  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant);
+  const sameTarget = samePlatformTarget(existing, profile.server, session.tenant, session.scope);
   const clearedAgentSettings = !sameTarget && !!(existing.runtime || existing.applicationId);
   saved.activeProfile = profile.name;
-  saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant,
+  saved.profiles[profile.name] = { server: profile.server, tenant: session.tenant, scope: session.scope,
     ...(sameTarget && existing.runtime ? { runtime: existing.runtime } : {}),
     ...(sameTarget && existing.applicationId ? { applicationId: existing.applicationId } : {}) };
   ctx.store.save(saved);
@@ -237,9 +239,9 @@ export async function nativeLogin(ctx) {
   ctx.reporter.secret(password);
   if (!nonempty(password)) throw new CliError('Password input is empty.', { code: 'invalid_arguments' });
   const session = tenantSession(await request(new URL('/api/service/authen/v1/account/login', profile.server), {
-    method: 'POST', json: { userName: ctx.args.required('user'), password, ...(profile.tenant ? { tenantId: profile.tenant } : {}) },
+    method: 'POST', json: { userName: ctx.args.required('user'), password, ...(profile.scope === 'host' ? { scope: 'host' } : profile.tenant ? { tenantId: profile.tenant } : {}) },
     timeout: ctx.args.timeout(), limit: 1024 * 1024,
-  }));
+  }), profile.scope);
   if (nonempty(profile.tenant) && !equalIgnoreCase(session.tenant, profile.tenant))
     throw new CliError('The server returned a different tenant session.');
   savePlatformLogin(ctx, profile, session);
@@ -250,6 +252,7 @@ export async function nativeLogin(ctx) {
 export async function browserLogin(ctx) {
   const market = ctx.args.has('exchange');
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, false, { allowMissing: true });
+  if (profile.scope === 'host') throw new CliError('Host login requires --native --user and --password-stdin.', { code: 'invalid_arguments' });
   const apiRoot = market ? '/api/exchange/v1' : '/api/application/v1';
   const config = requireSuccess(await request(new URL(apiRoot + '/cli-config', profile.server), { timeout: 30000, limit: 1024 * 1024 })).json();
   if (!nonempty(config.authority) || !nonempty(config.clientId) || !nonempty(config.scope) || config.redirectUri !== REDIRECT_URI || (market && config.scope !== 'openid profile'))

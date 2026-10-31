@@ -20,13 +20,13 @@ xrain-cli auth login --profile <连接>
 xrain-cli auth whoami --profile <连接> --auth session --agent --json
 ```
 
-同一平台和租户重新登录会保留智能体配置；改变平台或租户时，未重新指定的 Runtime 和应用关联会清除。命令可用 `--runtime`、`--application-id` 单次覆盖；`--personal` 单次选择个人上下文，`profile set --personal` 清除已保存的默认应用。单次切换平台或租户时，不复用原 profile 的 Runtime 和应用，需显式指定相应入口或选择另一个 profile。
+同一平台、作用域和租户重新登录会保留智能体配置；改变任一项时，未重新指定的 Runtime 和应用关联会清除。命令可用 `--runtime`、`--application-id` 单次覆盖；`--personal` 单次选择个人上下文，`profile set --personal` 清除已保存的默认应用。单次切换平台、作用域或租户时，不复用原 profile 的 Runtime 和应用，需显式指定相应入口或选择另一个 profile。
 
 普通 API 默认 --auth auto 顺序：
 1. --bearer / XRAIN_TOKEN。
 2. profile bearer。
 3. --token-name / XRAIN_TOKEN_NAME / profile tokenName。
-4. 目标、租户匹配且距过期至少一分钟的已保存租户会话。
+4. 目标、作用域和租户匹配且距过期至少一分钟的已保存会话。
 
 应用包管理命令使用 --auth session，忽略前三项，不与显式 bearer/token-name 混用；缺有效会话直接失败。其他命令也可用 --auth session 明确选择保存的会话。API Token 仅用于目标开放的数据接口，不能代替真实用户管理会话。`--tenant` 不发送切租户 header，身份由服务端验证的 token 绑定。
 
@@ -42,11 +42,15 @@ XRain 平台认证中心支持设备授权时，可用 `auth login --device --se
 
 平台与市场会话分开；独立市场使用浏览器会话。过期重新 auth login。只有 platform.authen.tenant_membership_required 才允许既有默认租户首次登录分支，最终仍须取得请求租户会话；其他拒绝不换租户或加权。
 
-## 原生租户登录
+## 原生账号登录
 
 平台原生账号可用 `auth login --native --user <账号> --password-stdin --profile <连接>`；先配置目标平台和租户，或在该命令显式指定 `--server`、`--tenant`。将密码原文从受控秘密来源以 UTF-8 通过管道传入标准输入；输入按原样读取，不自动删除尾部换行。不要在命令参数、终端历史、日志或版本库放密码。此模式不支持独立市场、设备授权或浏览器选项。成功后与浏览器登录一样保存受保护的租户会话，可用 `--auth session` 和 `auth whoami` 验证实际身份。
 
 保留 TLS、state、签名、issuer/audience、nonce 等校验，不伪造会话。Windows 用内置 Windows PowerShell/当前用户 DPAPI，失败不降级明文；POSIX 会话目录 0700、文件 0600。
+
+Host 使用 `auth login --scope host --native --user <已有Host账号> --password-stdin --profile <Host连接> --server <平台地址>`。平台必须返回明确的 Host 作用域与空租户，CLI 才保存会话；返回租户会话或失败时保留原登录。Host 会话与 tenant 会话分开绑定。Host OAuth 登录尚未接入，不能省略租户后把浏览器登录当成 Host 登录。Host 设置见[设置管理](settings.md)。
+
+作用域默认为 tenant，缺租户不推断 Host。显式 `--scope host` 忽略继承的租户并拒绝同时传 `--tenant`。已保存 Host profile 遇到显式或环境租户覆盖时按 tenant 解析，原 Host 会话不复用；需要 Host 时显式给出作用域。独立市场不能使用平台 `--scope`。
 
 ## 本地状态与诊断
 

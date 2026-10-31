@@ -10,12 +10,12 @@ export async function request(url, { method = 'GET', token, json, body, headers 
   else if (body !== undefined) options.body = body;
   try {
     const response = await fetch(url, options);
-    if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new CliError('HTTP response exceeds the size limit.'); }
+    if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
     const chunks = [];
     let size = 0;
     if (response.body) for await (const chunk of response.body) {
       size += chunk.length;
-      if (size > limit) { throw new CliError('HTTP response exceeds the size limit.'); }
+      if (size > limit) { throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
       chunks.push(chunk);
     }
     const bytes = Buffer.concat(chunks);

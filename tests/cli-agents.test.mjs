@@ -87,8 +87,10 @@ test('platform commands keep personal subscriptions, approvals and application s
   ]);
 });
 
-test('discovery, tools and workspace operations use the explicit Runtime and reject invalid inputs before requests', async t => {
-  const f = fixture(t), runtime = await mockServer(t, (hit, res) => respond(res, { path: hit.url, method: hit.method, application: hit.headers['x-xrain-application-id'] ?? null, body: hit.body.length ? hit.json() : null }));
+test('discovery, tools and workspace operations use the explicit Runtime and reject invalid inputs before writes', async t => {
+  const f = fixture(t), runtime = await mockServer(t, (hit, res) => hit.url.endsWith('/limits')
+    ? respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true })
+    : respond(res, { path: hit.url, method: hit.method, application: hit.headers['x-xrain-application-id'] ?? null, body: hit.body.length ? hit.json() : null }));
   const platform = await mockServer(t, (_hit, res) => respond(res, {}));
   f.profile(platform.url, 'tenant-demo', 'synthetic-token');
   const target = ['--runtime', runtime.url, '--json'];
@@ -110,23 +112,26 @@ test('discovery, tools and workspace operations use the explicit Runtime and rej
     ['agent', 'subscription', 'decide', 'r', '--decision', 'other', '--json'],
     ['agent', 'definition', 'list', '--json'],
   ]) { const result = await f.run(bad); assert.equal(result.code, 1, bad.join(' ')); }
-  assert.equal(runtime.hits.length + platform.hits.length, before);
+  assert.equal(runtime.hits.length + platform.hits.length, before + 3);
+  assert.ok(runtime.hits.slice(before).every(hit => hit.method === 'GET' && hit.url.endsWith('/limits')));
 });
 
 test('Runtime conflicts and permission failures preserve real error codes without automatic retries', async t => {
   const f = fixture(t);
-  const runtime = await mockServer(t, (hit, res) => respond(res, { error: hit.method === 'POST' ? 'AGENT_DEFINITION_CONFLICT' : 'AGENT_DEFINITIONS_FORBIDDEN' }, hit.method === 'POST' ? 409 : 403));
+  const runtime = await mockServer(t, (hit, res) => hit.url.endsWith('/limits')
+    ? respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true })
+    : respond(res, { error: hit.method === 'POST' ? 'AGENT_DEFINITION_CONFLICT' : 'AGENT_DEFINITIONS_FORBIDDEN' }, hit.method === 'POST' ? 409 : 403));
   f.profile(runtime.url, 'tenant-demo', 'synthetic-token');
   const create = await f.run(['agent', 'definition', 'create', '--agent-id', 'fixed-id', '--name', 'Existing', '--runtime', runtime.url, '--json']);
   assert.equal(output(create).error.code, 'conflict'); assert.equal(output(create).error.serverCode, 'AGENT_DEFINITION_CONFLICT');
-  assert.equal(runtime.hits.length, 1);
+  assert.equal(runtime.hits.length, 2);
   const denied = await f.run(['agent', 'definition', 'list', '--runtime', runtime.url, '--json']);
   assert.equal(output(denied).error.code, 'permission_denied'); assert.equal(output(denied).error.serverCode, 'AGENT_DEFINITIONS_FORBIDDEN');
 });
 
 test('successful HTTP responses with invalid write receipts do not claim that an operation completed', async t => {
   const f = fixture(t);
-  const service = await mockServer(t, (hit, res) => hit.url.includes('/b/subscription') ? respond(res, { error: 'request_timeout' }, 408) : respond(res, hit.url.endsWith('/subscription')
+  const service = await mockServer(t, (hit, res) => hit.url.endsWith('/limits') ? respond(res, { maxDefinitionBytes: 16777216 }) : hit.url.includes('/b/subscription') ? respond(res, { error: 'request_timeout' }, 408) : respond(res, hit.url.endsWith('/subscription')
     ? { id: 'other', agentId: 'someone-else', selected: true, approvalStatus: 'approved' }
     : { agentId: 'someone-else', revision: 1, enabled: false }));
   f.profile(service.url, 'tenant-demo', 'synthetic-token');
@@ -136,7 +141,7 @@ test('successful HTTP responses with invalid write receipts do not claim that an
   assert.equal(output(create).error.code, 'outcome_unknown'); assert.equal(output(create).error.details.agentId, 'a');
   const timeout = await f.run(['agent', 'subscribe', 'b', '--json']);
   assert.equal(output(timeout).error.code, 'outcome_unknown'); assert.equal(output(timeout).error.httpStatus, 408);
-  assert.equal(service.hits.length, 3);
+  assert.equal(service.hits.length, 4);
 });
 
 test('batch validates required agent arguments before executing an earlier write', async t => {

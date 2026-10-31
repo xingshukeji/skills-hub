@@ -1,0 +1,27 @@
+{
+  "format": "xrain-workforce-agent-definition",
+  "version": 1,
+  "definition": {
+    "name": "合成资料助手",
+    "enabled": true,
+    "instructions": "核对合成资料。保留中文、换行\n以及引号\"和反斜杠\\。",
+    "provider": "synthetic-provider",
+    "model": "synthetic-model",
+    "reasoningEffort": "high",
+    "agentPreset": "standard",
+    "workspace": { "kind": "direct", "path": "/synthetic/existing-directory" },
+    "nativeTools": null,
+    "assistantTools": [{ "name": "read_synthetic_record", "description": "读取合成记录", "serviceId": "synthetic-service", "operation": "read", "parameters": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] } }],
+    "suggestedQuestions": ["如何核对资料？", { "text": "查看当前记录", "when": { "conversation": "existing", "object": "selected", "businessSourceId": "synthetic", "objectType": "synthetic__record" } }],
+    "businessActions": [{ "businessSourceId": "synthetic", "objectType": "synthetic__record", "action": "create", "createFields": ["name", "description"], "when": { "conversation": "existing" } }],
+    "uiPlugins": [{
+      "pluginId": "xrain-records", "availability": "conditional", "when": { "businessSourceId": "synthetic", "objectTypes": ["synthetic__record"] },
+      "entryId": "synthetic-records", "businessName": "合成记录", "initialLabel": "资料", "initiallyLoaded": true, "defaultActive": true, "allowedOperations": ["read", "create"],
+      "settings": { "objects": [{ "objectType": "synthetic__record", "listViewId": "list", "detailViewId": "detail", "createViewId": "create", "views": [
+        { "id": "list", "label": "记录", "kind": "list", "fields": ["name"], "inlineEditable": false },
+        { "id": "detail", "label": "详情", "kind": "detail", "fields": ["name", "description"], "groups": [{ "id": "info", "label": "资料", "fields": ["name", "description"], "columns": 2, "initiallyExpanded": true }], "fieldExtensions": { "description": { "extensionId": "synthetic-preview" } } },
+        { "id": "create", "label": "录入", "kind": "create", "fields": ["name", "description"] }
+      ] }] }
+    }]
+  }
+}

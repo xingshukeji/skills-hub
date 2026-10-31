@@ -21,7 +21,7 @@ export function fixture(t) {
   return { directory, env, store,
     async run(argv, extra = {}) {
       let stdout = '', stderr = '';
-      const code = await main(argv, { env, stdout: { write(value) { stdout += value; extra.onOutput?.(value); } }, stderr: { write(value) { stderr += value; extra.onOutput?.(value); } } });
+      const code = await main(argv, { env, stdin: extra.stdin, stdout: { write(value) { stdout += value; extra.onOutput?.(value); } }, stderr: { write(value) { stderr += value; extra.onOutput?.(value); } } });
       return { code, stdout, stderr };
     },
     context(argv) {

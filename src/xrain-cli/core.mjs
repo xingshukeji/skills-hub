@@ -19,7 +19,7 @@ export function segment(value) {
 }
 
 const flags = new Set(['help', 'json', 'device', 'no-browser', 'native', 'password-stdin', 'no-total', 'check', 'wait', 'maintain-installed-version', 'mine', 'all', 'agent', 'personal']);
-const valued = new Set(('server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key').split(' '));
+const valued = new Set(('server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value').split(' '));
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {
@@ -96,27 +96,36 @@ export function readLimited(path, limit, label = 'File') {
   return data;
 }
 
-export async function readJsonInput(path, label = 'JSON input') {
+export async function readJsonInput(path, label = 'JSON input', { limit = 32 * 1024 * 1024, stdin = process.stdin, utf8 = false } = {}) {
   // Read pipes as a stream so a producer may deliver JSON gradually. A terminal
   // is rejected instead of unexpectedly waiting for interactive input.
-  if (path !== '-') return parseJson(readLimited(path, 32 * 1024 * 1024, label), label);
-  if (process.stdin.isTTY) throw new CliError('Pipe JSON into stdin when using -.', { code: 'invalid_arguments' });
+  const parse = bytes => {
+    if (!utf8) return parseJson(bytes, label);
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch { throw new CliError(`${label} must be UTF-8.`, { code: 'invalid_arguments' }); }
+    return parseJson(text, label);
+  };
+  if (path !== '-') return parse(readLimited(path, limit, label));
+  if (stdin.isTTY) throw new CliError('Pipe JSON into stdin when using -.', { code: 'invalid_arguments' });
   const chunks = [];
   let total = 0;
-  for await (const chunk of process.stdin) {
+  for await (const chunk of stdin) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += bytes.length;
-    if (total > 32 * 1024 * 1024) throw new CliError('JSON stdin exceeds the 32 MiB limit.');
+    if (total > limit) throw new CliError(`${label} exceeds the ${limit} byte limit.`, { code: 'input_too_large' });
     chunks.push(bytes);
   }
-  return parseJson(Buffer.concat(chunks), label);
+  return parse(Buffer.concat(chunks));
 }
 
-export async function jsonInput(args, name, allowFile = true) {
+export async function jsonInput(args, name, allowFile = true, options = {}) {
   const file = args.value(`${name}-json`) ?? (allowFile ? args.value('file') : undefined);
   const inline = args.value(name);
-  if (file) return readJsonInput(file);
-  if (inline?.startsWith('@')) return readJsonInput(inline.slice(1));
+  if (file) return readJsonInput(file, 'JSON input', options);
+  if (inline?.startsWith('@')) return readJsonInput(inline.slice(1), 'JSON input', options);
+  if (inline !== undefined && options.limit !== undefined && Buffer.byteLength(inline, 'utf8') > options.limit)
+    throw new CliError(`JSON input exceeds the ${options.limit} byte limit.`, { code: 'input_too_large' });
   return inline === undefined ? undefined : parseJson(inline, 'JSON input');
 }
 

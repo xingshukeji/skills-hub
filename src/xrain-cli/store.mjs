@@ -65,14 +65,18 @@ export class Store {
     if (args.has('profile') && !allowMissing && !Object.hasOwn(config.profiles, name))
       throw new CliError(`Profile '${name}' does not exist.`, { code: 'profile_not_found', hint: 'Run profile list, or create the connection with auth login/profile set.' });
     const saved = config.profiles[name] ?? {};
+    const scope = args.value('scope') ?? (args.has('tenant') || this.env.XRAIN_TENANT ? 'tenant' : saved.scope ?? 'tenant');
+    if (!['tenant', 'host'].includes(scope) || scope === 'host' && args.has('tenant'))
+      throw new CliError('Choose scope tenant or host; Host connections cannot select a tenant.', { code: 'invalid_arguments' });
     const profile = {
       name,
+      scope,
       server: origin(args.value('server') ?? this.env.XRAIN_SERVER ?? saved.server ?? DEFAULT_SERVER),
-      tenant: args.value('tenant') ?? this.env.XRAIN_TENANT ?? saved.tenant,
+      tenant: scope === 'host' ? null : args.value('tenant') ?? this.env.XRAIN_TENANT ?? saved.tenant,
       bearerToken: args.value('bearer') ?? this.env.XRAIN_TOKEN ?? saved.bearerToken,
       tokenName: args.value('token-name') ?? this.env.XRAIN_TOKEN_NAME ?? saved.tokenName,
     };
-    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant);
+    const sameTarget = samePlatformTarget(saved, profile.server, profile.tenant, scope);
     const runtime = args.value('runtime') ?? (sameTarget ? saved.runtime : undefined);
     const application = args.has('personal') || args.has('mine') ? undefined
       : args.value('application-id') ?? (sameTarget ? saved.applicationId : undefined);
@@ -99,18 +103,18 @@ export class Store {
     return data;
   }
   sessionPath(name) { return join(this.sessionDir, sha256(this.canonical(name)) + '.bin'); }
-  saveSession(name, server, tenantId, token, expiry) {
+  saveSession(name, server, tenantId, token, expiry, scope = 'tenant') {
     if (!nonempty(token) || !Number.isFinite(new Date(expiry).getTime()) || new Date(expiry).getTime() <= Date.now()) throw new CliError('The server returned an invalid session.');
     name = this.canonical(name);
     this.reporter?.secret(token);
-    let bytes = Buffer.from(JSON.stringify({ server: origin(server), tenantId, token, expiresAtUtc: new Date(expiry).toISOString() }));
+    let bytes = Buffer.from(JSON.stringify({ server: origin(server), tenantId, scope, token, expiresAtUtc: new Date(expiry).toISOString() }));
     if (process.platform === 'win32') bytes = dpapi(bytes, name, 'protect');
     mkdirSync(this.sessionDir, { recursive: true, mode: 0o700 });
     if (process.platform !== 'win32') chmodSync(this.sessionDir, 0o700);
     writePrivate(this.sessionPath(name), bytes);
     this.sessionCache.delete(this.sessionPath(name));
   }
-  inspectSession(name, server, tenantId) {
+  inspectSession(name, server, tenantId, scope = 'tenant') {
     name = this.canonical(name);
     try {
       const path = this.sessionPath(name), bytes = readLimited(path, 1024 * 1024, 'Session'), digest = sha256(bytes);
@@ -124,6 +128,7 @@ export class Store {
       this.reporter?.secret(session.token);
       const info = { expiresAtUtc: session.expiresAtUtc };
       if (origin(session.server) !== origin(server)) return { ...info, status: 'server_mismatch' };
+      if ((session.scope ?? 'tenant') !== scope) return { ...info, status: 'scope_mismatch' };
       if (!equalIgnoreCase(session.tenantId, tenantId)) return { ...info, status: 'tenant_mismatch' };
       if (Date.parse(session.expiresAtUtc) <= Date.now()) return { ...info, status: 'expired' };
       if (Date.parse(session.expiresAtUtc) <= Date.now() + 60000) return { ...info, status: 'expiring' };
@@ -133,7 +138,7 @@ export class Store {
       return { status: error.code === 'session_protection_unavailable' ? 'protection_unavailable' : 'unreadable' };
     }
   }
-  loadSession(name, server, tenantId) { return this.inspectSession(name, server, tenantId).token ?? null; }
+  loadSession(name, server, tenantId, scope = 'tenant') { return this.inspectSession(name, server, tenantId, scope).token ?? null; }
   deleteSession(name) {
     try { unlinkSync(this.sessionPath(name)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     this.sessionCache.delete(this.sessionPath(name));
@@ -144,7 +149,7 @@ export class Store {
     return { server, name: `exchange:${sha256(server)}:${name}`, tenant: '' };
   }
   credential(args, profile, { createSecrets = true } = {}) {
-    if (args.value('auth') === 'session') return { token: this.loadSession(profile.name, profile.server, profile.tenant), source: 'application-session' };
+    if (args.value('auth') === 'session') return { token: this.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' };
     if (nonempty(args.value('bearer'))) return { token: this.reporter?.secret(args.value('bearer')) ?? args.value('bearer'), source: 'option:bearer' };
     if (nonempty(this.env.XRAIN_TOKEN)) return { token: this.reporter?.secret(this.env.XRAIN_TOKEN) ?? this.env.XRAIN_TOKEN, source: 'environment:XRAIN_TOKEN' };
     if (nonempty(profile.bearerToken)) return { token: profile.bearerToken, source: 'profile:bearer' };
@@ -154,13 +159,13 @@ export class Store {
       const token = this.secrets(createSecrets)[key];
       return { token, source: `local-secret-store:${profile.tokenName}` };
     }
-    const token = this.loadSession(profile.name, profile.server, profile.tenant);
+    const token = this.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
     return { token, source: token ? 'application-session' : 'none' };
   }
   authStatus(args, profile, market = false) {
-    const { token: sessionToken, ...session } = this.inspectSession(profile.name, profile.server, profile.tenant);
+    const { token: sessionToken, ...session } = this.inspectSession(profile.name, profile.server, profile.tenant, profile.scope);
     const selected = market ? { token: sessionToken, source: 'application-session' } : this.credential(args, profile, { createSecrets: false });
-    return { profile: profile.name, server: profile.server, tenant: profile.tenant, mode: market ? 'session' : args.value('auth') ?? 'auto',
+    return { profile: profile.name, server: profile.server, tenant: profile.tenant, scope: profile.scope ?? 'tenant', mode: market ? 'session' : args.value('auth') ?? 'auto',
       credentialSource: selected.source, credentialConfigured: !!selected.token, session,
       ...(profile.runtime ? { agentRuntime: profile.runtime } : {}),
       ...(profile.applicationId ? { agentApplicationId: profile.applicationId } : {}),

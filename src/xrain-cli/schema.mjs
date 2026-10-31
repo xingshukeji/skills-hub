@@ -2,7 +2,7 @@ import { CliError, origin } from './core.mjs';
 import { creationKey } from './record-creation.mjs';
 
 const common = ['help', 'json'];
-const target = ['server', 'tenant', 'profile', 'timeout'];
+const target = ['server', 'tenant', 'scope', 'profile', 'timeout'];
 const credentials = ['bearer', 'token-name', 'auth'];
 const api = [...target, ...credentials];
 const app = [...target, 'auth'];
@@ -20,7 +20,7 @@ command('profile set', [...target, 'bearer', 'token-name', 'check', 'runtime', '
 command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select a saved profile.');
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
-command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native tenant account. Native login reads its password from stdin.');
+command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
 command('auth whoami', [...api, 'agent', 'runtime', 'application-id', 'personal'], [], 'Read the verified XRain identity; --agent also checks the selected Runtime caller.');
 command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the saved session, keeping the platform profile.');
@@ -50,13 +50,16 @@ command('agent subscription decide', [...api, 'id', 'decision'], [slot('id')], '
 command('agent application list', api, [], 'List accessible XRain applications.');
 command('agent application show', [...api, 'application-id'], [slot('application-id')], 'Read one application’s agent selection and default.');
 command('agent application set', [...api, 'application-id', 'values', 'values-json', 'file'], [slot('application-id')], 'Replace one application’s complete agent selection from JSON; preserve intended bindings and default.');
-command('agent definition list', runtime, [], 'List definitions owned by the explicitly selected Runtime.');
+command('agent definition list', runtime, [], 'List definition summaries without full instructions; older Runtimes use their original list.');
 command('agent definition show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read one definition and its revision by exact agent ID.');
 command('agent definition options', runtime, [], 'Read Runtime models, workspaces and presets available to this caller.');
-command('agent definition create', [...runtime, 'agent-id', 'name', 'values', 'values-json', 'file'], [], 'Create a disabled definition. An omitted ID is generated and printed before writing; JSON supplies optional definition fields.');
-command('agent definition update', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file'], [slot('agent-id')], 'Apply a JSON patch to one definition using its explicitly observed revision.');
+command('agent definition limits', runtime, [], 'Read the current Runtime write limit and lightweight status capability.');
+command('agent definition export', [...runtime, 'agent-id', 'out'], [slot('agent-id')], 'Export one saved definition as a version 1 exchange file; --out must name a new file.');
+command('agent definition import', [...runtime, 'agent-id', 'expected-revision', 'file'], [], 'Import a version 1 exchange file. No ID creates a disabled definition; an existing ID requires --expected-revision and retains its enabled state.');
+command('agent definition create', [...runtime, 'agent-id', 'name', 'values', 'values-json', 'file', 'workspace-path', 'preset'], [], 'Create a disabled definition. --workspace-path and --preset select an existing Runtime directory.');
+command('agent definition update', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file', 'workspace-path', 'preset'], [slot('agent-id')], 'Apply a JSON patch or select an existing directory using an explicitly observed revision.');
 for (const action of ['enable', 'disable']) command(`agent definition ${action}`, [...runtime, 'agent-id', 'expected-revision'], [slot('agent-id')], 'Change enabled state using an explicitly observed revision; preserve other settings.');
-command('agent tool native', [...runtime, 'workspace-id', 'preset'], [], 'Read the selected workspace/preset’s available native tools.');
+command('agent tool native', [...runtime, 'workspace-id', 'workspace-path', 'preset'], [], 'Read native tools for an existing directory or registered workspace and its preset.');
 command('agent tool business', runtime, [], 'Read the business tools available in the current Runtime context.');
 for (const action of ['browse', 'create', 'register']) command(`agent workspace ${action}`, [...runtime, 'values', 'values-json', 'file'], [],
   action === 'browse' ? 'Browse a Runtime-side directory from a JSON request.' : action === 'create' ? 'Create a directory on the Runtime host from a JSON request.' : 'Register an existing Runtime-side directory as a workspace from a JSON request.');
@@ -94,7 +97,11 @@ for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['
     command(`security ${kind} ${action}-${member}`, [...api, kind, 'name', names, 'names'], [slot(kind, ['name'])], `Change ${member} relationships; the server enforces authorization.`);
   }
 }
-const host = ['server', 'profile', 'timeout', ...credentials];
+const host = ['server', 'scope', 'profile', 'timeout', ...credentials];
+command('host settings get', [...host, 'setting'], [slot('setting')], 'Read agent-definition-limit from the Host settings API, showing bytes and MiB.');
+command('host settings set', [...host, 'setting', 'mib', 'bytes', 'expected-bytes'], [slot('setting')], 'Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.');
+command('user settings get', [...api, 'setting'], [slot('setting')], 'Read your Workforce send-shortcut or unread-badge preference.');
+command('user settings set', [...api, 'setting', 'value'], [slot('setting')], 'Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).');
 command('host tenant member list', [...host, 'tenant-id', 'page', 'page-size', 'search'], [slot('tenant-id')], 'List one named tenant membership directory using an authorized Host login.');
 command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('tenant-id'), slot('user-id')], 'Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.');
 command('app login', [...target, 'exchange', 'device', 'no-browser'], [], 'Compatibility alias for auth login.');
@@ -147,6 +154,24 @@ export function validateCommand(args) {
   const exclusive = names => {
     if (names.filter(name => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map(name => '--' + name).join(', ')}.`, { code: 'invalid_arguments' });
   };
+  if (args.has('scope') && (!['host', 'tenant'].includes(args.value('scope')) || args.value('scope') === 'host' && args.has('tenant')))
+    throw new CliError('--scope must be tenant or host; Host connections cannot select --tenant.', { code: 'invalid_arguments' });
+  if (spec.path === 'auth login' && args.value('scope') === 'host' && !args.has('native'))
+    throw new CliError('Host login requires --native.', { code: 'invalid_arguments' });
+  if (spec.path.startsWith('host settings ')) {
+    if (args.required('setting') !== 'agent-definition-limit') throw new CliError('Supported Host setting: agent-definition-limit.', { code: 'invalid_arguments' });
+    if (spec.path.endsWith(' set')) {
+      exclusive(['mib', 'bytes']);
+      if (!args.has('mib') && !args.has('bytes')) throw new CliError('--mib or --bytes is required.', { code: 'invalid_arguments' });
+    }
+  }
+  if (spec.path.startsWith('user settings ')) {
+    const setting = args.required('setting');
+    const choices = { 'send-shortcut': ['enter', 'ctrlEnter'], 'unread-badge': ['true', 'false'] };
+    if (!Object.hasOwn(choices, setting)) throw new CliError('Supported personal settings: send-shortcut, unread-badge.', { code: 'invalid_arguments' });
+    if (spec.path.endsWith(' set') && !choices[setting].includes(args.required('value')))
+      throw new CliError(`--value must be ${choices[setting].join(' or ')}.`, { code: 'invalid_arguments' });
+  }
   if (spec.path === 'auth login') {
     if (args.has('native')) {
       args.required('user');
@@ -190,15 +215,22 @@ export function validateCommand(args) {
       throw new CliError('--purpose must be result, issues, maintenance or remaining.', { code: 'invalid_arguments' });
   }
   if (spec.path.startsWith('agent ')) {
-    if (spec.options.includes('expected-revision')) { args.required('expected-revision'); args.integer('expected-revision'); }
+    if (spec.options.includes('expected-revision') && (spec.path !== 'agent definition import' || args.has('agent-id'))) { args.required('expected-revision'); args.integer('expected-revision'); }
     if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
     if (['agent definition update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
-        !['values', 'values-json', 'file'].some(name => args.has(name))) throw new CliError('A JSON input is required.', { code: 'invalid_arguments' });
+        !['values', 'values-json', 'file'].some(name => args.has(name)) && !(spec.path === 'agent definition update' && args.has('workspace-path'))) throw new CliError('A JSON input is required.', { code: 'invalid_arguments' });
+    if (spec.path === 'agent definition export') args.required('out');
+    if (spec.path === 'agent definition import') {
+      args.required('file');
+      if (args.has('expected-revision') && !args.has('agent-id')) throw new CliError('--expected-revision requires a target --agent-id.', { code: 'invalid_arguments' });
+    }
+    if (spec.path.startsWith('agent definition ') && (args.has('workspace-path') !== args.has('preset')))
+      throw new CliError('Select a directory with both --workspace-path and --preset.', { code: 'invalid_arguments' });
     if (spec.path === 'agent definition create' && !['name', 'values', 'values-json', 'file'].some(name => args.has(name)))
       throw new CliError('A definition name is required.', { code: 'invalid_arguments' });
     if (spec.path === 'agent directory' && args.has('mine') && args.has('application-id'))
       throw new CliError('--mine applies only to the personal directory.', { code: 'invalid_arguments' });
-    if (spec.path === 'agent tool native') { args.required('workspace-id'); args.required('preset'); }
+    if (spec.path === 'agent tool native') { exclusive(['workspace-id', 'workspace-path']); if (!args.has('workspace-path')) args.required('workspace-id'); args.required('preset'); }
     if (spec.path === 'agent policy set' && !['public', 'private'].includes(args.required('visibility')))
       throw new CliError('--visibility must be public or private.', { code: 'invalid_arguments' });
     if (spec.path === 'agent subscription decide' && !['approved', 'rejected', 'revoked'].includes(args.required('decision')))
@@ -230,7 +262,7 @@ export function validateCommand(args) {
   if (spec.path.startsWith('security ') && / (?:grant|revoke)-/.test(spec.path)) exclusive(['names', 'roles', 'permission-sets', 'permissions']);
   if (args.has('exchange')) {
     exclusive(['server', 'exchange']);
-    if (args.has('tenant') || args.has('bearer') || args.has('token-name')) throw new CliError('Independent market commands use their own browser session, without platform tenant or API token options.', { code: 'invalid_arguments' });
+    if (args.has('tenant') || args.has('scope') || args.has('bearer') || args.has('token-name')) throw new CliError('Independent market commands use their own browser session, without platform scope, tenant or API token options.', { code: 'invalid_arguments' });
     if (args.has('device')) throw new CliError('Device login is available for the XRain platform, not the independent market.', { code: 'invalid_arguments' });
   }
   if (args.has('auth') && !['auto', 'session'].includes(args.value('auth')))

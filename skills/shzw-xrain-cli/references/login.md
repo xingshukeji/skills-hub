@@ -6,6 +6,8 @@
 
 使用平台原生租户账号时，先配置目标连接，再将已登记的密码以 UTF-8 原文通过受控标准输入传给 `auth login --native --user <账号> --password-stdin --profile <连接>`；密码不写在命令参数中。输入不会自动去掉末尾换行。登录后用 `auth whoami --profile <连接> --auth session --json` 核对原用户和租户。统一登录账号仍使用浏览器或设备登录。
 
+Host 管理员复用已有全局身份，通过单独的 Host profile 执行 `auth login --scope host --native --user <原账号> --password-stdin`；不指定租户，也不因租户管理员权限推断 Host 权限。成功后用 `whoami` 核对 `scope: host` 和 `tenantId: null`，再使用[Host 设置](settings.md)。原生 Host 登录不会创建身份、变更口令或增加权限。
+
 用原获准管理员会话查询：
 
 ```text

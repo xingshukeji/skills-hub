@@ -77,3 +77,38 @@ test('native login requires safe stdin and rejects incompatible modes before mak
   assert.equal((await run(f, [...prefix, '--native', '--user', 'admin', '--password-stdin', '--json'], Buffer.from([0xff]))).code, 1);
   assert.equal(service.hits.length, 0);
 });
+
+test('explicit Host login binds scope, ignores an inherited tenant, and cannot reuse its session for a tenant', async t => {
+  const f = fixture(t), token = 'synthetic-host-session', password = 'synthetic-host-password';
+  let wrongScope = false;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.endsWith('/login')) {
+      assert.deepEqual(hit.json(), { userName: 'fixed-host', password, scope: 'host' });
+      return respond(res, { access_token: token, token_type: 'Bearer', tenantId: wrongScope ? 'tenant-demo' : null,
+        scope: wrongScope ? 'tenant' : 'host', expires_at_utc: new Date(Date.now() + 300000).toISOString() });
+    }
+    assert.equal(hit.headers.authorization, `Bearer ${token}`);
+    return respond(res, { userId: 'host-user', tenantId: null, scope: 'host' });
+  });
+  f.env.XRAIN_TENANT = 'tenant-demo';
+  f.store.save({ activeProfile: 'Demo', profiles: { Demo: { server: service.url, tenant: 'tenant-demo', runtime: 'https://runtime.example' } } });
+  const argv = ['auth', 'login', '--profile', 'Demo', '--scope', 'host', '--native', '--user', 'fixed-host', '--password-stdin', '--json'];
+  const logged = await run(f, argv, password);
+  assert.equal(logged.code, 0, logged.stdout);
+  assert.deepEqual(f.store.load().profiles.Demo, { server: service.url, tenant: null, scope: 'host' });
+  assert.equal(f.store.loadSession('Demo', service.url, null, 'host'), token);
+  assert.equal(f.store.loadSession('Demo', service.url, null, 'tenant'), null);
+  assert.equal(f.store.loadSession('Demo', service.url, 'tenant-demo', 'tenant'), null);
+  const identity = await run(f, ['auth', 'whoami', '--scope', 'host', '--auth', 'session', '--json']);
+  assert.equal(JSON.parse(identity.stdout).data.scope, 'host');
+  const tenant = await run(f, ['auth', 'whoami', '--tenant', 'tenant-demo', '--auth', 'session', '--json']);
+  assert.equal(JSON.parse(tenant.stdout).error.code, 'authentication_required');
+  wrongScope = true;
+  assert.equal((await run(f, argv, password)).code, 1);
+  assert.equal(f.store.loadSession('Demo', service.url, null, 'host'), token);
+  const before = service.hits.length;
+  for (const options of [ ['--scope', 'host'], ['--scope', 'host', '--native', '--user', 'fixed-host', '--password-stdin', '--tenant', 'tenant-demo'] ])
+    assert.equal((await run(f, ['auth', 'login', ...options, '--json'], password)).code, 1);
+  assert.equal(service.hits.length, before);
+  assert.ok(!logged.stdout.includes(token) && !logged.stdout.includes(password));
+});
