@@ -7,12 +7,13 @@ import { resolve } from 'node:path';
 import { metadataOperations } from './metadata-operations.mjs';
 import { workflowOperations, settingsOperations } from './workflow-operations.mjs';
 import { deliveryOperations } from './delivery-operations.mjs';
+import { rawOutput } from './raw-response.mjs';
 
 export const managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 export const routeParameters = route => [...route.matchAll(/\{([^}]+)\}/g)].map(match => match[1]);
 const pageOptions = new Map([['page', 'page'], ['page-size', 'pageSize'], ['search', 'search'], ['status', 'status']]);
 export const operationOptions = operation => [...routeParameters(operation.route),
-  ...(operation.credentialOutput ? ['out'] : []),
+  ...(operation.credentialOutput || operation.raw ? ['out'] : []),
   ...Object.values(operation.headers ?? {}),
   ...(operation.input ? ['request-json', 'file'] : []),
   ...(operation.query ? ['query-json', ...[...pageOptions].filter(([, key]) => operation.query.includes(key)).map(([key]) => key)] : [])];
@@ -41,11 +42,12 @@ export async function managementCommand(ctx) {
   if (operation.query) {
     const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
     if (args.has('query-json') && individual.length) throw new CliError('Use a complete --query-json file or individual query options.', { code: 'invalid_arguments' });
-    const query = args.has('query-json') ? await readJsonInput(args.value('query-json'), 'Query parameters', { stdin: ctx.stdin }) :
+    const supplied = args.has('query-json') ? await readJsonInput(args.value('query-json'), 'Query parameters', { stdin: ctx.stdin }) :
       Object.fromEntries(individual.map(([option, key]) => [key, option === 'page' || option === 'page-size' ? args.integer(option) : args.value(option)]));
-    if (!isObject(query) || Object.keys(query).some(key => !operation.query.includes(key)) ||
-        Object.values(query).some(value => value !== null && !['string', 'number', 'boolean'].includes(typeof value)))
+    if (!isObject(supplied) || Object.keys(supplied).some(key => !operation.query.includes(key)) ||
+        Object.values(supplied).some(value => value !== null && !['string', 'number', 'boolean'].includes(typeof value)))
       throw new CliError('Query JSON must use supported parameter names and scalar values.', { code: 'invalid_arguments' });
+    const query = { ...operation.queryDefaults, ...supplied };
     for (const key of operation.requiredQuery ?? []) if (query[key] === undefined || query[key] === null || query[key] === '')
       throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: 'invalid_arguments' });
     if (typeof query.tenantId === 'string') targetTenantId = query.tenantId;
@@ -63,10 +65,20 @@ export async function managementCommand(ctx) {
   const write = operation.method !== 'GET' && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(['requestId', 'operationId', 'versionId', 'applicationId', 'installationId', 'expectedRevision', 'entityCode', 'resourceId', 'recordId', 'subjectUserId', 'catalogKey', 'tokenId']
     .filter(key => ['string', 'number'].includes(typeof body[key])).map(key => [key, body[key]])) : {};
-  let value = await apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly,
-    ...(write ? { mutation: { resource: operation.route, target: Object.fromEntries(routeParameters(operation.route).map(name => [name, args.value(name)])),
+  const mutation = { resource: operation.route, target: { ...Object.fromEntries(['entityApiName', 'fieldApiName'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])),
+      ...Object.fromEntries(routeParameters(operation.route).map(name => [name, args.value(name)])) },
       ...(targetTenantId !== undefined ? { targetTenantId } : {}),
-      ...selectors, readback: operation.readback ?? ['security', 'directory'] } } : {}) });
+      ...(headers['Idempotency-Key'] ? { requestKey: headers['Idempotency-Key'] } : {}),
+      ...(headers['If-Match'] ? { ifMatch: headers['If-Match'] } : {}),
+      ...selectors, readback: operation.readback ?? ['security', 'directory'] };
+  const call = signal => apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly, signal,
+    raw: operation.raw, validate: value => (!operation.execution || isObject(value) && typeof value.isSuccess === 'boolean') && (!operation.validate || operation.validate(value, { args, body })),
+    ...(write ? { mutation } : {}) });
+  const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation };
+  let value = operation.raw ? await rawOutput(ctx, call, context) : await call();
+  if (operation.execution && !value.isSuccess) throw new CliError('The execution reported failure.', { code: 'execution_failed',
+    hint: 'Inspect the returned result and any effects before another action. Do not replay the batch.',
+    details: { ...context, result: value } });
   if (operation.select) {
     if (!isObject(value) || !Object.hasOwn(value, operation.select)) throw new CliError('The server returned an invalid catalog.', { code: 'invalid_response' });
     value = value[operation.select];

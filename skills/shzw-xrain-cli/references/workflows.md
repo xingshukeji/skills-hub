@@ -28,11 +28,17 @@ function update <id> --request-json <函数.json>
 
 创建字段为 name、orchestrationId、inputJson、ownerId、scheduleType、executeTime、timeZoneId。definition 只改 name、orchestrationId、inputJson；owner 为 `{"ownerId":"<已有成员>"}`；execution-user set 为 `{"userId":"<已有执行成员>"}`。inputJson 是 JSON 字符串；时间和时区按平台解析，先用 schedule-preview 检查。CLI 不代选执行成员。Workforce 计划任务由宿主维护；旧 Workforce Routine 的编辑、启用和运行仍由平台拒绝。
 
+routine list 默认使用 page=1、pageSize=20。通过 --page、--page-size 或 --query-json 指定其他分页。
+
 ## HTTP 集成
 
 `http connector` 支持 list/show/create/update/patch/delete/token-set/token-clear；`http request` 支持 list/show/create/update/delete/debug；`http interface` 支持 list/catalog/create/update/delete/from-orchestration/policy get/policy set/invoke/debug。connector 以 name 定位；request 先带 connector，再带 name；interface 以 id 定位。创建和更新带请求文件。
 
 连接器创建为 label、name、helpText、baseAddress；update 为 label、helpText、baseAddress、expectedUpdatedAt。token-set 为 `{"token":"<秘密>"}`，只经 stdin 或受保护文件传递。请求创建为 label、name、helpText、method、path、query、headers、body、isActive；update 另带 expectedUpdatedAt。interface 创建为 requestId 或 orchestrationId、label、name、helpText、isActive、kind；update 使用原 expectedUpdatedAt。invoke/debug 的请求文件可包含任意 JSON 值，不强制包装为对象。读取 statusCode、isSuccess、body 和业务错误判断结果；调试不表示只读，不自动重试。
+
+http interface invoke 和 orchestration debug 的原生 isSuccess=false 返回非零退出码、execution_failed 和完整结果；batch 在该步骤停止。历史查询中的失败记录仍可正常读取。成功回执结构异常时，写入结果按 outcome_unknown 处理，不自动补发。
+
+http request debug 与 http interface debug 返回原始响应的 statusCode、headers、body 和 encoding。UTF-8 文本保留为字符串；二进制、其他字符集或无效 UTF-8 使用 base64。敏感凭据头在终端输出中隐藏。使用 `--out <新文件>` 保存原始字节，输出改为文件路径及字节数；该文件可能包含业务数据或凭据，应妥善保管。CLI 在发起调试前排他创建文件，已有文件不会被覆盖。非成功 HTTP 响应返回非零退出码，并在 error.details.response 保留响应信息；已收到的响应文件仍保留。断连不重发，未收到完整响应时清理本次创建的空文件。
 
 ## 地区、变量与回收站
 
@@ -51,3 +57,5 @@ recycle restore <resource> <id>
 ```
 
 time resolve 为 `{"items":[{"key":"due","localDateTime":"2026-11-01T09:00:00","timeZoneId":"Asia/Shanghai"}]}`；有歧义时从 candidates 明确选择 offset 后再解析。day-range 为 `{"date":"2026-11-01","timeZoneId":"Asia/Shanghai"}`。变量写入为 variableKey、value；输出仅返回 HasValue 等元数据。Host 可用原生 tenantId 查询指定租户变量，省略表示 Host；租户身份不能改变令牌绑定。回收站恢复沿服务端冲突与当前权限处理。
+
+time resolve/day-range 接受原生 Host 或租户身份；使用 Host profile 时不补造租户。

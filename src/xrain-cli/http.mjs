@@ -63,12 +63,13 @@ export async function writeOnce(action, hint, details) {
   }
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false } = {}) {
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const perform = async () => {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers, signal });
+    if (raw) return response;
     if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
     let value = null;
     if (response.bytes.length) {
@@ -78,6 +79,7 @@ export async function apiValue(ctx, method, path, json, { requireTenant = true, 
         value = response.text();
       }
     }
+    if (validate && !validate(value)) throw new CliError('The server returned an invalid operation receipt.', { code: 'invalid_response' });
     return responseHeaders ? { value, headers: Object.fromEntries(responseHeaders.map(name => [name, response.headers.get(name)]).filter(([, value]) => value !== null)) } : value;
   };
   if (!mutation) return perform();

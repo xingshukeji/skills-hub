@@ -152,6 +152,6 @@ export async function appCommands(ctx) {
       }, 'Import outcome is unknown. Read the original package versions before importing again; this command does not install or publish.', { packageId: manifest.packageId, versionId: manifest.versionId });
       ctx.reporter.print(result); return 0;
     }
-    default: return appManagementCommands(ctx, () => client(ctx));
+    default: return appManagementCommands(ctx, options => client(ctx, options));
   }
 }

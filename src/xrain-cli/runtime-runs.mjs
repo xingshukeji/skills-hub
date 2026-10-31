@@ -5,9 +5,12 @@ import { messageInput } from './agent-chat.mjs';
 export async function runtimeRuns(ctx, helpers) {
   const { args, reporter } = ctx, domain = args.command(1), action = args.command(2);
   const connection = helpers.runtimeConnection(ctx);
-  const context = { runtime: connection.runtime, profile: connection.profile.name, tenant: connection.profile.tenant };
+  const applicationId = domain === 'ephemeral' || action === 'start' ? helpers.applicationId(connection.profile) : undefined;
+  const headers = applicationId ? { 'X-XRain-Application-Id': applicationId } : {};
+  const context = { runtime: connection.runtime, profile: connection.profile.name, tenant: connection.profile.tenant,
+    ...(domain === 'ephemeral' ? { applicationId: applicationId ?? null } : {}) };
   if (domain === 'ephemeral' && action === 'directory') {
-    reporter.print(await helpers.runtimeValue(ctx, 'GET', '/v1/dsh/ephemeral-agents')); return 0;
+    reporter.print(await helpers.runtimeValue(ctx, 'GET', '/v1/dsh/ephemeral-agents', undefined, headers)); return 0;
   }
   if (domain === 'run' && action === 'show') {
     const runId = args.required('run-id');
@@ -18,13 +21,13 @@ export async function runtimeRuns(ctx, helpers) {
     reporter.print({ runId, ...value, ...context }); return 0;
   }
   const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID'), prompt = await messageInput(args);
-  const ephemeral = domain === 'ephemeral', applicationId = ephemeral ? undefined : helpers.applicationId(connection.profile);
+  const ephemeral = domain === 'ephemeral';
   const body = ephemeral ? { agentId, prompt } : { input: { agentId, prompt, applicationId: applicationId ?? null } };
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once('SIGINT', interrupt);
   try {
     const value = await helpers.writeOnce(async () => {
-      const result = await helpers.runtimeValue(ctx, 'POST', ephemeral ? '/v1/dsh/ephemeral-runs' : '/xrain/runs', body, {}, { signal: controller.signal });
+      const result = await helpers.runtimeValue(ctx, 'POST', ephemeral ? '/v1/dsh/ephemeral-runs' : '/xrain/runs', body, ephemeral ? headers : {}, { signal: controller.signal });
       if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? '') || result.status !== 'accepted'))
         throw new CliError('Runtime returned an invalid run receipt.', { code: 'invalid_response' });
       return result;

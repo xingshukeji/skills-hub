@@ -200,7 +200,7 @@ export async function appManagementCommands(ctx, createClient) {
     return output(ctx, result);
   }
   if (action === 'list' || action === 'versions') {
-    const api = createClient();
+    const api = createClient({ allowHost: action === 'versions' });
     const path = action === 'list' ? '/packages' : `/packages/${segment(args.required('package'))}/versions`;
     const result = requireSuccess(await api.send('GET', api.root + path)).json();
     if (!Array.isArray(result)) throw new CliError('The server returned an invalid application list.', { code: 'invalid_response' });

@@ -51,13 +51,22 @@ test('component restore preserves zero revisions and rejected input never touche
 test('Host local import consumes a valid archive and its Host session without publishing or installing', async t => {
   const f = fixture(t), archive = appArchive();
   const service = await mockServer(t, (hit, res) => {
-    assert.equal(hit.url, '/api/application/v1/packages:import'); assert.equal(hit.headers.authorization, 'Bearer host-session');
+    assert.equal(hit.headers.authorization, 'Bearer host-session');
+    if (hit.method === 'GET') {
+      assert.equal(hit.url, `/api/application/v1/packages/${PACKAGE_ID}/versions`);
+      return respond(res, [{ id: VERSION_ID }]);
+    }
+    assert.equal(hit.url, '/api/application/v1/packages:import');
     assert.deepEqual(hit.body, archive); respond(res, { packageId: PACKAGE_ID, versionId: VERSION_ID });
   });
   f.store.save({ activeProfile: 'Host', profiles: { Host: { server: service.url, tenant: null, scope: 'host' } } });
   f.store.saveSession('Host', service.url, null, 'host-session', Date.now() + 300000, 'host');
   const file = join(f.directory, 'local.appkg'); writeFileSync(file, archive);
   const result = await f.run(['app', 'import-file', file, '--json']); assert.equal(result.code, 0, result.stdout); assert.equal(service.hits.length, 1);
+  const versions = await f.run(['app', 'versions', PACKAGE_ID, '--json']);
+  assert.equal(versions.code, 0, versions.stdout); assert.equal(output(versions).data[0].id, VERSION_ID);
+  assert.equal(output(await f.run(['app', 'list', '--json'])).error.code, 'tenant_required');
+  assert.equal(service.hits.length, 2);
 });
 
 test('damaged maintenance receipts remain unknown and batch policy previews preserve explicit confirmation tokens', async t => {

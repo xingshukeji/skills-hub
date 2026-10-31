@@ -37,8 +37,8 @@ command('agent directory', [...runtime, 'application-id', 'personal', 'mine'], [
 command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout', 'context-json'], [slot('agent-id')], 'Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.');
 command('agent run start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file'], [slot('agent-id')], 'Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.');
 command('agent run show', [...runtime, 'run-id'], [slot('run-id')], 'Read the original managed run using the same identity. Results are bounded in-memory Runtime state.');
-command('agent ephemeral directory', runtime, [], 'List agents available for stateless text generation.');
-command('agent ephemeral generate', [...runtime, 'agent-id', 'message', 'message-file'], [slot('agent-id')], 'Generate text without a session, tools or history; requires a currently authorized agent.');
+command('agent ephemeral directory', [...runtime, 'application-id', 'personal'], [], 'List agents available for stateless text generation.');
+command('agent ephemeral generate', [...runtime, 'application-id', 'personal', 'agent-id', 'message', 'message-file'], [slot('agent-id')], 'Generate text without a session, tools or history; requires a currently authorized agent.');
 command('agent chat send', [...runtime, 'session-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
 command('agent chat wait', [...runtime, 'session-id', 'application-id', 'personal', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
 command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations; --all includes other sources owned by the same identity.');

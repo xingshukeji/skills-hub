@@ -145,7 +145,7 @@ export async function jsonInput(args, name, allowFile = true, options = {}) {
   return inline === undefined ? undefined : parseJson(inline, 'JSON input');
 }
 
-const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
+const sensitiveKey = /^(authorization|proxy-authorization|cookie|set-cookie|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
 export function registerSecrets(reporter, value) {
   if (Array.isArray(value)) { for (const item of value) registerSecrets(reporter, item); }
   else if (isObject(value)) for (const [key, item] of Object.entries(value)) {

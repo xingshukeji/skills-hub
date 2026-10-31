@@ -28,7 +28,10 @@ test('metadata deletion and failed field recovery retain explicit impact and ver
   const f = fixture(t), service = await mockServer(t, (hit, res) => {
     assert.equal(hit.headers['if-match'], '"field-7"');
     if (hit.method === 'DELETE') { assert.equal(hit.headers['x-impact-token'], 'observed-impact'); res.writeHead(204); res.end(); }
-    else { assert.equal(hit.headers['idempotency-key'], 'same-correction'); assert.deepEqual(hit.json(), { label: 'Corrected' }); respond(res, { etag: '"field-8"', field: { name: 'amount' } }); }
+    else { assert.equal(hit.headers['idempotency-key'], 'same-correction'); assert.deepEqual(hit.json(), { label: 'Corrected' }); respond(res, {
+      metadataRevision: 8, etag: '"field-8"', object: { objectId: 'object-one', entityCode: 'customer', entityApiName: 'customer' },
+      field: { fieldId: 'field-one', fieldApiName: 'amount' },
+    }); }
   });
   f.profile(service.url, 'tenant-one', 'own-token');
   assert.equal((await f.run(['metadata', 'field', 'delete', 'customer', 'amount', '--if-match', '"field-7"', '--impact-token', 'observed-impact', '--json'])).code, 0);

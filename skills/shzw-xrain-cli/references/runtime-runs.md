@@ -31,3 +31,5 @@ agent ephemeral generate <agentId> --message-file <输入.txt>
 ```
 
 先从目录取得当前可用员工。generate 只返回 answer，不创建 Session、工具或历史；输入最多 64000 字符。Runtime 在生成前后核验资格，失败或中断不自动重试。临时文本没有 runId 或结果查询；不要把文本回答当作业务写入完成。
+
+directory 和 generate 均使用 profile 中的默认 applicationId。通过 --application-id 单次覆盖，或 --personal 选择个人上下文；目录与生成须使用同一上下文。CLI 将应用 ID 传给 Runtime，由原服务核验使用资格。

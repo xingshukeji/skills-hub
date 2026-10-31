@@ -161,7 +161,7 @@ async function jsonInput(args, name, allowFile = true, options = {}) {
     throw new CliError(`JSON input exceeds the ${options.limit} byte limit.`, { code: "input_too_large" });
   return inline === void 0 ? void 0 : parseJson(inline, "JSON input");
 }
-var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
+var sensitiveKey = /^(authorization|proxy-authorization|cookie|set-cookie|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
 function registerSecrets(reporter, value2) {
   if (Array.isArray(value2)) {
     for (const item of value2) registerSecrets(reporter, item);
@@ -625,26 +625,28 @@ async function writeOnce(action, hint2, details) {
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const perform = async () => {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers, signal });
+    if (raw) return response;
     if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
     let value2 = null;
     if (response.bytes.length) {
       try {
         value2 = response.json();
       } catch {
-        if (mutation) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
+        if (mutation2) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
         value2 = response.text();
       }
     }
+    if (validate && !validate(value2)) throw new CliError("The server returned an invalid operation receipt.", { code: "invalid_response" });
     return responseHeaders ? { value: value2, headers: Object.fromEntries(responseHeaders.map((name) => [name, response.headers.get(name)]).filter(([, value3]) => value3 !== null)) } : value2;
   };
-  if (!mutation) return perform();
-  const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation;
+  if (!mutation2) return perform();
+  const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation2;
   const details = {
     operation: ctx.spec?.path,
     profile: profile.name,
@@ -2232,8 +2234,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve8, reject) => {
-    accept = resolve8;
+  const callback = new Promise((resolve9, reject) => {
+    accept = resolve9;
     fail = reject;
   });
   callback.catch(() => {
@@ -2262,9 +2264,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve8, reject) => {
+  await new Promise((resolve9, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve8);
+    server.listen(Number(expected.port), expected.hostname, resolve9);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2287,13 +2289,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve8) => {
+  return new Promise((resolve9) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve8(false));
+    child.on("error", () => resolve9(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve8(code === 0));
+    child.on("exit", (code) => resolve9(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -2698,7 +2700,7 @@ async function appManagementCommands(ctx, createClient) {
     return output(ctx, result);
   }
   if (action === "list" || action === "versions") {
-    const api3 = createClient();
+    const api3 = createClient({ allowHost: action === "versions" });
     const path = action === "list" ? "/packages" : `/packages/${segment(args.required("package"))}/versions`;
     const result = requireSuccess(await api3.send("GET", api3.root + path)).json();
     if (!Array.isArray(result)) throw new CliError("The server returned an invalid application list.", { code: "invalid_response" });
@@ -2950,7 +2952,7 @@ async function appCommands(ctx) {
       return 0;
     }
     default:
-      return appManagementCommands(ctx, () => client(ctx));
+      return appManagementCommands(ctx, (options) => client(ctx, options));
   }
 }
 
@@ -3201,7 +3203,7 @@ var hostOperations = [
 ];
 
 // src/xrain-cli/management.mjs
-import { resolve as resolve4 } from "node:path";
+import { resolve as resolve5 } from "node:path";
 
 // src/xrain-cli/metadata-operations.mjs
 var base2 = "/api/metadata/v1";
@@ -3210,23 +3212,35 @@ var match = { "If-Match": "if-match" };
 var create = { ...match, "Idempotency-Key": "request-key" };
 var remove = { ...match, "X-Impact-Token": "impact-token" };
 var define3 = (path, method, route, options = {}) => ({ path: "metadata " + path, method, route, readback: ["metadata", "entities"], ...options });
+var versioned = (value2) => isObject(value2) && Number.isSafeInteger(value2.metadataRevision) && value2.metadataRevision >= 0 && nonempty(value2.etag);
+var mutation = (kind) => (value2, { args, body }) => {
+  if (!versioned(value2) || !isObject(value2.object) || !nonempty(value2.object.objectId) || !nonempty(value2.object.entityApiName)) return false;
+  const expectedEntity = args.value("entity") ?? body?.entityApiName;
+  if (expectedEntity && ![value2.object.entityApiName, value2.object.entityCode].some((name) => equalIgnoreCase(name, expectedEntity))) return false;
+  if (kind === "object") return true;
+  const expectedField = body?.fieldApiName ?? args.value("field");
+  return isObject(value2.field) && nonempty(value2.field.fieldId) && nonempty(value2.field.fieldApiName) && (!expectedField || equalIgnoreCase(value2.field.fieldApiName, expectedField));
+};
 var metadataOperations = [
   define3("entity list", "GET", base2 + "/objects", { responseHeaders: ["etag"] }),
   define3("entity business-objects", "GET", base2 + "/business-objects", { responseHeaders: ["etag"] }),
   define3("entity show", "GET", entity + "/describe", { responseHeaders: ["etag"] }),
-  define3("entity create", "POST", base2 + "/entities", { input: "object", headers: create }),
-  define3("entity update", "PATCH", entity, { input: "object", headers: match }),
+  define3("entity create", "POST", base2 + "/entities", { input: "object", headers: create, validate: mutation("object") }),
+  define3("entity update", "PATCH", entity, { input: "object", headers: match, validate: mutation("object") }),
   define3("entity delete-impact", "GET", entity + "/delete-impact"),
   define3("entity delete", "DELETE", entity, { headers: remove }),
   define3("field list", "GET", entity + "/fields", { responseHeaders: ["etag"] }),
-  define3("field create", "POST", entity + "/fields", { input: "object", headers: create }),
-  define3("field update", "PATCH", entity + "/fields/{field}", { input: "object", headers: match }),
+  define3("field create", "POST", entity + "/fields", { input: "object", headers: create, validate: mutation("field") }),
+  define3("field update", "PATCH", entity + "/fields/{field}", { input: "object", headers: match, validate: mutation("field") }),
   define3("field delete-impact", "GET", entity + "/fields/{field}/delete-impact"),
   define3("field delete", "DELETE", entity + "/fields/{field}", { headers: remove }),
   define3("field reconcile-permissions", "POST", entity + "/fields/{field}:reconcilePermissions"),
-  define3("field retry-deployment", "POST", entity + "/fields/{field}:retryDeployment", { headers: match }),
-  define3("field revise-deployment", "PATCH", entity + "/fields/{field}/failed-deployment", { input: "object", headers: create }),
-  define3("field abandon-deployment", "DELETE", entity + "/fields/{field}/failed-deployment", { headers: match }),
+  define3("field retry-deployment", "POST", entity + "/fields/{field}:retryDeployment", { headers: match, validate: mutation("field") }),
+  define3("field revise-deployment", "PATCH", entity + "/fields/{field}/failed-deployment", { input: "object", headers: create, validate: mutation("field") }),
+  define3("field abandon-deployment", "DELETE", entity + "/fields/{field}/failed-deployment", {
+    headers: match,
+    validate: (value2, { args }) => versioned(value2) && nonempty(value2.fieldId) && equalIgnoreCase(value2.fieldApiName, args.value("field")) && typeof value2.fieldRemoved === "boolean"
+  }),
   define3("view list", "GET", entity + "/views", { responseHeaders: ["etag"] }),
   define3("view field-catalog", "GET", entity + "/view-field-catalog", { responseHeaders: ["etag"] }),
   define3("view show", "GET", entity + "/views/{view}"),
@@ -3254,14 +3268,14 @@ var metadataOperations = [
   define3("record-type patch", "PATCH", entity + "/record-types/{id}", { input: "object" }),
   define3("record-type picklist-options", "GET", entity + "/record-types/picklist-options", { query: ["recordTypeId"] }),
   define3("trigger dispatches", "GET", entity + "/triggers/dispatches", { query: ["triggerId", "eventType", "status", "eventId", "from", "to", "toExclusive", "page", "pageSize"] }),
-  define3("picklist list", "GET", base2 + "/picklists", { query: ["page", "pageSize", "search", "isActive", "sources"] }),
+  define3("picklist list", "GET", base2 + "/picklists", { query: ["page", "pageSize", "search", "isActive", "sources"], queryDefaults: { page: 1, pageSize: 20 } }),
   define3("picklist show", "GET", base2 + "/picklists/{id}"),
   define3("picklist create", "POST", base2 + "/picklists", { input: "object" }),
   define3("picklist clone", "POST", base2 + "/picklists/{id}/clone", { input: "object" }),
   define3("picklist patch", "PATCH", base2 + "/picklists/{id}", { input: "object" }),
   define3("picklist update", "PUT", base2 + "/picklists/{id}", { input: "object" }),
   define3("picklist delete", "DELETE", base2 + "/picklists/{id}"),
-  define3("picklist-item list", "GET", base2 + "/picklists/{id}/items", { query: ["page", "pageSize", "search", "isActive", "sources"] }),
+  define3("picklist-item list", "GET", base2 + "/picklists/{id}/items", { query: ["page", "pageSize", "search", "isActive", "sources"], queryDefaults: { page: 1, pageSize: 20 } }),
   define3("picklist-item create", "POST", base2 + "/picklists/{id}/items", { input: "object" }),
   define3("picklist-item patch", "PATCH", base2 + "/picklists/{id}/items/{item-id}", { input: "object" }),
   define3("picklist-item update", "PUT", base2 + "/picklists/{id}/items/{item-id}", { input: "object" }),
@@ -3284,14 +3298,14 @@ var workflowOperations = [
   define4("orchestration create", "POST", orchestration + "/definitions", { input: "object" }),
   define4("orchestration update", "PUT", orchestration + "/definitions/{id}", { input: "object" }),
   define4("orchestration delete", "DELETE", orchestration + "/definitions/{id}"),
-  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object" }),
+  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object", execution: true }),
   define4("orchestration policy get", "GET", orchestration + "/policy"),
   define4("orchestration policy set", "PUT", orchestration + "/policy", { input: "object" }),
   define4("function list", "GET", orchestration + "/functions"),
   define4("function create", "POST", orchestration + "/functions", { input: "object" }),
   define4("function update", "PUT", orchestration + "/functions/{id}", { input: "object" }),
   define4("function delete", "DELETE", orchestration + "/functions/{id}"),
-  define4("routine list", "GET", routine, { query: ["page", "pageSize", "search", "status", "sources"] }),
+  define4("routine list", "GET", routine, { query: ["page", "pageSize", "search", "status", "sources"], queryDefaults: { page: 1, pageSize: 20 } }),
   define4("routine show", "GET", routine + "/{id}"),
   define4("routine create", "POST", routine, { input: "object" }),
   ...["definition", "schedule", "owner"].map((action) => define4("routine " + action, "PUT", `${routine}/{id}/${action}`, { input: "object" })),
@@ -3315,7 +3329,7 @@ var workflowOperations = [
   define4("http request create", "POST", connector + "/http-requests", { input: "object" }),
   define4("http request update", "PUT", connector + "/http-requests/{name}", { input: "object" }),
   define4("http request delete", "DELETE", connector + "/http-requests/{name}"),
-  define4("http request debug", "POST", integration + "/http-requests/{connector}/{name}/debug", { input: "json" }),
+  define4("http request debug", "POST", integration + "/http-requests/{connector}/{name}/debug", { input: "json", raw: true }),
   define4("http interface list", "GET", iface, { query: ["requestId", "triggerOnly"] }),
   define4("http interface catalog", "GET", iface + "/catalog", { query: ["status"] }),
   define4("http interface create", "POST", iface, { input: "object" }),
@@ -3324,8 +3338,12 @@ var workflowOperations = [
   define4("http interface from-orchestration", "POST", iface + "/from-orchestration/{id}", { input: "object" }),
   define4("http interface policy get", "GET", iface + "/{id}/orchestration-policy"),
   define4("http interface policy set", "PUT", iface + "/{id}/orchestration-policy", { input: "object" }),
-  define4("http interface invoke", "POST", iface + "/{id}", { input: "json" }),
-  define4("http interface debug", "POST", iface + "/{id}/debug/raw", { input: "json" })
+  define4("http interface invoke", "POST", iface + "/{id}", {
+    input: "json",
+    execution: true,
+    validate: (value2) => Number.isInteger(value2?.statusCode) && value2.statusCode >= 100 && value2.statusCode <= 599
+  }),
+  define4("http interface debug", "POST", iface + "/{id}/debug/raw", { input: "json", raw: true })
 ];
 var settingsOperations = [
   define4("variable list", "GET", "/api/variables/items", { host: true, query: ["tenantId"] }),
@@ -3334,8 +3352,8 @@ var settingsOperations = [
   define4("user regional set", "PUT", "/api/service/authen/v1/account/regional-preferences", { host: true, input: "object" }),
   define4("tenant regional get", "GET", "/api/tenant/v1/settings/regional-defaults"),
   define4("tenant regional set", "PUT", "/api/tenant/v1/settings/regional-defaults", { input: "object" }),
-  define4("time resolve", "POST", "/api/service/authen/v1/account/temporal/resolve", { input: "object", readOnly: true }),
-  define4("time day-range", "POST", "/api/service/authen/v1/account/temporal/day-range", { input: "object", readOnly: true }),
+  define4("time resolve", "POST", "/api/service/authen/v1/account/temporal/resolve", { input: "object", readOnly: true, host: true }),
+  define4("time day-range", "POST", "/api/service/authen/v1/account/temporal/day-range", { input: "object", readOnly: true, host: true }),
   define4("recycle resources", "GET", "/api/service/recycle-bin/v1/resources"),
   define4("recycle list", "GET", "/api/service/recycle-bin/v1/resources/{resource}/items", { query: ["page", "pageSize", "search"] }),
   define4("recycle restore", "POST", "/api/service/recycle-bin/v1/resources/{resource}/items/{id}/restore")
@@ -3400,13 +3418,81 @@ for (const operation of deliveryOperations) {
   operation.readback = root2 === "storage" ? ["storage", "account", "list"] : root2 === "mail" ? ["mail", "account", "list"] : root2 === "sms" ? ["sms", "records"] : [root2, "message", "list"];
 }
 
+// src/xrain-cli/raw-response.mjs
+import { closeSync as closeSync2, openSync as openSync2, unlinkSync as unlinkSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { resolve as resolve4 } from "node:path";
+async function rawOutput(ctx, call, context) {
+  const output2 = ctx.args.has("out") ? resolve4(ctx.args.required("out")) : void 0;
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.once("SIGINT", interrupt);
+  let file, saved = false, result;
+  try {
+    if (output2) {
+      try {
+        file = openSync2(output2, "wx", 384);
+      } catch (error) {
+        throw new CliError(error.code === "EEXIST" ? "Output already exists. Choose a new path." : "Cannot create the output file.", {
+          code: error.code === "EEXIST" ? "output_exists" : "output_write_failed",
+          details: { output: output2 }
+        });
+      }
+    }
+    const response = await call(controller.signal);
+    result = { statusCode: response.status, headers: Object.fromEntries(response.headers) };
+    registerSecrets(ctx.reporter, result.headers);
+    try {
+      registerSecrets(ctx.reporter, response.json());
+    } catch {
+    }
+    if (file !== void 0) {
+      try {
+        writeFileSync3(file, response.bytes);
+      } catch {
+        throw new CliError("The response was received but could not be saved. Do not repeat the debug request automatically.", {
+          code: "output_write_failed",
+          details: { ...result, output: output2 }
+        });
+      }
+      saved = true;
+      Object.assign(result, { output: output2, bytes: response.bytes.length });
+    } else {
+      const contentType = response.headers.get("content-type") ?? "", charset = /charset\s*=\s*"?([^;"\s]+)/i.exec(contentType)?.[1];
+      const textual = /^(?:text\/|application\/(?:json\b|[^;]+\+json\b|xml\b|[^;]+\+xml\b|javascript\b|x-www-form-urlencoded\b))/i.test(contentType);
+      let text2;
+      if (textual && (!charset || /^(utf-?8|us-ascii)$/i.test(charset))) {
+        try {
+          text2 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(response.bytes);
+        } catch {
+        }
+      }
+      Object.assign(result, text2 === void 0 ? { encoding: "base64", body: response.bytes.toString("base64") } : { encoding: "utf8", body: text2 });
+    }
+    if (!response.ok) {
+      const error = responseError(response);
+      error.details = { response: result };
+      error.hint ||= "Inspect the original response and any effects before another action. This debug request was not retried.";
+      throw error;
+    }
+    return result;
+  } catch (error) {
+    if (error instanceof CliError) error.details = { ...context, ...error.details };
+    throw error;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    if (file !== void 0) {
+      closeSync2(file);
+      if (!saved) unlinkSync3(output2);
+    }
+  }
+}
+
 // src/xrain-cli/management.mjs
 var managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2) => match2[1]);
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
   ...routeParameters(operation.route),
-  ...operation.credentialOutput ? ["out"] : [],
+  ...operation.credentialOutput || operation.raw ? ["out"] : [],
   ...Object.values(operation.headers ?? {}),
   ...operation.input ? ["request-json", "file"] : [],
   ...operation.query ? ["query-json", ...[...pageOptions].filter(([, key]) => operation.query.includes(key)).map(([key]) => key)] : []
@@ -3423,7 +3509,7 @@ async function managementCommand(ctx) {
   if (!operation) return false;
   const { args, reporter } = ctx;
   const profile = ctx.store.resolve(args, !operation.host);
-  const credentialOutput = operation.credentialOutput ? resolve4(args.required("out")) : void 0;
+  const credentialOutput = operation.credentialOutput ? resolve5(args.required("out")) : void 0;
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
     const value3 = args.required(option);
@@ -3434,9 +3520,10 @@ async function managementCommand(ctx) {
   if (operation.query) {
     const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
     if (args.has("query-json") && individual.length) throw new CliError("Use a complete --query-json file or individual query options.", { code: "invalid_arguments" });
-    const query2 = args.has("query-json") ? await readJsonInput(args.value("query-json"), "Query parameters", { stdin: ctx.stdin }) : Object.fromEntries(individual.map(([option, key]) => [key, option === "page" || option === "page-size" ? args.integer(option) : args.value(option)]));
-    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value3) => value3 !== null && !["string", "number", "boolean"].includes(typeof value3)))
+    const supplied = args.has("query-json") ? await readJsonInput(args.value("query-json"), "Query parameters", { stdin: ctx.stdin }) : Object.fromEntries(individual.map(([option, key]) => [key, option === "page" || option === "page-size" ? args.integer(option) : args.value(option)]));
+    if (!isObject(supplied) || Object.keys(supplied).some((key) => !operation.query.includes(key)) || Object.values(supplied).some((value3) => value3 !== null && !["string", "number", "boolean"].includes(typeof value3)))
       throw new CliError("Query JSON must use supported parameter names and scalar values.", { code: "invalid_arguments" });
+    const query2 = { ...operation.queryDefaults, ...supplied };
     for (const key of operation.requiredQuery ?? []) if (query2[key] === void 0 || query2[key] === null || query2[key] === "")
       throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: "invalid_arguments" });
     if (typeof query2.tenantId === "string") targetTenantId = query2.tenantId;
@@ -3453,19 +3540,35 @@ async function managementCommand(ctx) {
   }
   const write = operation.method !== "GET" && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(["requestId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
-  let value2 = await apiValue(ctx, operation.method, route, body, {
+  const mutation2 = {
+    resource: operation.route,
+    target: {
+      ...Object.fromEntries(["entityApiName", "fieldApiName"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]])),
+      ...Object.fromEntries(routeParameters(operation.route).map((name) => [name, args.value(name)]))
+    },
+    ...targetTenantId !== void 0 ? { targetTenantId } : {},
+    ...headers["Idempotency-Key"] ? { requestKey: headers["Idempotency-Key"] } : {},
+    ...headers["If-Match"] ? { ifMatch: headers["If-Match"] } : {},
+    ...selectors,
+    readback: operation.readback ?? ["security", "directory"]
+  };
+  const call = (signal) => apiValue(ctx, operation.method, route, body, {
     requireTenant: !operation.host,
     resolvedProfile: profile,
     headers,
     responseHeaders: operation.responseHeaders,
     sessionOnly: operation.sessionOnly,
-    ...write ? { mutation: {
-      resource: operation.route,
-      target: Object.fromEntries(routeParameters(operation.route).map((name) => [name, args.value(name)])),
-      ...targetTenantId !== void 0 ? { targetTenantId } : {},
-      ...selectors,
-      readback: operation.readback ?? ["security", "directory"]
-    } } : {}
+    signal,
+    raw: operation.raw,
+    validate: (value3) => (!operation.execution || isObject(value3) && typeof value3.isSuccess === "boolean") && (!operation.validate || operation.validate(value3, { args, body })),
+    ...write ? { mutation: mutation2 } : {}
+  });
+  const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation2 };
+  let value2 = operation.raw ? await rawOutput(ctx, call, context) : await call();
+  if (operation.execution && !value2.isSuccess) throw new CliError("The execution reported failure.", {
+    code: "execution_failed",
+    hint: "Inspect the returned result and any effects before another action. Do not replay the batch.",
+    details: { ...context, result: value2 }
   });
   if (operation.select) {
     if (!isObject(value2) || !Object.hasOwn(value2, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
@@ -3578,8 +3681,8 @@ command("agent directory", [...runtime, "application-id", "personal", "mine"], [
 command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout", "context-json"], [slot("agent-id")], "Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.");
 command("agent run start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file"], [slot("agent-id")], "Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.");
 command("agent run show", [...runtime, "run-id"], [slot("run-id")], "Read the original managed run using the same identity. Results are bounded in-memory Runtime state.");
-command("agent ephemeral directory", runtime, [], "List agents available for stateless text generation.");
-command("agent ephemeral generate", [...runtime, "agent-id", "message", "message-file"], [slot("agent-id")], "Generate text without a session, tools or history; requires a currently authorized agent.");
+command("agent ephemeral directory", [...runtime, "application-id", "personal"], [], "List agents available for stateless text generation.");
+command("agent ephemeral generate", [...runtime, "application-id", "personal", "agent-id", "message", "message-file"], [slot("agent-id")], "Generate text without a session, tools or history; requires a currently authorized agent.");
 command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
 command("agent chat wait", [...runtime, "session-id", "application-id", "personal", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
 command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
@@ -4029,8 +4132,8 @@ async function batchCommands(ctx) {
 
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
-import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve5 } from "node:path";
+import { writeFileSync as writeFileSync4 } from "node:fs";
+import { resolve as resolve6 } from "node:path";
 
 // src/xrain-cli/definition-file.mjs
 var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -4617,9 +4720,16 @@ async function chatCommands(ctx, helpers) {
 async function runtimeRuns(ctx, helpers) {
   const { args, reporter } = ctx, domain = args.command(1), action = args.command(2);
   const connection2 = helpers.runtimeConnection(ctx);
-  const context = { runtime: connection2.runtime, profile: connection2.profile.name, tenant: connection2.profile.tenant };
+  const applicationId2 = domain === "ephemeral" || action === "start" ? helpers.applicationId(connection2.profile) : void 0;
+  const headers = applicationId2 ? { "X-XRain-Application-Id": applicationId2 } : {};
+  const context = {
+    runtime: connection2.runtime,
+    profile: connection2.profile.name,
+    tenant: connection2.profile.tenant,
+    ...domain === "ephemeral" ? { applicationId: applicationId2 ?? null } : {}
+  };
   if (domain === "ephemeral" && action === "directory") {
-    reporter.print(await helpers.runtimeValue(ctx, "GET", "/v1/dsh/ephemeral-agents"));
+    reporter.print(await helpers.runtimeValue(ctx, "GET", "/v1/dsh/ephemeral-agents", void 0, headers));
     return 0;
   }
   if (domain === "run" && action === "show") {
@@ -4632,14 +4742,14 @@ async function runtimeRuns(ctx, helpers) {
     return 0;
   }
   const agentId = helpers.identifier(args.required("agent-id"), "Agent ID"), prompt = await messageInput(args);
-  const ephemeral = domain === "ephemeral", applicationId2 = ephemeral ? void 0 : helpers.applicationId(connection2.profile);
+  const ephemeral = domain === "ephemeral";
   const body = ephemeral ? { agentId, prompt } : { input: { agentId, prompt, applicationId: applicationId2 ?? null } };
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
   try {
     const value2 = await helpers.writeOnce(
       async () => {
-        const result = await helpers.runtimeValue(ctx, "POST", ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs", body, {}, { signal: controller.signal });
+        const result = await helpers.runtimeValue(ctx, "POST", ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs", body, ephemeral ? headers : {}, { signal: controller.signal });
         if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? "") || result.status !== "accepted"))
           throw new CliError("Runtime returned an invalid run receipt.", { code: "invalid_response" });
         return result;
@@ -4918,9 +5028,9 @@ async function definitionCommands(ctx) {
     const current = await definition(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve5(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve6(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
-    writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
+    writeFileSync4(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
     return 0;
   }
@@ -5146,7 +5256,7 @@ async function userSettingsCommands(ctx) {
 // src/xrain-cli/files.mjs
 import { openAsBlob as openAsBlob2 } from "node:fs";
 import { stat as stat2 } from "node:fs/promises";
-import { basename as basename2, resolve as resolve6 } from "node:path";
+import { basename as basename2, resolve as resolve7 } from "node:path";
 var root = "/api/service/files/v1/files";
 var maxBytes = 512 * 1024 * 1024;
 async function fileCommands(ctx) {
@@ -5167,7 +5277,7 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve6(args.required("file")), info = await stat2(input3), uploaderId = args.required("uploader-id");
+      const input3 = resolve7(args.required("file")), info = await stat2(input3), uploaderId = args.required("uploader-id");
       if (!info.isFile() || info.size > maxBytes) throw new CliError("Upload requires a regular file within the 512 MiB service limit.", { code: "invalid_arguments" });
       const blob = await openAsBlob2(input3), fileName = args.value("name") ?? basename2(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
@@ -5217,11 +5327,11 @@ async function fileCommands(ctx) {
 }
 
 // src/xrain-cli/market.mjs
-import { accessSync as accessSync2, constants as constants2, copyFileSync as copyFileSync2, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname4, resolve as resolve7 } from "node:path";
+import { accessSync as accessSync2, constants as constants2, copyFileSync as copyFileSync2, existsSync as existsSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { dirname as dirname4, resolve as resolve8 } from "node:path";
 import { randomBytes as randomBytes7 } from "node:crypto";
 function newOutput(value2) {
-  const path = resolve7(value2);
+  const path = resolve8(value2);
   if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
   accessSync2(dirname4(path), constants2.W_OK);
   return path;
@@ -5229,10 +5339,10 @@ function newOutput(value2) {
 function save(path, bytes) {
   const temporary = path + "." + randomBytes7(8).toString("hex") + ".part";
   try {
-    writeFileSync4(temporary, bytes, { flag: "wx" });
+    writeFileSync5(temporary, bytes, { flag: "wx" });
     copyFileSync2(temporary, path, constants2.COPYFILE_EXCL);
   } finally {
-    if (existsSync3(temporary)) unlinkSync3(temporary);
+    if (existsSync3(temporary)) unlinkSync4(temporary);
   }
 }
 function receipt(response) {

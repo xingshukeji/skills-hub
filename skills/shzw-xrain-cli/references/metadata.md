@@ -23,6 +23,8 @@ metadata field reconcile-permissions <entity> <field>
 
 entity list/show、field list 和 view list/field-catalog 将响应放在 `value`，实际版本头放在 `headers.etag`。原 ETag 包含的双引号也须保留。冲突后重新核对差异，由调用者决定下一次修改；CLI 不刷新版本并重放。
 
+对象、字段及字段部署恢复的写入回执按各自 DTO 校验版本和目标。回执缺失或不匹配时返回 outcome_unknown；错误信息保留原 requestKey、ifMatch 及 entityApiName/fieldApiName 等目标标识。沿原目标回读后再决定下一步，不改键重建或重放批次。删除和权限重建的原生 204 响应仍有效。
+
 对象创建字段为 entityApiName、label、description、searchFields、visibility、share2AllRoles，可选 manualSharingEnabled、triggersEnabled。字段创建使用 fieldApiName、label、type、description、required、searchable、sortable、length、precision、nullable、presentation、uiLength、targetEntityApiName、valuePicklistId、isSensitive、maskingPolicy、allowActorPolicyReference。字段类型和目标先从标准及现有设计确定；不同类型不接受全部选项。更新只提交实际修改；清空 length、precision、targetEntityApiName、valuePicklistId、maskingPolicy 时分别使用相应的 `...Specified` 字段，避免将省略误当清空。
 
 删除对象改用 `metadata entity delete-impact <entity>` 和 `metadata entity delete`。无依赖时也保留服务签发的 impactToken；令牌绑定主体、目标和版本，过期或已使用时重新检查影响。部署失败时先查看 field.deployment 的 canRetry/canRevise/canAbandon，再明确选择动作；重试不创建同名字段。
@@ -42,3 +44,5 @@ entity list/show、field list 和 view list/field-catalog 将响应放在 `value
 | `metadata dblink` | catalog；table 带 schema、table，query-json 可带 previewLimit。 |
 
 创建、更新或补丁带请求文件；update 使用服务要求的完整配置，patch 只提交变化。分享、记录类型和触发器各自接受其原生设计结构；先读取同类配置并保留明确 ID、关联对象和服务要求的比较字段。删除、禁用和访问授权不是同一动作。结果未知先按原 ID 回读；元数据可见不证明运行数据可读写。
+
+picklist list 与 picklist-item list 默认使用 page=1、pageSize=20，显式分页参数或查询文件中的值优先。
