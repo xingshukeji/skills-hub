@@ -78,6 +78,12 @@
     "workspace": "fixtures/business-boundaries"
   },
   {
+    "id": "review-runtime",
+    "request": "请深度 review 当前会话服务的实现，重点看并发和持续使用后的可靠性，只审查。",
+    "context": "本目录包含完整公开入口、业务合同和已有测试，规模可随使用增长；无需访问真实平台或其他仓库。",
+    "workspace": "fixtures/review-runtime"
+  },
+  {
     "id": "understand-first",
     "request": "我觉得这些 skill 还是没让我少解释，尤其继续对话的时候。先告诉我你的理解，不要修改。",
     "context": "前文在讨论技能职责与执行连续性，此轮尚未授权任何调整。当前目录中有一个待评估技能。",

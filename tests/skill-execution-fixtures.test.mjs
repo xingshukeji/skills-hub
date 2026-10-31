@@ -9,9 +9,60 @@ import { Remote } from '../evals/skill-execution/fixtures/review-submission/remo
 import { Submission } from '../evals/skill-execution/fixtures/review-submission/app.mjs';
 import { createEventSource, openSession } from '../evals/skill-execution/fixtures/review-session/app.mjs';
 import { CustomerEditor, RecordBrowser } from '../evals/skill-execution/fixtures/review-consumers/app.mjs';
+import { BindingIndex, mergeHistory, SubscriptionHub, createSessionView, PermissionStore } from '../evals/skill-execution/fixtures/review-runtime/app.mjs';
 
 // These are evaluator-side witnesses of intentionally defective fixtures.
 // Passing these tests validates the cases, never the skill or a model response.
+test('runtime fixture reproduces large arguments in save, history and event consumption', () => {
+  const rows = Array.from({ length: 250_000 }, (_, index) => ({ id: `binding-${index}`, seq: index + 1 }));
+  let persisted = JSON.stringify(rows);
+  const bindings = new BindingIndex({ read: () => persisted, write: next => { persisted = next; } });
+  assert.throws(() => bindings.save({ id: 'new-binding' }), RangeError);
+  assert.equal(bindings.list().length, rows.length);
+  assert.equal(JSON.parse(persisted).length, rows.length + 1);
+  assert.throws(() => mergeHistory(rows, [{ seq: 0 }]), RangeError);
+  const view = createSessionView([], {});
+  assert.throws(() => view.receive({ type: 'events', items: rows }), RangeError);
+  assert.deepEqual(mergeHistory([], [{ seq: 0 }]), [{ seq: 0 }]);
+});
+
+test('runtime fixture separates full-directory rejection from the cumulative admission race', async () => {
+  const hub = new SubscriptionHub(), cold = hub.connect('person');
+  const view = createSessionView(['a', 'b', 'c'], { subscribe: channels => hub.subscribe(cold, channels) });
+  await view.open();
+  assert.equal(view.connected, true);
+  assert.equal(cold.subscriptions.size, 0);
+  assert.deepEqual(view.messages, []);
+  let release, entered = 0, bothEntered;
+  const gate = new Promise(resolve => { release = resolve; });
+  const both = new Promise(resolve => { bothEntered = resolve; });
+  const racing = new SubscriptionHub(async () => { if (++entered === 2) bothEntered(); await gate; return true; });
+  const client = racing.connect('person');
+  const first = racing.subscribe(client, ['a', 'b']), second = racing.subscribe(client, ['c']);
+  await both; release(); await Promise.all([first, second]);
+  assert.equal(client.subscriptions.size, 3);
+  const normal = hub.connect('person');
+  await hub.subscribe(normal, ['a', 'b']);
+  await assert.rejects(hub.subscribe(normal, ['c']), /subscription_limit/);
+  const denied = new SubscriptionHub(async () => false), refused = denied.connect('other');
+  await assert.rejects(denied.subscribe(refused, ['a']), /access_denied/);
+  assert.equal(refused.subscriptions.size, 0);
+});
+
+test('runtime permission registry legitimately survives value TTL and retires on session exit', () => {
+  let now = 0;
+  const permissions = new PermissionStore(() => now);
+  permissions.enter('tenant-session', 'tenant'); permissions.enter('host-session', 'host');
+  now = 11;
+  assert.throws(() => permissions.read('tenant-session'), /permission_cache_not_ready/);
+  assert.equal(permissions.activeScopes.size, 2);
+  permissions.refresh();
+  assert.equal(permissions.read('tenant-session'), 'tenant');
+  assert.equal(permissions.read('host-session'), 'host');
+  permissions.leave('tenant-session'); permissions.refresh();
+  assert.throws(() => permissions.read('tenant-session'), /permission_cache_not_ready/);
+  assert.equal(permissions.activeScopes.size, 1);
+});
 test('raw execution inputs remain separate from grading and resolve every fixture', async () => {
   const root = new URL('../evals/skill-execution/', import.meta.url);
   const cases = JSON.parse(await readFile(new URL('cases.json', root), 'utf8'));
