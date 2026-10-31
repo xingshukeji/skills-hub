@@ -16,7 +16,7 @@ CLI 唯一实现位于 `src/xrain-cli/`，完整交付物位于 `skills/shzw-xra
 
 | 检查 | 当前证据 | 责任与恢复条件 |
 |---|---|---|
-| 后端依赖锁 | 公共源缺少当前私有包，部分包摘要不符。改用同源本地包后，还原图仍与已提交锁不同，例如 EF Core Relational 为 10.0.9，源锁为 10.0.4，并出现源锁未记录的 Relational 包及 Dapper 依赖。 | XRain、AiInfra 维护者核对同源包的版本及完整依赖图，按项目流程更新并审阅锁，再通过严格还原。不能只替换摘要或关闭校验。 |
+| 后端依赖锁 | 按项目流程生成同源本地包后，还原图与已提交锁不同，例如 EF Core Relational 为 10.0.9，源锁为 10.0.4，并出现源锁未记录的 Relational 包及 Dapper 依赖。 | XRain、AiInfra 维护者核对同源包的版本及完整依赖图，按项目流程更新并审阅锁，再通过严格还原。不能只替换摘要或关闭校验。 |
 | 后端架构检查 | 同源源码构建成功；59 项定向测试中 58 项通过。`RawPostgreSqlAccessIsLimitedToManagedSchemaAndReadOnlyInfrastructure` 因 `PostgreSqlRuntimeImportJobStore.cs` 失败；该测试方法和对应文件均与清理前基线一致。 | XRain 维护者先判断文件导入作业存储的数据库职责，再修正实现或对应约束，复跑架构及 Bootstrap 定向测试。不能为消除失败直接放宽允许列表。 |
 | 共享目录文档检查 | 清理候选的 269 文件检查通过；共享目录另有 13 处旧候选断链，以及正在修改的 DOC-0064 超过 200 行限制，共 14 项错误。 | 原候选及文档维护者整理对应文件后，复跑根目录 `npm run check:docs`；本次不提交这些无关改动。 |
 
