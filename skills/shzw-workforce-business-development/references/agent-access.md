@@ -9,11 +9,11 @@
 
 Runtime 持有定义的名称、工作要求、模型、工作模式、工作目录、文件与通用工具、业务工具、推荐问题、业务操作和侧栏配置。XRain 另持有个人订阅、批准和应用选用；定义本身不创建 AI 员工或授予业务权限。新建定义先保存为停用；已有定义的启停单独立即生效，不提交其他编辑草稿。
 
-定义详情支持导出已保存内容。新建或编辑时选择“从文件导入”：定义文件先预览变更，确认后只修改当前草稿，保存后生效。文本或 Markdown 只替换工作要求；旧 JSON 工作文件包含 `instructions` 和 `assistantTools`，预览后替换这两项。取消、错误或迟到的读取不覆盖现有输入。
+定义详情支持导出已保存内容。新建或编辑时选择“从文件导入”：读取成功后直接更新当前草稿，保存后生效；无法还原的目录或无法核对的工具会提示。文本或 Markdown 只替换工作要求；旧 JSON 工作文件包含 `instructions` 和 `assistantTools`，导入后替换这两项。取消选择、错误或迟到的读取不覆盖现有输入。
 
 页面导出文件顶层为 `format: "xrain-workforce-agent-definition"`、`version: 1` 和 `definition`。`definition` 包含 `name`、`enabled`、`instructions`、`provider`、`model`、`reasoningEffort`、`agentPreset`、`workspace`、`nativeTools`、`assistantTools`、`suggestedQuestions`、`businessActions` 和 `uiPlugins`。其中 `enabled` 仅记录导出时的状态；导入保留目标身份、版本、启用状态及使用范围。`nativeTools: null` 表示继承工作模式，空数组表示不选可选工具；`uiPlugins: null` 表示沿用默认侧栏，空数组表示不显示。`assistantTools: []` 表示没有业务工具。
 
-`workspace.kind` 为 `direct` 时有当前 Runtime 机器的 `path`；为 `registered` 时有工作区 `id` 及可取得的 `path`；`none` 表示未设置，`unavailable` 表示导出时不能取得路径。导入后仍由当前环境核验目录和工作模式。无法确认的登记目录、已启用定义的空目录、以及不能恢复继承的原生工具选择会保留目标设置并提示。模型、业务工具和业务对象也须在当前环境可用；工具目录变化时核对完整工具描述，不按名称猜测或自动替换。
+`workspace.kind` 为 `direct` 时有当前 Runtime 机器的 `path`；为 `registered` 时有工作区 `id` 及可取得的 `path`；`none` 表示未设置，`unavailable` 表示导出时不能取得路径。导入后仍由当前环境核验目录和工作模式。无法确认的登记目录和已启用定义的空目录会保留目标设置并提示；支持恢复继承的 Runtime 可按文件恢复工具继承，旧版本保留目标选择并提示。模型、业务工具和业务对象也须在当前环境可用；工具目录变化时核对完整工具描述，不按名称猜测或自动替换。定义文件及保存请求的大小上限由 Runtime 的 `XRAIN_AGENT_DEFINITION_MAX_BYTES` 统一配置，默认 2 MiB。
 
 此文件不是 Runtime 存储文件，也不是 CLI 的 `--values-json` 更新请求。使用 CLI 管理定义时先读取目标定义和可用选项，再按实际命令合同构造修改字段；不要把导出文件直接当作完整在线写入。实际版本及权限以目标环境为准。
 
