@@ -1,0 +1,10 @@
+{
+  "responses": {
+    "/health": {
+      "status": 200,
+      "body": {
+        "state": "ready"
+      }
+    }
+  }
+}

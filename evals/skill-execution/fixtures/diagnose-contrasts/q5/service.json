@@ -1,0 +1,16 @@
+{
+  "responses": {
+    "/v1/status": {
+      "status": 404,
+      "body": {
+        "code": "route_not_found"
+      }
+    },
+    "/health": {
+      "status": 200,
+      "body": {
+        "state": "ready"
+      }
+    }
+  }
+}

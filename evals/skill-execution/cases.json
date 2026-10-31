@@ -48,6 +48,12 @@
     "workspace": "fixtures/diagnose-skills"
   },
   {
+    "id": "diagnose-contrasts",
+    "request": "这些执行仍有不符合当前要求的地方。请逐项查证原因，修正确有问题的位置，并完成原来已授权的本地工作。",
+    "context": "每个 q 目录都是独立项目，原始请求和实际经过在各自的 traces.jsonl 中。来源、安装副本、项目入口、业务或服务合同均在本目录；仅使用本地文件和命令，不操作真实服务或远端。",
+    "workspace": "fixtures/diagnose-contrasts"
+  },
+  {
     "id": "understand-first",
     "request": "我觉得这些 skill 还是没让我少解释，尤其继续对话的时候。先告诉我你的理解，不要修改。",
     "context": "前文在讨论技能职责与执行连续性，此轮尚未授权任何调整。当前目录中有一个待评估技能。",
