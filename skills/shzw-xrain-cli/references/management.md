@@ -107,7 +107,7 @@ application authorization-impact <applicationId> --request-json <影响请求.js
 
 `application role` 与 `application permission-set` 提供 list/create/update/delete；角色另有 users、permission-sets，权限集另有 items。目标先带 applicationId，单项修改或删除再带原 ID；写入带请求文件。删除保留服务器给出的 impactDigest 和明确 decisions，不自动确认影响。
 
-execution-authorization 提供 get/grant；message-robot 提供 set，message-authorization 和 admission 接收请求文件；directory members/departments 为读取。命令保留原授权及准入结果，管理权不代表具体业务执行资格。
+execution-authorization 提供 get/grant，grant 接收请求文件。message-robot set、message-authorization、admission 不接收请求正文；directory members/departments 为读取。命令保留原授权及准入结果，管理权不代表具体业务执行资格。
 
 ## Host
 

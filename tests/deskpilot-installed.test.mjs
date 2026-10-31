@@ -24,7 +24,7 @@ function run(args, cwd, env = {}, input = '', interpreter = python) {
 }
 
 test('complete DeskPilot Skill builds alone, preserves failures and removes only owned files', { timeout: 240000 }, async t => {
-  const temporary = await mkdtemp(join(tmpdir(), 'DeskPilot installed '));
+  const temporary = await realpath(await mkdtemp(join(tmpdir(), 'DeskPilot installed ')));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const skill = join(temporary, 'read only skill with spaces');
   const state = join(temporary, 'runtime state');
@@ -66,7 +66,9 @@ test('complete DeskPilot Skill builds alone, preserves failures and removes only
   const replies = stream.stdout.trim().split(/\r?\n/).map(row => JSON.parse(row));
   assert.deepEqual(replies.map(item => item.id), ['hello', 'bad', 'end']);
   assert.equal(replies[1].error.code, 'UNKNOWN_METHOD');
-  assert.equal(JSON.parse((await invoke()).stdout).data.status, 'unchanged');
+  const repeated = await invoke();
+  assert.equal(repeated.code, 0, repeated.stdout + repeated.stderr);
+  assert.equal(JSON.parse(repeated.stdout).data.status, 'unchanged');
   const entryBefore = await readFile(first.command_path);
   const foreignBin = join(temporary, 'foreign commands');
   await mkdir(foreignBin);

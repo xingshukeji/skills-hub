@@ -12,7 +12,7 @@ export async function batchCommands(ctx) {
     if (!Array.isArray(row) || !row.length || row.some(value => typeof value !== 'string')) throw new CliError('Each batch item must be a nonempty array of strings.', { code: 'invalid_arguments' });
     const args = new Args(row), spec = validateCommand(args);
     if (['batch', 'auth login', 'app login'].includes(spec.path)) throw new CliError('Nested batches and login are not supported inside a batch. Log in before running it.', { code: 'invalid_arguments' });
-    if (['file', 'query-json', 'values-json', 'filter-json', 'request-json', 'message-file', 'options-json'].some(name => args.value(name) === '-') || ['query', 'values', 'filter'].some(name => args.value(name) === '@-'))
+    if (['file', 'query-json', 'values-json', 'filter-json', 'request-json', 'message-file', 'context-json', 'options-json'].some(name => args.value(name) === '-') || ['query', 'values', 'filter'].some(name => args.value(name) === '@-'))
       throw new CliError('Batch steps must use files or inline JSON instead of sharing stdin.', { code: 'invalid_arguments' });
     commands.push(spec.path);
   }
@@ -23,7 +23,7 @@ export async function batchCommands(ctx) {
       stdout: { write(value) { stdout += value; } }, stderr: { write(value) { stderr += value; } },
     });
     const result = JSON.parse(stdout);
-    if (/^app (?:preview|install|operation)(?: |$)/.test(commands[index])) {
+    if (/^app (?:preview|install|operation|policy)(?: |$)/.test(commands[index])) {
       exposeApplicationConfirmations(ctx.reporter, result.data);
       exposeApplicationConfirmations(ctx.reporter, result.error?.details?.operation);
     }

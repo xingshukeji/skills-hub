@@ -12,7 +12,7 @@ app versions --package <packageId> --exchange <市场origin> --profile <市场>
 app import --package <packageId> --version-id <versionId>
 ```
 
-平台 list 返回本地可见包及安装指针。市场 list/versions 使用独立市场浏览器会话。import 使用目标平台配置的市场来源，不能附加 --exchange、任意下载地址或本地包文件。导入成功不表示安装或发布；Host 本地文件导入仍通过原管理入口和权限执行。
+平台 list 返回本地可见包及安装指针。市场 list/versions 使用独立市场浏览器会话。import 使用目标平台配置的市场来源，不能附加 --exchange、任意下载地址或本地包文件。导入成功不表示安装或发布；Host 本地包使用 `app import-file <文件.appkg> --scope host` 及原 Host 会话。
 
 versions 列出历史版本；平台决定当前版本是否可安装。CLI 不替调用者选“最新版”，不重新发布旧版来实现回退。导入响应丢失时，先在同一平台查询 versions，不自动重复导入。
 

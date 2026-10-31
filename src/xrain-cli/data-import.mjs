@@ -231,15 +231,15 @@ async function checkDestination(path) {
   catch (error) { if (error.code !== 'ENOENT') throw error; }
 }
 
-async function saveFile(client, method, path, outputPath, limit, json) {
+export async function saveFile(client, method, path, outputPath, limit, json, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
   const output = resolve(outputPath);
   await checkDestination(output);
-  const response = await send(client, method, path, { json, accept: mime });
+  const response = await send(client, method, path, { json, accept: contentType ?? '*/*' });
   await requireResponse(client, response);
-  const contentType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+  const returnedType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
   const encoding = response.headers.get('content-encoding');
   const contentLength = response.headers.get('content-length');
-  if (contentType !== mime || (encoding && encoding.toLowerCase() !== 'identity') ||
+  if ((contentType && returnedType !== contentType.split(';', 1)[0].trim().toLowerCase()) || (encoding && encoding.toLowerCase() !== 'identity') ||
       (contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit))) {
     await response.body?.cancel();
     throw invalidResponse('The download has an invalid content type, encoding or length.');
@@ -258,7 +258,7 @@ async function saveFile(client, method, path, outputPath, limit, json) {
         offset += result.bytesWritten;
       }
     }
-    if (!size || (contentLength !== null && size !== Number(contentLength))) throw invalidResponse('The download was incomplete.');
+    if ((!allowEmpty && !size) || (contentLength !== null && size !== Number(contentLength)) || (expectedBytes !== undefined && size !== expectedBytes)) throw invalidResponse('The download was incomplete.');
     await file.sync(); await file.close(); file = undefined;
     // A same-directory hard link is an atomic create that cannot replace a file
     // created by another process after the initial destination check.

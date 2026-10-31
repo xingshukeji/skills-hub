@@ -26,6 +26,13 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 数据、权限、应用包、批量：[命令参考](references/commands.md)。
 - 记录集合、共享、历史、Owner 与 XLSX 导出：[记录操作](references/records.md)。
 - 成员、组织、角色、Token、租户内应用与 Host：[管理命令](references/management.md)。
+- 在线对象、字段、部署恢复与视图：[元数据](references/metadata.md)。
+- 编排、Routine、HTTP、时间、变量与回收站：[编排与维护](references/workflows.md)。
+- 文件、投递与本人邮箱：[文件与投递](references/files-delivery.md)。
+- 独立市场下载与发布版本维护：[应用市场](references/market.md)。
+- 主业务对象、单次执行及临时文本：[Runtime 执行](references/runtime-runs.md)。
+- Task、员工协作、频道消息与计划任务：[Workforce](references/workforce.md)。
+- 卸载、策略、组件恢复与本地包：[应用维护](references/application-maintenance.md)。
 - 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
 - 平台定义上限、个人偏好和设置职责：[设置管理](references/settings.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。

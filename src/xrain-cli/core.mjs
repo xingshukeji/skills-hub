@@ -27,6 +27,15 @@ valued.add('tree-id');
 valued.add('node-id');
 valued.add('if-match');
 valued.add('token-file');
+for (const name of ['impact-token', 'view', 'item-id', 'schema', 'table']) valued.add(name);
+valued.add('connector');
+valued.add('resource');
+valued.add('uploader-id');
+valued.add('asset-id');
+valued.add('expected-published-version');
+valued.add('context-json');
+valued.add('run-id');
+for (const name of ['workforce', 'channel', 'message-seq', 'task-id', 'schedule-id']) valued.add(name);
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
 export class Args {
@@ -136,7 +145,7 @@ export async function jsonInput(args, name, allowFile = true, options = {}) {
   return inline === undefined ? undefined : parseJson(inline, 'JSON input');
 }
 
-const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|client[_-]?secret|password|secret(?:Access)?Key|privateKey|connectionString)$/i;
+const sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
 export function registerSecrets(reporter, value) {
   if (Array.isArray(value)) { for (const item of value) registerSecrets(reporter, item); }
   else if (isObject(value)) for (const [key, item] of Object.entries(value)) {

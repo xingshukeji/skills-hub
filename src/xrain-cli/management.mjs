@@ -4,8 +4,11 @@ import { securityOperations } from './security-operations.mjs';
 import { applicationOperations, hostOperations } from './application-operations.mjs';
 import { requireNewCredentialPath, saveCredentialFile } from './store.mjs';
 import { resolve } from 'node:path';
+import { metadataOperations } from './metadata-operations.mjs';
+import { workflowOperations, settingsOperations } from './workflow-operations.mjs';
+import { deliveryOperations } from './delivery-operations.mjs';
 
-export const managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations];
+export const managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 export const routeParameters = route => [...route.matchAll(/\{([^}]+)\}/g)].map(match => match[1]);
 const pageOptions = new Map([['page', 'page'], ['page-size', 'pageSize'], ['search', 'search'], ['status', 'status']]);
 export const operationOptions = operation => [...routeParameters(operation.route),
@@ -34,7 +37,7 @@ export async function managementCommand(ctx) {
     if (!/^[\x20-\x7e]{1,1024}$/.test(value)) throw new CliError(`--${option} must be a printable header value.`, { code: 'invalid_arguments' });
     return [header, value];
   }));
-  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name)));
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), targetTenantId;
   if (operation.query) {
     const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
     if (args.has('query-json') && individual.length) throw new CliError('Use a complete --query-json file or individual query options.', { code: 'invalid_arguments' });
@@ -45,21 +48,24 @@ export async function managementCommand(ctx) {
       throw new CliError('Query JSON must use supported parameter names and scalar values.', { code: 'invalid_arguments' });
     for (const key of operation.requiredQuery ?? []) if (query[key] === undefined || query[key] === null || query[key] === '')
       throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: 'invalid_arguments' });
+    if (typeof query.tenantId === 'string') targetTenantId = query.tenantId;
     const search = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== null).map(([key, value]) => [key, String(value)]));
     if (search.size) route += '?' + search;
   }
   let body;
   if (operation.input) {
     body = await readJsonInput(args.required('request-json', args.value('file')), 'Request JSON', { stdin: ctx.stdin });
-    if (operation.input === 'object' ? !isObject(body) : !Array.isArray(body))
+    if (operation.input === 'object' && !isObject(body) || operation.input === 'array' && !Array.isArray(body))
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: 'invalid_arguments' });
     registerSecrets(reporter, body);
+    for (const field of operation.secretInput ?? []) if (typeof body?.[field] === 'string') reporter.secret(body[field]);
   }
   const write = operation.method !== 'GET' && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(['requestId', 'operationId', 'versionId', 'applicationId', 'installationId', 'expectedRevision', 'entityCode', 'resourceId', 'recordId', 'subjectUserId', 'catalogKey', 'tokenId']
     .filter(key => ['string', 'number'].includes(typeof body[key])).map(key => [key, body[key]])) : {};
-  let value = await apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers,
+  let value = await apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly,
     ...(write ? { mutation: { resource: operation.route, target: Object.fromEntries(routeParameters(operation.route).map(name => [name, args.value(name)])),
+      ...(targetTenantId !== undefined ? { targetTenantId } : {}),
       ...selectors, readback: operation.readback ?? ['security', 'directory'] } } : {}) });
   if (operation.select) {
     if (!isObject(value) || !Object.hasOwn(value, operation.select)) throw new CliError('The server returned an invalid catalog.', { code: 'invalid_response' });

@@ -2,21 +2,24 @@ import { mkdirSync, writeFileSync, copyFileSync, constants, unlinkSync, existsSy
 import { dirname, join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { CliError, isObject, nonempty, parseJson, randomId, readLimited, sha256 } from './core.mjs';
-import { request, requireSuccess } from './http.mjs';
+import { request, requireSuccess, writeOnce } from './http.mjs';
 import { browserLogin } from './auth.mjs';
 import { MAX_ARCHIVE, MAX_SOURCE, readManifest, validPackageId } from './archive.mjs';
 import { appManagementCommands } from './app-management.mjs';
 
-function client(ctx) {
+export function appClient(ctx, { allowHost = false } = {}) {
   const market = ctx.args.has('exchange');
-  const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, true);
-  const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant);
+  const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, !allowHost);
+  if (!market && allowHost && profile.scope !== 'host' && !profile.tenant)
+    throw new CliError('Tenant is required unless an explicit Host profile is selected.', { code: 'tenant_required' });
+  const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
   if (!token) throw new CliError(market ? 'Market login is required or expired. Run app login --exchange <url>.' : 'App login is required or expired. Run app login --server <url>.', {
     code: 'authentication_required', hint: 'Use auth status to inspect the session, then auth login for this target.' });
   return { root: market ? '/api/exchange/v1' : '/api/application/v1',
     send: (method, path, options = {}) => request(new URL(path, profile.server), { ...options, method, token,
       timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) }) };
 }
+const client = appClient;
 
 export function initApp(ctx) {
   const namespace = ctx.args.required('namespace');
@@ -136,6 +139,19 @@ export async function appCommands(ctx) {
     case 'build': return buildApp(ctx, true);
     case 'publish': return publishApp(ctx);
     case 'status': return appStatus(ctx);
+    case 'import-file': {
+      const bytes = readLimited(resolve(ctx.args.required('file')), MAX_ARCHIVE, 'Package'), manifest = readManifest(bytes);
+      const api = client(ctx, { allowHost: true });
+      const result = await writeOnce(async () => {
+        const response = requireSuccess(await api.send('POST', api.root + '/packages:import', { body: bytes, headers: { 'Content-Type': 'application/octet-stream' } }));
+        let value;
+        try { value = response.json(); } catch { throw new CliError('The import response is invalid.', { code: 'invalid_response' }); }
+        if (value?.packageId !== manifest.packageId || value?.versionId !== manifest.versionId)
+          throw new CliError('The import response does not match this package.', { code: 'invalid_response' });
+        return value;
+      }, 'Import outcome is unknown. Read the original package versions before importing again; this command does not install or publish.', { packageId: manifest.packageId, versionId: manifest.versionId });
+      ctx.reporter.print(result); return 0;
+    }
     default: return appManagementCommands(ctx, () => client(ctx));
   }
 }

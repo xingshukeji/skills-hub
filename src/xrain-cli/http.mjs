@@ -20,7 +20,7 @@ export async function request(url, { method = 'GET', token, json, body, headers 
     }
     const bytes = Buffer.concat(chunks);
     return { ok: response.ok, status: response.status, headers: response.headers, bytes,
-      json: () => parseJson(bytes, 'Server response'), text: () => bytes.toString('utf8') };
+      json: () => { try { return parseJson(bytes, 'Server response'); } catch { throw new CliError('Server returned invalid JSON.', { code: 'invalid_response' }); } }, text: () => bytes.toString('utf8') };
   } catch (error) {
     if (error instanceof CliError) throw error;
     if (['TimeoutError', 'AbortError'].includes(error.name)) throw new CliError('HTTP request timed out.', { code: 'timeout', hint: 'Check connectivity or set --timeout to an appropriate number of seconds.' });
@@ -31,7 +31,7 @@ export async function request(url, { method = 'GET', token, json, body, headers 
 export function responseError(response, hint = '', context = {}) {
   let body;
   try { body = response.json(); } catch { body = undefined; }
-  const candidate = body?.errorCode ?? body?.error;
+  const candidate = body?.errorCode ?? (typeof body?.error === 'object' ? body.error?.code : body?.error);
   const serverCode = typeof candidate === 'string' && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : undefined;
   const methodRejected = serverCode?.endsWith('authentication_method_not_allowed');
   const code = methodRejected ? 'authentication_method_not_allowed' : response.status === 401 ? 'authentication_failed' : response.status === 403 ? 'permission_denied' : response.status === 404 ? 'not_found' : response.status === 409 ? 'conflict' : 'http_error';
@@ -63,19 +63,22 @@ export async function writeOnce(action, hint, details) {
   }
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers } = {}) {
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
-  const { token, source } = ctx.store.credential(ctx.args, profile);
-  if (ctx.args.value('auth') === 'session' && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
+  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
+  if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const perform = async () => {
     const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
     if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
-    if (!response.bytes.length) return null;
-    try { return response.json(); }
-    catch {
-      if (mutation) throw new CliError('The server returned an invalid write receipt.', { code: 'invalid_response' });
-      return response.text();
+    let value = null;
+    if (response.bytes.length) {
+      try { value = response.json(); }
+      catch {
+        if (mutation) throw new CliError('The server returned an invalid write receipt.', { code: 'invalid_response' });
+        value = response.text();
+      }
     }
+    return responseHeaders ? { value, headers: Object.fromEntries(responseHeaders.map(name => [name, response.headers.get(name)]).filter(([, value]) => value !== null)) } : value;
   };
   if (!mutation) return perform();
   const { hint = 'The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.', ...recovery } = mutation;

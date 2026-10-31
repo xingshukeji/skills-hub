@@ -76,6 +76,15 @@ test('Host tenant writes preserve ETags and stable idempotency keys without tena
   assert.ok(service.hits.every(hit => !Object.keys(hit.headers).some(key => /tenant|actor|user-id/.test(key))));
 });
 
+test('application admission and message robot checks keep their native empty-body contracts', async t => {
+  const f = fixture(t), service = await mockServer(t, (hit, res) => { assert.equal(hit.method, hit.url.endsWith('/message-robot') ? 'PUT' : 'POST'); assert.equal(hit.body.length, 0); respond(res, { allowed: true }); });
+  f.profile(service.url, 'tenant-one', 'own-token');
+  for (const parts of [['admission'], ['message-authorization'], ['message-robot', 'set']]) {
+    const result = await f.run(['application', ...parts, 'original', '--json']); assert.equal(result.code, 0, result.stdout);
+  }
+  assert.equal(service.hits.length, 3);
+});
+
 test('audit query parameters stay scalar and bounded to native temporal fields', async t => {
   const f = fixture(t), service = await mockServer(t, (_hit, res) => respond(res, { items: [] }));
   f.profile(service.url, 'tenant-one', 'own-bearer');

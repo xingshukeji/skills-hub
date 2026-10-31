@@ -5,6 +5,7 @@ import { CliError, isObject, jsonInput, nonempty, readJsonInput, segment } from 
 import { definitionFileChanges, exportDefinition, readDefinitionFile } from './definition-file.mjs';
 import { apiValue, request, responseError, writeOnce } from './http.mjs';
 import { chatCommands } from './agent-chat.mjs';
+import { runtimeRuns } from './runtime-runs.mjs';
 import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
 
 export { identifier } from './agent-target.mjs';
@@ -230,6 +231,7 @@ async function definitionCommands(ctx) {
 }
 
 export async function agentCommands(ctx) {
+  if (['run', 'ephemeral'].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
   if (action === 'chat') return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });

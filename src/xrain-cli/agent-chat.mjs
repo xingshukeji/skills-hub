@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { CliError, isObject, jsonInput, nonempty, readLimited, segment } from './core.mjs';
+import { CliError, isObject, jsonInput, nonempty, readLimited, readJsonInput, segment } from './core.mjs';
 import { responseError } from './http.mjs';
 import { sessionControl } from './runtime-controls.mjs';
 
 const sessions = '/v1/dsh/sessions';
 const pendingPath = '/v1/dsh/pending-actions';
 
-async function messageInput(args) {
+export async function messageInput(args) {
   let value = args.value('message');
   const file = args.value('message-file');
   if (file) {
@@ -174,7 +174,7 @@ function turnBudget(args) {
   const timeout = setTimeout(() => controller.abort(), milliseconds);
   return {
     signal: controller.signal,
-    expired: () => performance.now() >= deadline,
+    expired: () => controller.signal.aborted || performance.now() >= deadline,
     check() {
       if (controller.signal.aborted || performance.now() >= deadline)
         throw new CliError('Waiting for the conversation timed out.', { code: 'turn_timeout' });
@@ -362,8 +362,15 @@ export async function chatCommands(ctx, helpers) {
   try {
     if (action === 'start') {
       const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID');
+      let primaryObjectRef;
+      if (args.has('context-json')) {
+        primaryObjectRef = await readJsonInput(args.value('context-json'), 'Primary object reference');
+        if (!isObject(primaryObjectRef) || Object.keys(primaryObjectRef).length !== 3 ||
+            !['businessSourceId', 'objectType', 'objectId'].every(key => nonempty(primaryObjectRef[key]) && primaryObjectRef[key].length <= 160))
+          throw new CliError('Primary object reference requires businessSourceId, objectType and objectId, each at most 160 characters.', { code: 'invalid_arguments' });
+      }
       const created = await helpers.writeOnce(async () => {
-        const result = await helpers.runtimeValue(ctx, 'POST', sessions, { agentId, source: 'xrain-cli' }, headers, { signal: budget.signal });
+        const result = await helpers.runtimeValue(ctx, 'POST', sessions, { agentId, source: 'xrain-cli', ...(primaryObjectRef ? { primaryObjectRef } : {}) }, headers, { signal: budget.signal });
         if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError('Runtime returned an invalid session receipt.', { code: 'invalid_response' });
         return result;
       }, 'Session creation outcome is unknown. Inspect your conversation list before creating another.', { agentId, requestId, ...context });

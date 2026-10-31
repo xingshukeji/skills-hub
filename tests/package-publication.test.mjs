@@ -256,14 +256,14 @@ spec = importlib.util.spec_from_file_location('publisher', sys.argv[1])
 publisher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
 project = pathlib.Path(sys.argv[2])
-registry = pathlib.Path(sys.argv[3])
+registry = pathlib.Path(sys.argv[3]).resolve()
 declaration = {'delivered': {'path': 'scripts/versions.json', 'key': 'delivered'}}
 identities = [{'version': '1.0.0', 'integrity': 'first'}, {'version': '1.0.1', 'integrity': 'second'}]
 first_read, release_first = threading.Event(), threading.Event()
 original_read = publisher.read_json
 def paused_read(path):
     document = original_read(path)
-    if pathlib.Path(path) == registry and threading.current_thread().name == 'first-registration':
+    if pathlib.Path(path).resolve() == registry and threading.current_thread().name == 'first-registration':
         first_read.set()
         if not release_first.wait(10): raise RuntimeError('First registration was not released')
     return document

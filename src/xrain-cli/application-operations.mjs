@@ -27,11 +27,18 @@ export const applicationOperations = [
   define('permission-set items', 'PUT', app + '/permission-sets/{id}/items', { input: 'object' }),
   define('execution-authorization get', 'GET', app + '/execution-authorization'),
   define('execution-authorization grant', 'PUT', app + '/execution-authorization/grants', { input: 'object' }),
-  define('message-robot set', 'PUT', app + '/message-robot', { input: 'object' }),
-  define('message-authorization', 'POST', app + '/message-authorization', { input: 'object' }),
-  define('admission', 'POST', app + '/admission', { input: 'object', readOnly: true }),
+  define('message-robot set', 'PUT', app + '/message-robot'),
+  define('message-authorization', 'POST', app + '/message-authorization'),
+  define('admission', 'POST', app + '/admission', { readOnly: true }),
   define('directory members', 'GET', app + '/directory/members'),
   define('directory departments', 'GET', app + '/directory/departments'),
+  define('function list', 'GET', app + '/functions'),
+  define('function statistics', 'GET', app + '/functions/statistics'),
+  define('function set', 'PUT', app + '/functions', { input: 'object' }),
+  define('function execute', 'POST', app + '/functions/{id}:execute', { input: 'object' }),
+  define('function versions', 'GET', '/api/xrain/v1/functions/{id}/versions'),
+  define('function version-create', 'POST', '/api/xrain/v1/functions/{id}/versions'),
+  define('function version-test', 'POST', '/api/xrain/v1/function-versions/{version-id}:test', { input: 'object' }),
 ];
 
 const tenants = '/api/service/authen/v1/host/tenants';

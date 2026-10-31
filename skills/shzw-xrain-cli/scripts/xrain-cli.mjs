@@ -11,14 +11,14 @@ var CliError = class extends Error {
   }
 };
 var DEFAULT_SERVER = "http://127.0.0.1:5410";
-var sha256 = (value) => createHash("sha256").update(value).digest("hex");
+var sha256 = (value2) => createHash("sha256").update(value2).digest("hex");
 var randomId = (prefix) => prefix + randomBytes(9).toString("hex").slice(0, 17);
-var nonempty = (value) => typeof value === "string" && value.trim().length > 0;
+var nonempty = (value2) => typeof value2 === "string" && value2.trim().length > 0;
 var equalIgnoreCase = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
-var isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-function segment(value) {
-  if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
-  return encodeURIComponent(value);
+var isObject = (value2) => value2 !== null && typeof value2 === "object" && !Array.isArray(value2);
+function segment(value2) {
+  if (value2 === "." || value2 === "..") throw new CliError("Resource names cannot be dot path segments.");
+  return encodeURIComponent(value2);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
@@ -29,6 +29,15 @@ valued.add("tree-id");
 valued.add("node-id");
 valued.add("if-match");
 valued.add("token-file");
+for (const name of ["impact-token", "view", "item-id", "schema", "table"]) valued.add(name);
+valued.add("connector");
+valued.add("resource");
+valued.add("uploader-id");
+valued.add("asset-id");
+valued.add("expected-published-version");
+valued.add("context-json");
+valued.add("run-id");
+for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id"]) valued.add(name);
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -46,18 +55,18 @@ var Args = class {
         this.commands.push(item);
         continue;
       }
-      const match = /^--([^=]+)(?:=(.*))?$/s.exec(item);
-      if (!match) throw new CliError("Invalid option. Run --help.");
-      const key = optionName(match[1]);
+      const match2 = /^--([^=]+)(?:=(.*))?$/s.exec(item);
+      if (!match2) throw new CliError("Invalid option. Run --help.");
+      const key = optionName(match2[1]);
       if (this.options.has(key)) throw new CliError(`--${key} was supplied more than once.`, { code: "invalid_arguments" });
       if (flags.has(key)) {
-        if (match[2] !== void 0) throw new CliError(`--${key} does not take a value.`);
+        if (match2[2] !== void 0) throw new CliError(`--${key} does not take a value.`);
         this.options.set(key, true);
       } else {
         if (!valued.has(key)) throw new CliError(`Unknown option --${key}. Run --help.`);
-        const value = match[2] ?? (argv[i + 1]?.startsWith("--") ? void 0 : argv[++i]);
-        if (!nonempty(value)) throw new CliError(`--${key} requires a value.`);
-        this.options.set(key, value);
+        const value2 = match2[2] ?? (argv[i + 1]?.startsWith("--") ? void 0 : argv[++i]);
+        if (!nonempty(value2)) throw new CliError(`--${key} requires a value.`);
+        this.options.set(key, value2);
       }
     }
   }
@@ -74,16 +83,16 @@ var Args = class {
     return this.commands[index];
   }
   required(name, fallback) {
-    const value = this.value(name) ?? fallback;
-    if (!nonempty(value)) throw new CliError(`--${name} is required.`);
-    return value;
+    const value2 = this.value(name) ?? fallback;
+    if (!nonempty(value2)) throw new CliError(`--${name} is required.`);
+    return value2;
   }
   integer(name, fallback) {
-    const value = this.value(name);
-    if (value === void 0) return fallback;
-    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0)
+    const value2 = this.value(name);
+    if (value2 === void 0) return fallback;
+    if (!/^[0-9]+$/.test(value2) || !Number.isSafeInteger(Number(value2)) || Number(value2) <= 0)
       throw new CliError(`--${name} must be a positive integer.`);
-    return Number(value);
+    return Number(value2);
   }
   timeout() {
     const seconds = this.integer("timeout", 100);
@@ -91,10 +100,10 @@ var Args = class {
     return seconds * 1e3;
   }
 };
-function httpUrl(value, label = "Server URL") {
+function httpUrl(value2, label = "Server URL") {
   let url;
   try {
-    url = new URL(value);
+    url = new URL(value2);
   } catch {
     throw new CliError(`${label} must be an absolute http or https URL.`);
   }
@@ -102,8 +111,8 @@ function httpUrl(value, label = "Server URL") {
     throw new CliError(`${label} must be an http or https URL without credentials or a fragment.`);
   return url;
 }
-function origin(value) {
-  const url = httpUrl(value);
+function origin(value2) {
+  const url = httpUrl(value2);
   if (url.pathname !== "/" || url.search) throw new CliError("Server URL must be an origin without a path or query.");
   return url.origin;
 }
@@ -152,11 +161,11 @@ async function jsonInput(args, name, allowFile = true, options = {}) {
     throw new CliError(`JSON input exceeds the ${options.limit} byte limit.`, { code: "input_too_large" });
   return inline === void 0 ? void 0 : parseJson(inline, "JSON input");
 }
-var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|client[_-]?secret|password|secret(?:Access)?Key|privateKey|connectionString)$/i;
-function registerSecrets(reporter, value) {
-  if (Array.isArray(value)) {
-    for (const item of value) registerSecrets(reporter, item);
-  } else if (isObject(value)) for (const [key, item] of Object.entries(value)) {
+var sensitiveKey = /^(authorization|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
+function registerSecrets(reporter, value2) {
+  if (Array.isArray(value2)) {
+    for (const item of value2) registerSecrets(reporter, item);
+  } else if (isObject(value2)) for (const [key, item] of Object.entries(value2)) {
     if (sensitiveKey.test(key) && typeof item === "string") reporter.secret(item);
     else registerSecrets(reporter, item);
   }
@@ -170,9 +179,9 @@ var Reporter = class {
     this.results = [];
     this.visibleFields = /* @__PURE__ */ new WeakMap();
   }
-  secret(value) {
-    if (nonempty(value)) this.secrets.add(value);
-    return value;
+  secret(value2) {
+    if (nonempty(value2)) this.secrets.add(value2);
+    return value2;
   }
   // Only a command that owns a non-credential field may exempt its key. Known
   // credential values are still removed by clean(), including from that field.
@@ -180,27 +189,27 @@ var Reporter = class {
     if (!this.visibleFields.has(object2)) this.visibleFields.set(object2, /* @__PURE__ */ new Set());
     this.visibleFields.get(object2).add(key);
   }
-  clean(value) {
-    if (Array.isArray(value)) return value.map((item) => this.clean(item));
-    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+  clean(value2) {
+    if (Array.isArray(value2)) return value2.map((item) => this.clean(item));
+    if (isObject(value2)) return Object.fromEntries(Object.entries(value2).map(([key, item]) => [
       key,
-      sensitiveKey.test(key) && !this.visibleFields.get(value)?.has(key) ? "[REDACTED]" : this.clean(item)
+      sensitiveKey.test(key) && !this.visibleFields.get(value2)?.has(key) ? "[REDACTED]" : this.clean(item)
     ]));
-    if (typeof value !== "string") return value;
-    let result = value;
+    if (typeof value2 !== "string") return value2;
+    let result = value2;
     for (const secret of this.secrets) result = result.replaceAll(secret, "[REDACTED]");
     return result.replace(/(^|[\r\n"'=:\s]\s*)Bearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi, "$1Bearer [REDACTED]").replace(/(^|[\r\n"'=:]\s*)Bearer\s+[^\s"'<>]+/gi, "$1Bearer [REDACTED]");
   }
-  print(value, error = false) {
+  print(value2, error = false) {
     if (this.json && !error) {
-      this.results.push(value);
+      this.results.push(value2);
       return;
     }
-    const text2 = typeof value === "string" ? this.clean(value) : JSON.stringify(this.clean(value), null, 2);
+    const text2 = typeof value2 === "string" ? this.clean(value2) : JSON.stringify(this.clean(value2), null, 2);
     (error ? this.stderr : this.stdout).write(text2 + "\n");
   }
-  progress(value) {
-    this.stderr.write(this.clean(value) + "\n");
+  progress(value2) {
+    this.stderr.write(this.clean(value2) + "\n");
   }
   error(error) {
     this.failure = Object.fromEntries(Object.entries({
@@ -211,7 +220,7 @@ var Reporter = class {
       requestId: error.requestId,
       hint: error.hint,
       details: error.details
-    }).filter(([, value]) => value !== void 0));
+    }).filter(([, value2]) => value2 !== void 0));
     if (!this.json) {
       this.print(error.message + (error.hint ? " " + error.hint : ""), true);
       if (error.details !== void 0) this.print(error.details, true);
@@ -232,10 +241,10 @@ import { randomBytes as randomBytes2 } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 // src/xrain-cli/agent-target.mjs
-function identifier(value, label) {
-  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
+function identifier(value2, label) {
+  if (!nonempty(value2) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value2) || value2 === "." || value2 === "..")
     throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
-  return value;
+  return value2;
 }
 function samePlatformTarget(saved, server, tenant2, scope = "tenant") {
   if (!nonempty(saved?.server)) return false;
@@ -361,12 +370,12 @@ var Store = class {
     if (!isObject(data) || !isObject(data.profiles) || data.activeProfile !== void 0 && !nonempty(data.activeProfile))
       throw new CliError("Profile store has an invalid structure.");
     const profiles = /* @__PURE__ */ Object.create(null);
-    for (const [key, value] of Object.entries(data.profiles)) {
-      if (!nonempty(key) || !isObject(value) || Object.values(value).some((v) => v !== null && typeof v !== "string"))
+    for (const [key, value2] of Object.entries(data.profiles)) {
+      if (!nonempty(key) || !isObject(value2) || Object.values(value2).some((v) => v !== null && typeof v !== "string"))
         throw new CliError("Profile store has an invalid profile.");
       if (Object.keys(profiles).some((existing) => equalIgnoreCase(existing, key))) throw new CliError("Profile names must be unique ignoring case.");
-      profiles[key] = value;
-      this.reporter?.secret(value.bearerToken);
+      profiles[key] = value2;
+      this.reporter?.secret(value2.bearerToken);
     }
     return { activeProfile: data.activeProfile ?? "default", profiles };
   }
@@ -416,15 +425,15 @@ var Store = class {
     if (requireTenant && !nonempty(profile.tenant)) throw new CliError("Tenant is required. Run auth login --tenant <tenantId>.", { code: "tenant_required" });
     return profile;
   }
-  secrets(create = false) {
+  secrets(create2 = false) {
     const data = existsSync(this.secretPath) ? parseJson(readLimited(this.secretPath, 1024 * 1024, "Local token store"), "Local token store") : {};
     if (!isObject(data)) throw new CliError("Local token store has an invalid structure.");
     for (const [key, envKey] of [["adminApiToken", "Admin"], ["guestApiToken", "Guest"]]) {
-      if (create) data[key] = this.env[`XRain__Security__SeedApiTokens__${envKey}`] || data[key] || randomBytes2(32).toString("base64url");
+      if (create2) data[key] = this.env[`XRain__Security__SeedApiTokens__${envKey}`] || data[key] || randomBytes2(32).toString("base64url");
       if (data[key] !== void 0 && !nonempty(data[key])) throw new CliError("Local token store has an invalid token.");
       this.reporter?.secret(data[key]);
     }
-    if (create) writePrivate(this.secretPath, JSON.stringify(data, null, 2) + "\n");
+    if (create2) writePrivate(this.secretPath, JSON.stringify(data, null, 2) + "\n");
     return data;
   }
   sessionPath(name) {
@@ -563,7 +572,13 @@ async function request(url, { method = "GET", token, json, body, headers = {}, t
       status: response.status,
       headers: response.headers,
       bytes,
-      json: () => parseJson(bytes, "Server response"),
+      json: () => {
+        try {
+          return parseJson(bytes, "Server response");
+        } catch {
+          throw new CliError("Server returned invalid JSON.", { code: "invalid_response" });
+        }
+      },
       text: () => bytes.toString("utf8")
     };
   } catch (error) {
@@ -579,7 +594,7 @@ function responseError(response, hint2 = "", context = {}) {
   } catch {
     body = void 0;
   }
-  const candidate = body?.errorCode ?? body?.error;
+  const candidate = body?.errorCode ?? (typeof body?.error === "object" ? body.error?.code : body?.error);
   const serverCode = typeof candidate === "string" && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : void 0;
   const methodRejected = serverCode?.endsWith("authentication_method_not_allowed");
   const code = methodRejected ? "authentication_method_not_allowed" : response.status === 401 ? "authentication_failed" : response.status === 403 ? "permission_denied" : response.status === 404 ? "not_found" : response.status === 409 ? "conflict" : "http_error";
@@ -610,20 +625,23 @@ async function writeOnce(action, hint2, details) {
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
-  const { token, source } = ctx.store.credential(ctx.args, profile);
-  if (ctx.args.value("auth") === "session" && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
+  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
+  if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const perform = async () => {
     const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers });
     if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
-    if (!response.bytes.length) return null;
-    try {
-      return response.json();
-    } catch {
-      if (mutation) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
-      return response.text();
+    let value2 = null;
+    if (response.bytes.length) {
+      try {
+        value2 = response.json();
+      } catch {
+        if (mutation) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
+        value2 = response.text();
+      }
     }
+    return responseHeaders ? { value: value2, headers: Object.fromEntries(responseHeaders.map((name) => [name, response.headers.get(name)]).filter(([, value3]) => value3 !== null)) } : value2;
   };
   if (!mutation) return perform();
   const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation;
@@ -672,15 +690,15 @@ async function exportRecordsFile(ctx) {
     const capabilities2 = await jsonRequest(client2, "GET", `${client2.root}/exports/capabilities`);
     if (!Number.isSafeInteger(capabilities2?.maximumFileBytes) || capabilities2.maximumFileBytes < 1)
       throw invalidResponse("This server does not advertise a supported export file limit.");
-    const value = await saveFile(client2, "POST", `${client2.root}/records:exportFile`, ctx.args.required("out"), capabilities2.maximumFileBytes, body);
-    ctx.reporter.print({ entityCode: client2.entity, ...value });
+    const value2 = await saveFile(client2, "POST", `${client2.root}/records:exportFile`, ctx.args.required("out"), capabilities2.maximumFileBytes, body);
+    ctx.reporter.print({ entityCode: client2.entity, ...value2 });
   } finally {
     process.removeListener("SIGINT", interrupt);
   }
 }
-function requireId(value, label) {
-  if (!idPattern.test(value ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
-  return value.toLowerCase();
+function requireId(value2, label) {
+  if (!idPattern.test(value2 ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
+  return value2.toLowerCase();
 }
 function makeClient(ctx, signal) {
   const profile = ctx.store.resolve(ctx.args, true);
@@ -689,9 +707,9 @@ function makeClient(ctx, signal) {
     throw new CliError("A matching browser session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const application = ctx.args.value("application");
   if (application !== void 0 && (application.length > 100 || application !== application.trim() || /[\x00-\x1f\x7f,]/.test(application))) throw invalid("--application is invalid.");
-  const entity = ctx.args.required("entity");
-  const root = `/api/data/v1/entities/${segment(entity)}`;
-  return { profile, source, token, signal, entity, root, timeout: ctx.args.timeout(), application };
+  const entity2 = ctx.args.required("entity");
+  const root2 = `/api/data/v1/entities/${segment(entity2)}`;
+  return { profile, source, token, signal, entity: entity2, root: root2, timeout: ctx.args.timeout(), application };
 }
 function abortError(client2, error, deadline) {
   if (error instanceof CliError) return error;
@@ -759,9 +777,9 @@ async function jsonRequest(client2, method, path, options = {}) {
     throw invalidResponse("The server returned invalid JSON.");
   }
 }
-function validatedJob(value, entity, expectedId, expectedRequest) {
-  const counts = value?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value.progress[key]);
-  const summary = value?.summary && [
+function validatedJob(value2, entity2, expectedId, expectedRequest) {
+  const counts = value2?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value2.progress[key]);
+  const summary = value2?.summary && [
     "sourceRows",
     "outputRows",
     "created",
@@ -773,21 +791,21 @@ function validatedJob(value, entity, expectedId, expectedRequest) {
     "clearedFields",
     "sourceErrors",
     "outputErrors"
-  ].map((key) => value.summary[key]);
-  if (!isObject(value) || value.entityCode !== entity || value.protocol !== protocol || value.commitMode !== "chunked" || !idPattern.test(value.jobId ?? "") || !idPattern.test(value.requestId ?? "") || expectedId && value.jobId.toLowerCase() !== expectedId || expectedRequest && value.requestId.toLowerCase() !== expectedRequest || !statuses.has(value.status) || !Number.isSafeInteger(value.version) || value.version < 0 || !Number.isSafeInteger(value.planRevision) || value.planRevision < 0 || !nonempty(value.phase) || !counts || counts.some((count) => !Number.isSafeInteger(count) || count < 0) || !isObject(value.summary) || !summary || summary.some((count) => !Number.isSafeInteger(count) || count < 0) || !["planned", "processed"].includes(value.summaryKind) || !["complete", "partial", "unavailable"].includes(value.detailsStatus) || !Number.isFinite(Date.parse(value.createdAt)) || !Number.isFinite(Date.parse(value.updatedAt)) || ["canConfirm", "canContinue", "canRecheck", "pauseRequested", "cancelRequested", "sourceComplete", "canDownloadRemaining"].some((key) => typeof value[key] !== "boolean") || value.viewVersion != null && !nonempty(value.viewVersion))
+  ].map((key) => value2.summary[key]);
+  if (!isObject(value2) || value2.entityCode !== entity2 || value2.protocol !== protocol || value2.commitMode !== "chunked" || !idPattern.test(value2.jobId ?? "") || !idPattern.test(value2.requestId ?? "") || expectedId && value2.jobId.toLowerCase() !== expectedId || expectedRequest && value2.requestId.toLowerCase() !== expectedRequest || !statuses.has(value2.status) || !Number.isSafeInteger(value2.version) || value2.version < 0 || !Number.isSafeInteger(value2.planRevision) || value2.planRevision < 0 || !nonempty(value2.phase) || !counts || counts.some((count) => !Number.isSafeInteger(count) || count < 0) || !isObject(value2.summary) || !summary || summary.some((count) => !Number.isSafeInteger(count) || count < 0) || !["planned", "processed"].includes(value2.summaryKind) || !["complete", "partial", "unavailable"].includes(value2.detailsStatus) || !Number.isFinite(Date.parse(value2.createdAt)) || !Number.isFinite(Date.parse(value2.updatedAt)) || ["canConfirm", "canContinue", "canRecheck", "pauseRequested", "cancelRequested", "sourceComplete", "canDownloadRemaining"].some((key) => typeof value2[key] !== "boolean") || value2.viewVersion != null && !nonempty(value2.viewVersion))
     throw invalidResponse("The server returned an invalid or mismatched import job.");
-  return value;
+  return value2;
 }
 async function capabilities(client2, options, requireSupported = true, deadline) {
-  const value = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
-  const jobs = value?.jobs;
-  if (!isObject(value) || value.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
+  const value2 = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
+  const jobs = value2?.jobs;
+  if (!isObject(value2) || value2.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
     throw new CliError("This server does not advertise the required import job protocol and file limit.", { code: "import_jobs_unavailable" });
   if (requireSupported && jobs.supported !== true)
     throw new CliError("Chunked import is unavailable for this object.", { code: "import_jobs_unavailable", details: { reasons: jobs.unavailableReasons ?? [] } });
   const orchestrationId = options?.importBinding?.orchestrationId;
   if (requireSupported && orchestrationId) {
-    const definition2 = Array.isArray(value.orchestrations) && value.orchestrations.find((item) => item.id === orchestrationId);
+    const definition2 = Array.isArray(value2.orchestrations) && value2.orchestrations.find((item) => item.id === orchestrationId);
     const contract = definition2?.import;
     if (!contract || contract.version !== 2 || ["transform", "normalizeIdentity", "prepareRecord", "validate"].some((phase) => !(phase === "transform" && options.filePurpose === "recordMaintenance") && contract[phase] === true && contract.phaseScopes?.[phase] !== "independentRows"))
       throw new CliError("The selected import binding does not advertise independent processing for every enabled stage.", {
@@ -798,24 +816,24 @@ async function capabilities(client2, options, requireSupported = true, deadline)
   return jobs;
 }
 async function importOptions(args) {
-  const value = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
-  if (!isObject(value) || Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
-  return value;
+  const value2 = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
+  if (!isObject(value2) || Buffer.byteLength(JSON.stringify(value2)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
+  return value2;
 }
 function query(fields) {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(fields)) if (value !== void 0 && value !== null && value !== "") params.set(key, String(value));
+  for (const [key, value2] of Object.entries(fields)) if (value2 !== void 0 && value2 !== null && value2 !== "") params.set(key, String(value2));
   return params.size ? `?${params}` : "";
 }
 function pageSize(args) {
-  const value = args.integer("page-size", 50);
-  if (value > 200) throw invalid("--page-size cannot exceed 200.");
-  return value;
+  const value2 = args.integer("page-size", 50);
+  if (value2 > 200) throw invalid("--page-size cannot exceed 200.");
+  return value2;
 }
-function hint(entity, jobId, requestId) {
-  return jobId ? `Use data import show --entity ${JSON.stringify(entity)} --job ${jobId} with the same server, identity, tenant and application.` : `Use data import list --entity ${JSON.stringify(entity)} --request-id ${requestId} with the same server, identity, tenant and application before retrying.`;
+function hint(entity2, jobId, requestId) {
+  return jobId ? `Use data import show --entity ${JSON.stringify(entity2)} --job ${jobId} with the same server, identity, tenant and application.` : `Use data import list --entity ${JSON.stringify(entity2)} --request-id ${requestId} with the same server, identity, tenant and application before retrying.`;
 }
-function contextualError(error, entity, requestId, job, knownJobId) {
+function contextualError(error, entity2, requestId, job, knownJobId) {
   const code = error.code ?? "operation_failed";
   const serverRequestId = error.requestId;
   const id = job?.requestId ?? requestId, jobId = job?.jobId ?? knownJobId;
@@ -824,7 +842,7 @@ function contextualError(error, entity, requestId, job, knownJobId) {
     httpStatus: error.httpStatus,
     serverCode: error.serverCode,
     requestId: id ?? serverRequestId,
-    hint: [id || jobId ? hint(entity, jobId, id) : void 0, error.hint].filter(Boolean).join(" ") || void 0,
+    hint: [id || jobId ? hint(entity2, jobId, id) : void 0, error.hint].filter(Boolean).join(" ") || void 0,
     details: {
       ...error.details,
       ...serverRequestId && serverRequestId !== id ? { serverRequestId } : {},
@@ -882,15 +900,15 @@ async function checkDestination(path) {
     if (error.code !== "ENOENT") throw error;
   }
 }
-async function saveFile(client2, method, path, outputPath, limit, json) {
+async function saveFile(client2, method, path, outputPath, limit, json, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false } = {}) {
   const output2 = resolve2(outputPath);
   await checkDestination(output2);
-  const response = await send(client2, method, path, { json, accept: mime });
+  const response = await send(client2, method, path, { json, accept: contentType ?? "*/*" });
   await requireResponse(client2, response);
-  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  const returnedType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
   const encoding = response.headers.get("content-encoding");
   const contentLength = response.headers.get("content-length");
-  if (contentType !== mime || encoding && encoding.toLowerCase() !== "identity" || contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit)) {
+  if (contentType && returnedType !== contentType.split(";", 1)[0].trim().toLowerCase() || encoding && encoding.toLowerCase() !== "identity" || contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit)) {
     await response.body?.cancel();
     throw invalidResponse("The download has an invalid content type, encoding or length.");
   }
@@ -909,7 +927,7 @@ async function saveFile(client2, method, path, outputPath, limit, json) {
         offset += result.bytesWritten;
       }
     }
-    if (!size || contentLength !== null && size !== Number(contentLength)) throw invalidResponse("The download was incomplete.");
+    if (!allowEmpty && !size || contentLength !== null && size !== Number(contentLength) || expectedBytes2 !== void 0 && size !== expectedBytes2) throw invalidResponse("The download was incomplete.");
     await file.sync();
     await file.close();
     file = void 0;
@@ -938,7 +956,7 @@ async function dataImportCommands(ctx) {
   let client2, requestId, job, requestedJobId;
   try {
     client2 = makeClient(ctx, controller.signal);
-    const root = `${client2.root}/imports/jobs`;
+    const root2 = `${client2.root}/imports/jobs`;
     const wait2 = action === "wait" || args.has("wait");
     const deadline = wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
     if (action === "template") {
@@ -963,21 +981,21 @@ async function dataImportCommands(ctx) {
       form.set("requestId", requestId);
       form.set("coordination", protocol);
       form.set("commitMode", "chunked");
-      job = validatedJob(await jsonRequest(client2, "POST", root, { body: form, deadline }), client2.entity, void 0, requestId);
+      job = validatedJob(await jsonRequest(client2, "POST", root2, { body: form, deadline }), client2.entity, void 0, requestId);
       if (wait2) job = await waitJob(ctx, client2, job, "check", deadline);
       return outputJob(ctx, job);
     }
     if (action === "list") {
       if (args.has("request-id")) requestId = requireId(args.value("request-id"), "--request-id");
       const filter = { requestId, importSourceKey: args.value("import-source-key"), status: args.value("status"), cursor: args.value("cursor"), pageSize: pageSize(args) };
-      const result = await jsonRequest(client2, "GET", root + query(filter));
+      const result = await jsonRequest(client2, "GET", root2 + query(filter));
       if (!isObject(result) || !Array.isArray(result.items) || result.nextCursor != null && !nonempty(result.nextCursor)) throw invalidResponse("The import job list is invalid.");
       for (const item of result.items) validatedJob(item, client2.entity, void 0, requestId);
       reporter.print(result);
       return 0;
     }
     const jobId = requestedJobId = requireId(args.required("job"), "--job");
-    const path = `${root}/${segment(jobId)}`;
+    const path = `${root2}/${segment(jobId)}`;
     if (action === "download") {
       const purpose = args.required("purpose"), out = args.required("out");
       if (!["result", "issues", "maintenance", "remaining"].includes(purpose)) throw invalid("--purpose must be result, issues, maintenance or remaining.");
@@ -1041,9 +1059,9 @@ async function dataImportCommands(ctx) {
 var queryActions = { export: "export", count: "count", distinct: "distinct", single: "single", "single-or-default": "singleOrDefault", first: "first", "first-or-default": "firstOrDefault" };
 var batchActions = { "batch-create": ["batchCreate", "records"], "batch-update": ["batchUpdate", "records"], "batch-delete": ["batchDelete", "recordIds"] };
 async function input(args) {
-  const value = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON");
-  if (!isObject(value)) throw new CliError("Request JSON must be an object.", { code: "invalid_arguments" });
-  return value;
+  const value2 = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON");
+  if (!isObject(value2)) throw new CliError("Request JSON must be an object.", { code: "invalid_arguments" });
+  return value2;
 }
 function page(args, search = false) {
   const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 25)) });
@@ -1064,13 +1082,13 @@ async function dataOperations(ctx) {
     return true;
   }
   if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) && !["field-options", "original-values", "history", "owner-transfer", "share", "export-file", "export-capabilities"].includes(action)) return false;
-  const entityCode = args.required("entity"), root = `/api/data/v1/entities/${segment(entityCode)}`, records = `${root}/records`;
+  const entityCode = args.required("entity"), root2 = `/api/data/v1/entities/${segment(entityCode)}`, records = `${root2}/records`;
   if (action === "export-file") {
     await exportRecordsFile(ctx);
     return true;
   }
   if (action === "export-capabilities") {
-    await api(ctx, "GET", `${root}/exports/capabilities`);
+    await api(ctx, "GET", `${root2}/exports/capabilities`);
     return true;
   }
   if (Object.hasOwn(queryActions, action)) {
@@ -1083,19 +1101,19 @@ async function dataOperations(ctx) {
       throw new CliError(`Supply a nonempty ${key} array and optional boolean allOrNone.`, { code: "invalid_arguments" });
     const recordIds = key === "recordIds" ? body.recordIds : action === "batch-update" ? body.records.map((item) => item?.recordId) : void 0;
     if (recordIds?.some((id) => typeof id !== "string" || !id)) throw new CliError("Each record ID must be a nonempty string.", { code: "invalid_arguments" });
-    const value = await apiValue(ctx, "POST", `${records}:${suffix}`, body, { mutation: {
+    const value2 = await apiValue(ctx, "POST", `${records}:${suffix}`, body, { mutation: {
       entityCode,
       recordCount: body[key].length,
       ...recordIds ? { recordIds } : {},
       readback: ["data", "query", entityCode]
     } });
-    if (isObject(value) && Array.isArray(value.results) && value.results.some((item) => item?.success === false))
-      throw new CliError("One or more collection items failed. Inspect each result before another write.", { code: "collection_failed", details: { entityCode, result: value } });
-    reporter.print(value);
+    if (isObject(value2) && Array.isArray(value2.results) && value2.results.some((item) => item?.success === false))
+      throw new CliError("One or more collection items failed. Inspect each result before another write.", { code: "collection_failed", details: { entityCode, result: value2 } });
+    reporter.print(value2);
     return true;
   }
   if (action === "field-options") {
-    await api(ctx, "GET", `${root}/fields/${segment(args.required("field"))}/options${page(args, true)}`);
+    await api(ctx, "GET", `${root2}/fields/${segment(args.required("field"))}/options${page(args, true)}`);
     return true;
   }
   const recordId = args.required("id"), record = `${records}/${segment(recordId)}`;
@@ -1128,14 +1146,14 @@ async function dataOperations(ctx) {
 }
 
 // src/xrain-cli/record-creation.mjs
-function creationKey(value) {
-  if (!nonempty(value) || value.length > 160)
+function creationKey(value2) {
+  if (!nonempty(value2) || value2.length > 160)
     throw new CliError("requestKey must be a nonempty string of at most 160 characters.", { code: "invalid_arguments" });
-  return value;
+  return value2;
 }
-var isRecord = (value) => isObject(value) && nonempty(value.entityCode) && nonempty(value.recordId) && isObject(value.values);
+var isRecord = (value2) => isObject(value2) && nonempty(value2.entityCode) && nonempty(value2.recordId) && isObject(value2.values);
 var recovery = "Use data creation-result with the same entity, --request-key, target and identity before another write. Keep the original key and values; the CLI does not retry automatically.";
-function contextualError2(error, entity, key, write = false) {
+function contextualError2(error, entity2, key, write = false) {
   if (!(error instanceof CliError)) return error;
   const unknown = write && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
   return new CliError(error.message, {
@@ -1144,10 +1162,10 @@ function contextualError2(error, entity, key, write = false) {
     serverCode: error.serverCode,
     requestId: error.requestId,
     hint: [error.hint, recovery].filter(Boolean).join(" "),
-    details: { ...error.details, entityCode: entity, requestKey: key }
+    details: { ...error.details, entityCode: entity2, requestKey: key }
   });
 }
-async function createRecord(ctx, entity, path, input3) {
+async function createRecord(ctx, entity2, path, input3) {
   const body = { ...input3 };
   if (ctx.args.has("request-key")) {
     if (Object.hasOwn(body, "requestKey")) throw new CliError("Supply requestKey in JSON or --request-key, not both.", { code: "invalid_arguments" });
@@ -1155,8 +1173,8 @@ async function createRecord(ctx, entity, path, input3) {
   }
   if (body.requestKey == null) {
     ctx.reporter.print(await apiValue(ctx, "POST", path, body, { mutation: {
-      entityCode: entity,
-      readback: ["data", "query", entity],
+      entityCode: entity2,
+      readback: ["data", "query", entity2],
       hint: "Creation outcome is unknown. Inspect records using the same entity, profile and identity before another create. A matching current record does not prove this request succeeded; do not automatically replay it."
     } }));
     return 0;
@@ -1169,19 +1187,19 @@ async function createRecord(ctx, entity, path, input3) {
     ctx.reporter.print(record);
     return 0;
   } catch (error) {
-    throw contextualError2(error, entity, key, true);
+    throw contextualError2(error, entity2, key, true);
   }
 }
-async function creationResult(ctx, entity, path) {
+async function creationResult(ctx, entity2, path) {
   const key = creationKey(ctx.args.required("request-key"));
   try {
-    const value = await apiValue(ctx, "POST", path + ":creationResult", { requestKey: key });
-    if (!isObject(value) || !["unknown", "completed"].includes(value.status) || (value.status === "completed" ? !isRecord(value.record) : value.record != null))
+    const value2 = await apiValue(ctx, "POST", path + ":creationResult", { requestKey: key });
+    if (!isObject(value2) || !["unknown", "completed"].includes(value2.status) || (value2.status === "completed" ? !isRecord(value2.record) : value2.record != null))
       throw new CliError("The server returned an invalid creation result.", { code: "invalid_response" });
-    ctx.reporter.print({ ...value, requestKey: key });
+    ctx.reporter.print({ ...value2, requestKey: key });
     return 0;
   } catch (error) {
-    throw contextualError2(error, entity, key);
+    throw contextualError2(error, entity2, key);
   }
 }
 
@@ -1288,9 +1306,9 @@ async function dataCommands(ctx) {
   if (action === "import") return dataImportCommands(ctx);
   if (await dataOperations(ctx)) return 0;
   if (!["query", "get", "create", "creation-result", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, creation-result, update or delete.");
-  const entity = args.required("entity", args.operand(2));
-  const root = `/api/data/v1/entities/${segment(entity)}/records`;
-  if (action === "creation-result") return creationResult(ctx, entity, root);
+  const entity2 = args.required("entity", args.operand(2));
+  const root2 = `/api/data/v1/entities/${segment(entity2)}/records`;
+  if (action === "creation-result") return creationResult(ctx, entity2, root2);
   if (action === "query") {
     let query2 = await jsonInput(args, "query");
     if (query2 === void 0) {
@@ -1299,28 +1317,28 @@ async function dataCommands(ctx) {
       if (args.value("fields")) query2.fields = args.value("fields").split(",").map((v) => v.trim()).filter(Boolean);
       const filter = await jsonInput(args, "filter", false);
       if (filter !== void 0) query2.filter = filter;
-      if (args.value("sort")) query2.sort = args.value("sort").split(",").filter(Boolean).map((value) => {
-        const parts = value.split(":").map((v) => v.trim());
+      if (args.value("sort")) query2.sort = args.value("sort").split(",").filter(Boolean).map((value2) => {
+        const parts = value2.split(":").map((v) => v.trim());
         const [field, direction = "asc"] = parts;
         if (parts.length > 2 || !field || !["asc", "desc"].includes(direction)) throw new CliError("--sort must use field:asc or field:desc.", { code: "invalid_arguments" });
         return { field, direction };
       });
     }
     if (!isObject(query2)) throw new CliError("Query JSON must be an object.");
-    return api(ctx, "POST", root + ":query", query2);
+    return api(ctx, "POST", root2 + ":query", query2);
   }
   const id = action === "create" ? void 0 : args.required("id", args.operand(args.has("entity") ? 2 : 3));
-  const path = id === void 0 ? root : root + "/" + segment(id);
+  const path = id === void 0 ? root2 : root2 + "/" + segment(id);
   const recovery2 = { mutation: {
-    entityCode: entity,
+    entityCode: entity2,
     ...id !== void 0 ? { recordId: id } : {},
-    readback: ["data", "get", entity, id]
+    readback: ["data", "get", entity2, id]
   } };
   if (action === "get" || action === "delete") return api(ctx, action === "get" ? "GET" : "DELETE", path, void 0, action === "delete" ? recovery2 : void 0);
   const values = await jsonInput(args, "values");
   if (!isObject(values)) throw new CliError("Values JSON must be an object. Use --values or --values-json.");
   const body = Object.hasOwn(values, "values") ? values : { values };
-  return action === "create" ? createRecord(ctx, entity, path, body) : api(ctx, "PUT", path, body, recovery2);
+  return action === "create" ? createRecord(ctx, entity2, path, body) : api(ctx, "PUT", path, body, recovery2);
 }
 async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
@@ -1347,14 +1365,14 @@ async function securityCommands(ctx) {
     const values = await jsonInput(args, "values");
     if (values !== void 0 && !isObject(values)) throw new CliError(`${label} values JSON must be an object.`, { code: "invalid_arguments" });
     if (isUser) {
-      for (const [key, value2] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value2);
+      for (const [key, value3] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value3);
     }
     if (values && Object.hasOwn(values, inputName) && (typeof values[inputName] !== "string" || !equalIgnoreCase(values[inputName], name)))
       throw new CliError(`${inputName} in JSON must match --${singular}.`, { code: "invalid_arguments" });
     if (action === "ensure") {
       try {
-        const value2 = await apiValue(ctx, "GET", path);
-        reporter.print({ created: false, [resultName]: isUser ? tenantMemberOutput(value2) : value2 });
+        const value3 = await apiValue(ctx, "GET", path);
+        reporter.print({ created: false, [resultName]: isUser ? tenantMemberOutput(value3) : value3 });
         return 0;
       } catch (error) {
         if (error.httpStatus !== 404 || error.serverCode !== `platform.authen.${singular.replace("-", "_")}_not_found`) throw error;
@@ -1364,10 +1382,10 @@ async function securityCommands(ctx) {
       code: action === "ensure" ? "creation_input_required" : "invalid_arguments",
       hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments."
     });
-    const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
+    const value2 = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
       mutation: { resource, name, readback: ["security", singular, "show", name] }
     });
-    const result = isUser ? tenantMemberOutput(value) : value;
+    const result = isUser ? tenantMemberOutput(value2) : value2;
     reporter.print(action === "ensure" ? { created: true, [resultName]: result } : result);
     return 0;
   }
@@ -1376,54 +1394,54 @@ async function securityCommands(ctx) {
     reporter.print(tenantMemberOutput(await apiValue(ctx, "GET", path)));
     return 0;
   }
-  const match = /^(grant|revoke)-(role|permission-set|permission)$/.exec(action ?? "");
+  const match2 = /^(grant|revoke)-(role|permission-set|permission)$/.exec(action ?? "");
   const allowed = { user: ["role", "permission-set"], role: ["permission-set"], "permission-set": ["permission"] };
-  if (!match || !allowed[singular].includes(match[2])) throw new CliError("Invalid security action. Run --help.");
+  if (!match2 || !allowed[singular].includes(match2[2])) throw new CliError("Invalid security action. Run --help.");
   const raw = args.value("names") ?? args.value("roles") ?? args.value("permission-sets") ?? args.value("permissions");
   if (!raw) throw new CliError("Names are required: --names <name1,name2>.");
   const names = [], seen = /* @__PURE__ */ new Set();
-  for (const value of raw.split(/[,;]/).map((v) => v.trim()).filter(Boolean)) if (!seen.has(value.toLowerCase())) {
-    seen.add(value.toLowerCase());
-    names.push(value);
+  for (const value2 of raw.split(/[,;]/).map((v) => v.trim()).filter(Boolean)) if (!seen.has(value2.toLowerCase())) {
+    seen.add(value2.toLowerCase());
+    names.push(value2);
   }
   if (!names.length) throw new CliError("At least one name is required.");
-  const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match[2]];
-  const method = match[1] === "grant" ? "POST" : "DELETE";
+  const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match2[2]];
+  const method = match2[1] === "grant" ? "POST" : "DELETE";
   const recovery2 = { mutation: { resource, name, membership: suffix, names, readback: ["security", singular, "show", name] } };
   if (singular !== "user") return api(ctx, method, path + "/" + suffix, { names }, recovery2);
   reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + "/" + suffix, { names }, recovery2)));
   return 0;
 }
-function tenantMemberOutput(value) {
-  if (!isObject(value)) return value;
-  const { accountIsActive: _accountIsActive, ...member } = value;
+function tenantMemberOutput(value2) {
+  if (!isObject(value2)) return value2;
+  const { accountIsActive: _accountIsActive, ...member } = value2;
   return member;
 }
 async function hostCommands(ctx) {
   const { args, reporter } = ctx;
   const tenantId = args.required("tenant-id");
-  const root = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
+  const root2 = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
   const options = { requireTenant: false };
   if (args.command(3) === "list") {
     const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) });
     if (args.has("search")) query2.set("search", args.value("search"));
-    return api(ctx, "GET", `${root}?${query2}`, void 0, options);
+    return api(ctx, "GET", `${root2}?${query2}`, void 0, options);
   }
   const userId = args.required("user-id");
   for (let page3 = 1; ; page3++) {
     const query2 = new URLSearchParams({ search: userId, page: String(page3), pageSize: "100" });
-    const value = await apiValue(ctx, "GET", `${root}?${query2}`, void 0, options);
-    if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
+    const value2 = await apiValue(ctx, "GET", `${root2}?${query2}`, void 0, options);
+    if (!Array.isArray(value2?.items) || !Number.isSafeInteger(value2.totalCount) || value2.totalCount < 0 || !Number.isSafeInteger(value2.pageSize) || value2.pageSize < 1)
       throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
-    const member2 = value.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
+    const member2 = value2.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
     if (member2) {
       reporter.print({ created: false, member: member2 });
       return 0;
     }
-    if (page3 * value.pageSize >= value.totalCount) break;
-    if (!value.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
+    if (page3 * value2.pageSize >= value2.totalCount) break;
+    if (!value2.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
   }
-  const member = await apiValue(ctx, "POST", root, { userId, isAdministrator: false }, {
+  const member = await apiValue(ctx, "POST", root2, { userId, isAdministrator: false }, {
     ...options,
     mutation: { targetTenantId: tenantId, userId, readback: ["host", "tenant", "member", "list", tenantId] }
   });
@@ -1588,16 +1606,16 @@ function isDisjoint(...headers) {
       }
   return true;
 }
-function decodeBase64url(value, label, ErrorClass) {
+function decodeBase64url(value2, label, ErrorClass) {
   try {
-    return decode(value);
+    return decode(value2);
   } catch {
     throw new ErrorClass(`Failed to base64url decode the ${label}`);
   }
 }
-function encodeBase64url(value, label, ErrorClass) {
+function encodeBase64url(value2, label, ErrorClass) {
   try {
-    return encode(value);
+    return encode(value2);
   } catch {
     throw new ErrorClass(`The ${label} is not a valid base64url string`);
   }
@@ -1761,7 +1779,7 @@ function normalizeJwk(jwk) {
   if (normalized.ext !== void 0 && typeof normalized.ext != "boolean")
     throw new TypeError('"ext" (Extractable) Parameter must be a boolean');
   if (normalized.key_ops !== void 0) {
-    const value = normalized.key_ops, keyOps = Array.isArray(value) ? [...value] : void 0;
+    const value2 = normalized.key_ops, keyOps = Array.isArray(value2) ? [...value2] : void 0;
     if (!keyOps || keyOps.some((operation) => typeof operation != "string") || new Set(keyOps).size !== keyOps.length)
       throw new TypeError('"key_ops" (Key Operations) Parameter must be an array of unique strings');
     normalized.key_ops = keyOps;
@@ -1927,7 +1945,7 @@ function secs(str) {
   typeof str != "string" && invalidDuration();
   const matched = REGEX.exec(str);
   (!matched || matched[4] && matched[1]) && invalidDuration();
-  const value = parseFloat(matched[2]), numericDate2 = Math.round(value * multipliers[matched[3][0].toLowerCase()]);
+  const value2 = parseFloat(matched[2]), numericDate2 = Math.round(value2 * multipliers[matched[3][0].toLowerCase()]);
   return Number.isFinite(numericDate2) || invalidDuration(), matched[1] === "-" || matched[4] === "ago" ? -numericDate2 : numericDate2;
 }
 function validateInput(label, input3) {
@@ -1935,17 +1953,17 @@ function validateInput(label, input3) {
     throw new TypeError(`Invalid ${label} input`);
   return input3;
 }
-var normalizeTyp = (value) => {
-  const normalized = value.toLowerCase();
-  return value.includes("/") ? normalized : `application/${normalized}`;
+var normalizeTyp = (value2) => {
+  const normalized = value2.toLowerCase();
+  return value2.includes("/") ? normalized : `application/${normalized}`;
 };
 var checkAudiencePresence = (audPayload, audOption) => typeof audPayload == "string" ? audOption.includes(audPayload) : Array.isArray(audPayload) ? audOption.some((aud) => audPayload.includes(aud)) : false;
 function validateNumericDate(payload, claim, required = false) {
-  const value = payload[claim];
-  if (!(value === void 0 && !required)) {
-    if (typeof value != "number")
+  const value2 = payload[claim];
+  if (!(value2 === void 0 && !required)) {
+    if (typeof value2 != "number")
       throw new JWTClaimValidationFailed(`"${claim}" claim must be a number`, payload, claim, "invalid");
-    return value;
+    return value2;
   }
 }
 function unexpectedClaim(payload, claim) {
@@ -2085,7 +2103,7 @@ var OidcLogin = class {
     this.nonce = randomBytes4(32).toString("base64url");
     this.verifier = randomBytes4(32).toString("base64url");
     const url = new URL(this.metadata.authorization_endpoint);
-    for (const [key, value] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: "code", state: this.state, nonce: this.nonce, code_challenge: createHash2("sha256").update(this.verifier).digest("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value);
+    for (const [key, value2] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: "code", state: this.state, nonce: this.nonce, code_challenge: createHash2("sha256").update(this.verifier).digest("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value2);
     return url.href;
   }
   async verifyIdentity(identityToken, accessToken, { nonceRequired = true } = {}) {
@@ -2156,15 +2174,15 @@ var DeviceLogin = class extends OidcLogin {
       timeout: 3e4,
       limit: 1024 * 1024
     }));
-    const value = response.json();
-    if (!nonempty(value?.device_code) || !nonempty(value?.user_code) || value.user_code.length > 128 || /[\p{Cc}]/u.test(value.user_code) || !nonempty(value?.verification_uri) || !Number.isSafeInteger(value?.expires_in) || value.expires_in <= 0 || value.interval !== void 0 && (!Number.isSafeInteger(value.interval) || value.interval <= 0))
+    const value2 = response.json();
+    if (!nonempty(value2?.device_code) || !nonempty(value2?.user_code) || value2.user_code.length > 128 || /[\p{Cc}]/u.test(value2.user_code) || !nonempty(value2?.verification_uri) || !Number.isSafeInteger(value2?.expires_in) || value2.expires_in <= 0 || value2.interval !== void 0 && (!Number.isSafeInteger(value2.interval) || value2.interval <= 0))
       throw new CliError("The authentication server returned an invalid device request.", { code: "invalid_response" });
-    const uri = httpUrl(value.verification_uri, "Device verification URL");
-    this.reporter?.secret(value.device_code);
-    this.deviceCode = value.device_code;
-    this.interval = value.interval ?? 5;
-    this.expiresAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + value.expires_in * 1e3);
-    return { verificationUri: uri.href, userCode: value.user_code };
+    const uri = httpUrl(value2.verification_uri, "Device verification URL");
+    this.reporter?.secret(value2.device_code);
+    this.deviceCode = value2.device_code;
+    this.interval = value2.interval ?? 5;
+    this.expiresAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + value2.expires_in * 1e3);
+    return { verificationUri: uri.href, userCode: value2.user_code };
   }
   async complete() {
     if (!this.deviceCode || this.consumed) throw new CliError("Device login was not started or was already used.");
@@ -2188,18 +2206,18 @@ var DeviceLogin = class extends OidcLogin {
         limit: 1024 * 1024
       });
       if (!response.ok) {
-        let value;
+        let value2;
         try {
-          value = response.json();
+          value2 = response.json();
         } catch {
         }
-        if (response.status === 400 && value?.error === "authorization_pending") continue;
-        if (response.status === 400 && value?.error === "slow_down") {
+        if (response.status === 400 && value2?.error === "authorization_pending") continue;
+        if (response.status === 400 && value2?.error === "slow_down") {
           this.interval += 5;
           continue;
         }
-        if (response.status === 400 && value?.error === "access_denied") throw new CliError("Device login was declined.", { code: "device_login_denied" });
-        if (response.status === 400 && value?.error === "expired_token") throw new CliError("Device login expired.", { code: "device_login_expired" });
+        if (response.status === 400 && value2?.error === "access_denied") throw new CliError("Device login was declined.", { code: "device_login_denied" });
+        if (response.status === 400 && value2?.error === "expired_token") throw new CliError("Device login expired.", { code: "device_login_expired" });
         requireSuccess(response);
       }
       const tokens = response.json();
@@ -2214,8 +2232,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve6, reject) => {
-    accept = resolve6;
+  const callback = new Promise((resolve8, reject) => {
+    accept = resolve8;
     fail = reject;
   });
   callback.catch(() => {
@@ -2244,9 +2262,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve6, reject) => {
+  await new Promise((resolve8, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve6);
+    server.listen(Number(expected.port), expected.hostname, resolve8);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2269,13 +2287,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve6) => {
+  return new Promise((resolve8) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve6(false));
+    child.on("error", () => resolve8(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve6(code === 0));
+    child.on("exit", (code) => resolve8(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -2402,8 +2420,8 @@ import { inflateRawSync } from "node:zlib";
 var MAX_ARCHIVE = 16 * 1024 * 1024;
 var MAX_SOURCE = 32 * 1024 * 1024;
 var MAX_MANIFEST = 1024 * 1024;
-var validPackageId = (value) => typeof value === "string" && value.length === 20 && /^apg[a-z0-9]{17}$/.test(value);
-var validVersionId = (value) => typeof value === "string" && value.length === 20 && /^apv[a-z0-9]{17}$/.test(value);
+var validPackageId = (value2) => typeof value2 === "string" && value2.length === 20 && /^apg[a-z0-9]{17}$/.test(value2);
+var validVersionId = (value2) => typeof value2 === "string" && value2.length === 20 && /^apv[a-z0-9]{17}$/.test(value2);
 var crcTable = Array.from({ length: 256 }, (_, i) => {
   for (let j = 0; j < 8; j++) i = i & 1 ? 3988292384 ^ i >>> 1 : i >>> 1;
   return i >>> 0;
@@ -2467,11 +2485,14 @@ var requestFields = {
   preview: installFields,
   install: [...installFields, "requestId"],
   resolve: ["expectedRevision", "resolutions", "tenantBindings", "confirmations", "configurationChanges"],
-  retry: ["requestId", "expectedRevision"]
+  retry: ["requestId", "expectedRevision"],
+  uninstall: ["requestId", "expectedRevision"],
+  "policy-apply": ["targetPolicyVersion", "expectedRevision", "restorePackageProperties", "tenantBindings", "configurationChanges", "confirmations", "requestId"],
+  "policy-convert": ["targetPolicyVersion", "expectedRevision"]
 };
 var invalid3 = (message2) => new CliError(message2, { code: "invalid_arguments" });
-function exposeApplicationConfirmations(reporter, value) {
-  for (const container of [value, value?.details]) {
+function exposeApplicationConfirmations(reporter, value2) {
+  for (const container of [value2, value2?.details]) {
     if (!Array.isArray(container?.requiredConfirmations)) continue;
     for (const item of container.requiredConfirmations) {
       if (isObject(item) && nonempty(item.recordId) && nonempty(item.unit) && nonempty(item.token))
@@ -2479,18 +2500,18 @@ function exposeApplicationConfirmations(reporter, value) {
     }
   }
 }
-function output(ctx, value) {
-  exposeApplicationConfirmations(ctx.reporter, value);
-  ctx.reporter.print(value);
+function output(ctx, value2) {
+  exposeApplicationConfirmations(ctx.reporter, value2);
+  ctx.reporter.print(value2);
   return 0;
 }
 async function input2(args, action) {
   const path = args.value("request-json") ?? args.value("file");
-  const value = path === void 0 ? {} : await readJsonInput(path, "Application request");
-  if (!isObject(value)) throw invalid3("Application request must be a JSON object.");
-  if (Object.keys(value).some((key) => !requestFields[action].includes(key)))
+  const value2 = path === void 0 ? {} : await readJsonInput(path, "Application request");
+  if (!isObject(value2)) throw invalid3("Application request must be a JSON object.");
+  if (Object.keys(value2).some((key) => !requestFields[action].includes(key)))
     throw invalid3(`Unsupported ${action} request field. Allowed fields: ${requestFields[action].join(", ")}.`);
-  const body = { ...value };
+  const body = { ...value2 };
   for (const [option, field] of [
     ["version-id", "versionId"],
     ["expected-revision", "expectedRevision"],
@@ -2505,7 +2526,7 @@ async function input2(args, action) {
   }
   if (["preview", "install"].includes(action) && !nonempty(body.versionId))
     throw invalid3("An exact versionId is required via --version-id or --request-json. Use app versions to select it.");
-  if (body.expectedRevision != null && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0) || action === "resolve" && body.expectedRevision == null)
+  if (body.expectedRevision != null && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0) || ["resolve", "uninstall"].includes(action) && body.expectedRevision == null)
     throw invalid3("expectedRevision must be a nonnegative safe integer; resolve requires the revision you inspected.");
   if (body.requestId != null && (typeof body.requestId !== "string" || body.requestId.length !== 20 || !/^apo[A-Za-z0-9]{17}$/.test(body.requestId)))
     throw invalid3("requestId must be a 20-character operation ID starting with apo.");
@@ -2517,10 +2538,10 @@ async function input2(args, action) {
     throw invalid3("confirmations must contain the chosen server-provided {recordId,unit,token} entries.");
   return body;
 }
-function operationResponse(value, expectedId, expectedVersion, previous) {
-  if (!isObject(value) || value.id !== expectedId || !nonempty(value.installationId) || !statuses2.has(value.status) || expectedVersion !== void 0 && value.targetVersionId !== expectedVersion || previous && (value.installationId !== previous.installationId || value.targetVersionId !== previous.targetVersionId))
+function operationResponse(value2, expectedId, expectedVersion, previous) {
+  if (!isObject(value2) || value2.id !== expectedId || !nonempty(value2.installationId) || !statuses2.has(value2.status) || expectedVersion !== void 0 && value2.targetVersionId !== expectedVersion || previous && (value2.installationId !== previous.installationId || value2.targetVersionId !== previous.targetVersionId))
     throw new CliError("The server returned an invalid or mismatched application operation.", { code: "invalid_response" });
-  return value;
+  return value2;
 }
 function queryHint(id) {
   return `Use app operation show --operation ${id} with the same target/profile before any further write.`;
@@ -2604,13 +2625,15 @@ async function waitOperation(ctx, api3, operation, settings) {
   }
   return operation;
 }
-async function submit(ctx, api3, path, body, context, { cancel = false } = {}) {
+async function submit(ctx, api3, path, body, context, { cancel = false, method = "POST" } = {}) {
   const settings = waitSettings(ctx.args, ctx.args.has("wait"));
   let operation;
   ctx.reporter.progress(`Submitting operation ${context.operationId}. Keep this ID if the response is interrupted.`);
   try {
-    const response = requireSuccess(await api3.send("POST", path, { ...body === void 0 ? {} : { json: body }, timeout: remaining(settings) }));
+    const response = requireSuccess(await api3.send(method, path, { ...body === void 0 ? {} : { json: body }, timeout: remaining(settings) }));
     operation = operationResponse(response.json(), context.operationId, context.versionId);
+    if (context.installationId && operation.installationId !== context.installationId)
+      throw new CliError("The operation does not belong to the requested installation.", { code: "invalid_response" });
     if (ctx.args.has("wait")) operation = await waitOperation(ctx, api3, operation, settings);
     checkOutcome(operation, cancel);
     return output(ctx, operation);
@@ -2623,6 +2646,57 @@ async function submit(ctx, api3, path, body, context, { cancel = false } = {}) {
 async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === "components") {
+    const packageId = args.required("package"), versionId = args.required("version-id"), api3 = createClient();
+    return output(ctx, requireSuccess(await api3.send("GET", `${api3.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());
+  }
+  if (action === "withdraw") {
+    const packageId = args.required("package"), requestId = args.required("request-id"), api3 = createClient();
+    return output(ctx, await writeOnce(
+      async () => operationResponse(requireSuccess(await api3.send("POST", `${api3.root}/packages/${segment(packageId)}/requests/${segment(requestId)}/withdraw`)).json(), requestId),
+      "Withdrawal outcome is unknown. Read the original package and submission before another write.",
+      { packageId, requestId }
+    ));
+  }
+  if (action === "uninstall") {
+    const installationId = args.required("installation"), body = await input2(args, "uninstall"), api3 = createClient();
+    body.requestId ??= randomId("apo");
+    return writeOnce(() => submit(
+      ctx,
+      api3,
+      `${api3.root}/installations/${segment(installationId)}`,
+      body,
+      { installationId, requestId: body.requestId, operationId: body.requestId },
+      { method: "DELETE" }
+    ), queryHint(body.requestId), { installationId, operationId: body.requestId });
+  }
+  if (action === "policy") {
+    const installationId = args.required("installation"), api3 = createClient();
+    if (args.command(2) === "preview") return output(ctx, requireSuccess(await api3.send("POST", `${api3.root}/installations/${segment(installationId)}/policy:preview`)).json());
+    const body = await input2(args, "policy-apply");
+    if (!Number.isSafeInteger(body.targetPolicyVersion) || body.targetPolicyVersion < 1 || body.expectedRevision == null)
+      throw invalid3("Policy application requires targetPolicyVersion and expectedRevision.");
+    body.requestId ??= randomId("apo");
+    return writeOnce(() => submit(
+      ctx,
+      api3,
+      `${api3.root}/installations/${segment(installationId)}/policy:apply`,
+      body,
+      { installationId, requestId: body.requestId, operationId: body.requestId }
+    ), queryHint(body.requestId), { installationId, operationId: body.requestId });
+  }
+  if (action === "component") {
+    const installationId = args.required("installation"), recordId = args.required("id"), api3 = createClient();
+    if (!args.has("expected-revision")) throw invalid3("--expected-revision is required. Read the original installation first.");
+    const rawRevision = args.value("expected-revision");
+    if (!/^[0-9]+$/.test(rawRevision) || !Number.isSafeInteger(Number(rawRevision))) throw invalid3("--expected-revision must be a nonnegative safe integer.");
+    const result = await writeOnce(async () => {
+      const value2 = requireSuccess(await api3.send("POST", `${api3.root}/installations/${segment(installationId)}/components/${segment(recordId)}:restore`, { json: { expectedRevision: Number(rawRevision) } })).json();
+      if (value2?.id !== installationId) throw new CliError("The restored installation does not match the target.", { code: "invalid_response" });
+      return value2;
+    }, "Restore outcome is unknown. Read the original installation and component before another write.", { installationId, recordId });
+    return output(ctx, result);
+  }
   if (action === "list" || action === "versions") {
     const api3 = createClient();
     const path = action === "list" ? "/packages" : `/packages/${segment(args.required("package"))}/versions`;
@@ -2657,12 +2731,23 @@ async function appManagementCommands(ctx, createClient) {
   }
   if (action === "installation") {
     const id = args.required("installation"), api3 = createClient();
+    const sub = args.command(2);
+    if (sub !== "show") {
+      const suffix = sub === "components" ? "/components" : sub === "history" ? "/operations?" + new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) }) : "/check";
+      return output(ctx, requireSuccess(await api3.send(sub === "check" ? "POST" : "GET", `${api3.root}/installations/${segment(id)}${suffix}`)).json());
+    }
     const result = requireSuccess(await api3.send("GET", `${api3.root}/installations/${segment(id)}`)).json();
     if (result?.id !== id) throw new CliError("The installation response does not match the requested ID.", { code: "invalid_response" });
     return output(ctx, result);
   }
   if (action === "operation") {
     const id = args.required("operation"), operationAction = args.command(2);
+    if (operationAction === "policy-apply") {
+      const body2 = await input2(args, "policy-convert"), api4 = createClient();
+      if (!Number.isSafeInteger(body2.targetPolicyVersion) || body2.targetPolicyVersion < 1 || body2.expectedRevision == null)
+        throw invalid3("Operation policy conversion requires targetPolicyVersion and expectedRevision.");
+      return writeOnce(() => submit(ctx, api4, `${api4.root}/operations/${segment(id)}/policy:apply`, body2, { operationId: id }), queryHint(id), { operationId: id });
+    }
     const body = requestFields[operationAction] ? await input2(args, operationAction) : void 0;
     if (operationAction === "retry") {
       body.requestId ??= randomId("apo");
@@ -2699,10 +2784,12 @@ async function appManagementCommands(ctx, createClient) {
 }
 
 // src/xrain-cli/app.mjs
-function client(ctx) {
+function appClient(ctx, { allowHost = false } = {}) {
   const market = ctx.args.has("exchange");
-  const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, true);
-  const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant);
+  const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, !allowHost);
+  if (!market && allowHost && profile.scope !== "host" && !profile.tenant)
+    throw new CliError("Tenant is required unless an explicit Host profile is selected.", { code: "tenant_required" });
+  const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
   if (!token) throw new CliError(market ? "Market login is required or expired. Run app login --exchange <url>." : "App login is required or expired. Run app login --server <url>.", {
     code: "authentication_required",
     hint: "Use auth status to inspect the session, then auth login for this target."
@@ -2717,6 +2804,7 @@ function client(ctx) {
     })
   };
 }
+var client = appClient;
 function initApp(ctx) {
   const namespace = ctx.args.required("namespace");
   const label = ctx.args.required("label").trim();
@@ -2734,21 +2822,21 @@ function initApp(ctx) {
   ctx.reporter.print(ctx.reporter.json ? { source: path, packageId: source.packageId, versionId: source.versionId, version: source.version } : `Created ${path}`);
   return 0;
 }
-async function buildApp(ctx, save) {
+async function buildApp(ctx, save2) {
   if (ctx.args.has("exchange")) throw new CliError("Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.");
   const sourcePath = resolve3(ctx.args.value("source") ?? "source.json");
   const source = readLimited(sourcePath, MAX_SOURCE, "Source JSON");
   const parsed = parseJson(source, "Source JSON");
   if (!isObject(parsed)) throw new CliError("Source JSON must be an object.");
-  let output2 = save && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0;
-  if (save && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
+  let output2 = save2 && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0;
+  if (save2 && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
     output2 = join4(dirname3(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
   if (output2) {
     if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
     accessSync(dirname3(output2), constants.W_OK);
   }
-  const { send: send2, root } = client(ctx);
-  const response = requireSuccess(await send2("POST", root + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
+  const { send: send2, root: root2 } = client(ctx);
+  const response = requireSuccess(await send2("POST", root2 + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
   const sourceHash = sha256(source), fileHash = sha256(response.bytes);
   if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
   if (response.headers.get("x-appkg-file-sha256")?.trim().toLowerCase() !== fileHash) throw new CliError("Build response archive digest is invalid.");
@@ -2757,7 +2845,7 @@ async function buildApp(ctx, save) {
   const manifest = readManifest(response.bytes);
   if (manifest.packageId !== packageId || manifest.version !== void 0 && manifest.version !== version) throw new CliError("Build response manifest does not match its headers.");
   if (validPackageId(parsed.packageId) && parsed.packageId !== packageId || typeof parsed.version === "string" && parsed.version !== version || typeof parsed.versionId === "string" && parsed.versionId !== manifest.versionId) throw new CliError("Build response package identity does not match the source.");
-  if (!save) {
+  if (!save2) {
     ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
     return 0;
   }
@@ -2773,8 +2861,8 @@ async function buildApp(ctx, save) {
   ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
   return 0;
 }
-async function published(send2, root) {
-  const result = requireSuccess(await send2("GET", root + "/my-published")).json();
+async function published(send2, root2) {
+  const result = requireSuccess(await send2("GET", root2 + "/my-published")).json();
   if (!Array.isArray(result) || result.some((item) => !item || !validPackageId(item.id))) throw new CliError("The server returned an invalid package list.");
   return result;
 }
@@ -2782,13 +2870,13 @@ async function publishApp(ctx) {
   const path = resolve3(ctx.args.required("file", ctx.args.operand(2)));
   const bytes = readLimited(path, MAX_ARCHIVE, "Package");
   const manifest = readManifest(bytes);
-  const { send: send2, root } = client(ctx);
-  const packages = await published(send2, root);
+  const { send: send2, root: root2 } = client(ctx);
+  const packages = await published(send2, root2);
   const current = packages.find((item) => item.id === manifest.packageId);
   const headers = { "Content-Type": "application/octet-stream" };
   if (nonempty(current?.publishedVersionId)) headers["X-Appkg-Expected-Published-Version"] = current.publishedVersionId;
   try {
-    const result = requireSuccess(await send2("POST", root + "/packages:publish", { body: bytes, headers })).json();
+    const result = requireSuccess(await send2("POST", root2 + "/packages:publish", { body: bytes, headers })).json();
     if (result.packageId !== manifest.packageId || result.versionId !== manifest.versionId) throw new CliError("The publish response does not match the local package.");
     ctx.reporter.print({ packageId: result.packageId, versionId: result.versionId, version: result.version, published: true });
   } catch (error) {
@@ -2804,13 +2892,13 @@ async function publishApp(ctx) {
   return 0;
 }
 async function appStatus(ctx) {
-  const { send: send2, root } = client(ctx);
-  const packages = await published(send2, root);
+  const { send: send2, root: root2 } = client(ctx);
+  const packages = await published(send2, root2);
   const filter = ctx.args.value("package");
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
   const statuses3 = [];
   for (const item of selected) {
-    const versions = requireSuccess(await send2("GET", `${root}/packages/${encodeURIComponent(item.id)}/versions`)).json();
+    const versions = requireSuccess(await send2("GET", `${root2}/packages/${encodeURIComponent(item.id)}/versions`)).json();
     if (!Array.isArray(versions)) throw new CliError("The server returned an invalid version list.");
     statuses3.push({
       id: item.id,
@@ -2843,6 +2931,24 @@ async function appCommands(ctx) {
       return publishApp(ctx);
     case "status":
       return appStatus(ctx);
+    case "import-file": {
+      const bytes = readLimited(resolve3(ctx.args.required("file")), MAX_ARCHIVE, "Package"), manifest = readManifest(bytes);
+      const api3 = client(ctx, { allowHost: true });
+      const result = await writeOnce(async () => {
+        const response = requireSuccess(await api3.send("POST", api3.root + "/packages:import", { body: bytes, headers: { "Content-Type": "application/octet-stream" } }));
+        let value2;
+        try {
+          value2 = response.json();
+        } catch {
+          throw new CliError("The import response is invalid.", { code: "invalid_response" });
+        }
+        if (value2?.packageId !== manifest.packageId || value2?.versionId !== manifest.versionId)
+          throw new CliError("The import response does not match this package.", { code: "invalid_response" });
+        return value2;
+      }, "Import outcome is unknown. Read the original package versions before importing again; this command does not install or publish.", { packageId: manifest.packageId, versionId: manifest.versionId });
+      ctx.reporter.print(result);
+      return 0;
+    }
     default:
       return appManagementCommands(ctx, () => client(ctx));
   }
@@ -2877,21 +2983,21 @@ async function authCommands(ctx) {
       throw error;
     }
     if (!response.ok) throw responseError(response, "", details);
-    let value;
+    let value2;
     try {
-      value = response.json();
+      value2 = response.json();
     } catch {
       throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
     }
-    if (!isObject(value) || !nonempty(value.userId) || !Object.hasOwn(value, "tenantId") || !["tenant", "host"].includes(value.scope) || (value.scope === "tenant" ? !nonempty(value.tenantId) : value.tenantId !== null)) {
+    if (!isObject(value2) || !nonempty(value2.userId) || !Object.hasOwn(value2, "tenantId") || !["tenant", "host"].includes(value2.scope) || (value2.scope === "tenant" ? !nonempty(value2.tenantId) : value2.tenantId !== null)) {
       throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
     }
     const identity = {
       ...details,
       configuredTenant: profile.tenant ?? null,
-      userId: value.userId,
-      tenantId: value.tenantId,
-      scope: value.scope,
+      userId: value2.userId,
+      tenantId: value2.tenantId,
+      scope: value2.scope,
       remoteValidation: "identity_confirmed"
     };
     const appId = profile.invalidApplicationId ? void 0 : applicationId(profile);
@@ -2942,7 +3048,7 @@ async function authCommands(ctx) {
         details: { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } }
       });
     const actual = { runtime: runtime2, ...appId ? { applicationId: appId } : {}, userId: runtimeIdentity.userId, tenantId: runtimeIdentity.tenantId };
-    if (runtimeIdentity.userId !== value.userId || runtimeIdentity.tenantId !== value.tenantId)
+    if (runtimeIdentity.userId !== value2.userId || runtimeIdentity.tenantId !== value2.tenantId)
       throw new CliError("Runtime and platform identities do not match.", {
         code: "identity_mismatch",
         details: { platformIdentity: identity, agentContext: { ...actual, runtimeIdentity: "mismatch" } }
@@ -3063,11 +3169,18 @@ var applicationOperations = [
   define2("permission-set items", "PUT", app + "/permission-sets/{id}/items", { input: "object" }),
   define2("execution-authorization get", "GET", app + "/execution-authorization"),
   define2("execution-authorization grant", "PUT", app + "/execution-authorization/grants", { input: "object" }),
-  define2("message-robot set", "PUT", app + "/message-robot", { input: "object" }),
-  define2("message-authorization", "POST", app + "/message-authorization", { input: "object" }),
-  define2("admission", "POST", app + "/admission", { input: "object", readOnly: true }),
+  define2("message-robot set", "PUT", app + "/message-robot"),
+  define2("message-authorization", "POST", app + "/message-authorization"),
+  define2("admission", "POST", app + "/admission", { readOnly: true }),
   define2("directory members", "GET", app + "/directory/members"),
-  define2("directory departments", "GET", app + "/directory/departments")
+  define2("directory departments", "GET", app + "/directory/departments"),
+  define2("function list", "GET", app + "/functions"),
+  define2("function statistics", "GET", app + "/functions/statistics"),
+  define2("function set", "PUT", app + "/functions", { input: "object" }),
+  define2("function execute", "POST", app + "/functions/{id}:execute", { input: "object" }),
+  define2("function versions", "GET", "/api/xrain/v1/functions/{id}/versions"),
+  define2("function version-create", "POST", "/api/xrain/v1/functions/{id}/versions"),
+  define2("function version-test", "POST", "/api/xrain/v1/function-versions/{version-id}:test", { input: "object" })
 ];
 var tenants = "/api/service/authen/v1/host/tenants";
 var tenant = tenants + "/{tenant-id}";
@@ -3089,8 +3202,207 @@ var hostOperations = [
 
 // src/xrain-cli/management.mjs
 import { resolve as resolve4 } from "node:path";
-var managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations];
-var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]);
+
+// src/xrain-cli/metadata-operations.mjs
+var base2 = "/api/metadata/v1";
+var entity = base2 + "/entities/{entity}";
+var match = { "If-Match": "if-match" };
+var create = { ...match, "Idempotency-Key": "request-key" };
+var remove = { ...match, "X-Impact-Token": "impact-token" };
+var define3 = (path, method, route, options = {}) => ({ path: "metadata " + path, method, route, readback: ["metadata", "entities"], ...options });
+var metadataOperations = [
+  define3("entity list", "GET", base2 + "/objects", { responseHeaders: ["etag"] }),
+  define3("entity business-objects", "GET", base2 + "/business-objects", { responseHeaders: ["etag"] }),
+  define3("entity show", "GET", entity + "/describe", { responseHeaders: ["etag"] }),
+  define3("entity create", "POST", base2 + "/entities", { input: "object", headers: create }),
+  define3("entity update", "PATCH", entity, { input: "object", headers: match }),
+  define3("entity delete-impact", "GET", entity + "/delete-impact"),
+  define3("entity delete", "DELETE", entity, { headers: remove }),
+  define3("field list", "GET", entity + "/fields", { responseHeaders: ["etag"] }),
+  define3("field create", "POST", entity + "/fields", { input: "object", headers: create }),
+  define3("field update", "PATCH", entity + "/fields/{field}", { input: "object", headers: match }),
+  define3("field delete-impact", "GET", entity + "/fields/{field}/delete-impact"),
+  define3("field delete", "DELETE", entity + "/fields/{field}", { headers: remove }),
+  define3("field reconcile-permissions", "POST", entity + "/fields/{field}:reconcilePermissions"),
+  define3("field retry-deployment", "POST", entity + "/fields/{field}:retryDeployment", { headers: match }),
+  define3("field revise-deployment", "PATCH", entity + "/fields/{field}/failed-deployment", { input: "object", headers: create }),
+  define3("field abandon-deployment", "DELETE", entity + "/fields/{field}/failed-deployment", { headers: match }),
+  define3("view list", "GET", entity + "/views", { responseHeaders: ["etag"] }),
+  define3("view field-catalog", "GET", entity + "/view-field-catalog", { responseHeaders: ["etag"] }),
+  define3("view show", "GET", entity + "/views/{view}"),
+  define3("view query", "GET", entity + "/views/{view}/runtime-query"),
+  define3("view create", "POST", entity + "/views", { input: "object", headers: match }),
+  define3("view patch", "PATCH", entity + "/views/{view}", { input: "object", headers: match }),
+  define3("view update", "PUT", entity + "/views/{view}", { input: "object", headers: match }),
+  define3("view delete", "DELETE", entity + "/views/{view}", { headers: match }),
+  define3("entity permission", "GET", entity + "/permission"),
+  define3("entity access-governance", "GET", entity + "/access-governance"),
+  ...[["sharing-rule", "/sharing-rules"], ["sharing-formula", "/sharing-rule-formulas"]].flatMap(([name, suffix]) => [
+    define3(`${name} list`, "GET", base2 + suffix),
+    define3(`${name} show`, "GET", `${base2}${suffix}/{id}`),
+    define3(`${name} create`, "POST", base2 + suffix, { input: "object" }),
+    define3(`${name} update`, "PUT", `${base2}${suffix}/{id}`, { input: "object" }),
+    define3(`${name} delete`, "DELETE", `${base2}${suffix}/{id}`)
+  ]),
+  define3("sharing-rule patch", "PATCH", base2 + "/sharing-rules/{id}", { input: "object" }),
+  ...[["record-type", "/record-types"], ["trigger", "/triggers"]].flatMap(([name, suffix]) => [
+    define3(`${name} list`, "GET", entity + suffix),
+    define3(`${name} create`, "POST", entity + suffix, { input: "object" }),
+    define3(`${name} update`, "PUT", `${entity}${suffix}/{id}`, { input: "object" }),
+    define3(`${name} delete`, "DELETE", `${entity}${suffix}/{id}`)
+  ]),
+  define3("record-type patch", "PATCH", entity + "/record-types/{id}", { input: "object" }),
+  define3("record-type picklist-options", "GET", entity + "/record-types/picklist-options", { query: ["recordTypeId"] }),
+  define3("trigger dispatches", "GET", entity + "/triggers/dispatches", { query: ["triggerId", "eventType", "status", "eventId", "from", "to", "toExclusive", "page", "pageSize"] }),
+  define3("picklist list", "GET", base2 + "/picklists", { query: ["page", "pageSize", "search", "isActive", "sources"] }),
+  define3("picklist show", "GET", base2 + "/picklists/{id}"),
+  define3("picklist create", "POST", base2 + "/picklists", { input: "object" }),
+  define3("picklist clone", "POST", base2 + "/picklists/{id}/clone", { input: "object" }),
+  define3("picklist patch", "PATCH", base2 + "/picklists/{id}", { input: "object" }),
+  define3("picklist update", "PUT", base2 + "/picklists/{id}", { input: "object" }),
+  define3("picklist delete", "DELETE", base2 + "/picklists/{id}"),
+  define3("picklist-item list", "GET", base2 + "/picklists/{id}/items", { query: ["page", "pageSize", "search", "isActive", "sources"] }),
+  define3("picklist-item create", "POST", base2 + "/picklists/{id}/items", { input: "object" }),
+  define3("picklist-item patch", "PATCH", base2 + "/picklists/{id}/items/{item-id}", { input: "object" }),
+  define3("picklist-item update", "PUT", base2 + "/picklists/{id}/items/{item-id}", { input: "object" }),
+  define3("picklist-item delete", "DELETE", base2 + "/picklists/{id}/items/{item-id}"),
+  define3("dblink catalog", "GET", base2 + "/dblink/catalog"),
+  define3("dblink table", "GET", base2 + "/dblink/schemas/{schema}/tables/{table}", { query: ["previewLimit"] })
+];
+
+// src/xrain-cli/workflow-operations.mjs
+var define4 = (path, method, route, options = {}) => ({ path, method, route, ...options });
+var orchestration = "/api/orchestration/v1";
+var routine = "/api/automation/routines";
+var integration = "/api/integration/v1";
+var connector = integration + "/connectors/{connector}";
+var iface = integration + "/http-interfaces";
+var workflowOperations = [
+  define4("orchestration list", "GET", orchestration + "/definitions"),
+  define4("orchestration versions", "GET", orchestration + "/definitions/{id}/versions"),
+  define4("orchestration callables", "GET", orchestration + "/callables"),
+  define4("orchestration create", "POST", orchestration + "/definitions", { input: "object" }),
+  define4("orchestration update", "PUT", orchestration + "/definitions/{id}", { input: "object" }),
+  define4("orchestration delete", "DELETE", orchestration + "/definitions/{id}"),
+  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object" }),
+  define4("orchestration policy get", "GET", orchestration + "/policy"),
+  define4("orchestration policy set", "PUT", orchestration + "/policy", { input: "object" }),
+  define4("function list", "GET", orchestration + "/functions"),
+  define4("function create", "POST", orchestration + "/functions", { input: "object" }),
+  define4("function update", "PUT", orchestration + "/functions/{id}", { input: "object" }),
+  define4("function delete", "DELETE", orchestration + "/functions/{id}"),
+  define4("routine list", "GET", routine, { query: ["page", "pageSize", "search", "status", "sources"] }),
+  define4("routine show", "GET", routine + "/{id}"),
+  define4("routine create", "POST", routine, { input: "object" }),
+  ...["definition", "schedule", "owner"].map((action) => define4("routine " + action, "PUT", `${routine}/{id}/${action}`, { input: "object" })),
+  ...["enable", "pause"].map((action) => define4("routine " + action, "POST", `${routine}/{id}/${action}`)),
+  define4("routine run", "POST", routine + "/{id}/runs"),
+  define4("routine delete", "DELETE", routine + "/{id}"),
+  ...["versions", "active-runs", "history"].map((action) => define4("routine " + action, "GET", `${routine}/{id}/${action}`)),
+  define4("routine schedule-preview", "POST", routine + "/schedule-preview", { input: "object", readOnly: true }),
+  define4("routine execution-user get", "GET", routine + "/execution-user"),
+  define4("routine execution-user set", "PUT", routine + "/execution-user", { input: "object" }),
+  define4("http connector list", "GET", integration + "/connectors"),
+  define4("http connector show", "GET", connector),
+  define4("http connector create", "POST", integration + "/connectors", { input: "object" }),
+  define4("http connector update", "PUT", connector, { input: "object" }),
+  define4("http connector patch", "PATCH", connector, { input: "object" }),
+  define4("http connector delete", "DELETE", connector),
+  define4("http connector token-set", "POST", connector + "/token", { input: "object" }),
+  define4("http connector token-clear", "DELETE", connector + "/token"),
+  define4("http request list", "GET", connector + "/http-requests"),
+  define4("http request show", "GET", connector + "/http-requests/{name}"),
+  define4("http request create", "POST", connector + "/http-requests", { input: "object" }),
+  define4("http request update", "PUT", connector + "/http-requests/{name}", { input: "object" }),
+  define4("http request delete", "DELETE", connector + "/http-requests/{name}"),
+  define4("http request debug", "POST", integration + "/http-requests/{connector}/{name}/debug", { input: "json" }),
+  define4("http interface list", "GET", iface, { query: ["requestId", "triggerOnly"] }),
+  define4("http interface catalog", "GET", iface + "/catalog", { query: ["status"] }),
+  define4("http interface create", "POST", iface, { input: "object" }),
+  define4("http interface update", "PUT", iface + "/{id}", { input: "object" }),
+  define4("http interface delete", "DELETE", iface + "/{id}"),
+  define4("http interface from-orchestration", "POST", iface + "/from-orchestration/{id}", { input: "object" }),
+  define4("http interface policy get", "GET", iface + "/{id}/orchestration-policy"),
+  define4("http interface policy set", "PUT", iface + "/{id}/orchestration-policy", { input: "object" }),
+  define4("http interface invoke", "POST", iface + "/{id}", { input: "json" }),
+  define4("http interface debug", "POST", iface + "/{id}/debug/raw", { input: "json" })
+];
+var settingsOperations = [
+  define4("variable list", "GET", "/api/variables/items", { host: true, query: ["tenantId"] }),
+  define4("variable set", "PUT", "/api/variables/items", { host: true, query: ["tenantId"], input: "object", secretInput: ["value"] }),
+  define4("user regional get", "GET", "/api/service/authen/v1/account/regional-preferences", { host: true }),
+  define4("user regional set", "PUT", "/api/service/authen/v1/account/regional-preferences", { host: true, input: "object" }),
+  define4("tenant regional get", "GET", "/api/tenant/v1/settings/regional-defaults"),
+  define4("tenant regional set", "PUT", "/api/tenant/v1/settings/regional-defaults", { input: "object" }),
+  define4("time resolve", "POST", "/api/service/authen/v1/account/temporal/resolve", { input: "object", readOnly: true }),
+  define4("time day-range", "POST", "/api/service/authen/v1/account/temporal/day-range", { input: "object", readOnly: true }),
+  define4("recycle resources", "GET", "/api/service/recycle-bin/v1/resources"),
+  define4("recycle list", "GET", "/api/service/recycle-bin/v1/resources/{resource}/items", { query: ["page", "pageSize", "search"] }),
+  define4("recycle restore", "POST", "/api/service/recycle-bin/v1/resources/{resource}/items/{id}/restore")
+];
+for (const operation of [...workflowOperations, ...settingsOperations]) {
+  const root2 = operation.path.split(" ")[0];
+  operation.readback = root2 === "http" ? ["http", "interface", "catalog"] : root2 === "routine" ? ["routine", "list"] : root2 === "function" ? ["function", "list"] : root2 === "orchestration" ? ["orchestration", "list"] : root2 === "variable" ? ["variable", "list"] : root2 === "recycle" ? ["recycle", "resources"] : operation.path.split(" ").slice(0, 2).concat("get");
+}
+
+// src/xrain-cli/delivery-operations.mjs
+var define5 = (path, method, route, options = {}) => ({ path, method, route, ...options });
+var s3 = "/api/service/storage/v1/s3-accounts";
+var email = "/api/delivery/v1/email";
+var feishu = "/api/delivery/v1/feishu";
+var personal = email + "/me";
+var deliveryOperations = [
+  define5("storage account list", "GET", s3),
+  define5("storage account create", "POST", s3, { input: "object", secretInput: ["accessKeyId", "secretAccessKey"] }),
+  define5("storage account rename", "PUT", s3 + "/{id}/name", { input: "object" }),
+  define5("storage account credentials", "PUT", s3 + "/{id}/credentials", { input: "object", secretInput: ["accessKeyId", "secretAccessKey"] }),
+  define5("storage account check", "POST", s3 + "/{id}/test"),
+  define5("storage account default", "PUT", s3 + "/{id}/default"),
+  define5("email account list", "GET", email + "/accounts"),
+  define5("email account set", "PUT", email + "/accounts", { input: "object", secretInput: ["password", "smtpPassword"] }),
+  define5("email account check", "POST", email + "/accounts/{id}/test"),
+  define5("feishu account get", "GET", feishu + "/account"),
+  define5("feishu account set", "PUT", feishu + "/account", { input: "object" }),
+  define5("feishu account check", "POST", feishu + "/account/test"),
+  ...[["email", email], ["feishu", feishu]].flatMap(([name, base4]) => [
+    define5(`${name} template list`, "GET", base4 + "/templates"),
+    define5(`${name} template show`, "GET", base4 + "/templates/{id}"),
+    define5(`${name} template create`, "POST", base4 + "/templates", { input: "object" }),
+    define5(`${name} template update`, "PATCH", base4 + "/templates/{id}", { input: "object" }),
+    define5(`${name} template preview`, "POST", base4 + "/templates/{id}/" + (name === "email" ? "preview" : "render-check"), { input: "object", readOnly: true }),
+    define5(`${name} template send-test`, "POST", base4 + "/templates/{id}/send-test", { input: "object" }),
+    define5(`${name} message list`, "GET", base4 + "/messages", { query: name === "email" ? ["accountId", "status", "whatId", "search", "limit"] : ["templateId", "status", "receiveIdType", "whatId", "search", "limit"] }),
+    define5(`${name} message show`, "GET", base4 + "/messages/{id}")
+  ]),
+  define5("feishu user list", "GET", feishu + "/users", { query: ["page", "pageSize", "search", "isActive"] }),
+  define5("feishu user binding get", "GET", feishu + "/users/{user-id}/binding"),
+  define5("feishu user binding set", "PUT", feishu + "/users/{user-id}/binding", { input: "object" }),
+  define5("sms account list", "GET", "/api/sms/accounts", { host: true, query: ["tenantId"] }),
+  define5("sms account set", "PUT", "/api/sms/accounts", { host: true, query: ["tenantId"], input: "object" }),
+  define5("sms template list", "GET", "/api/sms/templates", { host: true, query: ["tenantId", "accountId"] }),
+  define5("sms template bind", "POST", "/api/sms/templates", { host: true, query: ["tenantId"], input: "object" }),
+  define5("sms send-test", "POST", "/api/sms/test", { host: true, query: ["tenantId"], input: "object" }),
+  define5("sms records", "GET", "/api/sms/records", { host: true, query: ["tenantId"] }),
+  define5("mail providers", "GET", personal + "/providers"),
+  define5("mail account list", "GET", personal + "/accounts"),
+  define5("mail account set", "PUT", personal + "/accounts", { input: "object", secretInput: ["password", "imapPassword", "smtpPassword"] }),
+  define5("mail account check", "POST", personal + "/accounts/{id}/check"),
+  define5("mail account delete", "DELETE", personal + "/accounts/{id}"),
+  define5("mail account clear-credentials", "DELETE", personal + "/accounts/{id}/credentials", { query: ["action"] }),
+  define5("mail folders", "GET", personal + "/accounts/{id}/folders"),
+  define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true }),
+  define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true }),
+  define5("mail draft", "POST", personal + "/accounts/{id}/drafts", { input: "object" })
+];
+for (const operation of deliveryOperations) {
+  const root2 = operation.path.split(" ")[0];
+  if (root2 === "storage") operation.host = true;
+  operation.readback = root2 === "storage" ? ["storage", "account", "list"] : root2 === "mail" ? ["mail", "account", "list"] : root2 === "sms" ? ["sms", "records"] : [root2, "message", "list"];
+}
+
+// src/xrain-cli/management.mjs
+var managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
+var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2) => match2[1]);
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
   ...routeParameters(operation.route),
@@ -3099,10 +3411,10 @@ var operationOptions = (operation) => [
   ...operation.input ? ["request-json", "file"] : [],
   ...operation.query ? ["query-json", ...[...pageOptions].filter(([, key]) => operation.query.includes(key)).map(([key]) => key)] : []
 ];
-function memberOutput(value) {
-  if (Array.isArray(value)) return value.map(memberOutput);
-  if (!isObject(value)) return value;
-  const { accountIsActive: _account, ...item } = value;
+function memberOutput(value2) {
+  if (Array.isArray(value2)) return value2.map(memberOutput);
+  if (!isObject(value2)) return value2;
+  const { accountIsActive: _account, ...item } = value2;
   if (Array.isArray(item.items)) item.items = item.items.map(memberOutput);
   return item;
 }
@@ -3114,55 +3426,60 @@ async function managementCommand(ctx) {
   const credentialOutput = operation.credentialOutput ? resolve4(args.required("out")) : void 0;
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
-    const value2 = args.required(option);
-    if (!/^[\x20-\x7e]{1,1024}$/.test(value2)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
-    return [header, value2];
+    const value3 = args.required(option);
+    if (!/^[\x20-\x7e]{1,1024}$/.test(value3)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
+    return [header, value3];
   }));
-  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name)));
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), targetTenantId;
   if (operation.query) {
     const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
     if (args.has("query-json") && individual.length) throw new CliError("Use a complete --query-json file or individual query options.", { code: "invalid_arguments" });
     const query2 = args.has("query-json") ? await readJsonInput(args.value("query-json"), "Query parameters", { stdin: ctx.stdin }) : Object.fromEntries(individual.map(([option, key]) => [key, option === "page" || option === "page-size" ? args.integer(option) : args.value(option)]));
-    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value2) => value2 !== null && !["string", "number", "boolean"].includes(typeof value2)))
+    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value3) => value3 !== null && !["string", "number", "boolean"].includes(typeof value3)))
       throw new CliError("Query JSON must use supported parameter names and scalar values.", { code: "invalid_arguments" });
     for (const key of operation.requiredQuery ?? []) if (query2[key] === void 0 || query2[key] === null || query2[key] === "")
       throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: "invalid_arguments" });
-    const search = new URLSearchParams(Object.entries(query2).filter(([, value2]) => value2 !== null).map(([key, value2]) => [key, String(value2)]));
+    if (typeof query2.tenantId === "string") targetTenantId = query2.tenantId;
+    const search = new URLSearchParams(Object.entries(query2).filter(([, value3]) => value3 !== null).map(([key, value3]) => [key, String(value3)]));
     if (search.size) route += "?" + search;
   }
   let body;
   if (operation.input) {
     body = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON", { stdin: ctx.stdin });
-    if (operation.input === "object" ? !isObject(body) : !Array.isArray(body))
+    if (operation.input === "object" && !isObject(body) || operation.input === "array" && !Array.isArray(body))
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: "invalid_arguments" });
     registerSecrets(reporter, body);
+    for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
   }
   const write = operation.method !== "GET" && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(["requestId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
-  let value = await apiValue(ctx, operation.method, route, body, {
+  let value2 = await apiValue(ctx, operation.method, route, body, {
     requireTenant: !operation.host,
     resolvedProfile: profile,
     headers,
+    responseHeaders: operation.responseHeaders,
+    sessionOnly: operation.sessionOnly,
     ...write ? { mutation: {
       resource: operation.route,
       target: Object.fromEntries(routeParameters(operation.route).map((name) => [name, args.value(name)])),
+      ...targetTenantId !== void 0 ? { targetTenantId } : {},
       ...selectors,
       readback: operation.readback ?? ["security", "directory"]
     } } : {}
   });
   if (operation.select) {
-    if (!isObject(value) || !Object.hasOwn(value, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
-    value = value[operation.select];
+    if (!isObject(value2) || !Object.hasOwn(value2, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
+    value2 = value2[operation.select];
   }
   if (credentialOutput) {
-    const token = value?.api_token ?? value?.apiToken;
+    const token = value2?.api_token ?? value2?.apiToken;
     if (typeof token !== "string" || !token) throw new CliError("The server returned an invalid credential receipt.", {
       code: write ? "outcome_unknown" : "invalid_response",
       hint: "Inspect the existing server token list before issuing another token.",
       details: { operation: operation.path }
     });
     reporter.secret(token);
-    const metadata = Object.fromEntries(["subjectUserId", "expiresAtUtc", "expires_at_utc"].filter((key) => value[key] !== void 0).map((key) => [key === "expires_at_utc" ? "expiresAtUtc" : key, value[key]]));
+    const metadata = Object.fromEntries(["subjectUserId", "expiresAtUtc", "expires_at_utc"].filter((key) => value2[key] !== void 0).map((key) => [key === "expires_at_utc" ? "expiresAtUtc" : key, value2[key]]));
     try {
       saveCredentialFile(credentialOutput, token, profile, metadata);
     } catch {
@@ -3171,9 +3488,61 @@ async function managementCommand(ctx) {
     reporter.print({ output: credentialOutput, ...metadata, protection: process.platform === "win32" ? "dpapi-current-user" : "file-mode-0600" });
     return true;
   }
-  reporter.print(operation.members ? memberOutput(value) : value);
+  reporter.print(operation.members ? memberOutput(value2) : value2);
   return true;
 }
+
+// src/xrain-cli/workforce-operations.mjs
+var base3 = "/api/cli/v1";
+var define6 = (path, method, route, options = {}) => ({ path: "workforce " + path, method, route: base3 + route, ...options });
+var workforceOperations = [
+  define6("context", "GET", "/context"),
+  define6("people", "GET", "/people"),
+  define6("employee profile", "GET", "/employees/me/work-profile"),
+  define6("employee agents", "GET", "/employees/{user-id}/agents"),
+  define6("channel list", "GET", "/channels"),
+  define6("channel dm", "POST", "/channels/dm", { input: "object" }),
+  define6("channel group", "POST", "/channels/groups", { input: "object" }),
+  define6("channel leave", "POST", "/channels/{channel}/leave", { input: "object" }),
+  define6("message list", "GET", "/channels/{channel}/messages", { query: ["before", "after", "limit"] }),
+  define6("message show", "GET", "/channels/{channel}/messages/{message-seq}"),
+  define6("message send", "POST", "/channels/{channel}/messages", { input: "object" }),
+  define6("message edit", "PATCH", "/channels/{channel}/messages/{message-seq}", { input: "object" }),
+  define6("message withdraw", "DELETE", "/channels/{channel}/messages/{message-seq}", { input: "object" }),
+  define6("message search", "GET", "/channels/{channel}/search", { query: ["q", "limit", "before", "category", "senderId"] }),
+  define6("task list", "GET", "/tasks"),
+  define6("task show", "GET", "/tasks/{task-id}"),
+  define6("task create", "POST", "/tasks", { input: "object" }),
+  define6("task update", "PUT", "/tasks/{task-id}", { input: "object" }),
+  define6("task confirm", "POST", "/tasks/{task-id}/confirm"),
+  define6("task assist", "POST", "/tasks/{task-id}/assist", { input: "object" }),
+  define6("task status", "PUT", "/tasks/{task-id}/status", { input: "object" }),
+  define6("task attach", "POST", "/tasks/{task-id}/channels", { input: "object" }),
+  define6("task reminder get", "GET", "/tasks/{task-id}/reminder"),
+  define6("task reminder set", "PUT", "/tasks/{task-id}/reminder", { input: "object" }),
+  define6("task execution-conversation", "GET", "/tasks/{task-id}/execution-conversation"),
+  define6("session list", "GET", "/workbench/sessions", { query: ["source"] }),
+  define6("session create", "POST", "/workbench/sessions", { input: "object" }),
+  ...["history", "subagents", "commands", "models"].map((action) => define6(
+    "session " + action,
+    "GET",
+    `/workbench/sessions/{session-id}/${action}`,
+    action === "history" ? { query: ["throughSeq", "beforeSeq", "maxMessages"] } : {}
+  )),
+  ...["inputs", "commands", "model"].map((action) => define6("session " + ({ inputs: "send", commands: "command" }[action] ?? action), "POST", `/workbench/sessions/{session-id}/${action}`, { input: "object" })),
+  define6("session cancel", "POST", "/workbench/sessions/{session-id}/cancel"),
+  define6("session pending", "GET", "/workbench/pending-actions"),
+  define6("session respond", "POST", "/workbench/pending-actions/{action-ref}/responses", { input: "object" }),
+  define6("session cancel-question", "POST", "/workbench/pending-actions/{action-ref}/cancel", { input: "object" }),
+  ...["list", "options", "bootstrap", "agents", "models"].map((action) => define6("schedule " + action, "GET", "/task-schedules" + (action === "list" ? "" : "/" + action))),
+  define6("schedule create", "POST", "/task-schedules", { input: "object" }),
+  define6("schedule update", "PUT", "/task-schedules/{schedule-id}", { input: "object" }),
+  ...["enable", "pause"].map((action) => define6("schedule " + action, "POST", `/task-schedules/{schedule-id}/${action}`)),
+  define6("schedule history", "GET", "/task-schedules/{schedule-id}/history"),
+  ...["conversation", "pending-actions"].map((action) => define6("schedule run " + action, "GET", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
+  ...["respond", "cancel-action"].map((action) => define6("schedule run " + action, "POST", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: "object" })),
+  define6("schedule run cancel", "POST", "/task-schedules/{schedule-id}/runs/{run-id}/cancel")
+];
 
 // src/xrain-cli/schema.mjs
 var common = ["help", "json"];
@@ -3206,7 +3575,11 @@ command("metadata entities", api2, [], "List the target environment object regis
 command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.");
 var runtime = [...api2, "runtime"];
 command("agent directory", [...runtime, "application-id", "personal", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
-command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("agent-id")], "Create a conversation, submit one message and wait for its own completed turn.");
+command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout", "context-json"], [slot("agent-id")], "Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.");
+command("agent run start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file"], [slot("agent-id")], "Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.");
+command("agent run show", [...runtime, "run-id"], [slot("run-id")], "Read the original managed run using the same identity. Results are bounded in-memory Runtime state.");
+command("agent ephemeral directory", runtime, [], "List agents available for stateless text generation.");
+command("agent ephemeral generate", [...runtime, "agent-id", "message", "message-file"], [slot("agent-id")], "Generate text without a session, tools or history; requires a currently authorized agent.");
 command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
 command("agent chat wait", [...runtime, "session-id", "application-id", "personal", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
 command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
@@ -3283,6 +3656,11 @@ for (const action of ["list", "recipients", "capability", "eligibility", "grant"
 );
 command("data export-capabilities", [...api2, "entity"], [slot("entity")], "Read server file export limits.");
 command("data export-file", [...api2, "entity", "application", ...requestInput, "out"], [slot("entity")], "Export authorized records as XLSX using a complete query/options request; --out must be a new file.");
+command("file upload", [...api2, "file", "uploader-id", "name"], [slot("file")], "Upload raw file bytes with an authorized service credential and explicit uploader ID; no automatic retry.");
+command("file show", [...api2, "id"], [slot("id")], "Read metadata of the authorized original file.");
+command("file preview", [...api2, "id"], [slot("id")], "Read the authorized original file preview descriptor.");
+command("file download", [...api2, "id", "out"], [slot("id")], "Download the complete authorized file to a new path and verify its native metadata length.");
+command("file preview-asset", [...api2, "id", "asset-id", "out"], [slot("id"), slot("asset-id")], "Read one preview asset through its original file authorization, preserving an existing output.");
 var importTarget = [...api2, "entity", "application"];
 var importJob = [...importTarget, "job"];
 var importWait = ["wait", "wait-timeout", "poll-interval"];
@@ -3339,9 +3717,33 @@ command("app publish", [...app2, "exchange", "file"], [slot("file")], "Publish a
 command("app status", [...app2, "exchange", "package"], [], "Read published applications and version history. JSON mode always returns an array.");
 command("app list", [...app2, "exchange"], [], "List visible platform packages, or browse the independent market with --exchange.");
 command("app versions", [...app2, "exchange", "package"], [slot("package")], "List versions of an exact package ID; availability for installation is decided by the platform.");
-command("app import", [...app2, "package", "version-id"], [slot("package")], "Import an exact version from the platform-configured market; does not install or publish. --version-id is required.");
-var installInput = ["package", "version-id", "expected-revision", "maintain-installed-version", "request-json", "file"];
 var wait = ["wait", "wait-timeout", "poll-interval"];
+for (const action of ["show", "versions", "manifest", "components", "download", "rename", "publication", "unpublish"])
+  command(
+    `market ${action}`,
+    [
+      ...app2,
+      "exchange",
+      "package",
+      ...["manifest", "components", "download", "publication"].includes(action) ? ["version-id"] : [],
+      ...["manifest", "components", "download"].includes(action) ? ["out"] : [],
+      ...action === "rename" ? ["label"] : [],
+      ...["publication", "unpublish"].includes(action) ? ["expected-published-version"] : []
+    ],
+    [slot("package")],
+    "Use an independent market session and exact package/version. Publication requires the observed version or literal null; downloads verify identity and digest."
+  );
+command("app import", [...app2, "package", "version-id"], [slot("package")], "Import an exact version from the platform-configured market; does not install or publish. --version-id is required.");
+command("app import-file", [...app2, "file"], [slot("file")], "Import one validated local appkg through the existing Host/platform session. Does not install or publish.");
+command("app components", [...app2, "package", "version-id"], [slot("package")], "Read components of one exact package version.");
+command("app withdraw", [...app2, "package", "request-id"], [slot("package")], "Withdraw the original submission request without replacing the package version.");
+command("app uninstall", [...app2, "installation", "request-json", "file", "request-id", "expected-revision", ...wait], [slot("installation")], "Uninstall the original installation through a recoverable operation; --wait observes the same operation.");
+for (const action of ["components", "history", "check"]) command(`app installation ${action}`, [...app2, "installation", ...action === "history" ? ["page", "page-size"] : []], [slot("installation")], "Inspect installed components, original operation history or runtime checks without starting another install.");
+command("app component restore", [...app2, "installation", "id", "expected-revision"], [slot("installation"), slot("id")], "Restore the exact original component at an observed installation revision.");
+command("app policy preview", [...app2, "installation"], [slot("installation")], "Read proposed policy effects without applying them.");
+command("app policy apply", [...app2, "installation", "request-json", "file", "request-id", "expected-revision", ...wait], [slot("installation")], "Apply explicitly chosen policy version, bindings and confirmations at the observed revision.");
+command("app operation policy-apply", [...app2, "operation", "request-json", "file", "expected-revision", ...wait], [slot("operation")], "Convert policy on the original operation using the observed revision and targetPolicyVersion.");
+var installInput = ["package", "version-id", "expected-revision", "maintain-installed-version", "request-json", "file"];
 command("app preview", [...app2, ...installInput], [slot("package")], "Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.");
 command("app install", [...app2, ...installInput, "request-id", ...wait], [slot("package")], "Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.");
 command("app installation show", [...app2, "installation"], [slot("installation")], "Read the installed version, revision and active/latest operation IDs.");
@@ -3357,6 +3759,20 @@ for (const operation of managementOperations) command(
   [...api2, ...operationOptions(operation)],
   routeParameters(operation.route).map((name) => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? "--request-json supplies the original server DTO; writes are never replayed." : "The server enforces the original scope and permissions."}`
+);
+for (const operation of workforceOperations) command(
+  operation.path,
+  [
+    ...target,
+    "workforce",
+    "application-id",
+    "auth",
+    ...routeParameters(operation.route),
+    ...operation.input ? ["request-json", "file"] : [],
+    ...operation.query ? ["query-json"] : []
+  ],
+  routeParameters(operation.route).map((name) => slot(name)),
+  "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force."
 );
 function words(args) {
   return args.commands.map((word, index) => {
@@ -3377,14 +3793,43 @@ function validateCommand(args) {
   for (const operand of spec.operands) {
     const supplied = [operand.name, ...operand.aliases].filter((name) => args.has(name));
     if (supplied.length > 1) throw new CliError(`Choose one option for ${operand.name}.`, { code: "invalid_arguments" });
-    const value = supplied.length ? args.value(supplied[0]) : operands.shift();
-    if (value === void 0 && !operand.optional) throw new CliError(`--${operand.name} is required.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
-    if (value !== void 0) args.options.set(operand.name, value);
+    const value2 = supplied.length ? args.value(supplied[0]) : operands.shift();
+    if (value2 === void 0 && !operand.optional) throw new CliError(`--${operand.name} is required.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
+    if (value2 !== void 0) args.options.set(operand.name, value2);
   }
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
+  const management = managementOperations.find((item) => item.path === spec.path);
+  if (management) {
+    for (const option of Object.values(management.headers ?? {})) args.required(option);
+    if (management.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
+    if (management.credentialOutput) args.required("out");
+  }
+  if (spec.path === "app component restore") {
+    const value2 = args.required("expected-revision");
+    if (!/^[0-9]+$/.test(value2) || !Number.isSafeInteger(Number(value2))) throw new CliError("--expected-revision must be a nonnegative safe integer.", { code: "invalid_arguments" });
+  }
+  if (spec.path === "app components") args.required("version-id");
+  if (spec.path === "app withdraw") args.required("request-id");
+  if (spec.path === "file upload") args.required("uploader-id");
+  if (spec.path.startsWith("workforce ")) {
+    args.required("workforce");
+    const operation = workforceOperations.find((row) => row.path === spec.path);
+    if (operation.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
+    if (args.has("auth") && args.value("auth") !== "session") throw new CliError("Workforce uses a matching saved platform session.", { code: "invalid_arguments" });
+  }
+  if (["file download", "file preview-asset", "data export-file"].includes(spec.path)) args.required("out");
+  if (spec.path.startsWith("market ")) {
+    args.required("exchange");
+    if (spec.path === "market download") args.required("out");
+    if (["market manifest", "market components", "market download", "market publication"].includes(spec.path)) args.required("version-id");
+    if (["market publication", "market unpublish"].includes(spec.path)) args.required("expected-published-version");
+    if (spec.path === "market rename") args.required("label");
+  }
+  if (["agent run start", "agent ephemeral generate"].includes(spec.path) && !args.has("message") && !args.has("message-file")) throw new CliError("Supply --message or --message-file.", { code: "invalid_arguments" });
   const exclusive = (names) => {
     if (names.filter((name) => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map((name) => "--" + name).join(", ")}.`, { code: "invalid_arguments" });
   };
+  if (["agent run start", "agent ephemeral generate"].includes(spec.path)) exclusive(["message", "message-file"]);
   if (args.has("scope") && (!["host", "tenant"].includes(args.value("scope")) || args.value("scope") === "host" && args.has("tenant")))
     throw new CliError("--scope must be tenant or host; Host connections cannot select --tenant.", { code: "invalid_arguments" });
   if (spec.path === "auth login" && args.value("scope") === "host" && !args.has("native"))
@@ -3484,8 +3929,8 @@ function validateCommand(args) {
     if (spec.path === "agent chat history" && ["through-seq", "before-seq", "page-size"].some((name) => args.has(name))) {
       args.required("through-seq");
       for (const [name, minimum] of [["through-seq", -1], ["before-seq", 0]]) if (args.has(name)) {
-        const value = args.value(name);
-        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum)
+        const value2 = args.value(name);
+        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value2) || !Number.isSafeInteger(Number(value2)) || Number(value2) < minimum)
           throw new CliError(`--${name} must be an integer of at least ${minimum}.`, { code: "invalid_arguments" });
       }
       args.integer("page-size", 100);
@@ -3547,10 +3992,10 @@ async function batchCommands(ctx) {
   if (!Array.isArray(plan)) throw new CliError("Batch JSON must be an array of command argument arrays.", { code: "invalid_arguments" });
   const commands = [];
   for (const row of plan) {
-    if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
+    if (!Array.isArray(row) || !row.length || row.some((value2) => typeof value2 !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
     if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
-    if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file", "options-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
+    if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file", "context-json", "options-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
       throw new CliError("Batch steps must use files or inline JSON instead of sharing stdin.", { code: "invalid_arguments" });
     commands.push(spec.path);
   }
@@ -3558,15 +4003,15 @@ async function batchCommands(ctx) {
   for (const [index, argv] of plan.entries()) {
     let stdout = "", stderr = "";
     const code = await ctx.execute(argv.includes("--json") ? argv : [...argv, "--json"], {
-      stdout: { write(value) {
-        stdout += value;
+      stdout: { write(value2) {
+        stdout += value2;
       } },
-      stderr: { write(value) {
-        stderr += value;
+      stderr: { write(value2) {
+        stderr += value2;
       } }
     });
     const result = JSON.parse(stdout);
-    if (/^app (?:preview|install|operation)(?: |$)/.test(commands[index])) {
+    if (/^app (?:preview|install|operation|policy)(?: |$)/.test(commands[index])) {
       exposeApplicationConfirmations(ctx.reporter, result.data);
       exposeApplicationConfirmations(ctx.reporter, result.error?.details?.operation);
     }
@@ -3617,36 +4062,36 @@ function validSidebar(v) {
   if (!object(v.settings) || v.settings.objects === void 0) return true;
   return Array.isArray(v.settings.objects) && v.settings.objects.every((item) => object(item) && text(item.objectType, 160) && optionalText(item.listViewId) && optionalText(item.detailViewId) && optionalText(item.createViewId) && optionalObject(item.application) && (!item.application || object(item.application) && text(item.application.applicationId, 160) && optionalText(item.application.path)) && Array.isArray(item.views) && item.views.every(validView));
 }
-function exportDefinition(value, workspaces) {
-  const workspace = value.workspaceDirect ? value.workspacePath ? { kind: "direct", path: value.workspacePath } : { kind: "unavailable" } : value.workspaceId ? {
+function exportDefinition(value2, workspaces) {
+  const workspace = value2.workspaceDirect ? value2.workspacePath ? { kind: "direct", path: value2.workspacePath } : { kind: "unavailable" } : value2.workspaceId ? {
     kind: "registered",
-    id: value.workspaceId,
-    ...workspaces.find((item) => item.id === value.workspaceId)?.cwd ? { path: workspaces.find((item) => item.id === value.workspaceId).cwd } : {}
+    id: value2.workspaceId,
+    ...workspaces.find((item) => item.id === value2.workspaceId)?.cwd ? { path: workspaces.find((item) => item.id === value2.workspaceId).cwd } : {}
   } : { kind: "none" };
   return { format: "xrain-workforce-agent-definition", version: 1, definition: {
-    name: value.name ?? "",
-    enabled: value.enabled,
-    instructions: value.instructions,
-    provider: value.provider,
-    model: value.model,
-    reasoningEffort: value.reasoningEffort ?? null,
-    agentPreset: value.agentPreset,
+    name: value2.name ?? "",
+    enabled: value2.enabled,
+    instructions: value2.instructions,
+    provider: value2.provider,
+    model: value2.model,
+    reasoningEffort: value2.reasoningEffort ?? null,
+    agentPreset: value2.agentPreset,
     workspace,
-    nativeTools: value.nativeTools ?? null,
-    assistantTools: value.assistantTools ?? [],
-    suggestedQuestions: value.suggestedQuestions ?? null,
-    businessActions: value.businessActions ?? null,
-    uiPlugins: value.uiPlugins ?? null
+    nativeTools: value2.nativeTools ?? null,
+    assistantTools: value2.assistantTools ?? [],
+    suggestedQuestions: value2.suggestedQuestions ?? null,
+    businessActions: value2.businessActions ?? null,
+    uiPlugins: value2.uiPlugins ?? null
   } };
 }
-function readDefinitionFile(value) {
-  if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
-  const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+function readDefinitionFile(value2) {
+  if (!object(value2) || value2.format !== "xrain-workforce-agent-definition" || value2.version !== 1 || Object.keys(value2).some((key) => !["format", "version", "definition"].includes(key)) || !object(value2.definition)) throw Error("invalid");
+  const v = value2.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
   if (Object.keys(v).length !== keys.length || Object.keys(v).some((key) => !keys.includes(key)) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
-  return value;
+  return value2;
 }
 function sameWorkspacePath(left, right) {
-  const windows = (value) => /^[a-z]:[\\/]/i.test(value) || /^(?:\\\\|\/\/)[^\\/]/.test(value);
+  const windows = (value2) => /^[a-z]:[\\/]/i.test(value2) || /^(?:\\\\|\/\/)[^\\/]/.test(value2);
   if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return left === right;
 }
@@ -3676,8 +4121,8 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     workspaceChange: { operation: "direct", path: w.path, agentPreset: v.agentPreset }
   });
   else if (w.kind === "registered") {
-    const match = w.path && workspaces.find((item) => item.id === w.id && item.cwd && sameWorkspacePath(item.cwd, w.path));
-    if (match && match.agentPresets.includes(v.agentPreset)) Object.assign(changes, {
+    const match2 = w.path && workspaces.find((item) => item.id === w.id && item.cwd && sameWorkspacePath(item.cwd, w.path));
+    if (match2 && match2.agentPresets.includes(v.agentPreset)) Object.assign(changes, {
       workspaceId: w.id,
       workspaceDirect: void 0,
       workspaceUnavailable: false,
@@ -3710,12 +4155,12 @@ async function sessionControl(ctx, helpers, connection2) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
   const sessionId = helpers.identifier(args.required("session-id"), "Session ID");
-  const root = `/v1/dsh/sessions/${segment(sessionId)}`;
+  const root2 = `/v1/dsh/sessions/${segment(sessionId)}`;
   if (Object.hasOwn(reads, action)) {
-    const value2 = await helpers.runtimeValue(ctx, "GET", `${root}/${reads[action]}`);
-    if (!isObject(value2) || action === "commands" && !Array.isArray(value2.items) || action === "subagents" && (!isObject(value2.catalog) || !Array.isArray(value2.summaries)) || action === "models" && !isObject(value2.catalog))
+    const value3 = await helpers.runtimeValue(ctx, "GET", `${root2}/${reads[action]}`);
+    if (!isObject(value3) || action === "commands" && !Array.isArray(value3.items) || action === "subagents" && (!isObject(value3.catalog) || !Array.isArray(value3.summaries)) || action === "models" && !isObject(value3.catalog))
       throw new CliError("Runtime returned an invalid session catalog.", { code: "invalid_response" });
-    reporter.print(value2);
+    reporter.print(value3);
     return true;
   }
   let body, suffix = action;
@@ -3731,13 +4176,13 @@ async function sessionControl(ctx, helpers, connection2) {
       throw new CliError("Model selection requires provider and model, with optional reasoningEffort.", { code: "invalid_arguments" });
   }
   const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
-  const value = await helpers.writeOnce(async () => {
-    const result = await helpers.runtimeValue(ctx, "POST", `${root}/${suffix}`, body);
+  const value2 = await helpers.writeOnce(async () => {
+    const result = await helpers.runtimeValue(ctx, "POST", `${root2}/${suffix}`, body);
     if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !Object.hasOwn(result, "execution"))
       throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
     return result;
   }, action === "cancel" ? "Stop outcome is unknown. Inspect this session and its pending actions. Do not assume that earlier external effects were undone." : "Operation outcome is unknown. Read this session, its command catalog or model state before another write; do not automatically replay the command.", details);
-  reporter.print({ ...value, ...details });
+  reporter.print({ ...value2, ...details });
   return true;
 }
 
@@ -3745,7 +4190,7 @@ async function sessionControl(ctx, helpers, connection2) {
 var sessions = "/v1/dsh/sessions";
 var pendingPath = "/v1/dsh/pending-actions";
 async function messageInput(args) {
-  let value = args.value("message");
+  let value2 = args.value("message");
   const file = args.value("message-file");
   if (file) {
     let bytes;
@@ -3762,17 +4207,17 @@ async function messageInput(args) {
       bytes = Buffer.concat(chunks);
     } else bytes = readLimited(file, 256 * 1024, "Message");
     try {
-      value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      value2 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
       throw new CliError("Message file must be UTF-8 text.", { code: "invalid_arguments" });
     }
   }
-  if (!nonempty(value) || value.length > 64e3 || value.includes("\0"))
+  if (!nonempty(value2) || value2.length > 64e3 || value2.includes("\0"))
     throw new CliError("Message must contain 1 to 64000 characters.", { code: "invalid_arguments" });
-  return value;
+  return value2;
 }
-function textOf(value) {
-  return isObject(value) && Array.isArray(value.content) ? value.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
+function textOf(value2) {
+  return isObject(value2) && Array.isArray(value2.content) ? value2.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
 }
 function eventOf(record) {
   return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null;
@@ -3834,20 +4279,20 @@ function visibleHistory(frame, sessionId) {
     const event = eventOf(record);
     if (!event) continue;
     const data = event.data;
-    const base2 = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
+    const base4 = { ...Number.isFinite(event.seq) ? { seq: event.seq } : {}, ...Number.isSafeInteger(data.turn) ? { turn: data.turn } : {} };
     if (event.type === "user/message" || event.type === "assistant/message") {
       const message2 = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
       if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
       const text2 = textOf(message2);
-      if (text2) items.push({ ...base2, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
+      if (text2) items.push({ ...base4, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
     } else if (event.type === "turn/start" || event.type === "turn/end") {
-      items.push({ ...base2, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
+      items.push({ ...base4, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
     } else if (event.type === "tool/call" && typeof data.name === "string") {
-      items.push({ ...base2, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
+      items.push({ ...base4, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
     } else if (event.type === "tool/result") {
       const result = toolResult(data);
-      items.push({ ...base2, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
+      items.push({ ...base4, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
     }
   }
   const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : void 0;
@@ -3922,7 +4367,7 @@ function turnBudget(args) {
   const timeout = setTimeout(() => controller.abort(), milliseconds);
   return {
     signal: controller.signal,
-    expired: () => performance3.now() >= deadline,
+    expired: () => controller.signal.aborted || performance3.now() >= deadline,
     check() {
       if (controller.signal.aborted || performance3.now() >= deadline)
         throw new CliError("Waiting for the conversation timed out.", { code: "turn_timeout" });
@@ -4143,8 +4588,14 @@ async function chatCommands(ctx, helpers) {
   try {
     if (action === "start") {
       const agentId = helpers.identifier(args.required("agent-id"), "Agent ID");
+      let primaryObjectRef;
+      if (args.has("context-json")) {
+        primaryObjectRef = await readJsonInput(args.value("context-json"), "Primary object reference");
+        if (!isObject(primaryObjectRef) || Object.keys(primaryObjectRef).length !== 3 || !["businessSourceId", "objectType", "objectId"].every((key) => nonempty(primaryObjectRef[key]) && primaryObjectRef[key].length <= 160))
+          throw new CliError("Primary object reference requires businessSourceId, objectType and objectId, each at most 160 characters.", { code: "invalid_arguments" });
+      }
       const created = await helpers.writeOnce(async () => {
-        const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli" }, headers, { signal: budget.signal });
+        const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli", ...primaryObjectRef ? { primaryObjectRef } : {} }, headers, { signal: budget.signal });
         if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError("Runtime returned an invalid session receipt.", { code: "invalid_response" });
         return result;
       }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, requestId, ...context });
@@ -4160,6 +4611,47 @@ async function chatCommands(ctx, helpers) {
     budget.close();
   }
   return 0;
+}
+
+// src/xrain-cli/runtime-runs.mjs
+async function runtimeRuns(ctx, helpers) {
+  const { args, reporter } = ctx, domain = args.command(1), action = args.command(2);
+  const connection2 = helpers.runtimeConnection(ctx);
+  const context = { runtime: connection2.runtime, profile: connection2.profile.name, tenant: connection2.profile.tenant };
+  if (domain === "ephemeral" && action === "directory") {
+    reporter.print(await helpers.runtimeValue(ctx, "GET", "/v1/dsh/ephemeral-agents"));
+    return 0;
+  }
+  if (domain === "run" && action === "show") {
+    const runId = args.required("run-id");
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(runId)) throw new CliError("An exact native run ID is required.");
+    const value2 = await helpers.runtimeValue(ctx, "GET", `/xrain/runs/${segment(runId)}`);
+    if (!isObject(value2) || !["running", "succeeded", "failed", "cancelled"].includes(value2.status)) throw new CliError("Runtime returned an invalid run result.", { code: "invalid_response" });
+    if (["failed", "cancelled"].includes(value2.status)) throw new CliError("The managed run did not succeed.", { code: "run_failed", details: { runId, ...value2, ...context } });
+    reporter.print({ runId, ...value2, ...context });
+    return 0;
+  }
+  const agentId = helpers.identifier(args.required("agent-id"), "Agent ID"), prompt = await messageInput(args);
+  const ephemeral = domain === "ephemeral", applicationId2 = ephemeral ? void 0 : helpers.applicationId(connection2.profile);
+  const body = ephemeral ? { agentId, prompt } : { input: { agentId, prompt, applicationId: applicationId2 ?? null } };
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.once("SIGINT", interrupt);
+  try {
+    const value2 = await helpers.writeOnce(
+      async () => {
+        const result = await helpers.runtimeValue(ctx, "POST", ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs", body, {}, { signal: controller.signal });
+        if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? "") || result.status !== "accepted"))
+          throw new CliError("Runtime returned an invalid run receipt.", { code: "invalid_response" });
+        return result;
+      },
+      ephemeral ? "Text generation did not return a confirmed result. No session, tools or history exist; this request was not retried." : "Run submission outcome is unknown. A lost receipt cannot be recovered by a client request key in this protocol. Do not automatically submit another run.",
+      { agentId, applicationId: applicationId2 ?? null, ...context }
+    );
+    reporter.print({ ...value2, ...context });
+    return 0;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+  }
 }
 
 // src/xrain-cli/agents.mjs
@@ -4187,34 +4679,34 @@ function revision(args) {
   return args.integer("expected-revision");
 }
 async function objectInput(args, required = true) {
-  const value = await jsonInput(args, "values");
-  if (value === void 0 && !required) return {};
-  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
-  return value;
+  const value2 = await jsonInput(args, "values");
+  if (value2 === void 0 && !required) return {};
+  if (!isObject(value2)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  return value2;
 }
-function validateDefinitionInput(value) {
-  const unknown = Object.keys(value).filter((key) => !inputFields.has(key));
+function validateDefinitionInput(value2) {
+  const unknown = Object.keys(value2).filter((key) => !inputFields.has(key));
   if (unknown.length) throw new CliError(`Unexpected definition fields: ${unknown.join(", ")}.`, { code: "invalid_arguments" });
-  if (value.workspaceChange !== void 0 && !isObject(value.workspaceChange))
+  if (value2.workspaceChange !== void 0 && !isObject(value2.workspaceChange))
     throw new CliError("workspaceChange must be an object.", { code: "invalid_arguments" });
 }
-function workspaceChange(value) {
-  const change = value.workspaceChange;
+function workspaceChange(value2) {
+  const change = value2.workspaceChange;
   if (!change) return;
   if (change.operation === "bind") {
-    if (value.workspaceId !== void 0 && value.workspaceId !== change.workspaceId || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
+    if (value2.workspaceId !== void 0 && value2.workspaceId !== change.workspaceId || value2.agentPreset !== void 0 && value2.agentPreset !== change.agentPreset)
       throw new CliError("workspaceChange conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
-    value.workspaceId = change.workspaceId;
-    value.agentPreset = change.agentPreset;
+    value2.workspaceId = change.workspaceId;
+    value2.agentPreset = change.agentPreset;
   } else if (change.operation === "direct") {
-    if (value.workspaceId != null || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
+    if (value2.workspaceId != null || value2.agentPreset !== void 0 && value2.agentPreset !== change.agentPreset)
       throw new CliError("A direct directory conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
-    value.workspaceId = null;
-    value.agentPreset = change.agentPreset;
+    value2.workspaceId = null;
+    value2.agentPreset = change.agentPreset;
   } else if (change.operation === "clear") {
-    if (value.workspaceId != null || value.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
-    value.workspaceId = null;
-    value.agentPreset = "";
+    if (value2.workspaceId != null || value2.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
+    value2.workspaceId = null;
+    value2.agentPreset = "";
   }
 }
 function runtimeConnection(ctx) {
@@ -4279,19 +4771,19 @@ async function definition(ctx, id) {
   return matches[0];
 }
 async function definitionLimits(ctx) {
-  let value, legacy = false;
+  let value2, legacy = false;
   try {
-    value = await runtimeValue(ctx, "GET", definitions + "/limits");
+    value2 = await runtimeValue(ctx, "GET", definitions + "/limits");
   } catch (error) {
     if (!missingCapability(error)) throw error;
     legacy = true;
-    value = await runtimeValue(ctx, "GET", definitions + "/options");
+    value2 = await runtimeValue(ctx, "GET", definitions + "/options");
   }
-  if (!isObject(value) || !(Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0 || legacy && value.maxDefinitionBytes === void 0))
+  if (!isObject(value2) || !(Number.isSafeInteger(value2.maxDefinitionBytes) && value2.maxDefinitionBytes > 0 || legacy && value2.maxDefinitionBytes === void 0))
     throw new CliError("Runtime returned an invalid definition write limit.", { code: "invalid_response" });
   return {
-    maxDefinitionBytes: value.maxDefinitionBytes ?? 65536,
-    supportsDefinitionStatusUpdate: value.supportsDefinitionStatusUpdate === true,
+    maxDefinitionBytes: value2.maxDefinitionBytes ?? 65536,
+    supportsDefinitionStatusUpdate: value2.supportsDefinitionStatusUpdate === true,
     ...legacy ? { legacy: true } : {}
   };
 }
@@ -4315,20 +4807,20 @@ async function saveDefinition(ctx, id, body, limits, statusOnly = false) {
     { agentId: id, expectedRevision: body.revision }
   );
 }
-function selectDirectory(args, value) {
+function selectDirectory(args, value2) {
   if (!args.has("workspace-path")) return;
-  if (["workspaceChange", "workspaceId", "agentPreset"].some((key) => Object.hasOwn(value, key)))
+  if (["workspaceChange", "workspaceId", "agentPreset"].some((key) => Object.hasOwn(value2, key)))
     throw new CliError("Choose the directory once, using options or JSON.", { code: "invalid_arguments" });
-  value.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
+  value2.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
 }
 async function definitionInput(ctx, limits, required = true) {
-  const value = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
-  if (value === void 0 && !required) return {};
-  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
-  validateDefinitionInput(value);
-  return value;
+  const value2 = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  if (value2 === void 0 && !required) return {};
+  if (!isObject(value2)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  validateDefinitionInput(value2);
+  return value2;
 }
-function newDefinition(id, value) {
+function newDefinition(id, value2) {
   return {
     aiUserId: "",
     agentId: id,
@@ -4341,7 +4833,7 @@ function newDefinition(id, value) {
     workspaceId: null,
     nativeTools: [],
     allowedCallerUserIds: [],
-    ...value
+    ...value2
   };
 }
 function updatedDefinition(current, patch, expected) {
@@ -4349,9 +4841,9 @@ function updatedDefinition(current, patch, expected) {
     code: "conflict",
     details: { agentId: current.agentId, expectedRevision: expected, currentRevision: current.revision }
   });
-  const base2 = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
+  const base4 = Object.fromEntries(definitionFields.filter((key) => Object.hasOwn(current, key)).map((key) => [key, current[key]]));
   return {
-    ...base2,
+    ...base4,
     ...patch,
     aiUserId: "",
     agentId: current.agentId,
@@ -4365,10 +4857,10 @@ async function importDefinition(ctx) {
   const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") ? revision(args) : null;
   const limits = await definitionLimits(ctx);
-  const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  const value2 = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
   let file;
   try {
-    file = readDefinitionFile(value);
+    file = readDefinitionFile(value2);
   } catch {
     throw new CliError("Expected a version 1 xrain-workforce-agent-definition exchange file.", { code: "invalid_definition_file" });
   }
@@ -4404,15 +4896,15 @@ async function definitionCommands(ctx) {
   if (action === "import") return importDefinition(ctx);
   if (action === "create") {
     const limits2 = await definitionLimits(ctx);
-    const value = await definitionInput(ctx, limits2, false);
-    selectDirectory(args, value);
-    if (value.enabled !== void 0 && value.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
-    if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
-    const name = args.value("name") ?? value.name;
+    const value2 = await definitionInput(ctx, limits2, false);
+    selectDirectory(args, value2);
+    if (value2.enabled !== void 0 && value2.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
+    if (args.has("name") && value2.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
+    const name = args.value("name") ?? value2.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
     const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
-    workspaceChange(value);
-    const body2 = newDefinition(id2, { ...value, name });
+    workspaceChange(value2);
+    const body2 = newDefinition(id2, { ...value2, name });
     reporter.progress(`Definition ID: ${id2}`);
     reporter.print(await saveDefinition(ctx, id2, body2, limits2));
     return 0;
@@ -4450,6 +4942,7 @@ async function definitionCommands(ctx) {
   return 0;
 }
 async function agentCommands(ctx) {
+  if (["run", "ephemeral"].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
   if (action === "chat") return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
@@ -4530,15 +5023,15 @@ async function agentCommands(ctx) {
 // src/xrain-cli/settings.mjs
 var MIB = 1024 * 1024;
 var hostPath = "/api/host/v1/settings/agent-definition-limit";
-var validBytes = (value) => Number.isSafeInteger(value) && value > 0;
+var validBytes = (value2) => Number.isSafeInteger(value2) && value2 > 0;
 function settingBytes(args) {
   const raw = args.value("mib") ?? args.value("bytes");
   if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw ?? ""))
     throw new CliError("Supply a positive numeric size.", { code: "invalid_arguments" });
-  const value = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
-  if (!validBytes(value) || Number(raw) <= 0)
+  const value2 = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
+  if (!validBytes(value2) || Number(raw) <= 0)
     throw new CliError("Size must convert to a positive safe integer number of bytes.", { code: "invalid_arguments" });
-  return value;
+  return value2;
 }
 function expectedBytes(args) {
   if (!args.has("expected-bytes")) return void 0;
@@ -4548,11 +5041,11 @@ function expectedBytes(args) {
     throw new CliError("--expected-bytes must be a positive safe integer or null.", { code: "invalid_arguments" });
   return Number(raw);
 }
-function connection(ctx, personal = false) {
-  const profile = ctx.store.resolve(ctx.args, personal);
+function connection(ctx, personal2 = false) {
+  const profile = ctx.store.resolve(ctx.args, personal2);
   const { token, source } = ctx.store.credential(ctx.args, profile, { createSecrets: false });
   if (!token) throw new CliError("A matching credential is required.", { code: "authentication_required", hint: "Use auth login and --auth session for this profile." });
-  const target2 = { server: profile.server, profile: profile.name, scope: personal ? "user" : "host", ...personal ? { tenantId: profile.tenant } : {} };
+  const target2 = { server: profile.server, profile: profile.name, scope: personal2 ? "user" : "host", ...personal2 ? { tenantId: profile.tenant } : {} };
   return { target: target2, async call(method, path, json) {
     const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
     if (!response.ok) throw responseError(response, "", { ...target2, credentialSource: source });
@@ -4563,14 +5056,14 @@ function connection(ctx, personal = false) {
     }
   } };
 }
-function limitValue(value) {
-  if (!isObject(value) || !(value.maxDefinitionBytes === null || validBytes(value.maxDefinitionBytes)) || !validBytes(value.defaultMaxDefinitionBytes))
+function limitValue(value2) {
+  if (!isObject(value2) || !(value2.maxDefinitionBytes === null || validBytes(value2.maxDefinitionBytes)) || !validBytes(value2.defaultMaxDefinitionBytes))
     throw new CliError("Settings API returned an invalid definition limit.", { code: "invalid_response" });
   return {
-    maxDefinitionBytes: value.maxDefinitionBytes,
-    maxDefinitionMiB: value.maxDefinitionBytes === null ? null : value.maxDefinitionBytes / MIB,
-    defaultMaxDefinitionBytes: value.defaultMaxDefinitionBytes,
-    defaultMaxDefinitionMiB: value.defaultMaxDefinitionBytes / MIB
+    maxDefinitionBytes: value2.maxDefinitionBytes,
+    maxDefinitionMiB: value2.maxDefinitionBytes === null ? null : value2.maxDefinitionBytes / MIB,
+    defaultMaxDefinitionBytes: value2.defaultMaxDefinitionBytes,
+    defaultMaxDefinitionMiB: value2.defaultMaxDefinitionBytes / MIB
   };
 }
 async function hostSettingsCommands(ctx) {
@@ -4625,10 +5118,10 @@ async function userSettingsCommands(ctx) {
   const setting = ctx.args.required("setting"), preference = preferences[setting];
   const { target: target2, call } = connection(ctx, true), settingApp = "workforce";
   const path = `/api/tenant/v1/settings/${settingApp}/${preference.key}`;
-  const validate = (value) => {
-    if (!isObject(value) || value.settingApp !== settingApp || value.key !== preference.key || !preference.values.includes(value.value))
+  const validate = (value2) => {
+    if (!isObject(value2) || value2.settingApp !== settingApp || value2.key !== preference.key || !preference.values.includes(value2.value))
       throw new CliError("The personal setting response is invalid.", { code: "invalid_response" });
-    return value;
+    return value2;
   };
   let result;
   if (ctx.args.command(2) === "get") {
@@ -4639,14 +5132,227 @@ async function userSettingsCommands(ctx) {
       result = { configured: false, settingApp, key: preference.key, value: null, defaultValue: preference.defaultValue };
     }
   } else {
-    const value = ctx.args.required("value");
+    const value2 = ctx.args.required("value");
     result = await writeOnce(async () => {
-      const saved = validate(await call("PUT", path, { value }));
-      if (saved.value !== value) throw new CliError("The personal setting receipt does not match the requested value.", { code: "invalid_response" });
+      const saved = validate(await call("PUT", path, { value: value2 }));
+      if (saved.value !== value2) throw new CliError("The personal setting receipt does not match the requested value.", { code: "invalid_response" });
       return { configured: true, ...saved };
-    }, "Read the same personal setting before deciding whether to retry. This API has no conditional-write contract.", { ...target2, setting, requestedValue: value });
+    }, "Read the same personal setting before deciding whether to retry. This API has no conditional-write contract.", { ...target2, setting, requestedValue: value2 });
   }
   ctx.reporter.print({ ...target2, setting, ...result });
+  return 0;
+}
+
+// src/xrain-cli/files.mjs
+import { openAsBlob as openAsBlob2 } from "node:fs";
+import { stat as stat2 } from "node:fs/promises";
+import { basename as basename2, resolve as resolve6 } from "node:path";
+var root = "/api/service/files/v1/files";
+var maxBytes = 512 * 1024 * 1024;
+async function fileCommands(ctx) {
+  const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
+  const profile = store.resolve(args, true), { token, source } = store.credential(args, profile, { createSecrets: false });
+  if (!token) throw new CliError("The file API requires an authorized service credential.", { code: "authentication_required" });
+  const client2 = { profile, token, source, timeout: args.timeout(), signal: controller.signal };
+  const call = async (method, path, options = {}) => {
+    const response = await request(new URL(path, profile.server), { method, token, timeout: args.timeout(), signal: controller.signal, ...options });
+    if (!response.ok) throw responseError(response, "", { profile: profile.name, credentialSource: source });
+    try {
+      return response.json();
+    } catch {
+      throw new CliError("Invalid file API receipt.", { code: "invalid_response" });
+    }
+  };
+  const interrupt = () => controller.abort();
+  process.on("SIGINT", interrupt);
+  try {
+    if (action === "upload") {
+      const input3 = resolve6(args.required("file")), info = await stat2(input3), uploaderId = args.required("uploader-id");
+      if (!info.isFile() || info.size > maxBytes) throw new CliError("Upload requires a regular file within the 512 MiB service limit.", { code: "invalid_arguments" });
+      const blob = await openAsBlob2(input3), fileName = args.value("name") ?? basename2(input3);
+      if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
+      const value3 = await writeOnce(
+        async () => {
+          const result = await call("POST", root + "?" + new URLSearchParams({ uploaderId, fileName }), {
+            body: blob,
+            headers: { "Content-Type": "application/octet-stream", "Content-Length": String(info.size) }
+          });
+          if (!isObject(result) || typeof result.id !== "string" || !result.id.trim() || result.length !== info.size || result.fileName !== fileName)
+            throw new CliError("The file receipt does not match this upload.", { code: "invalid_response" });
+          return result;
+        },
+        "Upload outcome is unknown. Inspect the original uploader and file metadata before another upload; no retry was sent.",
+        { profile: profile.name, server: profile.server, tenant: profile.tenant, uploaderId, fileName, bytes: info.size }
+      );
+      reporter.print(value3);
+      return 0;
+    }
+    const fileId = args.required("id"), path = `${root}/${segment(fileId)}`;
+    if (action === "preview") {
+      reporter.print(await call("GET", path + "/preview"));
+      return 0;
+    }
+    const metadata = await call("GET", path);
+    if (!isObject(metadata) || metadata.id !== fileId || !Number.isSafeInteger(metadata.length) || metadata.length < 0 || typeof metadata.contentType !== "string")
+      throw new CliError("The file metadata does not match the requested file.", { code: "invalid_response" });
+    if (action === "show") {
+      reporter.print(metadata);
+      return 0;
+    }
+    const assetId = args.value("asset-id");
+    const value2 = await saveFile(
+      client2,
+      "GET",
+      assetId ? `${path}/preview/assets/${segment(assetId)}/content` : path + "/content",
+      args.required("out"),
+      assetId ? maxBytes : metadata.length,
+      void 0,
+      { contentType: assetId ? null : metadata.contentType, expectedBytes: assetId ? void 0 : metadata.length, allowEmpty: true }
+    );
+    reporter.print({ fileId, ...assetId ? { assetId } : {}, ...value2 });
+    return 0;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+  }
+}
+
+// src/xrain-cli/market.mjs
+import { accessSync as accessSync2, constants as constants2, copyFileSync as copyFileSync2, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname4, resolve as resolve7 } from "node:path";
+import { randomBytes as randomBytes7 } from "node:crypto";
+function newOutput(value2) {
+  const path = resolve7(value2);
+  if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
+  accessSync2(dirname4(path), constants2.W_OK);
+  return path;
+}
+function save(path, bytes) {
+  const temporary = path + "." + randomBytes7(8).toString("hex") + ".part";
+  try {
+    writeFileSync4(temporary, bytes, { flag: "wx" });
+    copyFileSync2(temporary, path, constants2.COPYFILE_EXCL);
+  } finally {
+    if (existsSync3(temporary)) unlinkSync3(temporary);
+  }
+}
+function receipt(response) {
+  requireSuccess(response);
+  try {
+    return response.json();
+  } catch {
+    throw new CliError("Market returned invalid JSON.", { code: "invalid_response" });
+  }
+}
+async function marketCommands(ctx) {
+  const { args, reporter } = ctx;
+  if (!args.has("exchange")) throw new CliError("Market commands require an explicit --exchange URL and its independent login.", { code: "invalid_arguments" });
+  const action = args.command(1), id = args.required("package");
+  if (!validPackageId(id)) throw new CliError("An exact package ID is required.", { code: "invalid_arguments" });
+  const { send: send2, root: root2 } = appClient(ctx), path = `${root2}/packages/${id}`;
+  if (action === "rename" || action === "publication" || action === "unpublish") {
+    let body, method = "PUT", suffix = "/publication";
+    if (action === "rename") {
+      const label = args.required("label").trim();
+      if (!label || label.length > 256) throw new CliError("Label must have 1-256 characters.");
+      body = { label };
+      method = "PATCH";
+      suffix = "";
+    } else {
+      const expected = args.required("expected-published-version");
+      if (expected !== "null" && !validVersionId(expected)) throw new CliError("Use the observed version ID, or literal null for an unpublished package.");
+      const versionId2 = action === "unpublish" ? null : args.required("version-id");
+      if (versionId2 !== null && !validVersionId(versionId2)) throw new CliError("An exact version ID is required.");
+      body = { versionId: versionId2, expectedPublishedVersionId: expected === "null" ? null : expected };
+    }
+    const result = await writeOnce(
+      async () => {
+        const value2 = receipt(await send2(method, path + suffix, { json: body }));
+        if (value2?.id !== id || action === "rename" && value2.label !== body.label || action !== "rename" && value2.publishedVersionId !== body.versionId)
+          throw new CliError("Market returned a mismatched maintenance receipt.", { code: "invalid_response" });
+        return value2;
+      },
+      "Market write outcome is unknown. Use app status --exchange with this package and the original market identity before another write; do not refresh the expected version and replay.",
+      { packageId: id, exchange: args.value("exchange"), expectedPublishedVersionId: body.expectedPublishedVersionId, readBack: "app status --exchange" }
+    );
+    reporter.print(result);
+    return 0;
+  }
+  const versionId = args.value("version-id");
+  if (["manifest", "components", "download"].includes(action) && !validVersionId(versionId)) throw new CliError("--version-id must contain an exact version ID.");
+  const output2 = args.has("out") ? newOutput(args.value("out")) : void 0;
+  if (action !== "download") {
+    const suffix = action === "show" ? "" : action === "versions" ? "/versions" : `/versions/${versionId}/${action}`;
+    const result = receipt(await send2("GET", path + suffix));
+    if (output2) {
+      save(output2, Buffer.from(JSON.stringify(result, null, 2) + "\n"));
+      reporter.print({ output: output2, packageId: id, versionId });
+    } else reporter.print(result);
+    return 0;
+  }
+  const metadata = receipt(await send2("GET", `${path}/versions/${versionId}/manifest`));
+  if (metadata?.packageId !== id || metadata?.versionId !== versionId || !/^[a-f0-9]{64}$/i.test(metadata.fileSha256 ?? "") || !nonempty(metadata.digest))
+    throw new CliError("Market returned invalid artifact metadata.", { code: "invalid_response" });
+  const response = requireSuccess(await send2("GET", `${path}/versions/${versionId}/artifact`, { limit: MAX_ARCHIVE }));
+  const manifest = readManifest(response.bytes), hash = sha256(response.bytes);
+  if (manifest.packageId !== id || manifest.versionId !== versionId || manifest.version !== metadata.version || hash !== metadata.fileSha256.toLowerCase() || response.headers.get("x-appkg-file-sha256")?.toLowerCase() !== hash || response.headers.get("x-appkg-package-id") !== id || response.headers.get("x-appkg-version-id") !== versionId || response.headers.get("x-appkg-package-digest") !== metadata.digest)
+    throw new CliError("Market artifact identity or digest does not match its metadata.", { code: "integrity_failed" });
+  save(output2, response.bytes);
+  reporter.print({ output: output2, packageId: id, versionId, packageSha256: hash, digest: metadata.digest });
+  return 0;
+}
+
+// src/xrain-cli/workforce.mjs
+function value(response) {
+  requireSuccess(response);
+  if (!response.bytes.length) return null;
+  try {
+    return response.json();
+  } catch {
+    throw new CliError("Workforce returned invalid JSON.", { code: "invalid_response" });
+  }
+}
+async function workforceCommands(ctx) {
+  const { args, store, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
+  const profile = store.resolve(args, true), host3 = origin(args.required("workforce")), appId = applicationId(profile);
+  if (!appId) throw new CliError("Workforce commands require the actual application ID.", { code: "invalid_arguments" });
+  const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
+  if (!token) throw new CliError("A matching platform login session is required for Workforce.", { code: "authentication_required" });
+  const identity = value(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
+  if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
+    throw new CliError("The current platform identity does not match this Workforce target.", { code: "identity_mismatch" });
+  const headers = { "X-XRain-Application-Id": appId, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), body;
+  if (operation.query && args.has("query-json")) {
+    const query2 = await readJsonInput(args.value("query-json"), "Workforce query", { stdin: ctx.stdin });
+    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((item) => !["number", "boolean", "string"].includes(typeof item)))
+      throw new CliError("Use only supported native query keys with scalar values.", { code: "invalid_arguments" });
+    const search = new URLSearchParams(Object.entries(query2).map(([key, item]) => [key, String(item)]));
+    if (search.size) route += "?" + search;
+  }
+  if (operation.input) {
+    body = await readJsonInput(args.required("request-json", args.value("file")), "Workforce request", { stdin: ctx.stdin });
+    if (!isObject(body)) throw new CliError("Workforce requests must be JSON objects.");
+    registerSecrets(reporter, body);
+    if (ctx.spec.path === "workforce session create" && Object.keys(body).some((key) => !["taskId", "agentId", "source", "requestId"].includes(key)))
+      throw new CliError("Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.", { code: "invalid_arguments" });
+  }
+  const details = {
+    workforce: host3,
+    server: profile.server,
+    tenantId: profile.tenant,
+    userId: identity.userId,
+    applicationId: appId,
+    operation: operation.path,
+    target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
+    ...Object.fromEntries(["requestId", "clientMessageId", "taskId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
+  };
+  const call = () => request(new URL(route, host3), { method: operation.method, token, headers, json: body, timeout: args.timeout() }).then(value);
+  const result = operation.method === "GET" ? await call() : await writeOnce(
+    call,
+    "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.",
+    details
+  );
+  reporter.print(result);
   return 0;
 }
 
@@ -4676,6 +5382,12 @@ async function dispatch(ctx) {
       return userSettingsCommands(ctx);
     case "data":
       return dataCommands(ctx);
+    case "file":
+      return fileCommands(ctx);
+    case "market":
+      return marketCommands(ctx);
+    case "workforce":
+      return workforceCommands(ctx);
     case "app":
       return appCommands(ctx);
     case "agent":

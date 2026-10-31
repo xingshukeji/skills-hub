@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { CliError, isObject, nonempty, randomId, readJsonInput, segment } from './core.mjs';
-import { requireSuccess } from './http.mjs';
+import { requireSuccess, writeOnce } from './http.mjs';
 
 const activeStatuses = new Set(['Pending', 'Running', 'Finalizing']);
 const statuses = new Set([...activeStatuses, 'WaitingForResolution', 'Succeeded', 'Failed', 'Cancelled']);
@@ -11,6 +11,9 @@ const requestFields = {
   install: [...installFields, 'requestId'],
   resolve: ['expectedRevision', 'resolutions', 'tenantBindings', 'confirmations', 'configurationChanges'],
   retry: ['requestId', 'expectedRevision'],
+  uninstall: ['requestId', 'expectedRevision'],
+  'policy-apply': ['targetPolicyVersion', 'expectedRevision', 'restorePackageProperties', 'tenantBindings', 'configurationChanges', 'confirmations', 'requestId'],
+  'policy-convert': ['targetPolicyVersion', 'expectedRevision'],
 };
 const invalid = message => new CliError(message, { code: 'invalid_arguments' });
 
@@ -51,7 +54,7 @@ async function input(args, action) {
   if (['preview', 'install'].includes(action) && !nonempty(body.versionId))
     throw invalid('An exact versionId is required via --version-id or --request-json. Use app versions to select it.');
   if ((body.expectedRevision != null && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 0)) ||
-    (action === 'resolve' && body.expectedRevision == null))
+    (['resolve', 'uninstall'].includes(action) && body.expectedRevision == null))
     throw invalid('expectedRevision must be a nonnegative safe integer; resolve requires the revision you inspected.');
   if (body.requestId != null && (typeof body.requestId !== 'string' || body.requestId.length !== 20 || !/^apo[A-Za-z0-9]{17}$/.test(body.requestId)))
     throw invalid('requestId must be a 20-character operation ID starting with apo.');
@@ -135,13 +138,15 @@ async function waitOperation(ctx, api, operation, settings) {
   return operation;
 }
 
-async function submit(ctx, api, path, body, context, { cancel = false } = {}) {
+async function submit(ctx, api, path, body, context, { cancel = false, method = 'POST' } = {}) {
   const settings = waitSettings(ctx.args, ctx.args.has('wait'));
   let operation;
   ctx.reporter.progress(`Submitting operation ${context.operationId}. Keep this ID if the response is interrupted.`);
   try {
-    const response = requireSuccess(await api.send('POST', path, { ...(body === undefined ? {} : { json: body }), timeout: remaining(settings) }));
+    const response = requireSuccess(await api.send(method, path, { ...(body === undefined ? {} : { json: body }), timeout: remaining(settings) }));
     operation = operationResponse(response.json(), context.operationId, context.versionId);
+    if (context.installationId && operation.installationId !== context.installationId)
+      throw new CliError('The operation does not belong to the requested installation.', { code: 'invalid_response' });
     if (ctx.args.has('wait')) operation = await waitOperation(ctx, api, operation, settings);
     checkOutcome(operation, cancel);
     return output(ctx, operation);
@@ -157,6 +162,43 @@ async function submit(ctx, api, path, body, context, { cancel = false } = {}) {
 export async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === 'components') {
+    const packageId = args.required('package'), versionId = args.required('version-id'), api = createClient();
+    return output(ctx, requireSuccess(await api.send('GET', `${api.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());
+  }
+  if (action === 'withdraw') {
+    const packageId = args.required('package'), requestId = args.required('request-id'), api = createClient();
+    return output(ctx, await writeOnce(async () => operationResponse(requireSuccess(await api.send('POST', `${api.root}/packages/${segment(packageId)}/requests/${segment(requestId)}/withdraw`)).json(), requestId),
+      'Withdrawal outcome is unknown. Read the original package and submission before another write.', { packageId, requestId }));
+  }
+  if (action === 'uninstall') {
+    const installationId = args.required('installation'), body = await input(args, 'uninstall'), api = createClient();
+    body.requestId ??= randomId('apo');
+    return writeOnce(() => submit(ctx, api, `${api.root}/installations/${segment(installationId)}`, body,
+      { installationId, requestId: body.requestId, operationId: body.requestId }, { method: 'DELETE' }), queryHint(body.requestId), { installationId, operationId: body.requestId });
+  }
+  if (action === 'policy') {
+    const installationId = args.required('installation'), api = createClient();
+    if (args.command(2) === 'preview') return output(ctx, requireSuccess(await api.send('POST', `${api.root}/installations/${segment(installationId)}/policy:preview`)).json());
+    const body = await input(args, 'policy-apply');
+    if (!Number.isSafeInteger(body.targetPolicyVersion) || body.targetPolicyVersion < 1 || body.expectedRevision == null)
+      throw invalid('Policy application requires targetPolicyVersion and expectedRevision.');
+    body.requestId ??= randomId('apo');
+    return writeOnce(() => submit(ctx, api, `${api.root}/installations/${segment(installationId)}/policy:apply`, body,
+      { installationId, requestId: body.requestId, operationId: body.requestId }), queryHint(body.requestId), { installationId, operationId: body.requestId });
+  }
+  if (action === 'component') {
+    const installationId = args.required('installation'), recordId = args.required('id'), api = createClient();
+    if (!args.has('expected-revision')) throw invalid('--expected-revision is required. Read the original installation first.');
+    const rawRevision = args.value('expected-revision');
+    if (!/^[0-9]+$/.test(rawRevision) || !Number.isSafeInteger(Number(rawRevision))) throw invalid('--expected-revision must be a nonnegative safe integer.');
+    const result = await writeOnce(async () => {
+      const value = requireSuccess(await api.send('POST', `${api.root}/installations/${segment(installationId)}/components/${segment(recordId)}:restore`, { json: { expectedRevision: Number(rawRevision) } })).json();
+      if (value?.id !== installationId) throw new CliError('The restored installation does not match the target.', { code: 'invalid_response' });
+      return value;
+    }, 'Restore outcome is unknown. Read the original installation and component before another write.', { installationId, recordId });
+    return output(ctx, result);
+  }
   if (action === 'list' || action === 'versions') {
     const api = createClient();
     const path = action === 'list' ? '/packages' : `/packages/${segment(args.required('package'))}/versions`;
@@ -189,12 +231,23 @@ export async function appManagementCommands(ctx, createClient) {
   }
   if (action === 'installation') {
     const id = args.required('installation'), api = createClient();
+    const sub = args.command(2);
+    if (sub !== 'show') {
+      const suffix = sub === 'components' ? '/components' : sub === 'history' ? '/operations?' + new URLSearchParams({ page: String(args.integer('page', 1)), pageSize: String(args.integer('page-size', 20)) }) : '/check';
+      return output(ctx, requireSuccess(await api.send(sub === 'check' ? 'POST' : 'GET', `${api.root}/installations/${segment(id)}${suffix}`)).json());
+    }
     const result = requireSuccess(await api.send('GET', `${api.root}/installations/${segment(id)}`)).json();
     if (result?.id !== id) throw new CliError('The installation response does not match the requested ID.', { code: 'invalid_response' });
     return output(ctx, result);
   }
   if (action === 'operation') {
     const id = args.required('operation'), operationAction = args.command(2);
+    if (operationAction === 'policy-apply') {
+      const body = await input(args, 'policy-convert'), api = createClient();
+      if (!Number.isSafeInteger(body.targetPolicyVersion) || body.targetPolicyVersion < 1 || body.expectedRevision == null)
+        throw invalid('Operation policy conversion requires targetPolicyVersion and expectedRevision.');
+      return writeOnce(() => submit(ctx, api, `${api.root}/operations/${segment(id)}/policy:apply`, body, { operationId: id }), queryHint(id), { operationId: id });
+    }
     const body = requestFields[operationAction] ? await input(args, operationAction) : undefined;
     if (operationAction === 'retry') {
       body.requestId ??= randomId('apo');

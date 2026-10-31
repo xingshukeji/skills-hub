@@ -1,6 +1,7 @@
 import { CliError, origin } from './core.mjs';
 import { creationKey } from './record-creation.mjs';
 import { managementOperations, operationOptions, routeParameters } from './management.mjs';
+import { workforceOperations } from './workforce-operations.mjs';
 
 const common = ['help', 'json'];
 const target = ['server', 'tenant', 'scope', 'profile', 'timeout'];
@@ -33,7 +34,11 @@ command('metadata entities', api, [], 'List the target environment object regist
 command('metadata describe', [...api, 'entity'], [slot('entity')], 'Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.');
 const runtime = [...api, 'runtime'];
 command('agent directory', [...runtime, 'application-id', 'personal', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
-command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('agent-id')], 'Create a conversation, submit one message and wait for its own completed turn.');
+command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout', 'context-json'], [slot('agent-id')], 'Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.');
+command('agent run start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file'], [slot('agent-id')], 'Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.');
+command('agent run show', [...runtime, 'run-id'], [slot('run-id')], 'Read the original managed run using the same identity. Results are bounded in-memory Runtime state.');
+command('agent ephemeral directory', runtime, [], 'List agents available for stateless text generation.');
+command('agent ephemeral generate', [...runtime, 'agent-id', 'message', 'message-file'], [slot('agent-id')], 'Generate text without a session, tools or history; requires a currently authorized agent.');
 command('agent chat send', [...runtime, 'session-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout'], [slot('session-id')], 'Send one message to an existing authorized conversation and wait for its own completed turn.');
 command('agent chat wait', [...runtime, 'session-id', 'application-id', 'personal', 'request-id', 'wait-timeout'], [slot('session-id')], 'Read or follow one previously submitted request without sending it again.');
 command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations; --all includes other sources owned by the same identity.');
@@ -93,6 +98,11 @@ for (const action of ['list', 'recipients', 'capability', 'eligibility', 'grant'
   [slot('entity'), slot('id'), ...(['update', 'revoke'].includes(action) ? [slot('share-id')] : [])], 'Read or change one record share through its native permission checks.');
 command('data export-capabilities', [...api, 'entity'], [slot('entity')], 'Read server file export limits.');
 command('data export-file', [...api, 'entity', 'application', ...requestInput, 'out'], [slot('entity')], 'Export authorized records as XLSX using a complete query/options request; --out must be a new file.');
+command('file upload', [...api, 'file', 'uploader-id', 'name'], [slot('file')], 'Upload raw file bytes with an authorized service credential and explicit uploader ID; no automatic retry.');
+command('file show', [...api, 'id'], [slot('id')], 'Read metadata of the authorized original file.');
+command('file preview', [...api, 'id'], [slot('id')], 'Read the authorized original file preview descriptor.');
+command('file download', [...api, 'id', 'out'], [slot('id')], 'Download the complete authorized file to a new path and verify its native metadata length.');
+command('file preview-asset', [...api, 'id', 'asset-id', 'out'], [slot('id'), slot('asset-id')], 'Read one preview asset through its original file authorization, preserving an existing output.');
 const importTarget = [...api, 'entity', 'application'];
 const importJob = [...importTarget, 'job'];
 const importWait = ['wait', 'wait-timeout', 'poll-interval'];
@@ -137,9 +147,23 @@ command('app publish', [...app, 'exchange', 'file'], [slot('file')], 'Publish an
 command('app status', [...app, 'exchange', 'package'], [], 'Read published applications and version history. JSON mode always returns an array.');
 command('app list', [...app, 'exchange'], [], 'List visible platform packages, or browse the independent market with --exchange.');
 command('app versions', [...app, 'exchange', 'package'], [slot('package')], 'List versions of an exact package ID; availability for installation is decided by the platform.');
-command('app import', [...app, 'package', 'version-id'], [slot('package')], 'Import an exact version from the platform-configured market; does not install or publish. --version-id is required.');
-const installInput = ['package', 'version-id', 'expected-revision', 'maintain-installed-version', 'request-json', 'file'];
 const wait = ['wait', 'wait-timeout', 'poll-interval'];
+for (const action of ['show', 'versions', 'manifest', 'components', 'download', 'rename', 'publication', 'unpublish'])
+  command(`market ${action}`, [...app, 'exchange', 'package', ...(['manifest', 'components', 'download', 'publication'].includes(action) ? ['version-id'] : []),
+    ...(['manifest', 'components', 'download'].includes(action) ? ['out'] : []), ...(action === 'rename' ? ['label'] : []),
+    ...(['publication', 'unpublish'].includes(action) ? ['expected-published-version'] : [])], [slot('package')],
+  'Use an independent market session and exact package/version. Publication requires the observed version or literal null; downloads verify identity and digest.');
+command('app import', [...app, 'package', 'version-id'], [slot('package')], 'Import an exact version from the platform-configured market; does not install or publish. --version-id is required.');
+command('app import-file', [...app, 'file'], [slot('file')], 'Import one validated local appkg through the existing Host/platform session. Does not install or publish.');
+command('app components', [...app, 'package', 'version-id'], [slot('package')], 'Read components of one exact package version.');
+command('app withdraw', [...app, 'package', 'request-id'], [slot('package')], 'Withdraw the original submission request without replacing the package version.');
+command('app uninstall', [...app, 'installation', 'request-json', 'file', 'request-id', 'expected-revision', ...wait], [slot('installation')], 'Uninstall the original installation through a recoverable operation; --wait observes the same operation.');
+for (const action of ['components', 'history', 'check']) command(`app installation ${action}`, [...app, 'installation', ...(action === 'history' ? ['page', 'page-size'] : [])], [slot('installation')], 'Inspect installed components, original operation history or runtime checks without starting another install.');
+command('app component restore', [...app, 'installation', 'id', 'expected-revision'], [slot('installation'), slot('id')], 'Restore the exact original component at an observed installation revision.');
+command('app policy preview', [...app, 'installation'], [slot('installation')], 'Read proposed policy effects without applying them.');
+command('app policy apply', [...app, 'installation', 'request-json', 'file', 'request-id', 'expected-revision', ...wait], [slot('installation')], 'Apply explicitly chosen policy version, bindings and confirmations at the observed revision.');
+command('app operation policy-apply', [...app, 'operation', 'request-json', 'file', 'expected-revision', ...wait], [slot('operation')], 'Convert policy on the original operation using the observed revision and targetPolicyVersion.');
+const installInput = ['package', 'version-id', 'expected-revision', 'maintain-installed-version', 'request-json', 'file'];
 command('app preview', [...app, ...installInput], [slot('package')], 'Inspect installation or upgrade changes without applying them. Supply versionId via --version-id or --request-json.');
 command('app install', [...app, ...installInput, 'request-id', ...wait], [slot('package')], 'Install or upgrade an exact version using server preflight. --wait tracks completion; request IDs allow recovery without resubmission.');
 command('app installation show', [...app, 'installation'], [slot('installation')], 'Read the installed version, revision and active/latest operation IDs.');
@@ -152,6 +176,9 @@ command('app operation cancel', [...app, 'operation'], [slot('operation')], 'Can
 command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument arrays in this process; stop at the first failure.');
 for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
+for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', 'application-id', 'auth', ...routeParameters(operation.route),
+  ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.');
 
 function words(args) {
   return args.commands.map((word, index) => {
@@ -177,9 +204,38 @@ export function validateCommand(args) {
     if (value !== undefined) args.options.set(operand.name, value);
   }
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: 'invalid_arguments', hint: `Run ${spec.path} --help.` });
+  const management = managementOperations.find(item => item.path === spec.path);
+  if (management) {
+    for (const option of Object.values(management.headers ?? {})) args.required(option);
+    if (management.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
+    if (management.credentialOutput) args.required('out');
+  }
+  if (spec.path === 'app component restore') {
+    const value = args.required('expected-revision');
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new CliError('--expected-revision must be a nonnegative safe integer.', { code: 'invalid_arguments' });
+  }
+  if (spec.path === 'app components') args.required('version-id');
+  if (spec.path === 'app withdraw') args.required('request-id');
+  if (spec.path === 'file upload') args.required('uploader-id');
+  if (spec.path.startsWith('workforce ')) {
+    args.required('workforce');
+    const operation = workforceOperations.find(row => row.path === spec.path);
+    if (operation.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
+    if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
+  }
+  if (['file download', 'file preview-asset', 'data export-file'].includes(spec.path)) args.required('out');
+  if (spec.path.startsWith('market ')) {
+    args.required('exchange');
+    if (spec.path === 'market download') args.required('out');
+    if (['market manifest', 'market components', 'market download', 'market publication'].includes(spec.path)) args.required('version-id');
+    if (['market publication', 'market unpublish'].includes(spec.path)) args.required('expected-published-version');
+    if (spec.path === 'market rename') args.required('label');
+  }
+  if (['agent run start', 'agent ephemeral generate'].includes(spec.path) && !args.has('message') && !args.has('message-file')) throw new CliError('Supply --message or --message-file.', { code: 'invalid_arguments' });
   const exclusive = names => {
     if (names.filter(name => args.has(name)).length > 1) throw new CliError(`Use only one of ${names.map(name => '--' + name).join(', ')}.`, { code: 'invalid_arguments' });
   };
+  if (['agent run start', 'agent ephemeral generate'].includes(spec.path)) exclusive(['message', 'message-file']);
   if (args.has('scope') && (!['host', 'tenant'].includes(args.value('scope')) || args.value('scope') === 'host' && args.has('tenant')))
     throw new CliError('--scope must be tenant or host; Host connections cannot select --tenant.', { code: 'invalid_arguments' });
   if (spec.path === 'auth login' && args.value('scope') === 'host' && !args.has('native'))

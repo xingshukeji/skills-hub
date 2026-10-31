@@ -9,6 +9,9 @@ import { agentCommands } from './agents.mjs';
 import { commandHelp, validateCommand } from './schema.mjs';
 import { hostSettingsCommands, userSettingsCommands } from './settings.mjs';
 import { managementCommand } from './management.mjs';
+import { fileCommands } from './files.mjs';
+import { marketCommands } from './market.mjs';
+import { workforceCommands } from './workforce.mjs';
 
 export const HELP = commandHelp(new Args([]));
 
@@ -26,6 +29,9 @@ async function dispatch(ctx) {
     case 'host': return args.command(1) === 'settings' ? hostSettingsCommands(ctx) : hostCommands(ctx);
     case 'user': return userSettingsCommands(ctx);
     case 'data': return dataCommands(ctx);
+    case 'file': return fileCommands(ctx);
+    case 'market': return marketCommands(ctx);
+    case 'workforce': return workforceCommands(ctx);
     case 'app': return appCommands(ctx);
     case 'agent': return agentCommands(ctx);
     case 'health': {
