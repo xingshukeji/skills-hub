@@ -17,10 +17,13 @@ Use the lowest layer that proves the behavior. Add a higher layer only for risk 
 ## Coverage prompts
 
 - Normal path plus the relevant reject, missing-context, invalid-input, or concurrency path.
-- Denied writes prove no mutation or forbidden audit payload.
+- Derive expected results from the retained requirement or contract; do not reuse the production decision function to compute its own oracle.
+- Pair a legal write and its committed readback with a denied write and before/after readback proving no forbidden mutation or audit payload. A reject-all implementation must fail the legal case. Select this pair when the changed risk includes allow/deny behavior, not for every pure calculation.
 - Contract tests assert stable status/error/header/body, not snapshots of incidental formatting.
 - Real tests use the real auth/tenant context and migration/seed order.
 - Regression tests name the escaped behavior and remain deterministic.
+
+For an authorized repair, run the same regression assertion against the old and repaired behavior when practical. If the old subject cannot be run, record that limit; do not weaken the assertion or alter a shared environment just to obtain a failing baseline.
 
 ## Real dependency lifecycle
 

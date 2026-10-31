@@ -25,7 +25,7 @@ Use `shzw-aiinfra-development` too when package ownership or consumption is part
 3. Create a uniquely named database, apply foundation then product migration/seed, start the real host, and record the database name.
 4. Cover the relevant allow, deny, invalid-input, missing-context, tenant, concurrency, and audit paths. Stop expanding when the changed risk is proven.
 5. Assert status, stable error/header/body shape, data visibility, and database side effects. A denied write must prove no forbidden mutation.
-6. Fail the runner on any assertion. 按目标 Runbook 及已有授权处理本次隔离数据库；成功本身不授权清理需保留的测试数据。失败时记录保留名称与最小复现。
+6. Fail the runner on any assertion. 按目标 Runbook 及已有授权处理本次隔离数据库；成功本身不授权清理需保留的测试数据。涉及共享登记引用临时宿主存储时，停止前明确处理动作并保留所需原存储，交还后完成[原入口的状态恢复核对](../../SKILL.md#4-回核并报告)。失败时记录保留名称与最小复现。
 7. Generate the report format and location defined by the current runner/runbook. Include scenario, expected/actual, assertions, sanitized curl/request, response, database lifecycle, and PASS/FAIL.
 
 ## Gates
