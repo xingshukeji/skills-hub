@@ -283,7 +283,7 @@ export function validateCommand(args) {
   }
   exclusive(['application-id', 'personal']);
   if (spec.path === 'data creation-result') args.required('request-key');
-  if (args.has('request-key')) creationKey(args.value('request-key'));
+  if (['data create', 'data creation-result'].includes(spec.path) && args.has('request-key')) creationKey(args.value('request-key'));
   if (args.has('runtime')) origin(args.value('runtime'));
   if (spec.path === 'data query') {
     exclusive(['query', 'query-json', 'file']); exclusive(['filter', 'filter-json']);

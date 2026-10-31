@@ -104,6 +104,26 @@ for (const bundled of [false, true]) {
     assert.equal(server.hits.length, 4);
   });
 
+  test(`${label}: an oversized creation receipt keeps an unknown outcome and recovers the saved record`, async t => {
+    const f = client(t, bundled), key = 'original-large-receipt';
+    let writes = 0, saved;
+    const server = await mockServer(t, (hit, res) => {
+      if (hit.url === path + ':creationResult') return respond(res, { status: 'completed', record: saved });
+      writes++; saved = receipt(hit.json().values);
+      respond(res, { ...saved, values: { ...saved.values, computed: 'x'.repeat(32 * 1024 * 1024) } });
+    });
+    f.profile(server.url, 't', 'synthetic-record-token');
+    const created = await f.run(create(key));
+    assert.equal(created.code, 1);
+    assert.equal(JSON.parse(created.stdout).error.code, 'outcome_unknown');
+    assert.equal(JSON.parse(created.stdout).error.details.requestKey, key);
+    const recovered = await f.run(lookup(key));
+    assert.equal(recovered.code, 0, recovered.stdout);
+    assert.equal(JSON.parse(recovered.stdout).data.record.recordId, saved.recordId);
+    assert.equal(writes, 1);
+    assert.equal(server.hits.length, 2);
+  });
+
   test(`${label}: invalid creation receipts never become successful or trigger a second write`, async t => {
     const f = client(t, bundled); let reply;
     const server = await mockServer(t, (hit, res) => respond(res, reply));

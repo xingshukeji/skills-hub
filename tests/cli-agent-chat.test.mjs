@@ -145,7 +145,8 @@ test('chat starts and continues the selected agent only after observing its own 
   const started = await f.run(['agent', 'chat', 'start', 'agent-one', '--message', 'first message', ...options]);
   assert.equal(started.code, 0, started.stdout); const first = result(started).data;
   assert.equal(first.sessionId, 'session-1'); assert.equal(first.status, 'completed'); assert.equal(first.answer, 'new answer');
-  assert.deepEqual(first.toolCalls, [{ name: 'read', status: 'succeeded' }]); assert.equal(first.requestId, mock.state().requestId);
+  assert.deepEqual(first.toolCalls, [{ callId: 'tool-1', name: 'read', status: 'succeeded',
+    result: { turn: 2, message: { role: 'tool', toolCallId: 'tool-1', isError: false } } }]); assert.equal(first.requestId, mock.state().requestId);
   assert.match(started.stderr, /Session ID: session-1/); assert.match(started.stderr, /Request ID:/);
   const continued = await f.run(['agent', 'chat', 'send', 'session-1', '--message', 'second message', ...options]);
   assert.equal(continued.code, 0, continued.stdout); assert.equal(result(continued).data.answer, 'new answer');

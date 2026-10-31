@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import { CliError, isObject, jsonInput, nonempty, readJsonInput, segment } from './core.mjs';
+import { CliError, isObject, jsonInput, nonempty, readJsonInput, registerSecrets, segment } from './core.mjs';
 import { responseError } from './http.mjs';
 import { sessionControl } from './runtime-controls.mjs';
 
@@ -34,16 +34,27 @@ function sourceOf(data) {
   const message = isObject(data.message) ? data.message : data;
   return isObject(message.source) ? message.source : isObject(data.source) ? data.source : {};
 }
-function toolResult(data) {
+function toolResult(data, reporter) {
   const message = isObject(data.message) ? data.message : {};
+  registerSecrets(reporter, data);
+  const inspectText = parts => {
+    for (const part of parts ?? []) {
+      if (!isObject(part)) continue;
+      if (part.type === 'text' && typeof part.text === 'string') {
+        try { registerSecrets(reporter, JSON.parse(part.text)); } catch {}
+      }
+      if (Array.isArray(part.content)) inspectText(part.content);
+    }
+  };
+  if (Array.isArray(message.content)) inspectText(message.content);
   const block = Array.isArray(message.content) ? message.content.find(part => isObject(part) && part.type === 'tool-result') : undefined;
   const callId = data.callId ?? message.toolCallId ?? block?.toolCallId ?? (isObject(message.source) ? message.source.callId : undefined);
   const failed = data.error !== undefined || message.isError === true || block?.isError === true;
   const recognized = message.role === 'tool' || !!block;
-  return { callId, status: failed ? 'failed' : recognized ? 'succeeded' : 'unknown' };
+  return { callId, status: failed ? 'failed' : recognized ? 'succeeded' : 'unknown', result: data };
 }
 
-function collector(requestId, expectedText) {
+function collector(requestId, expectedText, reporter) {
   let currentTurn, targetTurn, found = false, answer = '', result;
   const tools = new Map();
   function accept(event) {
@@ -70,10 +81,10 @@ function collector(requestId, expectedText) {
       const text = textOf(data.message ?? data);
       if (text) answer = text;
     } else if (event.type === 'tool/call' && nonempty(data.callId) && nonempty(data.name)) {
-      tools.set(data.callId, { name: data.name, status: 'pending' });
+      tools.set(data.callId, { callId: data.callId, name: data.name, status: 'pending' });
     } else if (event.type === 'tool/result') {
-      const result = toolResult(data), tool = tools.get(result.callId);
-      if (tool) tool.status = result.status;
+      const result = toolResult(data, reporter), tool = tools.get(result.callId);
+      if (tool) Object.assign(tool, result);
     } else if (event.type === 'turn/end') {
       const reason = isObject(data.reason) ? data.reason.kind : undefined;
       result = { status: reason === 'completed' ? 'completed' : 'failed', reason: typeof reason === 'string' ? reason : 'unknown', answer, toolCalls: [...tools.values()] };
@@ -82,7 +93,7 @@ function collector(requestId, expectedText) {
   return { accept, result: () => result, found: () => found };
 }
 
-function visibleHistory(frame, sessionId) {
+function visibleHistory(frame, sessionId, reporter) {
   if (!isObject(frame) || frame.type !== 'snapshot' || !Array.isArray(frame.records))
     throw new CliError('Runtime returned an invalid conversation history.', { code: 'invalid_response' });
   const items = [];
@@ -101,8 +112,7 @@ function visibleHistory(frame, sessionId) {
     } else if (event.type === 'tool/call' && typeof data.name === 'string') {
       items.push({ ...base, type: event.type, name: data.name, ...(typeof data.callId === 'string' ? { callId: data.callId } : {}) });
     } else if (event.type === 'tool/result') {
-      const result = toolResult(data);
-      items.push({ ...base, type: event.type, status: result.status, ...(typeof result.callId === 'string' ? { callId: result.callId } : {}) });
+      items.push({ ...base, type: event.type, ...toolResult(data, reporter) });
     }
   }
   const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : undefined;
@@ -247,7 +257,7 @@ function finish(sessionId, requestId, result) {
 }
 async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
   let stream, submitted = text === undefined, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
-  const turn = collector(requestId, text);
+  const turn = collector(requestId, text, ctx.reporter);
   try {
     budget.check();
     stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
@@ -348,7 +358,7 @@ export async function chatCommands(ctx, helpers) {
       ? await historyPage(ctx, sessionId, Number(args.value('through-seq')),
         args.has('before-seq') ? Number(args.value('before-seq')) : undefined, args.integer('page-size', 100), headers, helpers)
       : await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history`);
-    reporter.print(visibleHistory(page, sessionId)); return 0;
+    reporter.print(visibleHistory(page, sessionId, reporter)); return 0;
   }
   const text = action === 'wait' ? undefined : await messageInput(args, ctx.stdin);
   const requestId = args.value('request-id') ?? randomUUID();

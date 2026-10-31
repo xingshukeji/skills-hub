@@ -9,10 +9,17 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   const f = fixture(t), directory = join(f.directory, 'complete skill with spaces');
   cpSync(new URL('../skills/shzw-xrain-cli/', import.meta.url), directory, { recursive: true });
   const file = join(f.directory, 'download.txt'), bytes = Buffer.from('complete copied artifact');
+  const metadataKey = 'metadata:original/'.repeat(120);
   let conversation;
   const service = await mockServer(t, (hit, res) => {
     if (hit.url === '/api/service/authen/v1/account/context') return respond(res, { tenantId: 'TEN', userId: 'human' });
     if (hit.url === '/api/metadata/v1/entities/customer/describe') return respond(res, { object: { entityApiName: 'customer' }, fields: [] }, 200, { ETag: '"real-8"' });
+    if (['/api/metadata/v1/entities', '/api/metadata/v1/entities/customer/fields', '/api/metadata/v1/entities/customer/fields/amount/failed-deployment'].includes(hit.url)) {
+      assert.equal(hit.headers['idempotency-key'], metadataKey);
+      assert.equal(hit.headers['if-match'], '"real-8"');
+      return respond(res, { metadataRevision: 9, etag: '"real-9"', object: { objectId: 'customer', entityApiName: 'customer' },
+        ...(hit.url === '/api/metadata/v1/entities' ? {} : { field: { fieldId: 'amount', fieldApiName: 'amount' } }) });
+    }
     if (hit.url.startsWith('/api/automation/routines?')) {
       const query = new URL(hit.url, service.url).searchParams;
       assert.equal(query.get('page'), '1'); assert.equal(query.get('pageSize'), '20'); return respond(res, { items: [] });
@@ -85,6 +92,13 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
     child.on('error', reject); child.on('close', code => resolve({ code, stdout, stderr, result: JSON.parse(stdout) }));
   });
   const metadata = await run(['metadata', 'entity', 'show', 'customer']); assert.equal(metadata.code, 0, metadata.stdout); assert.equal(metadata.result.data.headers.etag, '"real-8"');
+  const metadataFile = join(f.directory, 'metadata.json');
+  for (const argv of [['metadata', 'entity', 'create'], ['metadata', 'field', 'create', 'customer'], ['metadata', 'field', 'revise-deployment', 'customer', 'amount']]) {
+    writeFileSync(metadataFile, JSON.stringify(argv[1] === 'entity' ? { entityApiName: 'customer', label: 'Customer' }
+      : argv[2] === 'create' ? { fieldApiName: 'amount', label: 'Amount', type: 'Text' } : { label: 'Amount' }));
+    const saved = await run([...argv, '--request-key', metadataKey, '--if-match', '"real-8"', '--request-json', metadataFile]);
+    assert.equal(saved.code, 0, saved.stdout);
+  }
   const context = await run(['workforce', 'context', '--workforce', service.url]); assert.equal(context.code, 0, context.stdout); assert.equal(context.result.data.applicationId, 'APP');
   const feedbackFile = join(f.directory, 'feedback.json'); writeFileSync(feedbackFile, JSON.stringify({ messageId: '7', rating: 'positive', category: null, note: '' }));
   const feedback = await run(['workforce', 'session', 'feedback', 'set', 'original', '--workforce', service.url, '--request-json', feedbackFile]);

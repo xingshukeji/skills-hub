@@ -35,7 +35,7 @@ export async function managementCommand(ctx) {
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
     const value = args.required(option);
-    if (!/^[\x20-\x7e]{1,1024}$/.test(value)) throw new CliError(`--${option} must be a printable header value.`, { code: 'invalid_arguments' });
+    if (!/^[\x20-\x7e]+$/.test(value)) throw new CliError(`--${option} must be a printable header value.`, { code: 'invalid_arguments' });
     return [header, value];
   }));
   let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), targetTenantId;

@@ -1193,7 +1193,7 @@ var isRecord = (value) => isObject(value) && nonempty(value.entityCode) && nonem
 var recovery = "Use data creation-result with the same entity, --request-key, target and identity before another write. Keep the original key and values; the CLI does not retry automatically.";
 function contextualError2(error, entity2, key, write = false) {
   if (!(error instanceof CliError)) return error;
-  const unknown = write && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
+  const unknown = write && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
   return new CliError(error.message, {
     code: unknown ? "outcome_unknown" : error.code,
     httpStatus: error.httpStatus,
@@ -3717,7 +3717,7 @@ async function managementCommand(ctx) {
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
     const value2 = args.required(option);
-    if (!/^[\x20-\x7e]{1,1024}$/.test(value2)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
+    if (!/^[\x20-\x7e]+$/.test(value2)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
     return [header, value2];
   }));
   let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), targetTenantId;
@@ -4273,7 +4273,7 @@ function validateCommand(args) {
   }
   exclusive(["application-id", "personal"]);
   if (spec.path === "data creation-result") args.required("request-key");
-  if (args.has("request-key")) creationKey(args.value("request-key"));
+  if (["data create", "data creation-result"].includes(spec.path) && args.has("request-key")) creationKey(args.value("request-key"));
   if (args.has("runtime")) origin(args.value("runtime"));
   if (spec.path === "data query") {
     exclusive(["query", "query-json", "file"]);
@@ -4645,15 +4645,29 @@ function sourceOf(data) {
   const message2 = isObject(data.message) ? data.message : data;
   return isObject(message2.source) ? message2.source : isObject(data.source) ? data.source : {};
 }
-function toolResult(data) {
+function toolResult(data, reporter) {
   const message2 = isObject(data.message) ? data.message : {};
+  registerSecrets(reporter, data);
+  const inspectText = (parts) => {
+    for (const part of parts ?? []) {
+      if (!isObject(part)) continue;
+      if (part.type === "text" && typeof part.text === "string") {
+        try {
+          registerSecrets(reporter, JSON.parse(part.text));
+        } catch {
+        }
+      }
+      if (Array.isArray(part.content)) inspectText(part.content);
+    }
+  };
+  if (Array.isArray(message2.content)) inspectText(message2.content);
   const block = Array.isArray(message2.content) ? message2.content.find((part) => isObject(part) && part.type === "tool-result") : void 0;
   const callId = data.callId ?? message2.toolCallId ?? block?.toolCallId ?? (isObject(message2.source) ? message2.source.callId : void 0);
   const failed = data.error !== void 0 || message2.isError === true || block?.isError === true;
   const recognized = message2.role === "tool" || !!block;
-  return { callId, status: failed ? "failed" : recognized ? "succeeded" : "unknown" };
+  return { callId, status: failed ? "failed" : recognized ? "succeeded" : "unknown", result: data };
 }
-function collector(requestId, expectedText) {
+function collector(requestId, expectedText, reporter) {
   let currentTurn, targetTurn, found = false, answer = "", result;
   const tools = /* @__PURE__ */ new Map();
   function accept(event) {
@@ -4679,10 +4693,10 @@ function collector(requestId, expectedText) {
       const text2 = textOf(data.message ?? data);
       if (text2) answer = text2;
     } else if (event.type === "tool/call" && nonempty(data.callId) && nonempty(data.name)) {
-      tools.set(data.callId, { name: data.name, status: "pending" });
+      tools.set(data.callId, { callId: data.callId, name: data.name, status: "pending" });
     } else if (event.type === "tool/result") {
-      const result2 = toolResult(data), tool = tools.get(result2.callId);
-      if (tool) tool.status = result2.status;
+      const result2 = toolResult(data, reporter), tool = tools.get(result2.callId);
+      if (tool) Object.assign(tool, result2);
     } else if (event.type === "turn/end") {
       const reason = isObject(data.reason) ? data.reason.kind : void 0;
       result = { status: reason === "completed" ? "completed" : "failed", reason: typeof reason === "string" ? reason : "unknown", answer, toolCalls: [...tools.values()] };
@@ -4690,7 +4704,7 @@ function collector(requestId, expectedText) {
   }
   return { accept, result: () => result, found: () => found };
 }
-function visibleHistory(frame, sessionId) {
+function visibleHistory(frame, sessionId, reporter) {
   if (!isObject(frame) || frame.type !== "snapshot" || !Array.isArray(frame.records))
     throw new CliError("Runtime returned an invalid conversation history.", { code: "invalid_response" });
   const items = [];
@@ -4710,8 +4724,7 @@ function visibleHistory(frame, sessionId) {
     } else if (event.type === "tool/call" && typeof data.name === "string") {
       items.push({ ...base4, type: event.type, name: data.name, ...typeof data.callId === "string" ? { callId: data.callId } : {} });
     } else if (event.type === "tool/result") {
-      const result = toolResult(data);
-      items.push({ ...base4, type: event.type, status: result.status, ...typeof result.callId === "string" ? { callId: result.callId } : {} });
+      items.push({ ...base4, type: event.type, ...toolResult(data, reporter) });
     }
   }
   const nextBeforeSeq = frame.hasMore === true ? historyBoundary(frame, frame.cursor) : void 0;
@@ -4886,7 +4899,7 @@ function finish(sessionId, requestId, result) {
 }
 async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget) {
   let stream, submitted = text2 === void 0, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
-  const turn = collector(requestId, text2);
+  const turn = collector(requestId, text2, ctx.reporter);
   try {
     budget.check();
     stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
@@ -4996,7 +5009,7 @@ async function chatCommands(ctx, helpers) {
       headers,
       helpers
     ) : await helpers.runtimeValue(ctx, "GET", `${sessions}/${segment(sessionId)}/history`);
-    reporter.print(visibleHistory(page3, sessionId));
+    reporter.print(visibleHistory(page3, sessionId, reporter));
     return 0;
   }
   const text2 = action === "wait" ? void 0 : await messageInput(args, ctx.stdin);

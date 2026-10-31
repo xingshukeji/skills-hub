@@ -13,7 +13,7 @@ const recovery = 'Use data creation-result with the same entity, --request-key, 
 
 function contextualError(error, entity, key, write = false) {
   if (!(error instanceof CliError)) return error;
-  const unknown = write && (['network_error', 'timeout', 'invalid_response'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
+  const unknown = write && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
   return new CliError(error.message, { code: unknown ? 'outcome_unknown' : error.code,
     httpStatus: error.httpStatus, serverCode: error.serverCode, requestId: error.requestId,
     hint: [error.hint, recovery].filter(Boolean).join(' '), details: { ...error.details, entityCode: entity, requestKey: key } });

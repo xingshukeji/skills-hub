@@ -23,6 +23,8 @@ metadata field reconcile-permissions <entity> <field>
 
 entity list/show、field list 和 view list/field-catalog 将响应放在 `value`，实际版本头放在 `headers.etag`。原 ETag 包含的双引号也须保留。冲突后重新核对差异，由调用者决定下一次修改；CLI 不刷新版本并重放。
 
+`--request-key` 原样作为元数据请求的 Idempotency-Key Header 发送，不使用业务记录创建的 160 字符限制。请求键、ETag 和影响令牌须是合法 Header 值；CLI 不再额外限制它们的长度，服务及传输入口仍可拒绝请求。
+
 对象、字段及字段部署恢复的写入回执按各自 DTO 校验版本和目标。回执缺失或不匹配时返回 outcome_unknown；错误信息保留原 requestKey、ifMatch 及 entityApiName/fieldApiName 等目标标识。沿原目标回读后再决定下一步，不改键重建或重放批次。删除和权限重建的原生 204 响应仍有效。
 
 对象创建字段为 entityApiName、label、description、searchFields、visibility、share2AllRoles，可选 manualSharingEnabled、triggersEnabled。字段创建使用 fieldApiName、label、type、description、required、searchable、sortable、length、precision、nullable、presentation、uiLength、targetEntityApiName、valuePicklistId、isSensitive、maskingPolicy、allowActorPolicyReference。字段类型和目标先从标准及现有设计确定；不同类型不接受全部选项。更新只提交实际修改；清空 length、precision、targetEntityApiName、valuePicklistId、maskingPolicy 时分别使用相应的 `...Specified` 字段，避免将省略误当清空。

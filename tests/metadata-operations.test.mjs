@@ -49,3 +49,47 @@ test('missing metadata control arguments fail the whole batch before an earlier 
   ]));
   assert.equal((await f.run(['batch', '--file', file, '--json'])).code, 1); assert.equal(service.hits.length, 0);
 });
+
+test('metadata creation keys use the metadata header contract rather than the record creation limit', async t => {
+  const f = fixture(t), key = 'metadata:original/'.repeat(120), file = join(f.directory, 'definition.json');
+  let status = 200, disconnected = false;
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['idempotency-key'], key);
+    assert.equal(hit.headers['if-match'], '"metadata-7"');
+    if (disconnected) return res.destroy();
+    if (status !== 200) return respond(res, { errorCode: 'metadata.rejected' }, status);
+    respond(res, { metadataRevision: 8, etag: '"metadata-8"', object: { objectId: 'original-object', entityApiName: 'customer__c' },
+      ...(hit.url === '/api/metadata/v1/entities' ? {} : { field: { fieldId: 'original-field', fieldApiName: 'amount__c' } }) });
+  });
+  f.profile(service.url, 'tenant-one', 'own-token');
+  const commands = [
+    ['metadata', 'entity', 'create'],
+    ['metadata', 'field', 'create', 'customer__c'],
+    ['metadata', 'field', 'revise-deployment', 'customer__c', 'amount__c'],
+  ];
+  const target = ['--if-match', '"metadata-7"', '--request-key', key, '--request-json', file, '--json'];
+  for (const argv of commands) {
+    writeFileSync(file, JSON.stringify(argv[1] === 'entity' ? { entityApiName: 'customer__c', label: 'Customer' }
+      : argv[2] === 'create' ? { fieldApiName: 'amount__c', label: 'Amount', type: 'Text', length: 255 } : { label: 'Amount' }));
+    const result = await f.run([...argv, ...target]);
+    assert.equal(result.code, 0, result.stdout);
+  }
+  assert.equal(service.hits.length, 3);
+  status = 403;
+  const refused = await f.run([...commands[0], ...target]);
+  assert.equal(output(refused).error.code, 'permission_denied');
+  disconnected = true;
+  const lost = await f.run([...commands[0], ...target]);
+  assert.equal(output(lost).error.code, 'outcome_unknown');
+  assert.equal(output(lost).error.details.requestKey, key);
+  assert.equal(service.hits.length, 5);
+  // This is a different native protocol: its original 160-character key limit remains.
+  const record = await f.run(['data', 'create', 'customer__c', '--request-key', key, '--values', '{"name":"Customer"}', '--json']);
+  assert.equal(record.code, 1);
+  assert.equal(output(record).error.code, 'invalid_arguments');
+  assert.equal(service.hits.length, 5);
+  const invalidHeader = await f.run([...commands[0], ...target.map(value => value === key ? 'original\r\nInjected: value' : value)]);
+  assert.equal(invalidHeader.code, 1);
+  assert.equal(output(invalidHeader).error.code, 'invalid_arguments');
+  assert.equal(service.hits.length, 5);
+});
