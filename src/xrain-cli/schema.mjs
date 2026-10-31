@@ -2,6 +2,7 @@ import { CliError, origin } from './core.mjs';
 import { creationKey } from './record-creation.mjs';
 import { managementOperations, operationOptions, routeParameters } from './management.mjs';
 import { workforceOperations } from './workforce-operations.mjs';
+import { applicationUserOperations } from './application-user-operations.mjs';
 
 const common = ['help', 'json'];
 const target = ['server', 'tenant', 'scope', 'profile', 'timeout'];
@@ -23,6 +24,7 @@ command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
 command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.');
+command('auth tenants', [...target, 'auth'], [], 'Discover your accessible enterprises using the saved platform login. Does not switch the current connection.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
 command('auth whoami', [...api, 'agent', 'runtime', 'application-id', 'personal'], [], 'Read the verified XRain identity; --agent also checks the selected Runtime caller.');
 command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the saved session, keeping the platform profile.');
@@ -177,8 +179,11 @@ command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument
 for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
 for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', 'application-id', 'auth', ...routeParameters(operation.route),
-  ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
   'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.');
+for (const operation of applicationUserOperations) command(operation.path, [...target, 'app-url', 'application-id', 'auth', ...routeParameters(operation.route),
+  ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  'Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft.');
 
 function words(args) {
   return args.commands.map((word, index) => {
@@ -205,6 +210,13 @@ export function validateCommand(args) {
   }
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: 'invalid_arguments', hint: `Run ${spec.path} --help.` });
   const management = managementOperations.find(item => item.path === spec.path);
+  const applicationUser = applicationUserOperations.find(item => item.path === spec.path);
+  if (spec.path === 'auth tenants' && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Enterprise discovery uses your saved platform login.', { code: 'invalid_arguments' });
+  if (applicationUser) {
+    args.required('app-url');
+    if (applicationUser.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
+    if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Application workflows use your saved platform session.', { code: 'invalid_arguments' });
+  }
   if (management) {
     for (const option of Object.values(management.headers ?? {})) args.required(option);
     if (management.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
@@ -220,6 +232,8 @@ export function validateCommand(args) {
   if (spec.path.startsWith('workforce ')) {
     args.required('workforce');
     const operation = workforceOperations.find(row => row.path === spec.path);
+    if (operation.upload) args.required('file');
+    if (operation.download) args.required('out');
     if (operation.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
     if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
   }

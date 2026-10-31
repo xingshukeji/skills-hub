@@ -6,6 +6,8 @@
 
 ## 租户成员与组织
 
+本人企业发现使用 `auth tenants`。Host 数据库浏览使用 `host database sources`、`host database catalog <sourceId>`、`host database table <sourceId> <schema> <table>`，要求已保存的 Host 登录。sourceId 从实际返回的数据源中选择；table 可用 `--query-json` 指定 previewLimit。服务决定就绪数据源、结构和样例范围；命令不接受连接字符串或任意 SQL。
+
 ```text
 security user list --page 1 --page-size 20 --search <搜索>
 security user update <用户名> --request-json <成员.json>

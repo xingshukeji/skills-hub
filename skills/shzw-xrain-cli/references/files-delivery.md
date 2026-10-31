@@ -1,5 +1,7 @@
 # 文件、投递与个人邮箱
 
+这里的 file 命令消费平台文件服务。本人沟通附件使用 [Workforce attachment](workforce.md#群管理消息与附件)；原邮箱 AI 及显式保存新草稿使用 [子应用流程](applications.md#在原邮件中使用-ai)。
+
 先选择原服务器与租户并核对身份。文件服务要求具有 FileInvoke 资格的服务端 API Token；浏览器会话不代替该资格。管理和个人邮箱命令使用允许该动作的用户会话，通常显式加 `--auth session`。请求和查询分别通过 `--request-json`、`--query-json` 文件或 stdin 传递。
 
 ## 文件和存储

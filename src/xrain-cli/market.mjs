@@ -27,7 +27,7 @@ export async function marketCommands(ctx) {
   if (!args.has('exchange')) throw new CliError('Market commands require an explicit --exchange URL and its independent login.', { code: 'invalid_arguments' });
   const action = args.command(1), id = args.required('package');
   if (!validPackageId(id)) throw new CliError('An exact package ID is required.', { code: 'invalid_arguments' });
-  const { send, root } = appClient(ctx), path = `${root}/packages/${id}`;
+  const { send, root } = appClient(ctx, { allowAnonymous: ['show', 'versions', 'manifest', 'components', 'download'].includes(action) }), path = `${root}/packages/${id}`;
   if (action === 'rename' || action === 'publication' || action === 'unpublish') {
     let body, method = 'PUT', suffix = '/publication';
     if (action === 'rename') {

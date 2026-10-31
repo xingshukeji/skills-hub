@@ -1,6 +1,8 @@
 # 独立应用市场
 
-先用 `auth login --exchange <市场origin> --profile <市场>` 取得独立市场会话。下面命令均追加同一 `--exchange <市场origin> --profile <市场> --json`，不使用平台 Token、租户或 Host 作用域。
+下面命令均追加同一 `--exchange <市场origin> --profile <市场> --json`，不使用平台 Token、租户或 Host 作用域。app list 和 market show/versions/manifest/components/download 可匿名读取服务允许的公开包；不会借用平台凭据。已有独立市场会话时继续使用原身份读取。显式指定 `--auth session` 时仍要求该市场会话。
+
+查看本人发布历史、改名、上架、下架和发布前，先用 `auth login --exchange <市场origin> --profile <市场>` 登录。匿名读取不会获得所有者的未公开版本或维护权限。
 
 ```text
 app list

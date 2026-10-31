@@ -1,24 +1,23 @@
-import { CliError, isObject, origin, readJsonInput, registerSecrets, segment } from './core.mjs';
-import { applicationId } from './agent-target.mjs';
-import { request, requireSuccess, writeOnce } from './http.mjs';
+import { closeSync, existsSync, openSync, unlinkSync, writeFileSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
+import { CliError, isObject, readJsonInput, readLimited, registerSecrets, segment } from './core.mjs';
+import { writeOnce } from './http.mjs';
+import { memberTarget, memberValue as value } from './member-target.mjs';
 import { workforceOperations } from './workforce-operations.mjs';
 import { commandOutcome } from './runtime-controls.mjs';
+import { openBrowser } from './auth.mjs';
 
-function value(response) {
-  requireSuccess(response);
-  if (!response.bytes.length) return null;
-  try { return response.json(); } catch { throw new CliError('Workforce returned invalid JSON.', { code: 'invalid_response' }); }
-}
 export async function workforceCommands(ctx) {
-  const { args, store, reporter } = ctx, operation = workforceOperations.find(row => row.path === ctx.spec.path);
-  const profile = store.resolve(args, true), host = origin(args.required('workforce')), appId = applicationId(profile);
-  if (!appId) throw new CliError('Workforce commands require the actual application ID.', { code: 'invalid_arguments' });
-  const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
-  if (!token) throw new CliError('A matching platform login session is required for Workforce.', { code: 'authentication_required' });
-  const identity = value(await request(new URL('/api/service/authen/v1/account/context', profile.server), { token, timeout: args.timeout() }));
-  if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== 'string' || !identity.userId)
-    throw new CliError('The current platform identity does not match this Workforce target.', { code: 'identity_mismatch' });
-  const headers = { 'X-XRain-Application-Id': appId, 'X-XRain-Expected-Tenant-Id': profile.tenant, 'X-XRain-Expected-User-Id': identity.userId };
+  const { args, reporter } = ctx, operation = workforceOperations.find(row => row.path === ctx.spec.path);
+  const { profile, host, appId, identity, send } = await memberTarget(ctx, 'workforce');
+  if (operation.browser) {
+    value(await send('GET', operation.route));
+    const url = new URL('/#' + operation.browser, host).href;
+    const opened = !args.has('no-browser') && await openBrowser(url);
+    reporter.print({ url, opened, expectedIdentity: { tenantId: identity.tenantId, userId: identity.userId },
+      status: 'requires_browser_interaction', instruction: '在页面确认当前企业和本人身份后操作；绑定、代登录确认及返回原账号均在原页面完成。' });
+    return 0;
+  }
   let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), body;
   if (operation.query && args.has('query-json')) {
     const query = await readJsonInput(args.value('query-json'), 'Workforce query', { stdin: ctx.stdin });
@@ -38,8 +37,26 @@ export async function workforceCommands(ctx) {
     operation: operation.path, target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
     ...Object.fromEntries(['requestId', 'clientMessageId', 'taskId'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
   const command = operation.path === 'workforce session command';
+  if (operation.download) {
+    const output = resolve(args.required('out'));
+    if (existsSync(output)) throw new CliError('Output already exists.', { code: 'output_exists' });
+    const response = await send('GET', route, { limit: 25 * 1024 * 1024 });
+    // Error JSON must never be saved as an attachment.
+    if (!response.ok) value(response);
+    let file, saved = false;
+    try { file = openSync(output, 'wx', 0o600); writeFileSync(file, response.bytes); saved = true; }
+    catch (error) { throw new CliError(error.code === 'EEXIST' ? 'Output already exists.' : 'Could not save the attachment.', { code: error.code === 'EEXIST' ? 'output_exists' : 'output_write_failed' }); }
+    finally { if (file !== undefined) { closeSync(file); if (!saved) unlinkSync(output); } }
+    reporter.print({ output, bytes: response.bytes.length }); return 0;
+  }
+  let upload;
+  if (operation.upload) {
+    const path = resolve(args.required('file'));
+    upload = { body: readLimited(path, 25 * 1024 * 1024, 'Attachment') };
+    upload.headers = { 'X-File-Name': encodeURIComponent(basename(path)), 'Content-Type': 'application/octet-stream', 'Content-Length': String(upload.body.length) };
+  }
   const call = async () => {
-    const result = value(await request(new URL(route, host), { method: operation.method, token, headers, json: body, timeout: args.timeout() }));
+    const result = value(await send(operation.method, route, upload ?? { json: body }));
     if (command && !commandOutcome(result)) throw new CliError('Workforce returned an invalid command receipt.', { code: 'invalid_response' });
     return result;
   };

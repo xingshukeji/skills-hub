@@ -12,6 +12,8 @@
 
 profile list/show 查询已有连接。profile set（别名 login）保存连接，不做浏览器登录；只有 set/login/auth login 可创建 profile，其他命令对未知名称报错。平台 profile 忽略大小写，市场名称须保持原拼写。auth logout 保留 profile，顶层 logout 删除平台 profile 与会话。
 
+`auth tenants --auth session --json` 使用当前保存的平台登录，读取本人实际可访问企业及当前选择；它不切换连接，也不要求 Host 企业管理权限。本地 profile list 只列连接配置。登录失效时先恢复同一身份，再读取企业列表。
+
 智能体入口由实际服务方提供，不能根据平台地址或固定端口推断。将可访问的 Runtime origin 和可选应用 ID 保存到同一 profile；未配置应用时使用个人上下文。所选平台凭据会发送到该 Runtime，保存前确认入口属于预期服务。
 
 ```text

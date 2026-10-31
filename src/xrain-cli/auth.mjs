@@ -164,7 +164,7 @@ export async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18
   return { callback, close() { clearTimeout(timer); server.close(); server.closeIdleConnections(); } };
 }
 
-async function openBrowser(url) {
+export async function openBrowser(url) {
   let executable, args;
   if (process.platform === 'win32') {
     executable = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');

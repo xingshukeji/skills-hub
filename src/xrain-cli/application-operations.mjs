@@ -47,6 +47,9 @@ const tenants = '/api/service/authen/v1/host/tenants';
 const tenant = tenants + '/{tenant-id}';
 const host = (path, method, route, options = {}) => ({ path: 'host ' + path, method, route, host: true, readback: ['host', 'tenant', 'list'], ...options });
 export const hostOperations = [
+  host('database sources', 'GET', '/api/service/authen/v1/host/databases', { sessionOnly: true }),
+  host('database catalog', 'GET', '/api/service/authen/v1/host/databases/{source-id}/catalog', { sessionOnly: true }),
+  host('database table', 'GET', '/api/service/authen/v1/host/databases/{source-id}/schemas/{schema}/tables/{table}', { query: ['previewLimit'], sessionOnly: true }),
   host('tenant list', 'GET', tenants, { query: ['page', 'pageSize', 'search', 'isActive'] }),
   host('tenant create', 'POST', tenants, { input: 'object', headers: { 'Idempotency-Key': 'request-key' } }),
   host('tenant show', 'GET', tenant),

@@ -1,0 +1,31 @@
+const define = (path, method, route, options = {}) => ({ path, method, route: '/api/cli/v1' + route, ...options });
+const retail = (path, method, route, options) => define('retail ' + path, method, '/applications/retail-assistant' + route, options);
+const mail = (path, method, route, options) => define('mail ' + path, method, '/mail' + route, options);
+export const applicationUserOperations = [
+  mail('ai list', 'GET', '/ais'),
+  mail('ai subscribe', 'POST', '/agents/{agent-id}/subscription'),
+  mail('app accounts', 'GET', '/accounts'),
+  mail('app folders', 'GET', '/accounts/{id}/folders'),
+  mail('app search', 'POST', '/accounts/{id}/messages/search', { input: true, readOnly: true }),
+  mail('app read', 'POST', '/accounts/{id}/messages/read', { input: true, readOnly: true }),
+  mail('app draft', 'POST', '/accounts/{id}/drafts', { input: true, draft: true }),
+  mail('assist', 'POST', '/accounts/{id}/assist', { input: true }),
+  retail('context', 'GET', '/context'),
+  retail('customers', 'GET', '/customers', { query: ['search', 'order', 'cursor', 'includeArchived', 'archivedOnly'] }),
+  retail('customer describe', 'GET', '/records/objects/{object-id}/describe'),
+  retail('customer show', 'GET', '/records/objects/{object-id}/records/{record-id}'),
+  retail('customer create', 'POST', '/records/objects/{object-id}/records', { input: true }),
+  retail('customer update', 'PUT', '/records/objects/{object-id}/records/{record-id}', { input: true }),
+  retail('conversation list', 'GET', '/records/objects/{object-id}/records/{record-id}/conversations', { query: ['source'], queryDefaults: { source: 'retail-assistant' } }),
+  retail('conversation start', 'POST', '/records/objects/{object-id}/records/{record-id}/conversations', { input: true }),
+  retail('agents', 'GET', '/assistant/agents'),
+  retail('agent-catalog', 'GET', '/assistant/agent-catalog', { query: ['search', 'page', 'pageSize'] }),
+  retail('subscribe', 'POST', '/assistant/agents/{agent-id}/subscription'),
+  ...['history', 'subagents', 'commands', 'models'].map(action => retail('session ' + action, 'GET', `/assistant/sessions/{session-id}/${action}`,
+    action === 'history' ? { query: ['throughSeq', 'beforeSeq', 'maxMessages'] } : {})),
+  ...['inputs', 'commands', 'model'].map(action => retail('session ' + ({ inputs: 'send', commands: 'command' }[action] ?? action), 'POST', `/assistant/sessions/{session-id}/${action}`, { input: true })),
+  retail('session cancel', 'POST', '/assistant/sessions/{session-id}/cancel'),
+  retail('session pending', 'GET', '/assistant/pending-actions'),
+  retail('session respond', 'POST', '/assistant/pending-actions/{action-ref}/responses', { input: true }),
+  retail('session cancel-question', 'POST', '/assistant/pending-actions/{action-ref}/cancel', { input: true }),
+];

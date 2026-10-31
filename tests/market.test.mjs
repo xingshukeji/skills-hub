@@ -52,8 +52,10 @@ test('publication keeps the observed comparison and never refreshes after a conf
 test('market cannot fall back to a platform credential or use missing output/comparison arguments', async t => {
   const f = fixture(t), service = await mockServer(t, (_hit, res) => respond(res, {}));
   f.profile(service.url, 'tenant', 'platform-token');
-  assert.equal(output(await f.run(['market', 'show', PACKAGE_ID, '--exchange', service.url, '--json'])).error.code, 'authentication_required');
+  assert.equal((await f.run(['market', 'show', PACKAGE_ID, '--exchange', service.url, '--json'])).code, 0);
+  assert.equal(service.hits[0].headers.authorization, undefined, 'public reads never borrow the platform credential');
+  assert.equal(output(await f.run(['market', 'show', PACKAGE_ID, '--exchange', service.url, '--auth', 'session', '--json'])).error.code, 'authentication_required');
   assert.equal((await f.run(['market', 'download', PACKAGE_ID, '--exchange', service.url, '--version-id', VERSION_ID, '--json'])).code, 1);
   assert.equal((await f.run(['market', 'unpublish', PACKAGE_ID, '--exchange', service.url, '--json'])).code, 1);
-  assert.equal(service.hits.length, 0);
+  assert.equal(service.hits.length, 1);
 });

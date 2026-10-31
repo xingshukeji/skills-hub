@@ -1,10 +1,14 @@
 import { CliError, isObject, nonempty } from './core.mjs';
 import { browserLogin, nativeLogin } from './auth.mjs';
-import { request, responseError } from './http.mjs';
+import { apiValue, request, responseError } from './http.mjs';
 import { applicationId, runtimeOrigin } from './agent-target.mjs';
 
 export async function authCommands(ctx) {
   const { args, store, reporter } = ctx;
+  if (args.command(1) === 'tenants') {
+    reporter.print(await apiValue(ctx, 'GET', '/api/service/authen/v1/security/tenants', undefined, { requireTenant: false, sessionOnly: true, validate: Array.isArray }));
+    return 0;
+  }
   if (args.command(1) === 'login') return args.has('native') ? nativeLogin(ctx) : browserLogin(ctx);
   const market = args.has('exchange'), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === 'status') {

@@ -32,6 +32,7 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 独立市场下载与发布版本维护：[应用市场](references/market.md)。
 - 主业务对象、单次执行及临时文本：[Runtime 执行](references/runtime-runs.md)。
 - Task、员工协作、频道消息与计划任务：[Workforce](references/workforce.md)。
+- 原邮件 AI 协助、明确保存草稿及顾客接待对话：[子应用](references/applications.md)。
 - 卸载、策略、组件恢复与本地包：[应用维护](references/application-maintenance.md)。
 - 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
 - 平台定义上限、个人偏好和设置职责：[设置管理](references/settings.md)。

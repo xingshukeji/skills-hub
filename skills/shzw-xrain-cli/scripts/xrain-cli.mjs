@@ -11,15 +11,15 @@ var CliError = class extends Error {
   }
 };
 var DEFAULT_SERVER = "http://127.0.0.1:5410";
-var sha256 = (value2) => createHash("sha256").update(value2).digest("hex");
+var sha256 = (value) => createHash("sha256").update(value).digest("hex");
 var randomId = (prefix) => prefix + randomBytes(9).toString("hex").slice(0, 17);
-var nonempty = (value2) => typeof value2 === "string" && value2.trim().length > 0;
+var nonempty = (value) => typeof value === "string" && value.trim().length > 0;
 var equalIgnoreCase = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
-var isObject = (value2) => value2 !== null && typeof value2 === "object" && !Array.isArray(value2);
-var booleanOutcome = (value2, key) => typeof value2?.[key] === "boolean" ? value2[key] ? "succeeded" : "failed" : void 0;
-function segment(value2) {
-  if (value2 === "." || value2 === "..") throw new CliError("Resource names cannot be dot path segments.");
-  return encodeURIComponent(value2);
+var isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var booleanOutcome = (value, key) => typeof value?.[key] === "boolean" ? value[key] ? "succeeded" : "failed" : void 0;
+function segment(value) {
+  if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
+  return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
@@ -38,7 +38,7 @@ valued.add("asset-id");
 valued.add("expected-published-version");
 valued.add("context-json");
 valued.add("run-id");
-for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id"]) valued.add(name);
+for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id", "emoji", "app-url", "source-id", "object-id", "record-id", "request-seq"]) valued.add(name);
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -65,9 +65,9 @@ var Args = class {
         this.options.set(key, true);
       } else {
         if (!valued.has(key)) throw new CliError(`Unknown option --${key}. Run --help.`);
-        const value2 = match2[2] ?? (argv[i + 1]?.startsWith("--") ? void 0 : argv[++i]);
-        if (!nonempty(value2)) throw new CliError(`--${key} requires a value.`);
-        this.options.set(key, value2);
+        const value = match2[2] ?? (argv[i + 1]?.startsWith("--") ? void 0 : argv[++i]);
+        if (!nonempty(value)) throw new CliError(`--${key} requires a value.`);
+        this.options.set(key, value);
       }
     }
   }
@@ -84,16 +84,16 @@ var Args = class {
     return this.commands[index];
   }
   required(name, fallback) {
-    const value2 = this.value(name) ?? fallback;
-    if (!nonempty(value2)) throw new CliError(`--${name} is required.`);
-    return value2;
+    const value = this.value(name) ?? fallback;
+    if (!nonempty(value)) throw new CliError(`--${name} is required.`);
+    return value;
   }
   integer(name, fallback) {
-    const value2 = this.value(name);
-    if (value2 === void 0) return fallback;
-    if (!/^[0-9]+$/.test(value2) || !Number.isSafeInteger(Number(value2)) || Number(value2) <= 0)
+    const value = this.value(name);
+    if (value === void 0) return fallback;
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0)
       throw new CliError(`--${name} must be a positive integer.`);
-    return Number(value2);
+    return Number(value);
   }
   timeout() {
     const seconds = this.integer("timeout", 100);
@@ -101,10 +101,10 @@ var Args = class {
     return seconds * 1e3;
   }
 };
-function httpUrl(value2, label = "Server URL") {
+function httpUrl(value, label = "Server URL") {
   let url;
   try {
-    url = new URL(value2);
+    url = new URL(value);
   } catch {
     throw new CliError(`${label} must be an absolute http or https URL.`);
   }
@@ -112,8 +112,8 @@ function httpUrl(value2, label = "Server URL") {
     throw new CliError(`${label} must be an http or https URL without credentials or a fragment.`);
   return url;
 }
-function origin(value2) {
-  const url = httpUrl(value2);
+function origin(value) {
+  const url = httpUrl(value);
   if (url.pathname !== "/" || url.search) throw new CliError("Server URL must be an origin without a path or query.");
   return url.origin;
 }
@@ -163,10 +163,10 @@ async function jsonInput(args, name, allowFile = true, options = {}) {
   return inline === void 0 ? void 0 : parseJson(inline, "JSON input");
 }
 var sensitiveKey = /^(authorization|proxy-authorization|cookie|set-cookie|bearer(?:token)?|access[_-]?token|refresh[_-]?token|id[_-]?token|identityToken|token|api[_-]?token|api[_-]?key|api[_-]?secret|adminApiToken|guestApiToken|(?:client|app)[_-]?secret|(?:(?:receive|send|smtp|imap)[_-]?)?password|accessKeySecret|secret(?:Access)?Key|privateKey|connectionString)$/i;
-function registerSecrets(reporter, value2) {
-  if (Array.isArray(value2)) {
-    for (const item of value2) registerSecrets(reporter, item);
-  } else if (isObject(value2)) for (const [key, item] of Object.entries(value2)) {
+function registerSecrets(reporter, value) {
+  if (Array.isArray(value)) {
+    for (const item of value) registerSecrets(reporter, item);
+  } else if (isObject(value)) for (const [key, item] of Object.entries(value)) {
     if (sensitiveKey.test(key) && typeof item === "string") reporter.secret(item);
     else registerSecrets(reporter, item);
   }
@@ -180,9 +180,9 @@ var Reporter = class {
     this.results = [];
     this.visibleFields = /* @__PURE__ */ new WeakMap();
   }
-  secret(value2) {
-    if (nonempty(value2)) this.secrets.add(value2);
-    return value2;
+  secret(value) {
+    if (nonempty(value)) this.secrets.add(value);
+    return value;
   }
   // Only a command that owns a non-credential field may exempt its key. Known
   // credential values are still removed by clean(), including from that field.
@@ -190,27 +190,27 @@ var Reporter = class {
     if (!this.visibleFields.has(object2)) this.visibleFields.set(object2, /* @__PURE__ */ new Set());
     this.visibleFields.get(object2).add(key);
   }
-  clean(value2) {
-    if (Array.isArray(value2)) return value2.map((item) => this.clean(item));
-    if (isObject(value2)) return Object.fromEntries(Object.entries(value2).map(([key, item]) => [
+  clean(value) {
+    if (Array.isArray(value)) return value.map((item) => this.clean(item));
+    if (isObject(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [
       key,
-      sensitiveKey.test(key) && !this.visibleFields.get(value2)?.has(key) ? "[REDACTED]" : this.clean(item)
+      sensitiveKey.test(key) && !this.visibleFields.get(value)?.has(key) ? "[REDACTED]" : this.clean(item)
     ]));
-    if (typeof value2 !== "string") return value2;
-    let result = value2;
+    if (typeof value !== "string") return value;
+    let result = value;
     for (const secret of this.secrets) result = result.replaceAll(secret, "[REDACTED]");
     return result.replace(/(^|[\r\n"'=:\s]\s*)Bearer\s+[A-Za-z0-9._~+/-]{16,}=*/gi, "$1Bearer [REDACTED]").replace(/(^|[\r\n"'=:]\s*)Bearer\s+[^\s"'<>]+/gi, "$1Bearer [REDACTED]");
   }
-  print(value2, error = false) {
+  print(value, error = false) {
     if (this.json && !error) {
-      this.results.push(value2);
+      this.results.push(value);
       return;
     }
-    const text2 = typeof value2 === "string" ? this.clean(value2) : JSON.stringify(this.clean(value2), null, 2);
+    const text2 = typeof value === "string" ? this.clean(value) : JSON.stringify(this.clean(value), null, 2);
     (error ? this.stderr : this.stdout).write(text2 + "\n");
   }
-  progress(value2) {
-    this.stderr.write(this.clean(value2) + "\n");
+  progress(value) {
+    this.stderr.write(this.clean(value) + "\n");
   }
   error(error) {
     this.failure = Object.fromEntries(Object.entries({
@@ -221,7 +221,7 @@ var Reporter = class {
       requestId: error.requestId,
       hint: error.hint,
       details: error.details
-    }).filter(([, value2]) => value2 !== void 0));
+    }).filter(([, value]) => value !== void 0));
     if (!this.json) {
       this.print(error.message + (error.hint ? " " + error.hint : ""), true);
       if (error.details !== void 0) this.print(error.details, true);
@@ -242,10 +242,10 @@ import { randomBytes as randomBytes2 } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 // src/xrain-cli/agent-target.mjs
-function identifier(value2, label) {
-  if (!nonempty(value2) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value2) || value2 === "." || value2 === "..")
+function identifier(value, label) {
+  if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
     throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
-  return value2;
+  return value;
 }
 function samePlatformTarget(saved, server, tenant2, scope = "tenant") {
   if (!nonempty(saved?.server)) return false;
@@ -371,12 +371,12 @@ var Store = class {
     if (!isObject(data) || !isObject(data.profiles) || data.activeProfile !== void 0 && !nonempty(data.activeProfile))
       throw new CliError("Profile store has an invalid structure.");
     const profiles = /* @__PURE__ */ Object.create(null);
-    for (const [key, value2] of Object.entries(data.profiles)) {
-      if (!nonempty(key) || !isObject(value2) || Object.values(value2).some((v) => v !== null && typeof v !== "string"))
+    for (const [key, value] of Object.entries(data.profiles)) {
+      if (!nonempty(key) || !isObject(value) || Object.values(value).some((v) => v !== null && typeof v !== "string"))
         throw new CliError("Profile store has an invalid profile.");
       if (Object.keys(profiles).some((existing) => equalIgnoreCase(existing, key))) throw new CliError("Profile names must be unique ignoring case.");
-      profiles[key] = value2;
-      this.reporter?.secret(value2.bearerToken);
+      profiles[key] = value;
+      this.reporter?.secret(value.bearerToken);
     }
     return { activeProfile: data.activeProfile ?? "default", profiles };
   }
@@ -634,17 +634,17 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers, signal });
     if (raw) return response;
     if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
-    let value2 = null;
+    let value = null;
     if (response.bytes.length) {
       try {
-        value2 = response.json();
+        value = response.json();
       } catch {
         if (mutation2) throw new CliError("The server returned an invalid write receipt.", { code: "invalid_response" });
-        value2 = response.text();
+        value = response.text();
       }
     }
-    if (validate && !validate(value2)) throw new CliError("The server returned an invalid operation receipt.", { code: "invalid_response" });
-    return responseHeaders ? { value: value2, headers: Object.fromEntries(responseHeaders.map((name) => [name, response.headers.get(name)]).filter(([, value3]) => value3 !== null)) } : value2;
+    if (validate && !validate(value)) throw new CliError("The server returned an invalid operation receipt.", { code: "invalid_response" });
+    return responseHeaders ? { value, headers: Object.fromEntries(responseHeaders.map((name) => [name, response.headers.get(name)]).filter(([, value2]) => value2 !== null)) } : value;
   };
   if (!mutation2 || raw) return perform();
   const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation2;
@@ -693,15 +693,15 @@ async function exportRecordsFile(ctx) {
     const capabilities2 = await jsonRequest(client2, "GET", `${client2.root}/exports/capabilities`);
     if (!Number.isSafeInteger(capabilities2?.maximumFileBytes) || capabilities2.maximumFileBytes < 1)
       throw invalidResponse("This server does not advertise a supported export file limit.");
-    const value2 = await saveFile(client2, "POST", `${client2.root}/records:exportFile`, ctx.args.required("out"), capabilities2.maximumFileBytes, body);
-    ctx.reporter.print({ entityCode: client2.entity, ...value2 });
+    const value = await saveFile(client2, "POST", `${client2.root}/records:exportFile`, ctx.args.required("out"), capabilities2.maximumFileBytes, body);
+    ctx.reporter.print({ entityCode: client2.entity, ...value });
   } finally {
     process.removeListener("SIGINT", interrupt);
   }
 }
-function requireId(value2, label) {
-  if (!idPattern.test(value2 ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
-  return value2.toLowerCase();
+function requireId(value, label) {
+  if (!idPattern.test(value ?? "")) throw invalid(`${label} must be 32 hexadecimal characters.`);
+  return value.toLowerCase();
 }
 function makeClient(ctx, signal) {
   const profile = ctx.store.resolve(ctx.args, true);
@@ -780,9 +780,9 @@ async function jsonRequest(client2, method, path, options = {}) {
     throw invalidResponse("The server returned invalid JSON.");
   }
 }
-function validatedJob(value2, entity2, expectedId, expectedRequest) {
-  const counts = value2?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value2.progress[key]);
-  const summary = value2?.summary && [
+function validatedJob(value, entity2, expectedId, expectedRequest) {
+  const counts = value?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value.progress[key]);
+  const summary = value?.summary && [
     "sourceRows",
     "outputRows",
     "created",
@@ -794,21 +794,21 @@ function validatedJob(value2, entity2, expectedId, expectedRequest) {
     "clearedFields",
     "sourceErrors",
     "outputErrors"
-  ].map((key) => value2.summary[key]);
-  if (!isObject(value2) || value2.entityCode !== entity2 || value2.protocol !== protocol || value2.commitMode !== "chunked" || !idPattern.test(value2.jobId ?? "") || !idPattern.test(value2.requestId ?? "") || expectedId && value2.jobId.toLowerCase() !== expectedId || expectedRequest && value2.requestId.toLowerCase() !== expectedRequest || !statuses.has(value2.status) || !Number.isSafeInteger(value2.version) || value2.version < 0 || !Number.isSafeInteger(value2.planRevision) || value2.planRevision < 0 || !nonempty(value2.phase) || !counts || counts.some((count) => !Number.isSafeInteger(count) || count < 0) || !isObject(value2.summary) || !summary || summary.some((count) => !Number.isSafeInteger(count) || count < 0) || !["planned", "processed"].includes(value2.summaryKind) || !["complete", "partial", "unavailable"].includes(value2.detailsStatus) || !Number.isFinite(Date.parse(value2.createdAt)) || !Number.isFinite(Date.parse(value2.updatedAt)) || ["canConfirm", "canContinue", "canRecheck", "pauseRequested", "cancelRequested", "sourceComplete", "canDownloadRemaining"].some((key) => typeof value2[key] !== "boolean") || value2.viewVersion != null && !nonempty(value2.viewVersion))
+  ].map((key) => value.summary[key]);
+  if (!isObject(value) || value.entityCode !== entity2 || value.protocol !== protocol || value.commitMode !== "chunked" || !idPattern.test(value.jobId ?? "") || !idPattern.test(value.requestId ?? "") || expectedId && value.jobId.toLowerCase() !== expectedId || expectedRequest && value.requestId.toLowerCase() !== expectedRequest || !statuses.has(value.status) || !Number.isSafeInteger(value.version) || value.version < 0 || !Number.isSafeInteger(value.planRevision) || value.planRevision < 0 || !nonempty(value.phase) || !counts || counts.some((count) => !Number.isSafeInteger(count) || count < 0) || !isObject(value.summary) || !summary || summary.some((count) => !Number.isSafeInteger(count) || count < 0) || !["planned", "processed"].includes(value.summaryKind) || !["complete", "partial", "unavailable"].includes(value.detailsStatus) || !Number.isFinite(Date.parse(value.createdAt)) || !Number.isFinite(Date.parse(value.updatedAt)) || ["canConfirm", "canContinue", "canRecheck", "pauseRequested", "cancelRequested", "sourceComplete", "canDownloadRemaining"].some((key) => typeof value[key] !== "boolean") || value.viewVersion != null && !nonempty(value.viewVersion))
     throw invalidResponse("The server returned an invalid or mismatched import job.");
-  return value2;
+  return value;
 }
 async function capabilities(client2, options, requireSupported = true, deadline) {
-  const value2 = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
-  const jobs = value2?.jobs;
-  if (!isObject(value2) || value2.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
+  const value = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
+  const jobs = value?.jobs;
+  if (!isObject(value) || value.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
     throw new CliError("This server does not advertise the required import job protocol and file limit.", { code: "import_jobs_unavailable" });
   if (requireSupported && jobs.supported !== true)
     throw new CliError("Chunked import is unavailable for this object.", { code: "import_jobs_unavailable", details: { reasons: jobs.unavailableReasons ?? [] } });
   const orchestrationId = options?.importBinding?.orchestrationId;
   if (requireSupported && orchestrationId) {
-    const definition2 = Array.isArray(value2.orchestrations) && value2.orchestrations.find((item) => item.id === orchestrationId);
+    const definition2 = Array.isArray(value.orchestrations) && value.orchestrations.find((item) => item.id === orchestrationId);
     const contract = definition2?.import;
     if (!contract || contract.version !== 2 || ["transform", "normalizeIdentity", "prepareRecord", "validate"].some((phase) => !(phase === "transform" && options.filePurpose === "recordMaintenance") && contract[phase] === true && contract.phaseScopes?.[phase] !== "independentRows"))
       throw new CliError("The selected import binding does not advertise independent processing for every enabled stage.", {
@@ -819,19 +819,19 @@ async function capabilities(client2, options, requireSupported = true, deadline)
   return jobs;
 }
 async function importOptions(args) {
-  const value2 = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
-  if (!isObject(value2) || Buffer.byteLength(JSON.stringify(value2)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
-  return value2;
+  const value = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
+  if (!isObject(value) || Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
+  return value;
 }
 function query(fields) {
   const params = new URLSearchParams();
-  for (const [key, value2] of Object.entries(fields)) if (value2 !== void 0 && value2 !== null && value2 !== "") params.set(key, String(value2));
+  for (const [key, value] of Object.entries(fields)) if (value !== void 0 && value !== null && value !== "") params.set(key, String(value));
   return params.size ? `?${params}` : "";
 }
 function pageSize(args) {
-  const value2 = args.integer("page-size", 50);
-  if (value2 > 200) throw invalid("--page-size cannot exceed 200.");
-  return value2;
+  const value = args.integer("page-size", 50);
+  if (value > 200) throw invalid("--page-size cannot exceed 200.");
+  return value;
 }
 function hint(entity2, jobId, requestId) {
   return jobId ? `Use data import show --entity ${JSON.stringify(entity2)} --job ${jobId} with the same server, identity, tenant and application.` : `Use data import list --entity ${JSON.stringify(entity2)} --request-id ${requestId} with the same server, identity, tenant and application before retrying.`;
@@ -1062,9 +1062,9 @@ async function dataImportCommands(ctx) {
 var queryActions = { export: "export", count: "count", distinct: "distinct", single: "single", "single-or-default": "singleOrDefault", first: "first", "first-or-default": "firstOrDefault" };
 var batchActions = { "batch-create": ["batchCreate", "records"], "batch-update": ["batchUpdate", "records"], "batch-delete": ["batchDelete", "recordIds"] };
 async function input(args) {
-  const value2 = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON");
-  if (!isObject(value2)) throw new CliError("Request JSON must be an object.", { code: "invalid_arguments" });
-  return value2;
+  const value = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON");
+  if (!isObject(value)) throw new CliError("Request JSON must be an object.", { code: "invalid_arguments" });
+  return value;
 }
 function page(args, search = false) {
   const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 25)) });
@@ -1104,15 +1104,15 @@ async function dataOperations(ctx) {
       throw new CliError(`Supply a nonempty ${key} array and optional boolean allOrNone.`, { code: "invalid_arguments" });
     const recordIds = key === "recordIds" ? body.recordIds : action === "batch-update" ? body.records.map((item) => item?.recordId) : void 0;
     if (recordIds?.some((id) => typeof id !== "string" || !id)) throw new CliError("Each record ID must be a nonempty string.", { code: "invalid_arguments" });
-    const value2 = await apiValue(ctx, "POST", `${records}:${suffix}`, body, { mutation: {
+    const value = await apiValue(ctx, "POST", `${records}:${suffix}`, body, { mutation: {
       entityCode,
       recordCount: body[key].length,
       ...recordIds ? { recordIds } : {},
       readback: ["data", "query", entityCode]
     } });
-    if (isObject(value2) && Array.isArray(value2.results) && value2.results.some((item) => item?.success === false))
-      throw new CliError("One or more collection items failed. Inspect each result before another write.", { code: "collection_failed", details: { entityCode, result: value2 } });
-    reporter.print(value2);
+    if (isObject(value) && Array.isArray(value.results) && value.results.some((item) => item?.success === false))
+      throw new CliError("One or more collection items failed. Inspect each result before another write.", { code: "collection_failed", details: { entityCode, result: value } });
+    reporter.print(value);
     return true;
   }
   if (action === "field-options") {
@@ -1149,12 +1149,12 @@ async function dataOperations(ctx) {
 }
 
 // src/xrain-cli/record-creation.mjs
-function creationKey(value2) {
-  if (!nonempty(value2) || value2.length > 160)
+function creationKey(value) {
+  if (!nonempty(value) || value.length > 160)
     throw new CliError("requestKey must be a nonempty string of at most 160 characters.", { code: "invalid_arguments" });
-  return value2;
+  return value;
 }
-var isRecord = (value2) => isObject(value2) && nonempty(value2.entityCode) && nonempty(value2.recordId) && isObject(value2.values);
+var isRecord = (value) => isObject(value) && nonempty(value.entityCode) && nonempty(value.recordId) && isObject(value.values);
 var recovery = "Use data creation-result with the same entity, --request-key, target and identity before another write. Keep the original key and values; the CLI does not retry automatically.";
 function contextualError2(error, entity2, key, write = false) {
   if (!(error instanceof CliError)) return error;
@@ -1196,10 +1196,10 @@ async function createRecord(ctx, entity2, path, input3) {
 async function creationResult(ctx, entity2, path) {
   const key = creationKey(ctx.args.required("request-key"));
   try {
-    const value2 = await apiValue(ctx, "POST", path + ":creationResult", { requestKey: key });
-    if (!isObject(value2) || !["unknown", "completed"].includes(value2.status) || (value2.status === "completed" ? !isRecord(value2.record) : value2.record != null))
+    const value = await apiValue(ctx, "POST", path + ":creationResult", { requestKey: key });
+    if (!isObject(value) || !["unknown", "completed"].includes(value.status) || (value.status === "completed" ? !isRecord(value.record) : value.record != null))
       throw new CliError("The server returned an invalid creation result.", { code: "invalid_response" });
-    ctx.reporter.print({ ...value2, requestKey: key });
+    ctx.reporter.print({ ...value, requestKey: key });
     return 0;
   } catch (error) {
     throw contextualError2(error, entity2, key);
@@ -1320,8 +1320,8 @@ async function dataCommands(ctx) {
       if (args.value("fields")) query2.fields = args.value("fields").split(",").map((v) => v.trim()).filter(Boolean);
       const filter = await jsonInput(args, "filter", false);
       if (filter !== void 0) query2.filter = filter;
-      if (args.value("sort")) query2.sort = args.value("sort").split(",").filter(Boolean).map((value2) => {
-        const parts = value2.split(":").map((v) => v.trim());
+      if (args.value("sort")) query2.sort = args.value("sort").split(",").filter(Boolean).map((value) => {
+        const parts = value.split(":").map((v) => v.trim());
         const [field, direction = "asc"] = parts;
         if (parts.length > 2 || !field || !["asc", "desc"].includes(direction)) throw new CliError("--sort must use field:asc or field:desc.", { code: "invalid_arguments" });
         return { field, direction };
@@ -1368,14 +1368,14 @@ async function securityCommands(ctx) {
     const values = await jsonInput(args, "values");
     if (values !== void 0 && !isObject(values)) throw new CliError(`${label} values JSON must be an object.`, { code: "invalid_arguments" });
     if (isUser) {
-      for (const [key, value3] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value3);
+      for (const [key, value2] of Object.entries(values ?? {})) if (key.toLowerCase() === "password") reporter.secret(value2);
     }
     if (values && Object.hasOwn(values, inputName) && (typeof values[inputName] !== "string" || !equalIgnoreCase(values[inputName], name)))
       throw new CliError(`${inputName} in JSON must match --${singular}.`, { code: "invalid_arguments" });
     if (action === "ensure") {
       try {
-        const value3 = await apiValue(ctx, "GET", path);
-        reporter.print({ created: false, [resultName]: isUser ? tenantMemberOutput(value3) : value3 });
+        const value2 = await apiValue(ctx, "GET", path);
+        reporter.print({ created: false, [resultName]: isUser ? tenantMemberOutput(value2) : value2 });
         return 0;
       } catch (error) {
         if (error.httpStatus !== 404 || error.serverCode !== `platform.authen.${singular.replace("-", "_")}_not_found`) throw error;
@@ -1385,10 +1385,10 @@ async function securityCommands(ctx) {
       code: action === "ensure" ? "creation_input_required" : "invalid_arguments",
       hint: "Use --values-json FILE or pipe JSON with --values-json -. Keep secrets out of command arguments."
     });
-    const value2 = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
+    const value = await apiValue(ctx, "POST", `/api/service/authen/v1/security/${resource}`, { ...values, [inputName]: name }, {
       mutation: { resource, name, readback: ["security", singular, "show", name] }
     });
-    const result = isUser ? tenantMemberOutput(value2) : value2;
+    const result = isUser ? tenantMemberOutput(value) : value;
     reporter.print(action === "ensure" ? { created: true, [resultName]: result } : result);
     return 0;
   }
@@ -1403,9 +1403,9 @@ async function securityCommands(ctx) {
   const raw = args.value("names") ?? args.value("roles") ?? args.value("permission-sets") ?? args.value("permissions");
   if (!raw) throw new CliError("Names are required: --names <name1,name2>.");
   const names = [], seen = /* @__PURE__ */ new Set();
-  for (const value2 of raw.split(/[,;]/).map((v) => v.trim()).filter(Boolean)) if (!seen.has(value2.toLowerCase())) {
-    seen.add(value2.toLowerCase());
-    names.push(value2);
+  for (const value of raw.split(/[,;]/).map((v) => v.trim()).filter(Boolean)) if (!seen.has(value.toLowerCase())) {
+    seen.add(value.toLowerCase());
+    names.push(value);
   }
   if (!names.length) throw new CliError("At least one name is required.");
   const suffix = { role: "roles", "permission-set": "permission-sets", permission: "permissions" }[match2[2]];
@@ -1415,9 +1415,9 @@ async function securityCommands(ctx) {
   reporter.print(tenantMemberOutput(await apiValue(ctx, method, path + "/" + suffix, { names }, recovery2)));
   return 0;
 }
-function tenantMemberOutput(value2) {
-  if (!isObject(value2)) return value2;
-  const { accountIsActive: _accountIsActive, ...member } = value2;
+function tenantMemberOutput(value) {
+  if (!isObject(value)) return value;
+  const { accountIsActive: _accountIsActive, ...member } = value;
   return member;
 }
 async function hostCommands(ctx) {
@@ -1433,16 +1433,16 @@ async function hostCommands(ctx) {
   const userId = args.required("user-id");
   for (let page3 = 1; ; page3++) {
     const query2 = new URLSearchParams({ search: userId, page: String(page3), pageSize: "100" });
-    const value2 = await apiValue(ctx, "GET", `${root2}?${query2}`, void 0, options);
-    if (!Array.isArray(value2?.items) || !Number.isSafeInteger(value2.totalCount) || value2.totalCount < 0 || !Number.isSafeInteger(value2.pageSize) || value2.pageSize < 1)
+    const value = await apiValue(ctx, "GET", `${root2}?${query2}`, void 0, options);
+    if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
       throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
-    const member2 = value2.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
+    const member2 = value.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
     if (member2) {
       reporter.print({ created: false, member: member2 });
       return 0;
     }
-    if (page3 * value2.pageSize >= value2.totalCount) break;
-    if (!value2.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
+    if (page3 * value.pageSize >= value.totalCount) break;
+    if (!value.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
   }
   const member = await apiValue(ctx, "POST", root2, { userId, isAdministrator: false }, {
     ...options,
@@ -1609,16 +1609,16 @@ function isDisjoint(...headers) {
       }
   return true;
 }
-function decodeBase64url(value2, label, ErrorClass) {
+function decodeBase64url(value, label, ErrorClass) {
   try {
-    return decode(value2);
+    return decode(value);
   } catch {
     throw new ErrorClass(`Failed to base64url decode the ${label}`);
   }
 }
-function encodeBase64url(value2, label, ErrorClass) {
+function encodeBase64url(value, label, ErrorClass) {
   try {
-    return encode(value2);
+    return encode(value);
   } catch {
     throw new ErrorClass(`The ${label} is not a valid base64url string`);
   }
@@ -1782,7 +1782,7 @@ function normalizeJwk(jwk) {
   if (normalized.ext !== void 0 && typeof normalized.ext != "boolean")
     throw new TypeError('"ext" (Extractable) Parameter must be a boolean');
   if (normalized.key_ops !== void 0) {
-    const value2 = normalized.key_ops, keyOps = Array.isArray(value2) ? [...value2] : void 0;
+    const value = normalized.key_ops, keyOps = Array.isArray(value) ? [...value] : void 0;
     if (!keyOps || keyOps.some((operation) => typeof operation != "string") || new Set(keyOps).size !== keyOps.length)
       throw new TypeError('"key_ops" (Key Operations) Parameter must be an array of unique strings');
     normalized.key_ops = keyOps;
@@ -1948,7 +1948,7 @@ function secs(str) {
   typeof str != "string" && invalidDuration();
   const matched = REGEX.exec(str);
   (!matched || matched[4] && matched[1]) && invalidDuration();
-  const value2 = parseFloat(matched[2]), numericDate2 = Math.round(value2 * multipliers[matched[3][0].toLowerCase()]);
+  const value = parseFloat(matched[2]), numericDate2 = Math.round(value * multipliers[matched[3][0].toLowerCase()]);
   return Number.isFinite(numericDate2) || invalidDuration(), matched[1] === "-" || matched[4] === "ago" ? -numericDate2 : numericDate2;
 }
 function validateInput(label, input3) {
@@ -1956,17 +1956,17 @@ function validateInput(label, input3) {
     throw new TypeError(`Invalid ${label} input`);
   return input3;
 }
-var normalizeTyp = (value2) => {
-  const normalized = value2.toLowerCase();
-  return value2.includes("/") ? normalized : `application/${normalized}`;
+var normalizeTyp = (value) => {
+  const normalized = value.toLowerCase();
+  return value.includes("/") ? normalized : `application/${normalized}`;
 };
 var checkAudiencePresence = (audPayload, audOption) => typeof audPayload == "string" ? audOption.includes(audPayload) : Array.isArray(audPayload) ? audOption.some((aud) => audPayload.includes(aud)) : false;
 function validateNumericDate(payload, claim, required = false) {
-  const value2 = payload[claim];
-  if (!(value2 === void 0 && !required)) {
-    if (typeof value2 != "number")
+  const value = payload[claim];
+  if (!(value === void 0 && !required)) {
+    if (typeof value != "number")
       throw new JWTClaimValidationFailed(`"${claim}" claim must be a number`, payload, claim, "invalid");
-    return value2;
+    return value;
   }
 }
 function unexpectedClaim(payload, claim) {
@@ -2106,7 +2106,7 @@ var OidcLogin = class {
     this.nonce = randomBytes4(32).toString("base64url");
     this.verifier = randomBytes4(32).toString("base64url");
     const url = new URL(this.metadata.authorization_endpoint);
-    for (const [key, value2] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: "code", state: this.state, nonce: this.nonce, code_challenge: createHash2("sha256").update(this.verifier).digest("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value2);
+    for (const [key, value] of Object.entries({ client_id: this.config.clientId, scope: this.config.scope, redirect_uri: this.config.redirectUri, response_type: "code", state: this.state, nonce: this.nonce, code_challenge: createHash2("sha256").update(this.verifier).digest("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value);
     return url.href;
   }
   async verifyIdentity(identityToken, accessToken, { nonceRequired = true } = {}) {
@@ -2177,15 +2177,15 @@ var DeviceLogin = class extends OidcLogin {
       timeout: 3e4,
       limit: 1024 * 1024
     }));
-    const value2 = response.json();
-    if (!nonempty(value2?.device_code) || !nonempty(value2?.user_code) || value2.user_code.length > 128 || /[\p{Cc}]/u.test(value2.user_code) || !nonempty(value2?.verification_uri) || !Number.isSafeInteger(value2?.expires_in) || value2.expires_in <= 0 || value2.interval !== void 0 && (!Number.isSafeInteger(value2.interval) || value2.interval <= 0))
+    const value = response.json();
+    if (!nonempty(value?.device_code) || !nonempty(value?.user_code) || value.user_code.length > 128 || /[\p{Cc}]/u.test(value.user_code) || !nonempty(value?.verification_uri) || !Number.isSafeInteger(value?.expires_in) || value.expires_in <= 0 || value.interval !== void 0 && (!Number.isSafeInteger(value.interval) || value.interval <= 0))
       throw new CliError("The authentication server returned an invalid device request.", { code: "invalid_response" });
-    const uri = httpUrl(value2.verification_uri, "Device verification URL");
-    this.reporter?.secret(value2.device_code);
-    this.deviceCode = value2.device_code;
-    this.interval = value2.interval ?? 5;
-    this.expiresAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + value2.expires_in * 1e3);
-    return { verificationUri: uri.href, userCode: value2.user_code };
+    const uri = httpUrl(value.verification_uri, "Device verification URL");
+    this.reporter?.secret(value.device_code);
+    this.deviceCode = value.device_code;
+    this.interval = value.interval ?? 5;
+    this.expiresAt = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + value.expires_in * 1e3);
+    return { verificationUri: uri.href, userCode: value.user_code };
   }
   async complete() {
     if (!this.deviceCode || this.consumed) throw new CliError("Device login was not started or was already used.");
@@ -2209,18 +2209,18 @@ var DeviceLogin = class extends OidcLogin {
         limit: 1024 * 1024
       });
       if (!response.ok) {
-        let value2;
+        let value;
         try {
-          value2 = response.json();
+          value = response.json();
         } catch {
         }
-        if (response.status === 400 && value2?.error === "authorization_pending") continue;
-        if (response.status === 400 && value2?.error === "slow_down") {
+        if (response.status === 400 && value?.error === "authorization_pending") continue;
+        if (response.status === 400 && value?.error === "slow_down") {
           this.interval += 5;
           continue;
         }
-        if (response.status === 400 && value2?.error === "access_denied") throw new CliError("Device login was declined.", { code: "device_login_denied" });
-        if (response.status === 400 && value2?.error === "expired_token") throw new CliError("Device login expired.", { code: "device_login_expired" });
+        if (response.status === 400 && value?.error === "access_denied") throw new CliError("Device login was declined.", { code: "device_login_denied" });
+        if (response.status === 400 && value?.error === "expired_token") throw new CliError("Device login expired.", { code: "device_login_expired" });
         requireSuccess(response);
       }
       const tokens = response.json();
@@ -2235,8 +2235,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve9, reject) => {
-    accept = resolve9;
+  const callback = new Promise((resolve10, reject) => {
+    accept = resolve10;
     fail = reject;
   });
   callback.catch(() => {
@@ -2265,9 +2265,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve9, reject) => {
+  await new Promise((resolve10, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve9);
+    server.listen(Number(expected.port), expected.hostname, resolve10);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2290,13 +2290,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve9) => {
+  return new Promise((resolve10) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve9(false));
+    child.on("error", () => resolve10(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve9(code === 0));
+    child.on("exit", (code) => resolve10(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -2423,8 +2423,8 @@ import { inflateRawSync } from "node:zlib";
 var MAX_ARCHIVE = 16 * 1024 * 1024;
 var MAX_SOURCE = 32 * 1024 * 1024;
 var MAX_MANIFEST = 1024 * 1024;
-var validPackageId = (value2) => typeof value2 === "string" && value2.length === 20 && /^apg[a-z0-9]{17}$/.test(value2);
-var validVersionId = (value2) => typeof value2 === "string" && value2.length === 20 && /^apv[a-z0-9]{17}$/.test(value2);
+var validPackageId = (value) => typeof value === "string" && value.length === 20 && /^apg[a-z0-9]{17}$/.test(value);
+var validVersionId = (value) => typeof value === "string" && value.length === 20 && /^apv[a-z0-9]{17}$/.test(value);
 var crcTable = Array.from({ length: 256 }, (_, i) => {
   for (let j = 0; j < 8; j++) i = i & 1 ? 3988292384 ^ i >>> 1 : i >>> 1;
   return i >>> 0;
@@ -2494,8 +2494,8 @@ var requestFields = {
   "policy-convert": ["targetPolicyVersion", "expectedRevision"]
 };
 var invalid3 = (message2) => new CliError(message2, { code: "invalid_arguments" });
-function exposeApplicationConfirmations(reporter, value2) {
-  for (const container of [value2, value2?.details]) {
+function exposeApplicationConfirmations(reporter, value) {
+  for (const container of [value, value?.details]) {
     if (!Array.isArray(container?.requiredConfirmations)) continue;
     for (const item of container.requiredConfirmations) {
       if (isObject(item) && nonempty(item.recordId) && nonempty(item.unit) && nonempty(item.token))
@@ -2503,18 +2503,18 @@ function exposeApplicationConfirmations(reporter, value2) {
     }
   }
 }
-function output(ctx, value2) {
-  exposeApplicationConfirmations(ctx.reporter, value2);
-  ctx.reporter.print(value2);
+function output(ctx, value) {
+  exposeApplicationConfirmations(ctx.reporter, value);
+  ctx.reporter.print(value);
   return 0;
 }
 async function input2(args, action) {
   const path = args.value("request-json") ?? args.value("file");
-  const value2 = path === void 0 ? {} : await readJsonInput(path, "Application request");
-  if (!isObject(value2)) throw invalid3("Application request must be a JSON object.");
-  if (Object.keys(value2).some((key) => !requestFields[action].includes(key)))
+  const value = path === void 0 ? {} : await readJsonInput(path, "Application request");
+  if (!isObject(value)) throw invalid3("Application request must be a JSON object.");
+  if (Object.keys(value).some((key) => !requestFields[action].includes(key)))
     throw invalid3(`Unsupported ${action} request field. Allowed fields: ${requestFields[action].join(", ")}.`);
-  const body = { ...value2 };
+  const body = { ...value };
   for (const [option, field] of [
     ["version-id", "versionId"],
     ["expected-revision", "expectedRevision"],
@@ -2541,10 +2541,10 @@ async function input2(args, action) {
     throw invalid3("confirmations must contain the chosen server-provided {recordId,unit,token} entries.");
   return body;
 }
-function operationResponse(value2, expectedId, expectedVersion, previous) {
-  if (!isObject(value2) || value2.id !== expectedId || !nonempty(value2.installationId) || !statuses2.has(value2.status) || expectedVersion !== void 0 && value2.targetVersionId !== expectedVersion || previous && (value2.installationId !== previous.installationId || value2.targetVersionId !== previous.targetVersionId))
+function operationResponse(value, expectedId, expectedVersion, previous) {
+  if (!isObject(value) || value.id !== expectedId || !nonempty(value.installationId) || !statuses2.has(value.status) || expectedVersion !== void 0 && value.targetVersionId !== expectedVersion || previous && (value.installationId !== previous.installationId || value.targetVersionId !== previous.targetVersionId))
     throw new CliError("The server returned an invalid or mismatched application operation.", { code: "invalid_response" });
-  return value2;
+  return value;
 }
 function queryHint(id) {
   return `Use app operation show --operation ${id} with the same target/profile before any further write.`;
@@ -2694,14 +2694,14 @@ async function appManagementCommands(ctx, createClient) {
     const rawRevision = args.value("expected-revision");
     if (!/^[0-9]+$/.test(rawRevision) || !Number.isSafeInteger(Number(rawRevision))) throw invalid3("--expected-revision must be a nonnegative safe integer.");
     const result = await writeOnce(async () => {
-      const value2 = requireSuccess(await api3.send("POST", `${api3.root}/installations/${segment(installationId)}/components/${segment(recordId)}:restore`, { json: { expectedRevision: Number(rawRevision) } })).json();
-      if (value2?.id !== installationId) throw new CliError("The restored installation does not match the target.", { code: "invalid_response" });
-      return value2;
+      const value = requireSuccess(await api3.send("POST", `${api3.root}/installations/${segment(installationId)}/components/${segment(recordId)}:restore`, { json: { expectedRevision: Number(rawRevision) } })).json();
+      if (value?.id !== installationId) throw new CliError("The restored installation does not match the target.", { code: "invalid_response" });
+      return value;
     }, "Restore outcome is unknown. Read the original installation and component before another write.", { installationId, recordId });
     return output(ctx, result);
   }
   if (action === "list" || action === "versions") {
-    const api3 = createClient({ allowHost: action === "versions" });
+    const api3 = createClient({ allowHost: action === "versions", allowAnonymous: true });
     const path = action === "list" ? "/packages" : `/packages/${segment(args.required("package"))}/versions`;
     const result = requireSuccess(await api3.send("GET", api3.root + path)).json();
     if (!Array.isArray(result)) throw new CliError("The server returned an invalid application list.", { code: "invalid_response" });
@@ -2787,24 +2787,22 @@ async function appManagementCommands(ctx, createClient) {
 }
 
 // src/xrain-cli/app.mjs
-function appClient(ctx, { allowHost = false } = {}) {
+function appClient(ctx, { allowHost = false, allowAnonymous = false } = {}) {
   const market = ctx.args.has("exchange");
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, !allowHost);
   if (!market && allowHost && profile.scope !== "host" && !profile.tenant)
     throw new CliError("Tenant is required unless an explicit Host profile is selected.", { code: "tenant_required" });
   const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
-  if (!token) throw new CliError(market ? "Market login is required or expired. Run app login --exchange <url>." : "App login is required or expired. Run app login --server <url>.", {
+  if (!token && !(market && allowAnonymous && ctx.args.value("auth") !== "session")) throw new CliError(market ? "Market login is required or expired. Run app login --exchange <url>." : "App login is required or expired. Run app login --server <url>.", {
     code: "authentication_required",
     hint: "Use auth status to inspect the session, then auth login for this target."
   });
   return {
     root: market ? "/api/exchange/v1" : "/api/application/v1",
-    send: (method, path, options = {}) => request(new URL(path, profile.server), {
-      ...options,
-      method,
-      token,
-      timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity)
-    })
+    send: (method, path, options = {}) => {
+      if (!token && method !== "GET") throw new CliError("Market maintenance requires a matching login.", { code: "authentication_required" });
+      return request(new URL(path, profile.server), { ...options, method, token, timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) });
+    }
   };
 }
 var client = appClient;
@@ -2939,15 +2937,15 @@ async function appCommands(ctx) {
       const api3 = client(ctx, { allowHost: true });
       const result = await writeOnce(async () => {
         const response = requireSuccess(await api3.send("POST", api3.root + "/packages:import", { body: bytes, headers: { "Content-Type": "application/octet-stream" } }));
-        let value2;
+        let value;
         try {
-          value2 = response.json();
+          value = response.json();
         } catch {
           throw new CliError("The import response is invalid.", { code: "invalid_response" });
         }
-        if (value2?.packageId !== manifest.packageId || value2?.versionId !== manifest.versionId)
+        if (value?.packageId !== manifest.packageId || value?.versionId !== manifest.versionId)
           throw new CliError("The import response does not match this package.", { code: "invalid_response" });
-        return value2;
+        return value;
       }, "Import outcome is unknown. Read the original package versions before importing again; this command does not install or publish.", { packageId: manifest.packageId, versionId: manifest.versionId });
       ctx.reporter.print(result);
       return 0;
@@ -2960,6 +2958,10 @@ async function appCommands(ctx) {
 // src/xrain-cli/diagnostics.mjs
 async function authCommands(ctx) {
   const { args, store, reporter } = ctx;
+  if (args.command(1) === "tenants") {
+    reporter.print(await apiValue(ctx, "GET", "/api/service/authen/v1/security/tenants", void 0, { requireTenant: false, sessionOnly: true, validate: Array.isArray }));
+    return 0;
+  }
   if (args.command(1) === "login") return args.has("native") ? nativeLogin(ctx) : browserLogin(ctx);
   const market = args.has("exchange"), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === "status") {
@@ -2986,21 +2988,21 @@ async function authCommands(ctx) {
       throw error;
     }
     if (!response.ok) throw responseError(response, "", details);
-    let value2;
+    let value;
     try {
-      value2 = response.json();
+      value = response.json();
     } catch {
       throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
     }
-    if (!isObject(value2) || !nonempty(value2.userId) || !Object.hasOwn(value2, "tenantId") || !["tenant", "host"].includes(value2.scope) || (value2.scope === "tenant" ? !nonempty(value2.tenantId) : value2.tenantId !== null)) {
+    if (!isObject(value) || !nonempty(value.userId) || !Object.hasOwn(value, "tenantId") || !["tenant", "host"].includes(value.scope) || (value.scope === "tenant" ? !nonempty(value.tenantId) : value.tenantId !== null)) {
       throw new CliError("XRain returned an invalid identity context.", { code: "invalid_response", details });
     }
     const identity = {
       ...details,
       configuredTenant: profile.tenant ?? null,
-      userId: value2.userId,
-      tenantId: value2.tenantId,
-      scope: value2.scope,
+      userId: value.userId,
+      tenantId: value.tenantId,
+      scope: value.scope,
       remoteValidation: "identity_confirmed"
     };
     const appId = profile.invalidApplicationId ? void 0 : applicationId(profile);
@@ -3051,7 +3053,7 @@ async function authCommands(ctx) {
         details: { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } }
       });
     const actual = { runtime: runtime2, ...appId ? { applicationId: appId } : {}, userId: runtimeIdentity.userId, tenantId: runtimeIdentity.tenantId };
-    if (runtimeIdentity.userId !== value2.userId || runtimeIdentity.tenantId !== value2.tenantId)
+    if (runtimeIdentity.userId !== value.userId || runtimeIdentity.tenantId !== value.tenantId)
       throw new CliError("Runtime and platform identities do not match.", {
         code: "identity_mismatch",
         details: { platformIdentity: identity, agentContext: { ...actual, runtimeIdentity: "mismatch" } }
@@ -3189,13 +3191,16 @@ var tenants = "/api/service/authen/v1/host/tenants";
 var tenant = tenants + "/{tenant-id}";
 var host = (path, method, route, options = {}) => ({ path: "host " + path, method, route, host: true, readback: ["host", "tenant", "list"], ...options });
 var hostOperations = [
+  host("database sources", "GET", "/api/service/authen/v1/host/databases", { sessionOnly: true }),
+  host("database catalog", "GET", "/api/service/authen/v1/host/databases/{source-id}/catalog", { sessionOnly: true }),
+  host("database table", "GET", "/api/service/authen/v1/host/databases/{source-id}/schemas/{schema}/tables/{table}", { query: ["previewLimit"], sessionOnly: true }),
   host("tenant list", "GET", tenants, { query: ["page", "pageSize", "search", "isActive"] }),
   host("tenant create", "POST", tenants, { input: "object", headers: { "Idempotency-Key": "request-key" } }),
   host("tenant show", "GET", tenant),
   host("tenant update", "PATCH", tenant, { input: "object", headers: { "If-Match": "if-match" } }),
   ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
   host("tenant connection set", "PUT", tenant + "/connections/{name}", { input: "object" }),
-  host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true, outcome: (value2) => booleanOutcome(value2, "ready") }),
+  host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true, outcome: (value) => booleanOutcome(value, "ready") }),
   host("tenant member create", "POST", tenant + "/members", { input: "object" }),
   host("tenant member update", "PUT", tenant + "/members/{user-id}", { input: "object" }),
   host("tenant member delete", "DELETE", tenant + "/members/{user-id}"),
@@ -3213,14 +3218,14 @@ var match = { "If-Match": "if-match" };
 var create = { ...match, "Idempotency-Key": "request-key" };
 var remove = { ...match, "X-Impact-Token": "impact-token" };
 var define3 = (path, method, route, options = {}) => ({ path: "metadata " + path, method, route, readback: ["metadata", "entities"], ...options });
-var versioned = (value2) => isObject(value2) && Number.isSafeInteger(value2.metadataRevision) && value2.metadataRevision >= 0 && nonempty(value2.etag);
-var mutation = (kind) => (value2, { args, body }) => {
-  if (!versioned(value2) || !isObject(value2.object) || !nonempty(value2.object.objectId) || !nonempty(value2.object.entityApiName)) return false;
+var versioned = (value) => isObject(value) && Number.isSafeInteger(value.metadataRevision) && value.metadataRevision >= 0 && nonempty(value.etag);
+var mutation = (kind) => (value, { args, body }) => {
+  if (!versioned(value) || !isObject(value.object) || !nonempty(value.object.objectId) || !nonempty(value.object.entityApiName)) return false;
   const expectedEntity = args.value("entity") ?? body?.entityApiName;
-  if (expectedEntity && ![value2.object.entityApiName, value2.object.entityCode].some((name) => equalIgnoreCase(name, expectedEntity))) return false;
+  if (expectedEntity && ![value.object.entityApiName, value.object.entityCode].some((name) => equalIgnoreCase(name, expectedEntity))) return false;
   if (kind === "object") return true;
   const expectedField = body?.fieldApiName ?? args.value("field");
-  return isObject(value2.field) && nonempty(value2.field.fieldId) && nonempty(value2.field.fieldApiName) && (!expectedField || equalIgnoreCase(value2.field.fieldApiName, expectedField));
+  return isObject(value.field) && nonempty(value.field.fieldId) && nonempty(value.field.fieldApiName) && (!expectedField || equalIgnoreCase(value.field.fieldApiName, expectedField));
 };
 var metadataOperations = [
   define3("entity list", "GET", base2 + "/objects", { responseHeaders: ["etag"] }),
@@ -3240,7 +3245,7 @@ var metadataOperations = [
   define3("field revise-deployment", "PATCH", entity + "/fields/{field}/failed-deployment", { input: "object", headers: create, validate: mutation("field") }),
   define3("field abandon-deployment", "DELETE", entity + "/fields/{field}/failed-deployment", {
     headers: match,
-    validate: (value2, { args }) => versioned(value2) && nonempty(value2.fieldId) && equalIgnoreCase(value2.fieldApiName, args.value("field")) && typeof value2.fieldRemoved === "boolean"
+    validate: (value, { args }) => versioned(value) && nonempty(value.fieldId) && equalIgnoreCase(value.fieldApiName, args.value("field")) && typeof value.fieldRemoved === "boolean"
   }),
   define3("view list", "GET", entity + "/views", { responseHeaders: ["etag"] }),
   define3("view field-catalog", "GET", entity + "/view-field-catalog", { responseHeaders: ["etag"] }),
@@ -3299,7 +3304,7 @@ var workflowOperations = [
   define4("orchestration create", "POST", orchestration + "/definitions", { input: "object" }),
   define4("orchestration update", "PUT", orchestration + "/definitions/{id}", { input: "object" }),
   define4("orchestration delete", "DELETE", orchestration + "/definitions/{id}"),
-  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object", outcome: (value2) => booleanOutcome(value2, "isSuccess") }),
+  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object", outcome: (value) => booleanOutcome(value, "isSuccess") }),
   define4("orchestration policy get", "GET", orchestration + "/policy"),
   define4("orchestration policy set", "PUT", orchestration + "/policy", { input: "object" }),
   define4("function list", "GET", orchestration + "/functions"),
@@ -3341,8 +3346,8 @@ var workflowOperations = [
   define4("http interface policy set", "PUT", iface + "/{id}/orchestration-policy", { input: "object" }),
   define4("http interface invoke", "POST", iface + "/{id}", {
     input: "json",
-    outcome: (value2) => booleanOutcome(value2, "isSuccess"),
-    validate: (value2) => Number.isInteger(value2?.statusCode) && value2.statusCode >= 100 && value2.statusCode <= 599
+    outcome: (value) => booleanOutcome(value, "isSuccess"),
+    validate: (value) => Number.isInteger(value?.statusCode) && value.statusCode >= 100 && value.statusCode <= 599
   }),
   define4("http interface debug", "POST", iface + "/{id}/debug/raw", { input: "json", raw: true })
 ];
@@ -3370,12 +3375,12 @@ var s3 = "/api/service/storage/v1/s3-accounts";
 var email = "/api/delivery/v1/email";
 var feishu = "/api/delivery/v1/feishu";
 var personal = email + "/me";
-var statusOutcome = (value2, key, successes, failure) => successes.includes(value2?.[key]) ? "succeeded" : value2?.[key] === failure ? "failed" : value2?.[key] === "Unknown" ? "unknown" : void 0;
-var authentication = (value2) => statusOutcome(value2, "status", ["Succeeded"], "Failed");
-var emailSend = (value2) => nonempty(value2?.messageId) ? statusOutcome(value2, "status", ["Queued", "Sending", "Accepted"], "Failed") : void 0;
-var providerSend = (value2, id, status) => typeof value2?.ignored !== "boolean" ? void 0 : value2.ignored ? "succeeded" : nonempty(value2[id]) ? statusOutcome(value2, status, ["Accepted"], "Rejected") : void 0;
-var mailboxCheck = (value2) => {
-  const states = [authentication(value2?.receive), authentication(value2?.send)];
+var statusOutcome = (value, key, successes, failure) => successes.includes(value?.[key]) ? "succeeded" : value?.[key] === failure ? "failed" : value?.[key] === "Unknown" ? "unknown" : void 0;
+var authentication = (value) => statusOutcome(value, "status", ["Succeeded"], "Failed");
+var emailSend = (value) => nonempty(value?.messageId) ? statusOutcome(value, "status", ["Queued", "Sending", "Accepted"], "Failed") : void 0;
+var providerSend = (value, id, status) => typeof value?.ignored !== "boolean" ? void 0 : value.ignored ? "succeeded" : nonempty(value[id]) ? statusOutcome(value, status, ["Accepted"], "Rejected") : void 0;
+var mailboxCheck = (value) => {
+  const states = [authentication(value?.receive), authentication(value?.send)];
   return states.some((state) => state === void 0) ? void 0 : states.includes("unknown") ? "unknown" : states.includes("failed") ? "failed" : "succeeded";
 };
 var deliveryOperations = [
@@ -3393,7 +3398,7 @@ var deliveryOperations = [
   }),
   define5("feishu account get", "GET", feishu + "/account"),
   define5("feishu account set", "PUT", feishu + "/account", { input: "object" }),
-  define5("feishu account check", "POST", feishu + "/account/test", { outcome: (value2) => booleanOutcome(value2, "succeeded") }),
+  define5("feishu account check", "POST", feishu + "/account/test", { outcome: (value) => booleanOutcome(value, "succeeded") }),
   ...[["email", email], ["feishu", feishu]].flatMap(([name, base4]) => [
     define5(`${name} template list`, "GET", base4 + "/templates"),
     define5(`${name} template show`, "GET", base4 + "/templates/{id}"),
@@ -3402,7 +3407,7 @@ var deliveryOperations = [
     define5(`${name} template preview`, "POST", base4 + "/templates/{id}/" + (name === "email" ? "preview" : "render-check"), { input: "object", readOnly: true }),
     define5(`${name} template send-test`, "POST", base4 + "/templates/{id}/send-test", {
       input: "object",
-      outcome: name === "email" ? emailSend : (value2) => providerSend(value2, "messageId", "status")
+      outcome: name === "email" ? emailSend : (value) => providerSend(value, "messageId", "status")
     }),
     define5(`${name} message list`, "GET", base4 + "/messages", { query: name === "email" ? ["accountId", "status", "whatId", "search", "limit"] : ["templateId", "status", "receiveIdType", "whatId", "search", "limit"] }),
     define5(`${name} message show`, "GET", base4 + "/messages/{id}")
@@ -3414,7 +3419,7 @@ var deliveryOperations = [
   define5("sms account set", "PUT", "/api/sms/accounts", { host: true, query: ["tenantId"], input: "object" }),
   define5("sms template list", "GET", "/api/sms/templates", { host: true, query: ["tenantId", "accountId"] }),
   define5("sms template bind", "POST", "/api/sms/templates", { host: true, query: ["tenantId"], input: "object" }),
-  define5("sms send-test", "POST", "/api/sms/test", { host: true, query: ["tenantId"], input: "object", outcome: (value2) => providerSend(value2, "recordId", "submitStatus") }),
+  define5("sms send-test", "POST", "/api/sms/test", { host: true, query: ["tenantId"], input: "object", outcome: (value) => providerSend(value, "recordId", "submitStatus") }),
   define5("sms records", "GET", "/api/sms/records", { host: true, query: ["tenantId"] }),
   define5("mail providers", "GET", personal + "/providers"),
   define5("mail account list", "GET", personal + "/accounts"),
@@ -3512,10 +3517,10 @@ var operationOptions = (operation) => [
   ...operation.input ? ["request-json", "file"] : [],
   ...operation.query ? ["query-json", ...[...pageOptions].filter(([, key]) => operation.query.includes(key)).map(([key]) => key)] : []
 ];
-function memberOutput(value2) {
-  if (Array.isArray(value2)) return value2.map(memberOutput);
-  if (!isObject(value2)) return value2;
-  const { accountIsActive: _account, ...item } = value2;
+function memberOutput(value) {
+  if (Array.isArray(value)) return value.map(memberOutput);
+  if (!isObject(value)) return value;
+  const { accountIsActive: _account, ...item } = value;
   if (Array.isArray(item.items)) item.items = item.items.map(memberOutput);
   return item;
 }
@@ -3527,22 +3532,22 @@ async function managementCommand(ctx) {
   const credentialOutput = operation.credentialOutput ? resolve5(args.required("out")) : void 0;
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
-    const value3 = args.required(option);
-    if (!/^[\x20-\x7e]{1,1024}$/.test(value3)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
-    return [header, value3];
+    const value2 = args.required(option);
+    if (!/^[\x20-\x7e]{1,1024}$/.test(value2)) throw new CliError(`--${option} must be a printable header value.`, { code: "invalid_arguments" });
+    return [header, value2];
   }));
   let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), targetTenantId;
   if (operation.query) {
     const individual = [...pageOptions].filter(([option, key]) => operation.query.includes(key) && args.has(option));
     if (args.has("query-json") && individual.length) throw new CliError("Use a complete --query-json file or individual query options.", { code: "invalid_arguments" });
     const supplied = args.has("query-json") ? await readJsonInput(args.value("query-json"), "Query parameters", { stdin: ctx.stdin }) : Object.fromEntries(individual.map(([option, key]) => [key, option === "page" || option === "page-size" ? args.integer(option) : args.value(option)]));
-    if (!isObject(supplied) || Object.keys(supplied).some((key) => !operation.query.includes(key)) || Object.values(supplied).some((value3) => value3 !== null && !["string", "number", "boolean"].includes(typeof value3)))
+    if (!isObject(supplied) || Object.keys(supplied).some((key) => !operation.query.includes(key)) || Object.values(supplied).some((value2) => value2 !== null && !["string", "number", "boolean"].includes(typeof value2)))
       throw new CliError("Query JSON must use supported parameter names and scalar values.", { code: "invalid_arguments" });
     const query2 = { ...operation.queryDefaults, ...supplied };
     for (const key of operation.requiredQuery ?? []) if (query2[key] === void 0 || query2[key] === null || query2[key] === "")
       throw new CliError(`Query parameter ${key} is required. Supply --query-json.`, { code: "invalid_arguments" });
     if (typeof query2.tenantId === "string") targetTenantId = query2.tenantId;
-    const search = new URLSearchParams(Object.entries(query2).filter(([, value3]) => value3 !== null).map(([key, value3]) => [key, String(value3)]));
+    const search = new URLSearchParams(Object.entries(query2).filter(([, value2]) => value2 !== null).map(([key, value2]) => [key, String(value2)]));
     if (search.size) route += "?" + search;
   }
   let body;
@@ -3575,34 +3580,34 @@ async function managementCommand(ctx) {
     sessionOnly: operation.sessionOnly,
     signal,
     raw: operation.raw,
-    validate: (value3) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value3))) && (!operation.validate || operation.validate(value3, { args, body })),
+    validate: (value2) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value2))) && (!operation.validate || operation.validate(value2, { args, body })),
     ...write ? { mutation: mutation2 } : {}
   });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation2 };
-  let value2 = operation.raw ? await writeOnce(
+  let value = operation.raw ? await writeOnce(
     () => rawOutput(ctx, call, context),
     "Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.",
     context
   ) : await call();
-  const outcome = operation.outcome?.(value2);
+  const outcome = operation.outcome?.(value);
   if (outcome === "failed" || outcome === "unknown") throw new CliError(outcome === "unknown" ? "The service reported an unknown outcome." : "The execution reported failure.", {
     code: outcome === "unknown" ? "outcome_unknown" : "execution_failed",
     hint: "Inspect the returned result and any effects before another action. Do not replay the batch.",
-    details: { ...context, result: value2 }
+    details: { ...context, result: value }
   });
   if (operation.select) {
-    if (!isObject(value2) || !Object.hasOwn(value2, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
-    value2 = value2[operation.select];
+    if (!isObject(value) || !Object.hasOwn(value, operation.select)) throw new CliError("The server returned an invalid catalog.", { code: "invalid_response" });
+    value = value[operation.select];
   }
   if (credentialOutput) {
-    const token = value2?.api_token ?? value2?.apiToken;
+    const token = value?.api_token ?? value?.apiToken;
     if (typeof token !== "string" || !token) throw new CliError("The server returned an invalid credential receipt.", {
       code: write ? "outcome_unknown" : "invalid_response",
       hint: "Inspect the existing server token list before issuing another token.",
       details: { operation: operation.path }
     });
     reporter.secret(token);
-    const metadata = Object.fromEntries(["subjectUserId", "expiresAtUtc", "expires_at_utc"].filter((key) => value2[key] !== void 0).map((key) => [key === "expires_at_utc" ? "expiresAtUtc" : key, value2[key]]));
+    const metadata = Object.fromEntries(["subjectUserId", "expiresAtUtc", "expires_at_utc"].filter((key) => value[key] !== void 0).map((key) => [key === "expires_at_utc" ? "expiresAtUtc" : key, value[key]]));
     try {
       saveCredentialFile(credentialOutput, token, profile, metadata);
     } catch {
@@ -3611,7 +3616,7 @@ async function managementCommand(ctx) {
     reporter.print({ output: credentialOutput, ...metadata, protection: process.platform === "win32" ? "dpapi-current-user" : "file-mode-0600" });
     return true;
   }
-  reporter.print(operation.members ? memberOutput(value2) : value2);
+  reporter.print(operation.members ? memberOutput(value) : value);
   return true;
 }
 
@@ -3627,12 +3632,36 @@ var workforceOperations = [
   define6("channel dm", "POST", "/channels/dm", { input: "object" }),
   define6("channel group", "POST", "/channels/groups", { input: "object" }),
   define6("channel leave", "POST", "/channels/{channel}/leave", { input: "object" }),
+  define6("group show", "GET", "/channels/{channel}/group-state"),
+  define6("group update", "PATCH", "/channels/{channel}/group-state", { input: "object" }),
+  define6("group invite", "POST", "/channels/{channel}/invitations", { input: "object" }),
+  define6("group apply", "POST", "/channels/{channel}/applications", { input: "object" }),
+  define6("group decide", "POST", "/channels/{channel}/applications/{request-seq}/decision", { input: "object" }),
+  define6("group member-role", "PATCH", "/channels/{channel}/members/{user-id}", { input: "object" }),
+  define6("group remove-member", "DELETE", "/channels/{channel}/members/{user-id}"),
+  define6("group transfer", "POST", "/channels/{channel}/transfer", { input: "object" }),
   define6("message list", "GET", "/channels/{channel}/messages", { query: ["before", "after", "limit"] }),
   define6("message show", "GET", "/channels/{channel}/messages/{message-seq}"),
   define6("message send", "POST", "/channels/{channel}/messages", { input: "object" }),
   define6("message edit", "PATCH", "/channels/{channel}/messages/{message-seq}", { input: "object" }),
   define6("message withdraw", "DELETE", "/channels/{channel}/messages/{message-seq}", { input: "object" }),
   define6("message search", "GET", "/channels/{channel}/search", { query: ["q", "limit", "before", "category", "senderId"] }),
+  define6("message forward", "POST", "/channels/{channel}/message-forwards", { input: "object" }),
+  define6("message react", "PUT", "/channels/{channel}/messages/{message-seq}/reactions/{emoji}", { input: "object" }),
+  define6("message read", "PUT", "/channels/{channel}/read", { input: "object" }),
+  define6("message read-all", "PUT", "/channels/{channel}/read/all"),
+  define6("message unread", "DELETE", "/channels/{channel}/read/latest-other"),
+  define6("draft get", "GET", "/channels/{channel}/draft"),
+  define6("draft set", "PUT", "/channels/{channel}/draft", { input: "object" }),
+  define6("search", "GET", "/search", { query: ["q", "channelId", "channelIds", "limit", "before", "category", "senderId", "since", "field", "fileType"] }),
+  define6("attachment list", "GET", "/channels/{channel}/files", { query: ["before", "limit"] }),
+  define6("attachment upload", "POST", "/files", { upload: true }),
+  define6("attachment download", "GET", "/files/{id}/content", { download: true, query: ["channelId", "messageSeq"] }),
+  define6("composition get", "GET", "/portal/bootstrap", { query: ["client"] }),
+  define6("composition set", "PUT", "/portal/composition", { input: "object", query: ["client"] }),
+  define6("applications", "GET", "/app-center/applications"),
+  define6("account open", "GET", "/context", { browser: "desktop-account?return=" }),
+  define6("enterprise open", "GET", "/context", { browser: "enterprise-management" }),
   define6("task list", "GET", "/tasks"),
   define6("task show", "GET", "/tasks/{task-id}"),
   define6("task create", "POST", "/tasks", { input: "object" }),
@@ -3667,6 +3696,43 @@ var workforceOperations = [
   define6("schedule run cancel", "POST", "/task-schedules/{schedule-id}/runs/{run-id}/cancel")
 ];
 
+// src/xrain-cli/application-user-operations.mjs
+var define7 = (path, method, route, options = {}) => ({ path, method, route: "/api/cli/v1" + route, ...options });
+var retail = (path, method, route, options) => define7("retail " + path, method, "/applications/retail-assistant" + route, options);
+var mail = (path, method, route, options) => define7("mail " + path, method, "/mail" + route, options);
+var applicationUserOperations = [
+  mail("ai list", "GET", "/ais"),
+  mail("ai subscribe", "POST", "/agents/{agent-id}/subscription"),
+  mail("app accounts", "GET", "/accounts"),
+  mail("app folders", "GET", "/accounts/{id}/folders"),
+  mail("app search", "POST", "/accounts/{id}/messages/search", { input: true, readOnly: true }),
+  mail("app read", "POST", "/accounts/{id}/messages/read", { input: true, readOnly: true }),
+  mail("app draft", "POST", "/accounts/{id}/drafts", { input: true, draft: true }),
+  mail("assist", "POST", "/accounts/{id}/assist", { input: true }),
+  retail("context", "GET", "/context"),
+  retail("customers", "GET", "/customers", { query: ["search", "order", "cursor", "includeArchived", "archivedOnly"] }),
+  retail("customer describe", "GET", "/records/objects/{object-id}/describe"),
+  retail("customer show", "GET", "/records/objects/{object-id}/records/{record-id}"),
+  retail("customer create", "POST", "/records/objects/{object-id}/records", { input: true }),
+  retail("customer update", "PUT", "/records/objects/{object-id}/records/{record-id}", { input: true }),
+  retail("conversation list", "GET", "/records/objects/{object-id}/records/{record-id}/conversations", { query: ["source"], queryDefaults: { source: "retail-assistant" } }),
+  retail("conversation start", "POST", "/records/objects/{object-id}/records/{record-id}/conversations", { input: true }),
+  retail("agents", "GET", "/assistant/agents"),
+  retail("agent-catalog", "GET", "/assistant/agent-catalog", { query: ["search", "page", "pageSize"] }),
+  retail("subscribe", "POST", "/assistant/agents/{agent-id}/subscription"),
+  ...["history", "subagents", "commands", "models"].map((action) => retail(
+    "session " + action,
+    "GET",
+    `/assistant/sessions/{session-id}/${action}`,
+    action === "history" ? { query: ["throughSeq", "beforeSeq", "maxMessages"] } : {}
+  )),
+  ...["inputs", "commands", "model"].map((action) => retail("session " + ({ inputs: "send", commands: "command" }[action] ?? action), "POST", `/assistant/sessions/{session-id}/${action}`, { input: true })),
+  retail("session cancel", "POST", "/assistant/sessions/{session-id}/cancel"),
+  retail("session pending", "GET", "/assistant/pending-actions"),
+  retail("session respond", "POST", "/assistant/pending-actions/{action-ref}/responses", { input: true }),
+  retail("session cancel-question", "POST", "/assistant/pending-actions/{action-ref}/cancel", { input: true })
+];
+
 // src/xrain-cli/schema.mjs
 var common = ["help", "json"];
 var target = ["server", "tenant", "scope", "profile", "timeout"];
@@ -3687,6 +3753,7 @@ command("profile use", ["name", "profile"], [slot("name", ["profile"])], "Select
 command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), optional: true }], "Remove a saved profile and session.");
 command("profile path", [], [], "Show the profile store path.");
 command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.");
+command("auth tenants", [...target, "auth"], [], "Discover your accessible enterprises using the saved platform login. Does not switch the current connection.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
 command("auth whoami", [...api2, "agent", "runtime", "application-id", "personal"], [], "Read the verified XRain identity; --agent also checks the selected Runtime caller.");
 command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the saved session, keeping the platform profile.");
@@ -3892,10 +3959,27 @@ for (const operation of workforceOperations) command(
     "auth",
     ...routeParameters(operation.route),
     ...operation.input ? ["request-json", "file"] : [],
-    ...operation.query ? ["query-json"] : []
+    ...operation.query ? ["query-json"] : [],
+    ...operation.upload ? ["file"] : [],
+    ...operation.download ? ["out"] : [],
+    ...operation.browser ? ["no-browser"] : []
   ],
   routeParameters(operation.route).map((name) => slot(name)),
   "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force."
+);
+for (const operation of applicationUserOperations) command(
+  operation.path,
+  [
+    ...target,
+    "app-url",
+    "application-id",
+    "auth",
+    ...routeParameters(operation.route),
+    ...operation.input ? ["request-json", "file"] : [],
+    ...operation.query ? ["query-json"] : []
+  ],
+  routeParameters(operation.route).map((name) => slot(name)),
+  "Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft."
 );
 function words(args) {
   return args.commands.map((word, index) => {
@@ -3916,20 +4000,27 @@ function validateCommand(args) {
   for (const operand of spec.operands) {
     const supplied = [operand.name, ...operand.aliases].filter((name) => args.has(name));
     if (supplied.length > 1) throw new CliError(`Choose one option for ${operand.name}.`, { code: "invalid_arguments" });
-    const value2 = supplied.length ? args.value(supplied[0]) : operands.shift();
-    if (value2 === void 0 && !operand.optional) throw new CliError(`--${operand.name} is required.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
-    if (value2 !== void 0) args.options.set(operand.name, value2);
+    const value = supplied.length ? args.value(supplied[0]) : operands.shift();
+    if (value === void 0 && !operand.optional) throw new CliError(`--${operand.name} is required.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
+    if (value !== void 0) args.options.set(operand.name, value);
   }
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
   const management = managementOperations.find((item) => item.path === spec.path);
+  const applicationUser = applicationUserOperations.find((item) => item.path === spec.path);
+  if (spec.path === "auth tenants" && args.has("auth") && args.value("auth") !== "session") throw new CliError("Enterprise discovery uses your saved platform login.", { code: "invalid_arguments" });
+  if (applicationUser) {
+    args.required("app-url");
+    if (applicationUser.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
+    if (args.has("auth") && args.value("auth") !== "session") throw new CliError("Application workflows use your saved platform session.", { code: "invalid_arguments" });
+  }
   if (management) {
     for (const option of Object.values(management.headers ?? {})) args.required(option);
     if (management.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
     if (management.credentialOutput) args.required("out");
   }
   if (spec.path === "app component restore") {
-    const value2 = args.required("expected-revision");
-    if (!/^[0-9]+$/.test(value2) || !Number.isSafeInteger(Number(value2))) throw new CliError("--expected-revision must be a nonnegative safe integer.", { code: "invalid_arguments" });
+    const value = args.required("expected-revision");
+    if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new CliError("--expected-revision must be a nonnegative safe integer.", { code: "invalid_arguments" });
   }
   if (spec.path === "app components") args.required("version-id");
   if (spec.path === "app withdraw") args.required("request-id");
@@ -3937,6 +4028,8 @@ function validateCommand(args) {
   if (spec.path.startsWith("workforce ")) {
     args.required("workforce");
     const operation = workforceOperations.find((row) => row.path === spec.path);
+    if (operation.upload) args.required("file");
+    if (operation.download) args.required("out");
     if (operation.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
     if (args.has("auth") && args.value("auth") !== "session") throw new CliError("Workforce uses a matching saved platform session.", { code: "invalid_arguments" });
   }
@@ -4052,8 +4145,8 @@ function validateCommand(args) {
     if (spec.path === "agent chat history" && ["through-seq", "before-seq", "page-size"].some((name) => args.has(name))) {
       args.required("through-seq");
       for (const [name, minimum] of [["through-seq", -1], ["before-seq", 0]]) if (args.has(name)) {
-        const value2 = args.value(name);
-        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value2) || !Number.isSafeInteger(Number(value2)) || Number(value2) < minimum)
+        const value = args.value(name);
+        if (!/^(?:0|[1-9][0-9]*|-1)$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < minimum)
           throw new CliError(`--${name} must be an integer of at least ${minimum}.`, { code: "invalid_arguments" });
       }
       args.integer("page-size", 100);
@@ -4115,7 +4208,7 @@ async function batchCommands(ctx) {
   if (!Array.isArray(plan)) throw new CliError("Batch JSON must be an array of command argument arrays.", { code: "invalid_arguments" });
   const commands = [];
   for (const row of plan) {
-    if (!Array.isArray(row) || !row.length || row.some((value2) => typeof value2 !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
+    if (!Array.isArray(row) || !row.length || row.some((value) => typeof value !== "string")) throw new CliError("Each batch item must be a nonempty array of strings.", { code: "invalid_arguments" });
     const args = new Args(row), spec = validateCommand(args);
     if (["batch", "auth login", "app login"].includes(spec.path)) throw new CliError("Nested batches and login are not supported inside a batch. Log in before running it.", { code: "invalid_arguments" });
     if (["file", "query-json", "values-json", "filter-json", "request-json", "message-file", "context-json", "options-json"].some((name) => args.value(name) === "-") || ["query", "values", "filter"].some((name) => args.value(name) === "@-"))
@@ -4126,11 +4219,11 @@ async function batchCommands(ctx) {
   for (const [index, argv] of plan.entries()) {
     let stdout = "", stderr = "";
     const code = await ctx.execute(argv.includes("--json") ? argv : [...argv, "--json"], {
-      stdout: { write(value2) {
-        stdout += value2;
+      stdout: { write(value) {
+        stdout += value;
       } },
-      stderr: { write(value2) {
-        stderr += value2;
+      stderr: { write(value) {
+        stderr += value;
       } }
     });
     const result = JSON.parse(stdout);
@@ -4185,36 +4278,36 @@ function validSidebar(v) {
   if (!object(v.settings) || v.settings.objects === void 0) return true;
   return Array.isArray(v.settings.objects) && v.settings.objects.every((item) => object(item) && text(item.objectType, 160) && optionalText(item.listViewId) && optionalText(item.detailViewId) && optionalText(item.createViewId) && optionalObject(item.application) && (!item.application || object(item.application) && text(item.application.applicationId, 160) && optionalText(item.application.path)) && Array.isArray(item.views) && item.views.every(validView));
 }
-function exportDefinition(value2, workspaces) {
-  const workspace = value2.workspaceDirect ? value2.workspacePath ? { kind: "direct", path: value2.workspacePath } : { kind: "unavailable" } : value2.workspaceId ? {
+function exportDefinition(value, workspaces) {
+  const workspace = value.workspaceDirect ? value.workspacePath ? { kind: "direct", path: value.workspacePath } : { kind: "unavailable" } : value.workspaceId ? {
     kind: "registered",
-    id: value2.workspaceId,
-    ...workspaces.find((item) => item.id === value2.workspaceId)?.cwd ? { path: workspaces.find((item) => item.id === value2.workspaceId).cwd } : {}
+    id: value.workspaceId,
+    ...workspaces.find((item) => item.id === value.workspaceId)?.cwd ? { path: workspaces.find((item) => item.id === value.workspaceId).cwd } : {}
   } : { kind: "none" };
   return { format: "xrain-workforce-agent-definition", version: 1, definition: {
-    name: value2.name ?? "",
-    enabled: value2.enabled,
-    instructions: value2.instructions,
-    provider: value2.provider,
-    model: value2.model,
-    reasoningEffort: value2.reasoningEffort ?? null,
-    agentPreset: value2.agentPreset,
+    name: value.name ?? "",
+    enabled: value.enabled,
+    instructions: value.instructions,
+    provider: value.provider,
+    model: value.model,
+    reasoningEffort: value.reasoningEffort ?? null,
+    agentPreset: value.agentPreset,
     workspace,
-    nativeTools: value2.nativeTools ?? null,
-    assistantTools: value2.assistantTools ?? [],
-    suggestedQuestions: value2.suggestedQuestions ?? null,
-    businessActions: value2.businessActions ?? null,
-    uiPlugins: value2.uiPlugins ?? null
+    nativeTools: value.nativeTools ?? null,
+    assistantTools: value.assistantTools ?? [],
+    suggestedQuestions: value.suggestedQuestions ?? null,
+    businessActions: value.businessActions ?? null,
+    uiPlugins: value.uiPlugins ?? null
   } };
 }
-function readDefinitionFile(value2) {
-  if (!object(value2) || value2.format !== "xrain-workforce-agent-definition" || value2.version !== 1 || Object.keys(value2).some((key) => !["format", "version", "definition"].includes(key)) || !object(value2.definition)) throw Error("invalid");
-  const v = value2.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+function readDefinitionFile(value) {
+  if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
+  const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
   if (Object.keys(v).length !== keys.length || Object.keys(v).some((key) => !keys.includes(key)) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
-  return value2;
+  return value;
 }
 function sameWorkspacePath(left, right) {
-  const windows = (value2) => /^[a-z]:[\\/]/i.test(value2) || /^(?:\\\\|\/\/)[^\\/]/.test(value2);
+  const windows = (value) => /^[a-z]:[\\/]/i.test(value) || /^(?:\\\\|\/\/)[^\\/]/.test(value);
   if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return left === right;
 }
@@ -4274,8 +4367,8 @@ import { performance as performance3 } from "node:perf_hooks";
 // src/xrain-cli/runtime-controls.mjs
 var reads = { subagents: "subagents", commands: "commands", models: "models" };
 var writes = /* @__PURE__ */ new Set(["cancel", "command", "model"]);
-function commandOutcome(value2) {
-  const execution = value2?.execution;
+function commandOutcome(value) {
+  const execution = value?.execution;
   if (!isObject(execution) || !nonempty(execution.commandId) || !isObject(execution.result)) return void 0;
   return execution.result.kind === "success" ? "succeeded" : execution.result.kind === "error" && typeof execution.result.text === "string" ? "failed" : void 0;
 }
@@ -4285,10 +4378,10 @@ async function sessionControl(ctx, helpers, connection2) {
   const sessionId = helpers.identifier(args.required("session-id"), "Session ID");
   const root2 = `/v1/dsh/sessions/${segment(sessionId)}`;
   if (Object.hasOwn(reads, action)) {
-    const value3 = await helpers.runtimeValue(ctx, "GET", `${root2}/${reads[action]}`);
-    if (!isObject(value3) || action === "commands" && !Array.isArray(value3.items) || action === "subagents" && (!isObject(value3.catalog) || !Array.isArray(value3.summaries)) || action === "models" && !isObject(value3.catalog))
+    const value2 = await helpers.runtimeValue(ctx, "GET", `${root2}/${reads[action]}`);
+    if (!isObject(value2) || action === "commands" && !Array.isArray(value2.items) || action === "subagents" && (!isObject(value2.catalog) || !Array.isArray(value2.summaries)) || action === "models" && !isObject(value2.catalog))
       throw new CliError("Runtime returned an invalid session catalog.", { code: "invalid_response" });
-    reporter.print(value3);
+    reporter.print(value2);
     return true;
   }
   let body, suffix = action;
@@ -4304,18 +4397,18 @@ async function sessionControl(ctx, helpers, connection2) {
       throw new CliError("Model selection requires provider and model, with optional reasoningEffort.", { code: "invalid_arguments" });
   }
   const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
-  const value2 = await helpers.writeOnce(async () => {
+  const value = await helpers.writeOnce(async () => {
     const result = await helpers.runtimeValue(ctx, "POST", `${root2}/${suffix}`, body);
     if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !commandOutcome(result))
       throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
     return result;
   }, action === "cancel" ? "Stop outcome is unknown. Inspect this session and its pending actions. Do not assume that earlier external effects were undone." : "Operation outcome is unknown. Read this session, its command catalog or model state before another write; do not automatically replay the command.", details);
-  if (action === "command" && commandOutcome(value2) === "failed") throw new CliError("The Runtime command reported failure.", {
+  if (action === "command" && commandOutcome(value) === "failed") throw new CliError("The Runtime command reported failure.", {
     code: "execution_failed",
     hint: "Inspect the native command result and any effects before another action. Do not replay the command or batch.",
-    details: { ...details, result: value2 }
+    details: { ...details, result: value }
   });
-  reporter.print({ ...value2, ...details });
+  reporter.print({ ...value, ...details });
   return true;
 }
 
@@ -4323,7 +4416,7 @@ async function sessionControl(ctx, helpers, connection2) {
 var sessions = "/v1/dsh/sessions";
 var pendingPath = "/v1/dsh/pending-actions";
 async function messageInput(args) {
-  let value2 = args.value("message");
+  let value = args.value("message");
   const file = args.value("message-file");
   if (file) {
     let bytes;
@@ -4340,17 +4433,17 @@ async function messageInput(args) {
       bytes = Buffer.concat(chunks);
     } else bytes = readLimited(file, 256 * 1024, "Message");
     try {
-      value2 = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
       throw new CliError("Message file must be UTF-8 text.", { code: "invalid_arguments" });
     }
   }
-  if (!nonempty(value2) || value2.length > 64e3 || value2.includes("\0"))
+  if (!nonempty(value) || value.length > 64e3 || value.includes("\0"))
     throw new CliError("Message must contain 1 to 64000 characters.", { code: "invalid_arguments" });
-  return value2;
+  return value;
 }
-function textOf(value2) {
-  return isObject(value2) && Array.isArray(value2.content) ? value2.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
+function textOf(value) {
+  return isObject(value) && Array.isArray(value.content) ? value.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
 }
 function eventOf(record) {
   return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null;
@@ -4765,10 +4858,10 @@ async function runtimeRuns(ctx, helpers) {
   if (domain === "run" && action === "show") {
     const runId = args.required("run-id");
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(runId)) throw new CliError("An exact native run ID is required.");
-    const value2 = await helpers.runtimeValue(ctx, "GET", `/xrain/runs/${segment(runId)}`);
-    if (!isObject(value2) || !["running", "succeeded", "failed", "cancelled"].includes(value2.status)) throw new CliError("Runtime returned an invalid run result.", { code: "invalid_response" });
-    if (["failed", "cancelled"].includes(value2.status)) throw new CliError("The managed run did not succeed.", { code: "run_failed", details: { runId, ...value2, ...context } });
-    reporter.print({ runId, ...value2, ...context });
+    const value = await helpers.runtimeValue(ctx, "GET", `/xrain/runs/${segment(runId)}`);
+    if (!isObject(value) || !["running", "succeeded", "failed", "cancelled"].includes(value.status)) throw new CliError("Runtime returned an invalid run result.", { code: "invalid_response" });
+    if (["failed", "cancelled"].includes(value.status)) throw new CliError("The managed run did not succeed.", { code: "run_failed", details: { runId, ...value, ...context } });
+    reporter.print({ runId, ...value, ...context });
     return 0;
   }
   const agentId = helpers.identifier(args.required("agent-id"), "Agent ID"), prompt = await messageInput(args);
@@ -4777,7 +4870,7 @@ async function runtimeRuns(ctx, helpers) {
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
   try {
-    const value2 = await helpers.writeOnce(
+    const value = await helpers.writeOnce(
       async () => {
         const result = await helpers.runtimeValue(ctx, "POST", ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs", body, ephemeral ? headers : {}, { signal: controller.signal });
         if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? "") || result.status !== "accepted"))
@@ -4787,7 +4880,7 @@ async function runtimeRuns(ctx, helpers) {
       ephemeral ? "Text generation did not return a confirmed result. No session, tools or history exist; this request was not retried." : "Run submission outcome is unknown. A lost receipt cannot be recovered by a client request key in this protocol. Do not automatically submit another run.",
       { agentId, applicationId: applicationId2 ?? null, ...context }
     );
-    reporter.print({ ...value2, ...context });
+    reporter.print({ ...value, ...context });
     return 0;
   } finally {
     process.removeListener("SIGINT", interrupt);
@@ -4819,34 +4912,34 @@ function revision(args) {
   return args.integer("expected-revision");
 }
 async function objectInput(args, required = true) {
-  const value2 = await jsonInput(args, "values");
-  if (value2 === void 0 && !required) return {};
-  if (!isObject(value2)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
-  return value2;
+  const value = await jsonInput(args, "values");
+  if (value === void 0 && !required) return {};
+  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  return value;
 }
-function validateDefinitionInput(value2) {
-  const unknown = Object.keys(value2).filter((key) => !inputFields.has(key));
+function validateDefinitionInput(value) {
+  const unknown = Object.keys(value).filter((key) => !inputFields.has(key));
   if (unknown.length) throw new CliError(`Unexpected definition fields: ${unknown.join(", ")}.`, { code: "invalid_arguments" });
-  if (value2.workspaceChange !== void 0 && !isObject(value2.workspaceChange))
+  if (value.workspaceChange !== void 0 && !isObject(value.workspaceChange))
     throw new CliError("workspaceChange must be an object.", { code: "invalid_arguments" });
 }
-function workspaceChange(value2) {
-  const change = value2.workspaceChange;
+function workspaceChange(value) {
+  const change = value.workspaceChange;
   if (!change) return;
   if (change.operation === "bind") {
-    if (value2.workspaceId !== void 0 && value2.workspaceId !== change.workspaceId || value2.agentPreset !== void 0 && value2.agentPreset !== change.agentPreset)
+    if (value.workspaceId !== void 0 && value.workspaceId !== change.workspaceId || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
       throw new CliError("workspaceChange conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
-    value2.workspaceId = change.workspaceId;
-    value2.agentPreset = change.agentPreset;
+    value.workspaceId = change.workspaceId;
+    value.agentPreset = change.agentPreset;
   } else if (change.operation === "direct") {
-    if (value2.workspaceId != null || value2.agentPreset !== void 0 && value2.agentPreset !== change.agentPreset)
+    if (value.workspaceId != null || value.agentPreset !== void 0 && value.agentPreset !== change.agentPreset)
       throw new CliError("A direct directory conflicts with workspaceId or agentPreset.", { code: "invalid_arguments" });
-    value2.workspaceId = null;
-    value2.agentPreset = change.agentPreset;
+    value.workspaceId = null;
+    value.agentPreset = change.agentPreset;
   } else if (change.operation === "clear") {
-    if (value2.workspaceId != null || value2.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
-    value2.workspaceId = null;
-    value2.agentPreset = "";
+    if (value.workspaceId != null || value.agentPreset) throw new CliError("A cleared workspace cannot have a workspaceId or preset.", { code: "invalid_arguments" });
+    value.workspaceId = null;
+    value.agentPreset = "";
   }
 }
 function runtimeConnection(ctx) {
@@ -4911,19 +5004,19 @@ async function definition(ctx, id) {
   return matches[0];
 }
 async function definitionLimits(ctx) {
-  let value2, legacy = false;
+  let value, legacy = false;
   try {
-    value2 = await runtimeValue(ctx, "GET", definitions + "/limits");
+    value = await runtimeValue(ctx, "GET", definitions + "/limits");
   } catch (error) {
     if (!missingCapability(error)) throw error;
     legacy = true;
-    value2 = await runtimeValue(ctx, "GET", definitions + "/options");
+    value = await runtimeValue(ctx, "GET", definitions + "/options");
   }
-  if (!isObject(value2) || !(Number.isSafeInteger(value2.maxDefinitionBytes) && value2.maxDefinitionBytes > 0 || legacy && value2.maxDefinitionBytes === void 0))
+  if (!isObject(value) || !(Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0 || legacy && value.maxDefinitionBytes === void 0))
     throw new CliError("Runtime returned an invalid definition write limit.", { code: "invalid_response" });
   return {
-    maxDefinitionBytes: value2.maxDefinitionBytes ?? 65536,
-    supportsDefinitionStatusUpdate: value2.supportsDefinitionStatusUpdate === true,
+    maxDefinitionBytes: value.maxDefinitionBytes ?? 65536,
+    supportsDefinitionStatusUpdate: value.supportsDefinitionStatusUpdate === true,
     ...legacy ? { legacy: true } : {}
   };
 }
@@ -4947,20 +5040,20 @@ async function saveDefinition(ctx, id, body, limits, statusOnly = false) {
     { agentId: id, expectedRevision: body.revision }
   );
 }
-function selectDirectory(args, value2) {
+function selectDirectory(args, value) {
   if (!args.has("workspace-path")) return;
-  if (["workspaceChange", "workspaceId", "agentPreset"].some((key) => Object.hasOwn(value2, key)))
+  if (["workspaceChange", "workspaceId", "agentPreset"].some((key) => Object.hasOwn(value, key)))
     throw new CliError("Choose the directory once, using options or JSON.", { code: "invalid_arguments" });
-  value2.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
+  value.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
 }
 async function definitionInput(ctx, limits, required = true) {
-  const value2 = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
-  if (value2 === void 0 && !required) return {};
-  if (!isObject(value2)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
-  validateDefinitionInput(value2);
-  return value2;
+  const value = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  if (value === void 0 && !required) return {};
+  if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
+  validateDefinitionInput(value);
+  return value;
 }
-function newDefinition(id, value2) {
+function newDefinition(id, value) {
   return {
     aiUserId: "",
     agentId: id,
@@ -4973,7 +5066,7 @@ function newDefinition(id, value2) {
     workspaceId: null,
     nativeTools: [],
     allowedCallerUserIds: [],
-    ...value2
+    ...value
   };
 }
 function updatedDefinition(current, patch, expected) {
@@ -4997,10 +5090,10 @@ async function importDefinition(ctx) {
   const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") ? revision(args) : null;
   const limits = await definitionLimits(ctx);
-  const value2 = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
   let file;
   try {
-    file = readDefinitionFile(value2);
+    file = readDefinitionFile(value);
   } catch {
     throw new CliError("Expected a version 1 xrain-workforce-agent-definition exchange file.", { code: "invalid_definition_file" });
   }
@@ -5036,15 +5129,15 @@ async function definitionCommands(ctx) {
   if (action === "import") return importDefinition(ctx);
   if (action === "create") {
     const limits2 = await definitionLimits(ctx);
-    const value2 = await definitionInput(ctx, limits2, false);
-    selectDirectory(args, value2);
-    if (value2.enabled !== void 0 && value2.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
-    if (args.has("name") && value2.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
-    const name = args.value("name") ?? value2.name;
+    const value = await definitionInput(ctx, limits2, false);
+    selectDirectory(args, value);
+    if (value.enabled !== void 0 && value.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
+    if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
+    const name = args.value("name") ?? value.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
     const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
-    workspaceChange(value2);
-    const body2 = newDefinition(id2, { ...value2, name });
+    workspaceChange(value);
+    const body2 = newDefinition(id2, { ...value, name });
     reporter.progress(`Definition ID: ${id2}`);
     reporter.print(await saveDefinition(ctx, id2, body2, limits2));
     return 0;
@@ -5163,15 +5256,15 @@ async function agentCommands(ctx) {
 // src/xrain-cli/settings.mjs
 var MIB = 1024 * 1024;
 var hostPath = "/api/host/v1/settings/agent-definition-limit";
-var validBytes = (value2) => Number.isSafeInteger(value2) && value2 > 0;
+var validBytes = (value) => Number.isSafeInteger(value) && value > 0;
 function settingBytes(args) {
   const raw = args.value("mib") ?? args.value("bytes");
   if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw ?? ""))
     throw new CliError("Supply a positive numeric size.", { code: "invalid_arguments" });
-  const value2 = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
-  if (!validBytes(value2) || Number(raw) <= 0)
+  const value = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
+  if (!validBytes(value) || Number(raw) <= 0)
     throw new CliError("Size must convert to a positive safe integer number of bytes.", { code: "invalid_arguments" });
-  return value2;
+  return value;
 }
 function expectedBytes(args) {
   if (!args.has("expected-bytes")) return void 0;
@@ -5196,14 +5289,14 @@ function connection(ctx, personal2 = false) {
     }
   } };
 }
-function limitValue(value2) {
-  if (!isObject(value2) || !(value2.maxDefinitionBytes === null || validBytes(value2.maxDefinitionBytes)) || !validBytes(value2.defaultMaxDefinitionBytes))
+function limitValue(value) {
+  if (!isObject(value) || !(value.maxDefinitionBytes === null || validBytes(value.maxDefinitionBytes)) || !validBytes(value.defaultMaxDefinitionBytes))
     throw new CliError("Settings API returned an invalid definition limit.", { code: "invalid_response" });
   return {
-    maxDefinitionBytes: value2.maxDefinitionBytes,
-    maxDefinitionMiB: value2.maxDefinitionBytes === null ? null : value2.maxDefinitionBytes / MIB,
-    defaultMaxDefinitionBytes: value2.defaultMaxDefinitionBytes,
-    defaultMaxDefinitionMiB: value2.defaultMaxDefinitionBytes / MIB
+    maxDefinitionBytes: value.maxDefinitionBytes,
+    maxDefinitionMiB: value.maxDefinitionBytes === null ? null : value.maxDefinitionBytes / MIB,
+    defaultMaxDefinitionBytes: value.defaultMaxDefinitionBytes,
+    defaultMaxDefinitionMiB: value.defaultMaxDefinitionBytes / MIB
   };
 }
 async function hostSettingsCommands(ctx) {
@@ -5258,10 +5351,10 @@ async function userSettingsCommands(ctx) {
   const setting = ctx.args.required("setting"), preference = preferences[setting];
   const { target: target2, call } = connection(ctx, true), settingApp = "workforce";
   const path = `/api/tenant/v1/settings/${settingApp}/${preference.key}`;
-  const validate = (value2) => {
-    if (!isObject(value2) || value2.settingApp !== settingApp || value2.key !== preference.key || !preference.values.includes(value2.value))
+  const validate = (value) => {
+    if (!isObject(value) || value.settingApp !== settingApp || value.key !== preference.key || !preference.values.includes(value.value))
       throw new CliError("The personal setting response is invalid.", { code: "invalid_response" });
-    return value2;
+    return value;
   };
   let result;
   if (ctx.args.command(2) === "get") {
@@ -5272,12 +5365,12 @@ async function userSettingsCommands(ctx) {
       result = { configured: false, settingApp, key: preference.key, value: null, defaultValue: preference.defaultValue };
     }
   } else {
-    const value2 = ctx.args.required("value");
+    const value = ctx.args.required("value");
     result = await writeOnce(async () => {
-      const saved = validate(await call("PUT", path, { value: value2 }));
-      if (saved.value !== value2) throw new CliError("The personal setting receipt does not match the requested value.", { code: "invalid_response" });
+      const saved = validate(await call("PUT", path, { value }));
+      if (saved.value !== value) throw new CliError("The personal setting receipt does not match the requested value.", { code: "invalid_response" });
       return { configured: true, ...saved };
-    }, "Read the same personal setting before deciding whether to retry. This API has no conditional-write contract.", { ...target2, setting, requestedValue: value2 });
+    }, "Read the same personal setting before deciding whether to retry. This API has no conditional-write contract.", { ...target2, setting, requestedValue: value });
   }
   ctx.reporter.print({ ...target2, setting, ...result });
   return 0;
@@ -5311,7 +5404,7 @@ async function fileCommands(ctx) {
       if (!info.isFile() || info.size > maxBytes) throw new CliError("Upload requires a regular file within the 512 MiB service limit.", { code: "invalid_arguments" });
       const blob = await openAsBlob2(input3), fileName = args.value("name") ?? basename2(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
-      const value3 = await writeOnce(
+      const value2 = await writeOnce(
         async () => {
           const result = await call("POST", root + "?" + new URLSearchParams({ uploaderId, fileName }), {
             body: blob,
@@ -5324,7 +5417,7 @@ async function fileCommands(ctx) {
         "Upload outcome is unknown. Inspect the original uploader and file metadata before another upload; no retry was sent.",
         { profile: profile.name, server: profile.server, tenant: profile.tenant, uploaderId, fileName, bytes: info.size }
       );
-      reporter.print(value3);
+      reporter.print(value2);
       return 0;
     }
     const fileId = args.required("id"), path = `${root}/${segment(fileId)}`;
@@ -5340,7 +5433,7 @@ async function fileCommands(ctx) {
       return 0;
     }
     const assetId = args.value("asset-id");
-    const value2 = await saveFile(
+    const value = await saveFile(
       client2,
       "GET",
       assetId ? `${path}/preview/assets/${segment(assetId)}/content` : path + "/content",
@@ -5349,7 +5442,7 @@ async function fileCommands(ctx) {
       void 0,
       { contentType: assetId ? null : metadata.contentType, expectedBytes: assetId ? void 0 : metadata.length, allowEmpty: true }
     );
-    reporter.print({ fileId, ...assetId ? { assetId } : {}, ...value2 });
+    reporter.print({ fileId, ...assetId ? { assetId } : {}, ...value });
     return 0;
   } finally {
     process.removeListener("SIGINT", interrupt);
@@ -5360,8 +5453,8 @@ async function fileCommands(ctx) {
 import { accessSync as accessSync2, constants as constants2, copyFileSync as copyFileSync2, existsSync as existsSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import { dirname as dirname4, resolve as resolve8 } from "node:path";
 import { randomBytes as randomBytes7 } from "node:crypto";
-function newOutput(value2) {
-  const path = resolve8(value2);
+function newOutput(value) {
+  const path = resolve8(value);
   if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
   accessSync2(dirname4(path), constants2.W_OK);
   return path;
@@ -5388,7 +5481,7 @@ async function marketCommands(ctx) {
   if (!args.has("exchange")) throw new CliError("Market commands require an explicit --exchange URL and its independent login.", { code: "invalid_arguments" });
   const action = args.command(1), id = args.required("package");
   if (!validPackageId(id)) throw new CliError("An exact package ID is required.", { code: "invalid_arguments" });
-  const { send: send2, root: root2 } = appClient(ctx), path = `${root2}/packages/${id}`;
+  const { send: send2, root: root2 } = appClient(ctx, { allowAnonymous: ["show", "versions", "manifest", "components", "download"].includes(action) }), path = `${root2}/packages/${id}`;
   if (action === "rename" || action === "publication" || action === "unpublish") {
     let body, method = "PUT", suffix = "/publication";
     if (action === "rename") {
@@ -5406,10 +5499,10 @@ async function marketCommands(ctx) {
     }
     const result = await writeOnce(
       async () => {
-        const value2 = receipt(await send2(method, path + suffix, { json: body }));
-        if (value2?.id !== id || action === "rename" && value2.label !== body.label || action !== "rename" && value2.publishedVersionId !== body.versionId)
+        const value = receipt(await send2(method, path + suffix, { json: body }));
+        if (value?.id !== id || action === "rename" && value.label !== body.label || action !== "rename" && value.publishedVersionId !== body.versionId)
           throw new CliError("Market returned a mismatched maintenance receipt.", { code: "invalid_response" });
-        return value2;
+        return value;
       },
       "Market write outcome is unknown. Use app status --exchange with this package and the original market identity before another write; do not refresh the expected version and replay.",
       { packageId: id, exchange: args.value("exchange"), expectedPublishedVersionId: body.expectedPublishedVersionId, readBack: "app status --exchange" }
@@ -5442,25 +5535,53 @@ async function marketCommands(ctx) {
 }
 
 // src/xrain-cli/workforce.mjs
-function value(response) {
+import { closeSync as closeSync3, existsSync as existsSync4, openSync as openSync3, unlinkSync as unlinkSync5, writeFileSync as writeFileSync6 } from "node:fs";
+import { basename as basename3, resolve as resolve9 } from "node:path";
+
+// src/xrain-cli/member-target.mjs
+function memberValue(response) {
   requireSuccess(response);
   if (!response.bytes.length) return null;
-  try {
-    return response.json();
-  } catch {
-    throw new CliError("Workforce returned invalid JSON.", { code: "invalid_response" });
-  }
+  return response.json();
 }
-async function workforceCommands(ctx) {
-  const { args, store, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
-  const profile = store.resolve(args, true), host3 = origin(args.required("workforce")), appId = applicationId(profile);
-  if (!appId) throw new CliError("Workforce commands require the actual application ID.", { code: "invalid_arguments" });
+async function memberTarget(ctx, option) {
+  const { args, store } = ctx, profile = store.resolve(args, true);
+  const host3 = origin(args.required(option)), appId = applicationId(profile);
+  if (!appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
   const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
-  if (!token) throw new CliError("A matching platform login session is required for Workforce.", { code: "authentication_required" });
-  const identity = value(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
+  if (!token) throw new CliError("A matching saved platform login is required.", { code: "authentication_required" });
+  const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
   if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
-    throw new CliError("The current platform identity does not match this Workforce target.", { code: "identity_mismatch" });
+    throw new CliError("The platform identity does not match the selected target.", { code: "identity_mismatch" });
   const headers = { "X-XRain-Application-Id": appId, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
+  return {
+    host: host3,
+    profile,
+    appId,
+    identity,
+    token,
+    headers,
+    send: (method, path, options = {}) => request(new URL(path, host3), { method, token, timeout: args.timeout(), ...options, headers: { ...headers, ...options.headers } })
+  };
+}
+
+// src/xrain-cli/workforce.mjs
+async function workforceCommands(ctx) {
+  const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
+  const { profile, host: host3, appId, identity, send: send2 } = await memberTarget(ctx, "workforce");
+  if (operation.browser) {
+    memberValue(await send2("GET", operation.route));
+    const url = new URL("/#" + operation.browser, host3).href;
+    const opened = !args.has("no-browser") && await openBrowser(url);
+    reporter.print({
+      url,
+      opened,
+      expectedIdentity: { tenantId: identity.tenantId, userId: identity.userId },
+      status: "requires_browser_interaction",
+      instruction: "在页面确认当前企业和本人身份后操作；绑定、代登录确认及返回原账号均在原页面完成。"
+    });
+    return 0;
+  }
   let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), body;
   if (operation.query && args.has("query-json")) {
     const query2 = await readJsonInput(args.value("query-json"), "Workforce query", { stdin: ctx.stdin });
@@ -5487,8 +5608,35 @@ async function workforceCommands(ctx) {
     ...Object.fromEntries(["requestId", "clientMessageId", "taskId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
   };
   const command2 = operation.path === "workforce session command";
+  if (operation.download) {
+    const output2 = resolve9(args.required("out"));
+    if (existsSync4(output2)) throw new CliError("Output already exists.", { code: "output_exists" });
+    const response = await send2("GET", route, { limit: 25 * 1024 * 1024 });
+    if (!response.ok) memberValue(response);
+    let file, saved = false;
+    try {
+      file = openSync3(output2, "wx", 384);
+      writeFileSync6(file, response.bytes);
+      saved = true;
+    } catch (error) {
+      throw new CliError(error.code === "EEXIST" ? "Output already exists." : "Could not save the attachment.", { code: error.code === "EEXIST" ? "output_exists" : "output_write_failed" });
+    } finally {
+      if (file !== void 0) {
+        closeSync3(file);
+        if (!saved) unlinkSync5(output2);
+      }
+    }
+    reporter.print({ output: output2, bytes: response.bytes.length });
+    return 0;
+  }
+  let upload;
+  if (operation.upload) {
+    const path = resolve9(args.required("file"));
+    upload = { body: readLimited(path, 25 * 1024 * 1024, "Attachment") };
+    upload.headers = { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(upload.body.length) };
+  }
   const call = async () => {
-    const result2 = value(await request(new URL(route, host3), { method: operation.method, token, headers, json: body, timeout: args.timeout() }));
+    const result2 = memberValue(await send2(operation.method, route, upload ?? { json: body }));
     if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
     return result2;
   };
@@ -5506,10 +5654,59 @@ async function workforceCommands(ctx) {
   return 0;
 }
 
+// src/xrain-cli/application-user.mjs
+async function applicationUserCommand(ctx) {
+  const operation = applicationUserOperations.find((row) => row.path === ctx.spec.path);
+  if (!operation) return false;
+  const { args, reporter } = ctx, target2 = await memberTarget(ctx, "app-url");
+  const url = new URL(operation.route.replace(/\{([^}]+)\}/g, (_, name) => segment(args.required(name))), target2.host);
+  for (const [key, value] of Object.entries(operation.queryDefaults ?? {})) url.searchParams.set(key, value);
+  if (operation.query && args.has("query-json")) {
+    const query2 = await readJsonInput(args.value("query-json"), "Application query", { stdin: ctx.stdin });
+    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value) => !["string", "boolean", "number"].includes(typeof value)))
+      throw new CliError("Use native supported query keys and scalar values.", { code: "invalid_arguments" });
+    for (const [key, value] of Object.entries(query2)) url.searchParams.set(key, String(value));
+  }
+  let body;
+  if (operation.input) {
+    body = await readJsonInput(args.required("request-json", args.value("file")), "Application request", { stdin: ctx.stdin });
+    if (!isObject(body)) throw new CliError("The application request must be an object.", { code: "invalid_arguments" });
+    registerSecrets(reporter, body);
+    if (operation.path === "retail conversation start") body.source ??= "retail-assistant";
+  }
+  const details = {
+    application: target2.host,
+    applicationId: target2.appId,
+    server: target2.profile.server,
+    tenantId: target2.identity.tenantId,
+    userId: target2.identity.userId,
+    operation: operation.path,
+    target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
+    ...Object.fromEntries(["requestId", "agentId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
+  };
+  const command2 = operation.path === "retail session command";
+  const call = async () => {
+    const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, { json: body }));
+    if (operation.draft && (result2?.status !== "Saved" || typeof result2.internetMessageId !== "string" || !result2.internetMessageId))
+      throw new CliError("The mailbox did not return a saved draft receipt.", { code: "invalid_response" });
+    if (command2 && !commandOutcome(result2)) throw new CliError("The Runtime command receipt is invalid.", { code: "invalid_response" });
+    return result2;
+  };
+  const result = operation.method === "GET" || operation.readOnly ? await call() : await writeOnce(
+    call,
+    "The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.",
+    details
+  );
+  if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", { code: "execution_failed", details: { ...details, result } });
+  reporter.print(result);
+  return true;
+}
+
 // src/xrain-cli/main.mjs
 var HELP = commandHelp(new Args([]));
 async function dispatch(ctx) {
   const { args } = ctx;
+  if (await applicationUserCommand(ctx)) return 0;
   if (await managementCommand(ctx)) return 0;
   switch (args.command(0)) {
     case "login":

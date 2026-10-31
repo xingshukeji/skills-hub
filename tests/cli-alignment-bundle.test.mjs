@@ -30,6 +30,15 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
       assert.equal(hit.headers.authorization, 'Bearer original-session'); assert.equal(hit.headers['x-xrain-application-id'], 'APP');
       return respond(res, { tenantId: 'TEN', userId: 'human', applicationId: 'APP' });
     }
+    if (hit.url === '/api/cli/v1/mail/ais') {
+      assert.equal(hit.headers.authorization, 'Bearer original-session');
+      return respond(res, { items: [{ id: 'mail-ai', canUse: true }] });
+    }
+    if (hit.url === '/api/cli/v1/applications/retail-assistant/context') {
+      assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
+      return respond(res, { objectType: 'native-customer', owner: { tenantId: 'TEN', userId: 'human' } });
+    }
+    if (hit.url === '/api/service/authen/v1/security/tenants') return respond(res, [{ tenantId: 'TEN', userId: 'human' }]);
     if (hit.url === '/api/service/files/v1/files/file-one') return respond(res, { id: 'file-one', length: bytes.length, contentType: 'text/plain' });
     assert.equal(hit.url, '/api/service/files/v1/files/file-one/content');
     res.writeHead(200, { 'content-type': 'text/plain', 'content-length': bytes.length }); res.end(bytes);
@@ -43,6 +52,9 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   });
   const metadata = await run(['metadata', 'entity', 'show', 'customer']); assert.equal(metadata.code, 0, metadata.stdout); assert.equal(metadata.result.data.headers.etag, '"real-8"');
   const context = await run(['workforce', 'context', '--workforce', service.url]); assert.equal(context.code, 0, context.stdout); assert.equal(context.result.data.applicationId, 'APP');
+  const mail = await run(['mail', 'ai', 'list', '--app-url', service.url]); assert.equal(mail.code, 0, mail.stdout); assert.equal(mail.result.data.items[0].id, 'mail-ai');
+  const retail = await run(['retail', 'context', '--app-url', service.url]); assert.equal(retail.code, 0, retail.stdout); assert.equal(retail.result.data.objectType, 'native-customer');
+  const tenants = await run(['auth', 'tenants']); assert.equal(tenants.code, 0, tenants.stdout); assert.equal(tenants.result.data[0].tenantId, 'TEN');
   const downloaded = await run(['file', 'download', 'file-one', '--out', file]); assert.equal(downloaded.code, 0, downloaded.stdout); assert.deepEqual(readFileSync(file), bytes);
   assert.equal((await run(['routine', 'list'])).code, 0);
   const text = await run(['agent', 'ephemeral', 'generate', 'writer', '--message', 'Rewrite']); assert.equal(text.code, 0, text.stdout);

@@ -7,17 +7,19 @@ import { browserLogin } from './auth.mjs';
 import { MAX_ARCHIVE, MAX_SOURCE, readManifest, validPackageId } from './archive.mjs';
 import { appManagementCommands } from './app-management.mjs';
 
-export function appClient(ctx, { allowHost = false } = {}) {
+export function appClient(ctx, { allowHost = false, allowAnonymous = false } = {}) {
   const market = ctx.args.has('exchange');
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, !allowHost);
   if (!market && allowHost && profile.scope !== 'host' && !profile.tenant)
     throw new CliError('Tenant is required unless an explicit Host profile is selected.', { code: 'tenant_required' });
   const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
-  if (!token) throw new CliError(market ? 'Market login is required or expired. Run app login --exchange <url>.' : 'App login is required or expired. Run app login --server <url>.', {
+  if (!token && !(market && allowAnonymous && ctx.args.value('auth') !== 'session')) throw new CliError(market ? 'Market login is required or expired. Run app login --exchange <url>.' : 'App login is required or expired. Run app login --server <url>.', {
     code: 'authentication_required', hint: 'Use auth status to inspect the session, then auth login for this target.' });
   return { root: market ? '/api/exchange/v1' : '/api/application/v1',
-    send: (method, path, options = {}) => request(new URL(path, profile.server), { ...options, method, token,
-      timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) }) };
+    send: (method, path, options = {}) => {
+      if (!token && method !== 'GET') throw new CliError('Market maintenance requires a matching login.', { code: 'authentication_required' });
+      return request(new URL(path, profile.server), { ...options, method, token, timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) });
+    } };
 }
 const client = appClient;
 
