@@ -1,11 +1,11 @@
 # 运行检查点
 
-用原身份的宿主界面/API 查询，不把任意 user/tenant/session ID 传内部 Runtime。
+先从原页面或调用确认个人、应用或员工/任务委托场景，沿实际 transport 核对原身份、租户、应用上下文及 source，再按目标项目当前合同选择查询入口。用原身份的宿主界面/API 查询，不把任意 user/tenant/session ID 传内部 Runtime。下列 workbench 路径是个人工作台示例；其他场景沿原入口解析对应路径。
 
 | 症状 | 只读入口 |
 | --- | --- |
 | 任务没开始/不跟进 | GET /api/tasks；GET /api/tasks/{id}/execution-access、/api/tasks/{id}/execution-conversation |
-| 智能体缺失/切换无效 | GET /api/workbench/agents、/agent-catalog |
+| 智能体缺失/切换无效 | 按[使用场景](agent-session.md)查目录与资格；个人工作台示例为 GET /api/workbench/agents、/agent-catalog |
 | 原会话缺失 | GET /api/workbench/sessions?source=workbench；其他来源用原界面 source |
 | 断流/结果不见 | GET /api/workbench/sessions/{id}/history |
 | 看似卡住 | GET /api/workbench/pending-actions；原模型/工具错误 |

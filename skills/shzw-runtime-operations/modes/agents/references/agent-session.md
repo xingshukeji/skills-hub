@@ -1,6 +1,16 @@
 # 员工与会话配置
 
-/agent-catalog 是可发现项，/agents 是本人可用项（前缀 /api/workbench）；检查租户员工关系、定义 enabled 与订阅。已要求订阅/取消时，原页面对应 POST/DELETE /agents/{id}/subscription。
+先按原入口选择使用资格，目录 API 由目标项目当前合同与实际 transport 确定：
+
+| 使用场景 | 核对对象 |
+| --- | --- |
+| 个人工作台 | 本人可用/可发现目录、租户成员关系、定义 enabled 与个人订阅；当前个人入口示例为 /api/workbench/agents、/agent-catalog |
+| 应用使用 | 原应用准入、应用选用的定义，以及宿主提供的应用标识和上下文；沿原应用 transport 查询该身份在此应用的目录与资格 |
+| 员工/任务委托 | 原员工的委托配置及当前分派、执行与定义/工具配置；任务关联与执行资格按[任务生命周期](task-lifecycle.md)取证 |
+
+同一身份和租户下，个人目录为 0、应用目录为 1，且原应用页面正常使用该助手，是不同资格上下文的合法结果；这不构成补个人订阅或权限的依据。原故障未复现时核对实际实例和入口，保留未验证范围。
+
+个人 /agent-catalog 是可发现项，/agents 是本人可用项（前缀 /api/workbench）。已要求订阅/取消时，使用原页面对应的 POST/DELETE /agents/{id}/subscription。
 
 按 source、runtimeKey、agentId、用户与租户核对原会话。同名不代表相同上下文。workspace/preset 不可变时，按宿主要求用新会话应用配置，保留旧历史；不要删除旧会话伪装刷新成功。
 
