@@ -1,32 +1,28 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
-import { CliError, isObject, jsonInput, nonempty, readLimited, readJsonInput, segment } from './core.mjs';
+import { CliError, isObject, jsonInput, nonempty, readJsonInput, segment } from './core.mjs';
 import { responseError } from './http.mjs';
 import { sessionControl } from './runtime-controls.mjs';
 
 const sessions = '/v1/dsh/sessions';
 const pendingPath = '/v1/dsh/pending-actions';
 
-export async function messageInput(args) {
+export async function messageInput(args, stdin = process.stdin) {
   let value = args.value('message');
   const file = args.value('message-file');
   if (file) {
     let bytes;
     if (file === '-') {
-      if (process.stdin.isTTY) throw new CliError('Pipe the message into stdin when using --message-file -.', { code: 'invalid_arguments' });
-      const chunks = []; let size = 0;
-      for await (const chunk of process.stdin) {
-        const data = Buffer.from(chunk); size += data.length;
-        if (size > 256 * 1024) throw new CliError('Message exceeds the size limit.', { code: 'invalid_arguments' });
-        chunks.push(data);
-      }
+      if (stdin.isTTY) throw new CliError('Pipe the message into stdin when using --message-file -.', { code: 'invalid_arguments' });
+      const chunks = [];
+      for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
       bytes = Buffer.concat(chunks);
-    } else bytes = readLimited(file, 256 * 1024, 'Message');
+    } else bytes = await readFile(file);
     try { value = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
     catch { throw new CliError('Message file must be UTF-8 text.', { code: 'invalid_arguments' }); }
   }
-  if (!nonempty(value) || value.length > 64_000 || value.includes('\0'))
-    throw new CliError('Message must contain 1 to 64000 characters.', { code: 'invalid_arguments' });
+  if (!nonempty(value)) throw new CliError('A nonempty message is required.', { code: 'invalid_arguments' });
   return value;
 }
 function textOf(value) {
@@ -247,7 +243,6 @@ function actionRequired(sessionId, requestId, items, submitted = true) {
 }
 function finish(sessionId, requestId, result) {
   if (result.status !== 'completed') throw new CliError('The agent turn did not complete successfully.', { code: 'turn_failed', details: { sessionId, requestId, ...result } });
-  if (!nonempty(result.answer)) throw new CliError('The turn completed without a text reply.', { code: 'no_answer', details: { sessionId, requestId, ...result } });
   return { sessionId, requestId, ...result };
 }
 async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
@@ -336,7 +331,7 @@ export async function chatCommands(ctx, helpers) {
     const input = action === 'respond' ? await jsonInput(args, 'values') : {};
     if (!isObject(input) || Object.keys(input).some(key => !['outcome', 'answers'].includes(key)) || action === 'respond' && !Object.keys(input).length)
       throw new CliError('Response JSON must contain an explicit outcome or answers.', { code: 'invalid_arguments' });
-    const responseId = helpers.identifier(args.value('request-id') ?? randomUUID(), 'Response ID');
+    const responseId = args.value('request-id') ?? randomUUID();
     reporter.progress(`Response ID: ${responseId}`);
     const result = await helpers.writeOnce(async () => {
       const accepted = await helpers.runtimeValue(ctx, 'POST', `${pendingPath}/${segment(ref)}/${action === 'respond' ? 'responses' : 'cancel'}`, { ...input, responseId }, headers);
@@ -355,8 +350,8 @@ export async function chatCommands(ctx, helpers) {
       : await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history`);
     reporter.print(visibleHistory(page, sessionId)); return 0;
   }
-  const text = action === 'wait' ? undefined : await messageInput(args);
-  const requestId = helpers.identifier(args.value('request-id') ?? randomUUID(), 'Request ID');
+  const text = action === 'wait' ? undefined : await messageInput(args, ctx.stdin);
+  const requestId = args.value('request-id') ?? randomUUID();
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
   try {

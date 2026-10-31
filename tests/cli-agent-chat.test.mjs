@@ -209,7 +209,7 @@ test('rejected streams and invalid batch arguments do not send or create anythin
   writeFileSync(file, JSON.stringify([['agent', 'subscribe', 'a'], ['agent', 'chat', 'start', 'agent-one', '--runtime', service.url]]));
   const batch = await f.run(['batch', '--file', file, '--json']);
   assert.equal(batch.code, 1); assert.match(result(batch).error.message, /message/); assert.equal(mock.state().creates, 0);
-  const badId = await f.run(['agent', 'chat', 'start', 'agent-one', '--message', 'input', '--request-id', 'bad/id', '--runtime', service.url, '--json']);
+  const badId = await f.run(['agent', 'chat', 'start', 'bad/id', '--message', 'input', '--runtime', service.url, '--json']);
   assert.equal(result(badId).error.code, 'invalid_arguments'); assert.equal(mock.state().creates, 0);
 });
 

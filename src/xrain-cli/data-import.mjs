@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { openAsBlob } from 'node:fs';
-import { link, lstat, open, stat, unlink } from 'node:fs/promises';
+import { openAsBlob, constants } from 'node:fs';
+import { copyFile, link, lstat, open, stat, unlink } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -50,7 +50,7 @@ function makeClient(ctx, signal) {
 
 function abortError(client, error, deadline) {
   if (error instanceof CliError) return error;
-  if (client.signal.aborted) return new CliError('Stopped locally; the server job may still be running.', { code: 'interrupted' });
+  if (client.signal.aborted) return new CliError('Stopped locally; the server operation may still be running.', { code: 'interrupted' });
   if (deadline !== undefined && performance.now() >= deadline)
     return new CliError('Stopped waiting; the server job may still be running.', { code: 'import_wait_timeout' });
   if (['TimeoutError', 'AbortError'].includes(error?.name))
@@ -235,22 +235,25 @@ export async function saveFile(client, method, path, outputPath, limit = Infinit
   const output = resolve(outputPath);
   await checkDestination(output);
   const response = await send(client, method, path, { json, accept: contentType ?? '*/*' });
-  await requireResponse(client, response);
-  const returnedType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
-  const encoding = response.headers.get('content-encoding');
-  const contentLength = response.headers.get('content-length');
-  if ((contentType && returnedType !== contentType.split(';', 1)[0].trim().toLowerCase()) || (encoding && encoding.toLowerCase() !== 'identity') ||
-      (contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit))) {
-    await response.body?.cancel();
-    throw invalidResponse('The download has an invalid content type, encoding or length.');
-  }
+  return saveResponse(client, response, output, limit, { contentType, expectedBytes, allowEmpty });
+}
+
+export async function saveResponse(client, response, outputPath, limit = Infinity, { contentType = mime, expectedBytes, allowEmpty = false, verify } = {}) {
+  const output = resolve(outputPath);
   const temporary = join(dirname(output), `.${basename(output)}.${randomBytes(12).toString('hex')}.part`);
   let file, created = false, size = 0;
   try {
+    await checkDestination(output);
+    await requireResponse(client, response);
+    const returnedType = response.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+    const encoding = response.headers.get('content-encoding'), contentLength = response.headers.get('content-length');
+    if ((contentType && returnedType !== contentType.split(';', 1)[0].trim().toLowerCase()) || (encoding && encoding.toLowerCase() !== 'identity') ||
+        (contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit)))
+      throw invalidResponse('The download has an invalid content type, encoding or length.');
     file = await open(temporary, 'wx', 0o600); created = true;
     if (response.body) for await (const chunk of response.body) {
       size += chunk.length;
-      if (size > limit) throw invalidResponse('The download exceeds the import file limit.');
+      if (size > limit) throw invalidResponse('The download exceeds the server file limit.');
       let offset = 0;
       while (offset < chunk.length) {
         const result = await file.write(chunk, offset, chunk.length - offset);
@@ -260,9 +263,14 @@ export async function saveFile(client, method, path, outputPath, limit = Infinit
     }
     if ((!allowEmpty && !size) || (contentLength !== null && size !== Number(contentLength)) || (expectedBytes !== undefined && size !== expectedBytes)) throw invalidResponse('The download was incomplete.');
     await file.sync(); await file.close(); file = undefined;
+    await verify?.(temporary, response);
     // A same-directory hard link is an atomic create that cannot replace a file
     // created by another process after the initial destination check.
-    await link(temporary, output);
+    try { await link(temporary, output); }
+    catch (error) {
+      if (!['ENOTSUP', 'EOPNOTSUPP', 'EPERM', 'ENOSYS', 'EXDEV'].includes(error.code)) throw error;
+      await copyFile(temporary, output, constants.COPYFILE_EXCL);
+    }
   } catch (error) {
     if (error.code === 'EEXIST') throw new CliError('Output already exists. Choose a new path.', { code: 'output_exists' });
     if (error instanceof CliError) throw error;

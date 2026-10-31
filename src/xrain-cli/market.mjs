@@ -1,10 +1,11 @@
 import { accessSync, constants, copyFileSync, existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { CliError, nonempty, sha256 } from './core.mjs';
+import { CliError, nonempty } from './core.mjs';
 import { appClient } from './app.mjs';
-import { MAX_ARCHIVE, readManifest, validPackageId, validVersionId } from './archive.mjs';
-import { requireSuccess, writeOnce } from './http.mjs';
+import { fileSha256, readManifestFile, validPackageId, validVersionId } from './archive.mjs';
+import { requireSuccess, requireStreamSuccess, writeOnce } from './http.mjs';
+import { saveResponse } from './data-import.mjs';
 
 function newOutput(value) {
   const path = resolve(value);
@@ -27,7 +28,7 @@ export async function marketCommands(ctx) {
   if (!args.has('exchange')) throw new CliError('Market commands require an explicit --exchange URL and its independent login.', { code: 'invalid_arguments' });
   const action = args.command(1), id = args.required('package');
   if (!validPackageId(id)) throw new CliError('An exact package ID is required.', { code: 'invalid_arguments' });
-  const { send, root } = appClient(ctx, { allowAnonymous: ['show', 'versions', 'manifest', 'components', 'download'].includes(action) }), path = `${root}/packages/${id}`;
+  const { send, root, profile, source } = appClient(ctx, { allowAnonymous: ['show', 'versions', 'manifest', 'components', 'download'].includes(action) }), path = `${root}/packages/${id}`;
   if (action === 'rename' || action === 'publication' || action === 'unpublish') {
     let body, method = 'PUT', suffix = '/publication';
     if (action === 'rename') {
@@ -63,13 +64,21 @@ export async function marketCommands(ctx) {
   const metadata = receipt(await send('GET', `${path}/versions/${versionId}/manifest`));
   if (metadata?.packageId !== id || metadata?.versionId !== versionId || !/^[a-f0-9]{64}$/i.test(metadata.fileSha256 ?? '') || !nonempty(metadata.digest))
     throw new CliError('Market returned invalid artifact metadata.', { code: 'invalid_response' });
-  const response = requireSuccess(await send('GET', `${path}/versions/${versionId}/artifact`, { limit: MAX_ARCHIVE }));
-  const manifest = readManifest(response.bytes), hash = sha256(response.bytes);
-  if (manifest.packageId !== id || manifest.versionId !== versionId || manifest.version !== metadata.version ||
-      hash !== metadata.fileSha256.toLowerCase() || response.headers.get('x-appkg-file-sha256')?.toLowerCase() !== hash ||
-      response.headers.get('x-appkg-package-id') !== id || response.headers.get('x-appkg-version-id') !== versionId ||
-      response.headers.get('x-appkg-package-digest') !== metadata.digest)
-    throw new CliError('Market artifact identity or digest does not match its metadata.', { code: 'integrity_failed' });
-  save(output, response.bytes);
-  reporter.print({ output, packageId: id, versionId, packageSha256: hash, digest: metadata.digest }); return 0;
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.once('SIGINT', interrupt);
+  let response, hash;
+  try {
+    response = await requireStreamSuccess(await send('GET', `${path}/versions/${versionId}/artifact`, { stream: true, signal: controller.signal,
+      headers: { Accept: '*/*', 'Accept-Encoding': 'identity' } }));
+    await saveResponse({ profile, source, signal: controller.signal }, response, output, undefined, { contentType: null,
+      verify: async temporary => {
+        const manifest = await readManifestFile(temporary, controller.signal); hash = await fileSha256(temporary, controller.signal);
+        if (manifest.packageId !== id || manifest.versionId !== versionId || manifest.version !== metadata.version ||
+            hash !== metadata.fileSha256.toLowerCase() || response.headers.get('x-appkg-file-sha256')?.toLowerCase() !== hash ||
+            response.headers.get('x-appkg-package-id') !== id || response.headers.get('x-appkg-version-id') !== versionId ||
+            response.headers.get('x-appkg-package-digest') !== metadata.digest)
+          throw new CliError('Market artifact identity or digest does not match its metadata.', { code: 'integrity_failed' });
+      } });
+    reporter.print({ output, packageId: id, versionId, packageSha256: hash, digest: metadata.digest }); return 0;
+  } finally { process.removeListener('SIGINT', interrupt); await response?.body?.cancel().catch(() => {}); }
 }

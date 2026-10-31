@@ -38,7 +38,7 @@ routine list 默认使用 page=1、pageSize=20。通过 --page、--page-size 或
 
 http interface invoke 和 orchestration debug 的原生 isSuccess=false 返回非零退出码、execution_failed 和完整结果；batch 在该步骤停止。历史查询中的失败记录仍可正常读取。成功回执结构异常时，写入结果按 outcome_unknown 处理，不自动补发。
 
-http request debug 与 http interface debug 返回原始响应的 statusCode、headers、body 和 encoding。UTF-8 文本保留为字符串；二进制、其他字符集或无效 UTF-8 使用 base64。敏感凭据头在终端输出中隐藏。使用 `--out <新文件>` 保存原始字节，输出改为文件路径及字节数；该文件可能包含业务数据或凭据，应妥善保管。CLI 在发起调试前排他创建文件，已有文件不会被覆盖。非成功 HTTP 响应返回非零退出码，并在 error.details.response 保留响应信息；已收到的响应文件仍保留。断连不重发，未收到完整响应时清理本次创建的空文件。
+http request debug 与 http interface debug 返回原始响应的 statusCode、headers、body 和 encoding。UTF-8 文本保留为字符串；二进制、其他字符集或无效 UTF-8 使用 base64。敏感凭据头在终端输出中隐藏。使用 `--out <新文件>` 流式保存响应，文件保存不采用终端 JSON 缓冲上限；输出改为文件路径及字节数。该文件可能包含业务数据或凭据，应妥善保管。CLI 在发起调试前排他创建文件，已有文件不会被覆盖。非成功 HTTP 响应返回非零退出码，并在 error.details.response 保留响应信息；已完整收到的响应文件仍保留。断流、取消或本地写入失败时清理本次拥有的未完成文件，不自动重发。
 
 security api-debug 使用同一原始响应处理，输入为 catalogKey、tokenId、input，目标仍由平台公开目录决定。三个调试命令的 408、5xx、超时和断连保留 outcome_unknown，不能据此认定外部动作未发生；401、403、409 等明确拒绝保留原错误。
 

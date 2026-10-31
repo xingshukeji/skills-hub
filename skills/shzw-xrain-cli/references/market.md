@@ -17,7 +17,7 @@ market publication <packageId> --version-id <明确版本ID> --expected-publishe
 market unpublish <packageId> --expected-published-version <原上架版本ID>
 ```
 
-packageId、versionId 使用服务的精确 ID。manifest/components 可加 `--out <新JSON文件>`。download 核对清单身份、版本、元数据与响应头中的文件摘要及包摘要；内容不一致不保存，不覆盖已有文件。原包不解压到本地目录。市场决定所有者的历史下载资格，普通发布目录只允许当前上架版本；服务因下架或撤权拒绝下载时，CLI 保留该拒绝。
+packageId、versionId 使用服务的精确 ID。manifest/components 可加 `--out <新JSON文件>`。download 流式接收原包，大小规则由服务决定；提交本地文件前核对清单身份、版本、元数据与响应头中的文件摘要及包摘要。内容不一致不保存，不覆盖已有文件。CLI 仅受限读取根清单，不把原包解压到本地目录。市场决定所有者的历史下载资格，普通发布目录只允许当前上架版本；服务因下架或撤权拒绝下载时，CLI 保留该拒绝。
 
 rename 只改市场显示名，不改原包。publication 只切换现有不可变版本；原上架值为 null 时显式传字面量 `null`。版本冲突后不能自动刷新比较值并覆盖别人修改。unpublish 下架原包，不删除版本、不卸载租户中的安装。
 

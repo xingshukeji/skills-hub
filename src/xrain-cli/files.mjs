@@ -6,7 +6,6 @@ import { request, responseError, writeOnce } from './http.mjs';
 import { saveFile } from './data-import.mjs';
 
 const root = '/api/service/files/v1/files';
-const maxBytes = 512 * 1024 * 1024;
 
 export async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
@@ -22,7 +21,7 @@ export async function fileCommands(ctx) {
   try {
     if (action === 'upload') {
       const input = resolve(args.required('file')), info = await stat(input), uploaderId = args.required('uploader-id');
-      if (!info.isFile() || info.size > maxBytes) throw new CliError('Upload requires a regular file within the 512 MiB service limit.', { code: 'invalid_arguments' });
+      if (!info.isFile()) throw new CliError('Upload requires a regular file.', { code: 'invalid_arguments' });
       const blob = await openAsBlob(input), fileName = args.value('name') ?? basename(input);
       if (blob.size !== info.size) throw new CliError('File changed before upload.', { code: 'invalid_input' });
       const value = await writeOnce(async () => {

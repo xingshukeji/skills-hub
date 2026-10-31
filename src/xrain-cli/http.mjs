@@ -1,6 +1,31 @@
 import { CliError, httpUrl, parseJson } from './core.mjs';
 
-export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = 32 * 1024 * 1024 } = {}) {
+export function requestError(error) {
+  if (error instanceof CliError) return error;
+  if (['TimeoutError', 'AbortError'].includes(error.name)) return new CliError('HTTP request timed out.', { code: 'timeout', hint: 'Check connectivity or set --timeout to an appropriate number of seconds.' });
+  return new CliError('HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.', { code: 'network_error' });
+}
+
+async function bufferResponse(response, limit) {
+  if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
+  const chunks = []; let size = 0;
+  if (response.body) for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > limit) throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' });
+    chunks.push(chunk);
+  }
+  const bytes = Buffer.concat(chunks);
+  return { ok: response.ok, status: response.status, headers: response.headers, bytes,
+    json: () => { try { return parseJson(bytes, 'Server response'); } catch { throw new CliError('Server returned invalid JSON.', { code: 'invalid_response' }); } }, text: () => bytes.toString('utf8') };
+}
+
+export async function requireStreamSuccess(response) {
+  if (response.ok) return response;
+  try { throw responseError(await bufferResponse(response, 32 * 1024 * 1024)); }
+  catch (error) { throw requestError(error); }
+}
+
+export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = AbortSignal.timeout(timeout);
   const options = { method, redirect: 'error', signal: signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout,
@@ -10,21 +35,9 @@ export async function request(url, { method = 'GET', token, json, body, headers 
   else if (body !== undefined) options.body = body;
   try {
     const response = await fetch(url, options);
-    if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
-    const chunks = [];
-    let size = 0;
-    if (response.body) for await (const chunk of response.body) {
-      size += chunk.length;
-      if (size > limit) { throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
-      chunks.push(chunk);
-    }
-    const bytes = Buffer.concat(chunks);
-    return { ok: response.ok, status: response.status, headers: response.headers, bytes,
-      json: () => { try { return parseJson(bytes, 'Server response'); } catch { throw new CliError('Server returned invalid JSON.', { code: 'invalid_response' }); } }, text: () => bytes.toString('utf8') };
+    return stream ? response : await bufferResponse(response, limit);
   } catch (error) {
-    if (error instanceof CliError) throw error;
-    if (['TimeoutError', 'AbortError'].includes(error.name)) throw new CliError('HTTP request timed out.', { code: 'timeout', hint: 'Check connectivity or set --timeout to an appropriate number of seconds.' });
-    throw new CliError('HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.', { code: 'network_error' });
+    throw requestError(error);
   }
 }
 
@@ -68,7 +81,9 @@ export async function apiValue(ctx, method, path, json, { requireTenant = true, 
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const perform = async () => {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers, signal });
+    const stream = raw && ctx.args.has('out');
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(),
+      headers: { ...(stream ? { Accept: '*/*', 'Accept-Encoding': 'identity' } : {}), ...headers }, signal, stream });
     if (raw) return response;
     if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
     let value = null;

@@ -9,6 +9,7 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   const f = fixture(t), directory = join(f.directory, 'complete skill with spaces');
   cpSync(new URL('../skills/shzw-xrain-cli/', import.meta.url), directory, { recursive: true });
   const file = join(f.directory, 'download.txt'), bytes = Buffer.from('complete copied artifact');
+  let conversation;
   const service = await mockServer(t, (hit, res) => {
     if (hit.url === '/api/service/authen/v1/account/context') return respond(res, { tenantId: 'TEN', userId: 'human' });
     if (hit.url === '/api/metadata/v1/entities/customer/describe') return respond(res, { object: { entityApiName: 'customer' }, fields: [] }, 200, { ETag: '"real-8"' });
@@ -21,6 +22,19 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
     }
     if (hit.url === '/api/integration/v1/http-interfaces/original/debug/raw') {
       res.writeHead(200, { 'content-type': 'text/plain', 'x-original': 'yes' }); return res.end('raw text');
+    }
+    if (hit.url === '/api/integration/v1/http-interfaces/large/debug/raw') {
+      res.writeHead(200, { 'content-type': 'application/octet-stream' }); return res.end(Buffer.alloc(40 * 1024 * 1024, 65));
+    }
+    if (hit.url === '/v1/dsh/sessions/original/stream') {
+      conversation = res; res.writeHead(200, { 'content-type': 'text/event-stream' }); return res.write('data: ' + JSON.stringify({ type: 'snapshot', records: [], hasMore: false }) + '\n\n');
+    }
+    if (hit.url === '/v1/dsh/sessions/original/inputs') {
+      const input = hit.json(); assert.equal(input.requestId, 'task:original/request'); assert.equal(input.content[0].text.length, 64001);
+      respond(res, { accepted: true }, 202);
+      for (const [index, [type, data]] of [['turn/start', { turn: 1 }], ['user/message', { source: { kind: 'user', rpcId: input.requestId }, content: input.content }],
+        ['turn/end', { turn: 1, reason: { kind: 'completed' } }]].entries()) conversation.write('data: ' + JSON.stringify({ type: 'event', event: { type, seq: index + 1, data } }) + '\n\n');
+      return;
     }
     if (hit.url === '/api/service/authen/v1/security/api-debug') {
       res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('security raw text');
@@ -89,6 +103,12 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   const input = join(f.directory, 'input.json'); writeFileSync(input, '{}');
   const raw = await run(['http', 'interface', 'debug', 'original', '--request-json', input]);
   assert.equal(raw.code, 0, raw.stdout); assert.equal(raw.result.data.body, 'raw text'); assert.equal(raw.result.data.headers['x-original'], 'yes');
+  const largeFile = join(f.directory, 'large-response.bin');
+  const large = await run(['http', 'interface', 'debug', 'large', '--request-json', input, '--out', largeFile]);
+  assert.equal(large.code, 0, large.stdout); assert.equal(large.result.data.bytes, 40 * 1024 * 1024);
+  const promptFile = join(f.directory, 'long-prompt.txt'); writeFileSync(promptFile, 'x'.repeat(64001));
+  const native = await run(['agent', 'chat', 'send', 'original', '--request-id', 'task:original/request', '--message-file', promptFile]);
+  assert.equal(native.code, 0, native.stdout); assert.equal(native.result.data.status, 'completed'); assert.equal(native.result.data.answer, '');
   const security = await run(['security', 'api-debug', '--request-json', input]);
   assert.equal(security.code, 0, security.stdout); assert.equal(security.result.data.body, 'security raw text');
   const command = await run(['agent', 'chat', 'command', 'original', '--line', '/status']);

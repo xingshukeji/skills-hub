@@ -1,8 +1,10 @@
-import { inflateRawSync } from 'node:zlib';
+import { inflateRawSync, createInflateRaw } from 'node:zlib';
+import { openSync, closeSync, readSync, fstatSync, createReadStream, openAsBlob } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 import { CliError, isObject, parseJson } from './core.mjs';
 
-export const MAX_ARCHIVE = 16 * 1024 * 1024;
-export const MAX_SOURCE = 32 * 1024 * 1024;
 const MAX_MANIFEST = 1024 * 1024;
 export const validPackageId = value => typeof value === 'string' && value.length === 20 && /^apg[a-z0-9]{17}$/.test(value);
 export const validVersionId = value => typeof value === 'string' && value.length === 20 && /^apv[a-z0-9]{17}$/.test(value);
@@ -18,9 +20,7 @@ export function crc32(bytes) {
 
 // Read only the root manifest. Never extract archive paths. Native inflate enforces
 // a real output bound even when an untrusted ZIP lies about its uncompressed size.
-export function readManifest(archive) {
-  try {
-    if (archive.length > MAX_ARCHIVE) throw new Error('Too large');
+function manifestEntry(archive) {
     let end = -1;
     for (let i = archive.length - 22; i >= Math.max(0, archive.length - 65557); i--) {
       if (archive.readUInt32LE(i) === 0x06054b50 && i + 22 + archive.readUInt16LE(i + 20) === archive.length) { end = i; break; }
@@ -46,14 +46,79 @@ export function readManifest(archive) {
         const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
         if (archive.readUInt16LE(localOffset + 6) !== flags || archive.readUInt16LE(localOffset + 8) !== method || dataOffset + compressed > centralOffset ||
             archive.subarray(localOffset + 30, localOffset + 30 + localNameLength).toString('utf8') !== name) throw new Error('Invalid local entry');
-        const raw = archive.subarray(dataOffset, dataOffset + compressed);
-        const bytes = method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: MAX_MANIFEST });
-        if (bytes.length !== size || bytes.length > MAX_MANIFEST || crc32(bytes) !== crc) throw new Error('Invalid manifest data');
-        manifest = parseJson(bytes, 'Package manifest');
+        manifest = { dataOffset, compressed, size, crc, method };
       }
       offset = next;
     }
-    if (offset !== end || !isObject(manifest) || !validPackageId(manifest.packageId) || !validVersionId(manifest.versionId)) throw new Error('Invalid identity');
+    if (offset !== end || !manifest) throw new Error('Invalid manifest entry');
     return manifest;
-  } catch { throw new CliError('The application package ZIP or manifest is invalid (manifest limit: 1 MiB).'); }
+}
+
+function manifestValue(bytes, entry) {
+  if (bytes.length !== entry.size || bytes.length > MAX_MANIFEST || crc32(bytes) !== entry.crc) throw new Error('Invalid manifest data');
+  const manifest = parseJson(bytes, 'Package manifest');
+  if (!isObject(manifest) || !validPackageId(manifest.packageId) || !validVersionId(manifest.versionId)) throw new Error('Invalid identity');
+  return manifest;
+}
+
+const invalidArchive = () => new CliError('The application package ZIP or manifest is invalid (manifest limit: 1 MiB).');
+
+export function readManifest(archive) {
+  try {
+    const entry = manifestEntry(archive), raw = archive.subarray(entry.dataOffset, entry.dataOffset + entry.compressed);
+    return manifestValue(entry.method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: MAX_MANIFEST }), entry);
+  } catch { throw invalidArchive(); }
+}
+
+// Inspect only ZIP metadata and the bounded root manifest. Package transfer size
+// belongs to the receiving service; unrelated entries are never loaded or extracted.
+const checkSignal = signal => { if (signal?.aborted) throw new CliError('Stopped reading the artifact.', { code: 'interrupted' }); };
+
+export async function readManifestFile(path, signal) {
+  checkSignal(signal);
+  const fd = openSync(path, 'r');
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile()) throw new Error('A package must be a regular file');
+    let page = Buffer.alloc(0), pageStart = -1;
+    const read = (start, length) => {
+      if (start < 0 || length < 0 || start + length > info.size) throw new Error('Invalid ZIP range');
+      const aligned = Math.floor(start / 65536) * 65536;
+      if (start < pageStart || start + length > pageStart + page.length) {
+        pageStart = aligned; page = Buffer.alloc(Math.min(65536, info.size - aligned));
+        let received = 0;
+        while (received < page.length) { const count = readSync(fd, page, received, page.length - received, aligned + received); if (!count) throw new Error('Incomplete ZIP'); received += count; }
+      }
+      if (start + length <= pageStart + page.length) return page.subarray(start - pageStart, start - pageStart + length);
+      const bytes = Buffer.alloc(length); let received = 0;
+      while (received < length) { const count = readSync(fd, bytes, received, length - received, start + received); if (!count) throw new Error('Incomplete ZIP'); received += count; }
+      return bytes;
+    };
+    const entry = manifestEntry({ length: info.size, readUInt16LE: start => read(start, 2).readUInt16LE(),
+      readUInt32LE: start => read(start, 4).readUInt32LE(), subarray: (start, end) => read(start, end - start) });
+    const chunks = []; let size = 0;
+    if (entry.compressed) {
+      const source = createReadStream(path, { fd, autoClose: false, start: entry.dataOffset, end: entry.dataOffset + entry.compressed - 1 });
+      await pipeline(source, ...(entry.method === 8 ? [createInflateRaw()] : []), async input => {
+        for await (const chunk of input) { checkSignal(signal); size += chunk.length; if (size > MAX_MANIFEST) throw new Error('Manifest is too large'); chunks.push(chunk); }
+      }, { signal });
+    }
+    return manifestValue(Buffer.concat(chunks), entry);
+  } catch { checkSignal(signal); throw invalidArchive(); }
+  finally { closeSync(fd); }
+}
+
+export async function artifactSource(path) {
+  const info = await stat(path);
+  if (!info.isFile()) throw new CliError('An artifact must be a regular file.', { code: 'invalid_arguments' });
+  const body = await openAsBlob(path);
+  if (body.size !== info.size) throw new CliError('The artifact changed before it could be read.', { code: 'invalid_input' });
+  return { body, length: info.size };
+}
+
+export async function fileSha256(path, signal) {
+  checkSignal(signal);
+  const { body } = await artifactSource(path), hash = createHash('sha256');
+  for await (const chunk of body.stream()) { checkSignal(signal); hash.update(chunk); }
+  return hash.digest('hex');
 }

@@ -538,7 +538,48 @@ var Store = class {
 };
 
 // src/xrain-cli/http.mjs
-async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = 32 * 1024 * 1024 } = {}) {
+function requestError(error) {
+  if (error instanceof CliError) return error;
+  if (["TimeoutError", "AbortError"].includes(error.name)) return new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout to an appropriate number of seconds." });
+  return new CliError("HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.", { code: "network_error" });
+}
+async function bufferResponse(response, limit) {
+  if (Number(response.headers.get("content-length")) > limit) {
+    await response.body?.cancel();
+    throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
+  }
+  const chunks = [];
+  let size = 0;
+  if (response.body) for await (const chunk of response.body) {
+    size += chunk.length;
+    if (size > limit) throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
+    chunks.push(chunk);
+  }
+  const bytes = Buffer.concat(chunks);
+  return {
+    ok: response.ok,
+    status: response.status,
+    headers: response.headers,
+    bytes,
+    json: () => {
+      try {
+        return parseJson(bytes, "Server response");
+      } catch {
+        throw new CliError("Server returned invalid JSON.", { code: "invalid_response" });
+      }
+    },
+    text: () => bytes.toString("utf8")
+  };
+}
+async function requireStreamSuccess(response) {
+  if (response.ok) return response;
+  try {
+    throw responseError(await bufferResponse(response, 32 * 1024 * 1024));
+  } catch (error) {
+    throw requestError(error);
+  }
+}
+async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = AbortSignal.timeout(timeout);
   const options = {
@@ -554,38 +595,9 @@ async function request(url, { method = "GET", token, json, body, headers = {}, t
   } else if (body !== void 0) options.body = body;
   try {
     const response = await fetch(url, options);
-    if (Number(response.headers.get("content-length")) > limit) {
-      await response.body?.cancel();
-      throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
-    }
-    const chunks = [];
-    let size = 0;
-    if (response.body) for await (const chunk of response.body) {
-      size += chunk.length;
-      if (size > limit) {
-        throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
-      }
-      chunks.push(chunk);
-    }
-    const bytes = Buffer.concat(chunks);
-    return {
-      ok: response.ok,
-      status: response.status,
-      headers: response.headers,
-      bytes,
-      json: () => {
-        try {
-          return parseJson(bytes, "Server response");
-        } catch {
-          throw new CliError("Server returned invalid JSON.", { code: "invalid_response" });
-        }
-      },
-      text: () => bytes.toString("utf8")
-    };
+    return stream ? response : await bufferResponse(response, limit);
   } catch (error) {
-    if (error instanceof CliError) throw error;
-    if (["TimeoutError", "AbortError"].includes(error.name)) throw new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout to an appropriate number of seconds." });
-    throw new CliError("HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.", { code: "network_error" });
+    throw requestError(error);
   }
 }
 function responseError(response, hint2 = "", context = {}) {
@@ -631,7 +643,16 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const perform = async () => {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), headers, signal });
+    const stream = raw && ctx.args.has("out");
+    const response = await request(new URL(path, profile.server), {
+      method,
+      token,
+      json,
+      timeout: ctx.args.timeout(),
+      headers: { ...stream ? { Accept: "*/*", "Accept-Encoding": "identity" } : {}, ...headers },
+      signal,
+      stream
+    });
     if (raw) return response;
     if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });
     let value = null;
@@ -670,8 +691,8 @@ async function api(ctx, method, path, json, options) {
 
 // src/xrain-cli/data-import.mjs
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { openAsBlob } from "node:fs";
-import { link, lstat, open, stat, unlink } from "node:fs/promises";
+import { openAsBlob, constants } from "node:fs";
+import { copyFile, link, lstat, open, stat, unlink } from "node:fs/promises";
 import { basename, dirname as dirname2, extname, join as join2, resolve as resolve2 } from "node:path";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
@@ -716,7 +737,7 @@ function makeClient(ctx, signal) {
 }
 function abortError(client2, error, deadline) {
   if (error instanceof CliError) return error;
-  if (client2.signal.aborted) return new CliError("Stopped locally; the server job may still be running.", { code: "interrupted" });
+  if (client2.signal.aborted) return new CliError("Stopped locally; the server operation may still be running.", { code: "interrupted" });
   if (deadline !== void 0 && performance.now() >= deadline)
     return new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout" });
   if (["TimeoutError", "AbortError"].includes(error?.name))
@@ -907,22 +928,24 @@ async function saveFile(client2, method, path, outputPath, limit = Infinity, jso
   const output2 = resolve2(outputPath);
   await checkDestination(output2);
   const response = await send(client2, method, path, { json, accept: contentType ?? "*/*" });
-  await requireResponse(client2, response);
-  const returnedType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
-  const encoding = response.headers.get("content-encoding");
-  const contentLength = response.headers.get("content-length");
-  if (contentType && returnedType !== contentType.split(";", 1)[0].trim().toLowerCase() || encoding && encoding.toLowerCase() !== "identity" || contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit)) {
-    await response.body?.cancel();
-    throw invalidResponse("The download has an invalid content type, encoding or length.");
-  }
+  return saveResponse(client2, response, output2, limit, { contentType, expectedBytes: expectedBytes2, allowEmpty });
+}
+async function saveResponse(client2, response, outputPath, limit = Infinity, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false, verify } = {}) {
+  const output2 = resolve2(outputPath);
   const temporary = join2(dirname2(output2), `.${basename(output2)}.${randomBytes3(12).toString("hex")}.part`);
   let file, created = false, size = 0;
   try {
+    await checkDestination(output2);
+    await requireResponse(client2, response);
+    const returnedType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    const encoding = response.headers.get("content-encoding"), contentLength = response.headers.get("content-length");
+    if (contentType && returnedType !== contentType.split(";", 1)[0].trim().toLowerCase() || encoding && encoding.toLowerCase() !== "identity" || contentLength !== null && (!/^\d+$/.test(contentLength) || Number(contentLength) > limit))
+      throw invalidResponse("The download has an invalid content type, encoding or length.");
     file = await open(temporary, "wx", 384);
     created = true;
     if (response.body) for await (const chunk of response.body) {
       size += chunk.length;
-      if (size > limit) throw invalidResponse("The download exceeds the import file limit.");
+      if (size > limit) throw invalidResponse("The download exceeds the server file limit.");
       let offset = 0;
       while (offset < chunk.length) {
         const result = await file.write(chunk, offset, chunk.length - offset);
@@ -934,7 +957,13 @@ async function saveFile(client2, method, path, outputPath, limit = Infinity, jso
     await file.sync();
     await file.close();
     file = void 0;
-    await link(temporary, output2);
+    await verify?.(temporary, response);
+    try {
+      await link(temporary, output2);
+    } catch (error) {
+      if (!["ENOTSUP", "EOPNOTSUPP", "EPERM", "ENOSYS", "EXDEV"].includes(error.code)) throw error;
+      await copyFile(temporary, output2, constants.COPYFILE_EXCL);
+    }
   } catch (error) {
     if (error.code === "EEXIST") throw new CliError("Output already exists. Choose a new path.", { code: "output_exists" });
     if (error instanceof CliError) throw error;
@@ -1455,9 +1484,10 @@ async function hostCommands(ctx) {
 }
 
 // src/xrain-cli/app.mjs
-import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2, copyFileSync, constants, unlinkSync as unlinkSync2, existsSync as existsSync2, accessSync } from "node:fs";
+import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2, constants as constants2, existsSync as existsSync2, accessSync } from "node:fs";
+import { mkdtemp, unlink as unlink2, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname as dirname3, join as join4, resolve as resolve3 } from "node:path";
-import { randomBytes as randomBytes5 } from "node:crypto";
 
 // src/xrain-cli/auth.mjs
 import { createHash as createHash2, randomBytes as randomBytes4, timingSafeEqual } from "node:crypto";
@@ -2421,9 +2451,11 @@ async function browserLogin(ctx) {
 }
 
 // src/xrain-cli/archive.mjs
-import { inflateRawSync } from "node:zlib";
-var MAX_ARCHIVE = 16 * 1024 * 1024;
-var MAX_SOURCE = 32 * 1024 * 1024;
+import { inflateRawSync, createInflateRaw } from "node:zlib";
+import { openSync as openSync2, closeSync as closeSync2, readSync, fstatSync, createReadStream, openAsBlob as openAsBlob2 } from "node:fs";
+import { stat as stat2 } from "node:fs/promises";
+import { createHash as createHash3 } from "node:crypto";
+import { pipeline } from "node:stream/promises";
 var MAX_MANIFEST = 1024 * 1024;
 var validPackageId = (value) => typeof value === "string" && value.length === 20 && /^apg[a-z0-9]{17}$/.test(value);
 var validVersionId = (value) => typeof value === "string" && value.length === 20 && /^apv[a-z0-9]{17}$/.test(value);
@@ -2436,48 +2468,123 @@ function crc32(bytes) {
   for (const byte of bytes) crc = crcTable[(crc ^ byte) & 255] ^ crc >>> 8;
   return (crc ^ 4294967295) >>> 0;
 }
-function readManifest(archive) {
-  try {
-    if (archive.length > MAX_ARCHIVE) throw new Error("Too large");
-    let end = -1;
-    for (let i = archive.length - 22; i >= Math.max(0, archive.length - 65557); i--) {
-      if (archive.readUInt32LE(i) === 101010256 && i + 22 + archive.readUInt16LE(i + 20) === archive.length) {
-        end = i;
-        break;
-      }
+function manifestEntry(archive) {
+  let end = -1;
+  for (let i = archive.length - 22; i >= Math.max(0, archive.length - 65557); i--) {
+    if (archive.readUInt32LE(i) === 101010256 && i + 22 + archive.readUInt16LE(i + 20) === archive.length) {
+      end = i;
+      break;
     }
-    if (end < 0 || archive.readUInt16LE(end + 4) !== 0 || archive.readUInt16LE(end + 6) !== 0) throw new Error("Invalid ZIP");
-    const count = archive.readUInt16LE(end + 10);
-    const centralSize = archive.readUInt32LE(end + 12);
-    const centralOffset = archive.readUInt32LE(end + 16);
-    if (!count || count === 65535 || count !== archive.readUInt16LE(end + 8) || centralOffset + centralSize !== end) throw new Error("Invalid directory");
-    let offset = centralOffset, manifest;
-    for (let i = 0; i < count; i++) {
-      if (offset + 46 > end || archive.readUInt32LE(offset) !== 33639248) throw new Error("Invalid directory entry");
-      const flags2 = archive.readUInt16LE(offset + 8), method = archive.readUInt16LE(offset + 10);
-      const crc = archive.readUInt32LE(offset + 16), compressed = archive.readUInt32LE(offset + 20), size = archive.readUInt32LE(offset + 24);
-      const nameLength = archive.readUInt16LE(offset + 28), extraLength = archive.readUInt16LE(offset + 30), commentLength = archive.readUInt16LE(offset + 32);
-      const localOffset = archive.readUInt32LE(offset + 42);
-      const next = offset + 46 + nameLength + extraLength + commentLength;
-      if (next > end || archive.readUInt16LE(offset + 34) !== 0) throw new Error("Invalid directory entry");
-      const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
-      if (name === "manifest.json") {
-        if (manifest || size > MAX_MANIFEST || flags2 & 1 || ![0, 8].includes(method) || localOffset + 30 > centralOffset || archive.readUInt32LE(localOffset) !== 67324752) throw new Error("Invalid manifest entry");
-        const localNameLength = archive.readUInt16LE(localOffset + 26), localExtraLength = archive.readUInt16LE(localOffset + 28);
-        const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
-        if (archive.readUInt16LE(localOffset + 6) !== flags2 || archive.readUInt16LE(localOffset + 8) !== method || dataOffset + compressed > centralOffset || archive.subarray(localOffset + 30, localOffset + 30 + localNameLength).toString("utf8") !== name) throw new Error("Invalid local entry");
-        const raw = archive.subarray(dataOffset, dataOffset + compressed);
-        const bytes = method === 0 ? raw : inflateRawSync(raw, { maxOutputLength: MAX_MANIFEST });
-        if (bytes.length !== size || bytes.length > MAX_MANIFEST || crc32(bytes) !== crc) throw new Error("Invalid manifest data");
-        manifest = parseJson(bytes, "Package manifest");
-      }
-      offset = next;
-    }
-    if (offset !== end || !isObject(manifest) || !validPackageId(manifest.packageId) || !validVersionId(manifest.versionId)) throw new Error("Invalid identity");
-    return manifest;
-  } catch {
-    throw new CliError("The application package ZIP or manifest is invalid (manifest limit: 1 MiB).");
   }
+  if (end < 0 || archive.readUInt16LE(end + 4) !== 0 || archive.readUInt16LE(end + 6) !== 0) throw new Error("Invalid ZIP");
+  const count = archive.readUInt16LE(end + 10);
+  const centralSize = archive.readUInt32LE(end + 12);
+  const centralOffset = archive.readUInt32LE(end + 16);
+  if (!count || count === 65535 || count !== archive.readUInt16LE(end + 8) || centralOffset + centralSize !== end) throw new Error("Invalid directory");
+  let offset = centralOffset, manifest;
+  for (let i = 0; i < count; i++) {
+    if (offset + 46 > end || archive.readUInt32LE(offset) !== 33639248) throw new Error("Invalid directory entry");
+    const flags2 = archive.readUInt16LE(offset + 8), method = archive.readUInt16LE(offset + 10);
+    const crc = archive.readUInt32LE(offset + 16), compressed = archive.readUInt32LE(offset + 20), size = archive.readUInt32LE(offset + 24);
+    const nameLength = archive.readUInt16LE(offset + 28), extraLength = archive.readUInt16LE(offset + 30), commentLength = archive.readUInt16LE(offset + 32);
+    const localOffset = archive.readUInt32LE(offset + 42);
+    const next = offset + 46 + nameLength + extraLength + commentLength;
+    if (next > end || archive.readUInt16LE(offset + 34) !== 0) throw new Error("Invalid directory entry");
+    const name = archive.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    if (name === "manifest.json") {
+      if (manifest || size > MAX_MANIFEST || flags2 & 1 || ![0, 8].includes(method) || localOffset + 30 > centralOffset || archive.readUInt32LE(localOffset) !== 67324752) throw new Error("Invalid manifest entry");
+      const localNameLength = archive.readUInt16LE(localOffset + 26), localExtraLength = archive.readUInt16LE(localOffset + 28);
+      const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+      if (archive.readUInt16LE(localOffset + 6) !== flags2 || archive.readUInt16LE(localOffset + 8) !== method || dataOffset + compressed > centralOffset || archive.subarray(localOffset + 30, localOffset + 30 + localNameLength).toString("utf8") !== name) throw new Error("Invalid local entry");
+      manifest = { dataOffset, compressed, size, crc, method };
+    }
+    offset = next;
+  }
+  if (offset !== end || !manifest) throw new Error("Invalid manifest entry");
+  return manifest;
+}
+function manifestValue(bytes, entry) {
+  if (bytes.length !== entry.size || bytes.length > MAX_MANIFEST || crc32(bytes) !== entry.crc) throw new Error("Invalid manifest data");
+  const manifest = parseJson(bytes, "Package manifest");
+  if (!isObject(manifest) || !validPackageId(manifest.packageId) || !validVersionId(manifest.versionId)) throw new Error("Invalid identity");
+  return manifest;
+}
+var invalidArchive = () => new CliError("The application package ZIP or manifest is invalid (manifest limit: 1 MiB).");
+var checkSignal = (signal) => {
+  if (signal?.aborted) throw new CliError("Stopped reading the artifact.", { code: "interrupted" });
+};
+async function readManifestFile(path, signal) {
+  checkSignal(signal);
+  const fd = openSync2(path, "r");
+  try {
+    const info = fstatSync(fd);
+    if (!info.isFile()) throw new Error("A package must be a regular file");
+    let page3 = Buffer.alloc(0), pageStart = -1;
+    const read = (start, length) => {
+      if (start < 0 || length < 0 || start + length > info.size) throw new Error("Invalid ZIP range");
+      const aligned = Math.floor(start / 65536) * 65536;
+      if (start < pageStart || start + length > pageStart + page3.length) {
+        pageStart = aligned;
+        page3 = Buffer.alloc(Math.min(65536, info.size - aligned));
+        let received2 = 0;
+        while (received2 < page3.length) {
+          const count = readSync(fd, page3, received2, page3.length - received2, aligned + received2);
+          if (!count) throw new Error("Incomplete ZIP");
+          received2 += count;
+        }
+      }
+      if (start + length <= pageStart + page3.length) return page3.subarray(start - pageStart, start - pageStart + length);
+      const bytes = Buffer.alloc(length);
+      let received = 0;
+      while (received < length) {
+        const count = readSync(fd, bytes, received, length - received, start + received);
+        if (!count) throw new Error("Incomplete ZIP");
+        received += count;
+      }
+      return bytes;
+    };
+    const entry = manifestEntry({
+      length: info.size,
+      readUInt16LE: (start) => read(start, 2).readUInt16LE(),
+      readUInt32LE: (start) => read(start, 4).readUInt32LE(),
+      subarray: (start, end) => read(start, end - start)
+    });
+    const chunks = [];
+    let size = 0;
+    if (entry.compressed) {
+      const source = createReadStream(path, { fd, autoClose: false, start: entry.dataOffset, end: entry.dataOffset + entry.compressed - 1 });
+      await pipeline(source, ...entry.method === 8 ? [createInflateRaw()] : [], async (input3) => {
+        for await (const chunk of input3) {
+          checkSignal(signal);
+          size += chunk.length;
+          if (size > MAX_MANIFEST) throw new Error("Manifest is too large");
+          chunks.push(chunk);
+        }
+      }, { signal });
+    }
+    return manifestValue(Buffer.concat(chunks), entry);
+  } catch {
+    checkSignal(signal);
+    throw invalidArchive();
+  } finally {
+    closeSync2(fd);
+  }
+}
+async function artifactSource(path) {
+  const info = await stat2(path);
+  if (!info.isFile()) throw new CliError("An artifact must be a regular file.", { code: "invalid_arguments" });
+  const body = await openAsBlob2(path);
+  if (body.size !== info.size) throw new CliError("The artifact changed before it could be read.", { code: "invalid_input" });
+  return { body, length: info.size };
+}
+async function fileSha256(path, signal) {
+  checkSignal(signal);
+  const { body } = await artifactSource(path), hash = createHash3("sha256");
+  for await (const chunk of body.stream()) {
+    checkSignal(signal);
+    hash.update(chunk);
+  }
+  return hash.digest("hex");
 }
 
 // src/xrain-cli/app-management.mjs
@@ -2800,6 +2907,8 @@ function appClient(ctx, { allowHost = false, allowAnonymous = false } = {}) {
     hint: "Use auth status to inspect the session, then auth login for this target."
   });
   return {
+    profile,
+    source: token ? "application-session" : "none",
     root: market ? "/api/exchange/v1" : "/api/application/v1",
     send: (method, path, options = {}) => {
       if (!token && method !== "GET") throw new CliError("Market maintenance requires a matching login.", { code: "authentication_required" });
@@ -2828,41 +2937,55 @@ function initApp(ctx) {
 async function buildApp(ctx, save2) {
   if (ctx.args.has("exchange")) throw new CliError("Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.");
   const sourcePath = resolve3(ctx.args.value("source") ?? "source.json");
-  const source = readLimited(sourcePath, MAX_SOURCE, "Source JSON");
-  const parsed = parseJson(source, "Source JSON");
-  if (!isObject(parsed)) throw new CliError("Source JSON must be an object.");
+  const source = await artifactSource(sourcePath), input3 = parseJson(await source.body.text(), "Source JSON");
+  if (!isObject(input3)) throw new CliError("Source JSON must be an object.");
+  const parsed = { packageId: input3.packageId, version: input3.version, versionId: input3.versionId };
   let output2 = save2 && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0;
   if (save2 && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
     output2 = join4(dirname3(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
   if (output2) {
     if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
-    accessSync(dirname3(output2), constants.W_OK);
+    accessSync(dirname3(output2), constants2.W_OK);
   }
-  const { send: send2, root: root2 } = client(ctx, { allowHost: true });
-  const response = requireSuccess(await send2("POST", root2 + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
-  const sourceHash = sha256(source), fileHash = sha256(response.bytes);
-  if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
-  if (response.headers.get("x-appkg-file-sha256")?.trim().toLowerCase() !== fileHash) throw new CliError("Build response archive digest is invalid.");
-  const packageId = response.headers.get("x-appkg-package-id")?.trim(), version = response.headers.get("x-appkg-version")?.trim();
-  if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError("Build response package identity is invalid.");
-  const manifest = readManifest(response.bytes);
-  if (manifest.packageId !== packageId || manifest.version !== void 0 && manifest.version !== version) throw new CliError("Build response manifest does not match its headers.");
-  if (validPackageId(parsed.packageId) && parsed.packageId !== packageId || typeof parsed.version === "string" && parsed.version !== version || typeof parsed.versionId === "string" && parsed.versionId !== manifest.versionId) throw new CliError("Build response package identity does not match the source.");
-  if (!save2) {
-    ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
-    return 0;
-  }
-  output2 ??= join4(dirname3(sourcePath), `${packageId}-${version}.appkg`);
-  if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
-  const temporary = `${output2}.${randomBytes5(8).toString("hex")}.part`;
+  const api3 = client(ctx, { allowHost: true }), controller = new AbortController(), interrupt = () => controller.abort();
+  process.once("SIGINT", interrupt);
+  let response, validationDirectory, fileHash;
   try {
-    writeFileSync2(temporary, response.bytes, { flag: "wx" });
-    copyFileSync(temporary, output2, constants.COPYFILE_EXCL);
+    const sourceHash = await fileSha256(sourcePath, controller.signal);
+    response = await requireStreamSuccess(await api3.send("POST", api3.root + "/packages:build", {
+      body: source.body,
+      headers: { "Content-Type": "application/json", "Content-Length": String(source.length), "Accept-Encoding": "identity" },
+      stream: true,
+      signal: controller.signal
+    }));
+    if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
+    const packageId = response.headers.get("x-appkg-package-id")?.trim(), version = response.headers.get("x-appkg-version")?.trim();
+    if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError("Build response package identity is invalid.");
+    if (!save2) validationDirectory = await mkdtemp(join4(tmpdir(), "xrain-cli-build-"));
+    output2 = save2 ? output2 ?? join4(dirname3(sourcePath), `${packageId}-${version}.appkg`) : join4(validationDirectory, "validated.appkg");
+    await saveResponse({ profile: api3.profile, source: api3.source, signal: controller.signal }, response, output2, void 0, {
+      contentType: null,
+      verify: async (temporary) => {
+        fileHash = await fileSha256(temporary, controller.signal);
+        if (response.headers.get("x-appkg-file-sha256")?.trim().toLowerCase() !== fileHash) throw new CliError("Build response archive digest is invalid.");
+        const manifest = await readManifestFile(temporary, controller.signal);
+        if (manifest.packageId !== packageId || manifest.version !== void 0 && manifest.version !== version) throw new CliError("Build response manifest does not match its headers.");
+        if (validPackageId(parsed.packageId) && parsed.packageId !== packageId || typeof parsed.version === "string" && parsed.version !== version || typeof parsed.versionId === "string" && parsed.versionId !== manifest.versionId) throw new CliError("Build response package identity does not match the source.");
+      }
+    });
+    if (!save2) ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
+    else ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
+    return 0;
   } finally {
-    if (existsSync2(temporary)) unlinkSync2(temporary);
+    process.removeListener("SIGINT", interrupt);
+    await response?.body?.cancel().catch(() => {
+    });
+    if (validationDirectory) {
+      await unlink2(join4(validationDirectory, "validated.appkg")).catch(() => {
+      });
+      await rmdir(validationDirectory);
+    }
   }
-  ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
-  return 0;
 }
 async function published(send2, root2) {
   const result = requireSuccess(await send2("GET", root2 + "/my-published")).json();
@@ -2871,15 +2994,14 @@ async function published(send2, root2) {
 }
 async function publishApp(ctx) {
   const path = resolve3(ctx.args.required("file", ctx.args.operand(2)));
-  const bytes = readLimited(path, MAX_ARCHIVE, "Package");
-  const manifest = readManifest(bytes);
+  const source = await artifactSource(path), manifest = await readManifestFile(path);
   const { send: send2, root: root2 } = client(ctx);
   const packages = await published(send2, root2);
   const current = packages.find((item) => item.id === manifest.packageId);
   const headers = { "Content-Type": "application/octet-stream" };
   if (nonempty(current?.publishedVersionId)) headers["X-Appkg-Expected-Published-Version"] = current.publishedVersionId;
   try {
-    const result = requireSuccess(await send2("POST", root2 + "/packages:publish", { body: bytes, headers })).json();
+    const result = requireSuccess(await send2("POST", root2 + "/packages:publish", { body: source.body, headers })).json();
     if (result.packageId !== manifest.packageId || result.versionId !== manifest.versionId) throw new CliError("The publish response does not match the local package.");
     ctx.reporter.print({ packageId: result.packageId, versionId: result.versionId, version: result.version, published: true });
   } catch (error) {
@@ -2935,10 +3057,10 @@ async function appCommands(ctx) {
     case "status":
       return appStatus(ctx);
     case "import-file": {
-      const bytes = readLimited(resolve3(ctx.args.required("file")), MAX_ARCHIVE, "Package"), manifest = readManifest(bytes);
+      const path = resolve3(ctx.args.required("file")), source = await artifactSource(path), manifest = await readManifestFile(path);
       const api3 = client(ctx, { allowHost: true });
       const result = await writeOnce(async () => {
-        const response = requireSuccess(await api3.send("POST", api3.root + "/packages:import", { body: bytes, headers: { "Content-Type": "application/octet-stream" } }));
+        const response = requireSuccess(await api3.send("POST", api3.root + "/packages:import", { body: source.body, headers: { "Content-Type": "application/octet-stream" } }));
         let value;
         try {
           value = response.json();
@@ -3441,17 +3563,26 @@ for (const operation of deliveryOperations) {
 }
 
 // src/xrain-cli/raw-response.mjs
-import { closeSync as closeSync2, openSync as openSync2, unlinkSync as unlinkSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { closeSync as closeSync3, openSync as openSync3, unlinkSync as unlinkSync2, writeSync, fsyncSync as fsyncSync2, fstatSync as fstatSync2, lstatSync as lstatSync2 } from "node:fs";
 import { resolve as resolve4 } from "node:path";
 async function rawOutput(ctx, call, context) {
   const output2 = ctx.args.has("out") ? resolve4(ctx.args.required("out")) : void 0;
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
-  let file, saved = false, result;
+  let file, saved = false, result, response, created;
+  const ownsOutput = () => {
+    try {
+      const current = lstatSync2(output2, { bigint: true });
+      return current.ino === created.ino && current.dev === created.dev;
+    } catch {
+      return false;
+    }
+  };
   try {
     if (output2) {
       try {
-        file = openSync2(output2, "wx", 384);
+        file = openSync3(output2, "wx", 384);
+        created = fstatSync2(file, { bigint: true });
       } catch (error) {
         throw new CliError(error.code === "EEXIST" ? "Output already exists. Choose a new path." : "Cannot create the output file.", {
           code: error.code === "EEXIST" ? "output_exists" : "output_write_failed",
@@ -3459,25 +3590,61 @@ async function rawOutput(ctx, call, context) {
         });
       }
     }
-    const response = await call(controller.signal);
+    response = await call(controller.signal);
     result = { statusCode: response.status, headers: Object.fromEntries(response.headers) };
     registerSecrets(ctx.reporter, result.headers);
-    try {
-      registerSecrets(ctx.reporter, response.json());
-    } catch {
-    }
+    let errorResponse = response;
     if (file !== void 0) {
+      const encoding = response.headers.get("content-encoding"), length = response.headers.get("content-length");
+      if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length))))
+        throw new CliError("The raw response has an invalid length.", { code: "invalid_response" });
+      const diagnostics = [];
+      let bytes = 0, diagnosticBytes = 0;
+      const buffered = ArrayBuffer.isView(response.bytes) ? response.bytes : void 0;
+      for await (const chunk of buffered ? [buffered] : response.body ?? []) {
+        bytes += chunk.length;
+        if (!response.ok && diagnosticBytes <= 65536) {
+          diagnosticBytes += chunk.length;
+          if (diagnosticBytes <= 65536) diagnostics.push(chunk);
+          else diagnostics.length = 0;
+        }
+        try {
+          let offset = 0;
+          while (offset < chunk.length) {
+            const written = writeSync(file, chunk, offset, chunk.length - offset);
+            if (!written) throw new Error("The output could not be written.");
+            offset += written;
+          }
+        } catch {
+          throw new CliError("The response could not be saved. Do not repeat the debug request automatically.", {
+            code: "output_write_failed",
+            details: { ...result, output: output2 }
+          });
+        }
+      }
+      if ((!encoding || encoding.toLowerCase() === "identity") && length !== null && bytes !== Number(length))
+        throw new CliError("The raw response was incomplete.", { code: "invalid_response" });
+      if (!ownsOutput()) throw new CliError("The output path changed while receiving the response.", { code: "output_write_failed" });
       try {
-        writeFileSync3(file, response.bytes);
+        fsyncSync2(file);
       } catch {
-        throw new CliError("The response was received but could not be saved. Do not repeat the debug request automatically.", {
+        throw new CliError("The response could not be saved. Do not repeat the debug request automatically.", {
           code: "output_write_failed",
           details: { ...result, output: output2 }
         });
       }
+      errorResponse = { ok: response.ok, status: response.status, headers: response.headers, json: () => JSON.parse(Buffer.concat(diagnostics).toString("utf8")) };
+      try {
+        registerSecrets(ctx.reporter, errorResponse.json());
+      } catch {
+      }
       saved = true;
-      Object.assign(result, { output: output2, bytes: response.bytes.length });
+      Object.assign(result, { output: output2, bytes });
     } else {
+      try {
+        registerSecrets(ctx.reporter, response.json());
+      } catch {
+      }
       const contentType = response.headers.get("content-type") ?? "", charset = /charset\s*=\s*"?([^;"\s]+)/i.exec(contentType)?.[1];
       const textual = /^(?:text\/|application\/(?:json\b|[^;]+\+json\b|xml\b|[^;]+\+xml\b|javascript\b|x-www-form-urlencoded\b))/i.test(contentType);
       let text2;
@@ -3490,20 +3657,26 @@ async function rawOutput(ctx, call, context) {
       Object.assign(result, text2 === void 0 ? { encoding: "base64", body: response.bytes.toString("base64") } : { encoding: "utf8", body: text2 });
     }
     if (!response.ok) {
-      const error = responseError(response);
+      const error = responseError(errorResponse);
       error.details = { response: result };
       error.hint ||= "Inspect the original response and any effects before another action. This debug request was not retried.";
       throw error;
     }
     return result;
   } catch (error) {
-    if (error instanceof CliError) error.details = { ...context, ...error.details };
-    throw error;
+    const failure = controller.signal.aborted ? new CliError("Stopped receiving the response; the external action may have already happened.", {
+      code: "outcome_unknown",
+      hint: "Inspect the original operation before another write. Do not replay this debug request or batch."
+    }) : requestError(error);
+    failure.details = { ...context, ...result ? { response: result } : {}, ...failure.details };
+    throw failure;
   } finally {
     process.removeListener("SIGINT", interrupt);
+    await response?.body?.cancel().catch(() => {
+    });
     if (file !== void 0) {
-      closeSync2(file);
-      if (!saved) unlinkSync3(output2);
+      closeSync3(file);
+      if (!saved && ownsOutput()) unlinkSync2(output2);
     }
   }
 }
@@ -4255,8 +4428,8 @@ async function batchCommands(ctx) {
 }
 
 // src/xrain-cli/agents.mjs
-import { randomBytes as randomBytes6 } from "node:crypto";
-import { writeFileSync as writeFileSync4 } from "node:fs";
+import { randomBytes as randomBytes5 } from "node:crypto";
+import { writeFileSync as writeFileSync3 } from "node:fs";
 import { resolve as resolve6 } from "node:path";
 
 // src/xrain-cli/definition-file.mjs
@@ -4373,6 +4546,7 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { performance as performance3 } from "node:perf_hooks";
 
 // src/xrain-cli/runtime-controls.mjs
@@ -4426,31 +4600,24 @@ async function sessionControl(ctx, helpers, connection2) {
 // src/xrain-cli/agent-chat.mjs
 var sessions = "/v1/dsh/sessions";
 var pendingPath = "/v1/dsh/pending-actions";
-async function messageInput(args) {
+async function messageInput(args, stdin = process.stdin) {
   let value = args.value("message");
   const file = args.value("message-file");
   if (file) {
     let bytes;
     if (file === "-") {
-      if (process.stdin.isTTY) throw new CliError("Pipe the message into stdin when using --message-file -.", { code: "invalid_arguments" });
+      if (stdin.isTTY) throw new CliError("Pipe the message into stdin when using --message-file -.", { code: "invalid_arguments" });
       const chunks = [];
-      let size = 0;
-      for await (const chunk of process.stdin) {
-        const data = Buffer.from(chunk);
-        size += data.length;
-        if (size > 256 * 1024) throw new CliError("Message exceeds the size limit.", { code: "invalid_arguments" });
-        chunks.push(data);
-      }
+      for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
       bytes = Buffer.concat(chunks);
-    } else bytes = readLimited(file, 256 * 1024, "Message");
+    } else bytes = await readFile(file);
     try {
       value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
       throw new CliError("Message file must be UTF-8 text.", { code: "invalid_arguments" });
     }
   }
-  if (!nonempty(value) || value.length > 64e3 || value.includes("\0"))
-    throw new CliError("Message must contain 1 to 64000 characters.", { code: "invalid_arguments" });
+  if (!nonempty(value)) throw new CliError("A nonempty message is required.", { code: "invalid_arguments" });
   return value;
 }
 function textOf(value) {
@@ -4700,7 +4867,6 @@ function actionRequired(sessionId, requestId, items, submitted = true) {
 }
 function finish(sessionId, requestId, result) {
   if (result.status !== "completed") throw new CliError("The agent turn did not complete successfully.", { code: "turn_failed", details: { sessionId, requestId, ...result } });
-  if (!nonempty(result.answer)) throw new CliError("The turn completed without a text reply.", { code: "no_answer", details: { sessionId, requestId, ...result } });
   return { sessionId, requestId, ...result };
 }
 async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget) {
@@ -4792,7 +4958,7 @@ async function chatCommands(ctx, helpers) {
     const input3 = action === "respond" ? await jsonInput(args, "values") : {};
     if (!isObject(input3) || Object.keys(input3).some((key) => !["outcome", "answers"].includes(key)) || action === "respond" && !Object.keys(input3).length)
       throw new CliError("Response JSON must contain an explicit outcome or answers.", { code: "invalid_arguments" });
-    const responseId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Response ID");
+    const responseId = args.value("request-id") ?? randomUUID();
     reporter.progress(`Response ID: ${responseId}`);
     const result = await helpers.writeOnce(async () => {
       const accepted = await helpers.runtimeValue(ctx, "POST", `${pendingPath}/${segment(ref)}/${action === "respond" ? "responses" : "cancel"}`, { ...input3, responseId }, headers);
@@ -4818,8 +4984,8 @@ async function chatCommands(ctx, helpers) {
     reporter.print(visibleHistory(page3, sessionId));
     return 0;
   }
-  const text2 = action === "wait" ? void 0 : await messageInput(args);
-  const requestId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Request ID");
+  const text2 = action === "wait" ? void 0 : await messageInput(args, ctx.stdin);
+  const requestId = args.value("request-id") ?? randomUUID();
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
   try {
@@ -4875,7 +5041,7 @@ async function runtimeRuns(ctx, helpers) {
     reporter.print({ runId, ...value, ...context });
     return 0;
   }
-  const agentId = helpers.identifier(args.required("agent-id"), "Agent ID"), prompt = await messageInput(args);
+  const agentId = helpers.identifier(args.required("agent-id"), "Agent ID"), prompt = await messageInput(args, ctx.stdin);
   const ephemeral = domain === "ephemeral";
   const body = ephemeral ? { agentId, prompt } : { input: { agentId, prompt, applicationId: applicationId2 ?? null } };
   const controller = new AbortController(), interrupt = () => controller.abort();
@@ -5098,7 +5264,7 @@ function updatedDefinition(current, patch, expected) {
 }
 async function importDefinition(ctx) {
   const { args, reporter } = ctx;
-  const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
+  const id = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") ? revision(args) : null;
   const limits = await definitionLimits(ctx);
   const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
@@ -5146,7 +5312,7 @@ async function definitionCommands(ctx) {
     if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
     const name = args.value("name") ?? value.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
-    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
+    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
     workspaceChange(value);
     const body2 = newDefinition(id2, { ...value, name });
     reporter.progress(`Definition ID: ${id2}`);
@@ -5164,7 +5330,7 @@ async function definitionCommands(ctx) {
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
     const file = exportDefinition(current, workspaces), output2 = resolve6(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
-    writeFileSync4(output2, bytes, { flag: "wx", mode: 384 });
+    writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
     return 0;
   }
@@ -5388,11 +5554,10 @@ async function userSettingsCommands(ctx) {
 }
 
 // src/xrain-cli/files.mjs
-import { openAsBlob as openAsBlob2 } from "node:fs";
-import { stat as stat2 } from "node:fs/promises";
+import { openAsBlob as openAsBlob3 } from "node:fs";
+import { stat as stat3 } from "node:fs/promises";
 import { basename as basename2, resolve as resolve7 } from "node:path";
 var root = "/api/service/files/v1/files";
-var maxBytes = 512 * 1024 * 1024;
 async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
   const profile = store.resolve(args, true), { token, source } = store.credential(args, profile, { createSecrets: false });
@@ -5411,9 +5576,9 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve7(args.required("file")), info = await stat2(input3), uploaderId = args.required("uploader-id");
-      if (!info.isFile() || info.size > maxBytes) throw new CliError("Upload requires a regular file within the 512 MiB service limit.", { code: "invalid_arguments" });
-      const blob = await openAsBlob2(input3), fileName = args.value("name") ?? basename2(input3);
+      const input3 = resolve7(args.required("file")), info = await stat3(input3), uploaderId = args.required("uploader-id");
+      if (!info.isFile()) throw new CliError("Upload requires a regular file.", { code: "invalid_arguments" });
+      const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename2(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
       const value2 = await writeOnce(
         async () => {
@@ -5461,22 +5626,22 @@ async function fileCommands(ctx) {
 }
 
 // src/xrain-cli/market.mjs
-import { accessSync as accessSync2, constants as constants2, copyFileSync as copyFileSync2, existsSync as existsSync3, unlinkSync as unlinkSync4, writeFileSync as writeFileSync5 } from "node:fs";
+import { accessSync as accessSync2, constants as constants3, copyFileSync, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
 import { dirname as dirname4, resolve as resolve8 } from "node:path";
-import { randomBytes as randomBytes7 } from "node:crypto";
+import { randomBytes as randomBytes6 } from "node:crypto";
 function newOutput(value) {
   const path = resolve8(value);
   if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
-  accessSync2(dirname4(path), constants2.W_OK);
+  accessSync2(dirname4(path), constants3.W_OK);
   return path;
 }
 function save(path, bytes) {
-  const temporary = path + "." + randomBytes7(8).toString("hex") + ".part";
+  const temporary = path + "." + randomBytes6(8).toString("hex") + ".part";
   try {
-    writeFileSync5(temporary, bytes, { flag: "wx" });
-    copyFileSync2(temporary, path, constants2.COPYFILE_EXCL);
+    writeFileSync4(temporary, bytes, { flag: "wx" });
+    copyFileSync(temporary, path, constants3.COPYFILE_EXCL);
   } finally {
-    if (existsSync3(temporary)) unlinkSync4(temporary);
+    if (existsSync3(temporary)) unlinkSync3(temporary);
   }
 }
 function receipt(response) {
@@ -5492,7 +5657,7 @@ async function marketCommands(ctx) {
   if (!args.has("exchange")) throw new CliError("Market commands require an explicit --exchange URL and its independent login.", { code: "invalid_arguments" });
   const action = args.command(1), id = args.required("package");
   if (!validPackageId(id)) throw new CliError("An exact package ID is required.", { code: "invalid_arguments" });
-  const { send: send2, root: root2 } = appClient(ctx, { allowAnonymous: ["show", "versions", "manifest", "components", "download"].includes(action) }), path = `${root2}/packages/${id}`;
+  const { send: send2, root: root2, profile, source } = appClient(ctx, { allowAnonymous: ["show", "versions", "manifest", "components", "download"].includes(action) }), path = `${root2}/packages/${id}`;
   if (action === "rename" || action === "publication" || action === "unpublish") {
     let body, method = "PUT", suffix = "/publication";
     if (action === "rename") {
@@ -5536,18 +5701,36 @@ async function marketCommands(ctx) {
   const metadata = receipt(await send2("GET", `${path}/versions/${versionId}/manifest`));
   if (metadata?.packageId !== id || metadata?.versionId !== versionId || !/^[a-f0-9]{64}$/i.test(metadata.fileSha256 ?? "") || !nonempty(metadata.digest))
     throw new CliError("Market returned invalid artifact metadata.", { code: "invalid_response" });
-  const response = requireSuccess(await send2("GET", `${path}/versions/${versionId}/artifact`, { limit: MAX_ARCHIVE }));
-  const manifest = readManifest(response.bytes), hash = sha256(response.bytes);
-  if (manifest.packageId !== id || manifest.versionId !== versionId || manifest.version !== metadata.version || hash !== metadata.fileSha256.toLowerCase() || response.headers.get("x-appkg-file-sha256")?.toLowerCase() !== hash || response.headers.get("x-appkg-package-id") !== id || response.headers.get("x-appkg-version-id") !== versionId || response.headers.get("x-appkg-package-digest") !== metadata.digest)
-    throw new CliError("Market artifact identity or digest does not match its metadata.", { code: "integrity_failed" });
-  save(output2, response.bytes);
-  reporter.print({ output: output2, packageId: id, versionId, packageSha256: hash, digest: metadata.digest });
-  return 0;
+  const controller = new AbortController(), interrupt = () => controller.abort();
+  process.once("SIGINT", interrupt);
+  let response, hash;
+  try {
+    response = await requireStreamSuccess(await send2("GET", `${path}/versions/${versionId}/artifact`, {
+      stream: true,
+      signal: controller.signal,
+      headers: { Accept: "*/*", "Accept-Encoding": "identity" }
+    }));
+    await saveResponse({ profile, source, signal: controller.signal }, response, output2, void 0, {
+      contentType: null,
+      verify: async (temporary) => {
+        const manifest = await readManifestFile(temporary, controller.signal);
+        hash = await fileSha256(temporary, controller.signal);
+        if (manifest.packageId !== id || manifest.versionId !== versionId || manifest.version !== metadata.version || hash !== metadata.fileSha256.toLowerCase() || response.headers.get("x-appkg-file-sha256")?.toLowerCase() !== hash || response.headers.get("x-appkg-package-id") !== id || response.headers.get("x-appkg-version-id") !== versionId || response.headers.get("x-appkg-package-digest") !== metadata.digest)
+          throw new CliError("Market artifact identity or digest does not match its metadata.", { code: "integrity_failed" });
+      }
+    });
+    reporter.print({ output: output2, packageId: id, versionId, packageSha256: hash, digest: metadata.digest });
+    return 0;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    await response?.body?.cancel().catch(() => {
+    });
+  }
 }
 
 // src/xrain-cli/workforce.mjs
-import { openAsBlob as openAsBlob3 } from "node:fs";
-import { stat as stat3 } from "node:fs/promises";
+import { openAsBlob as openAsBlob4 } from "node:fs";
+import { stat as stat4 } from "node:fs/promises";
 import { basename as basename3, resolve as resolve9 } from "node:path";
 
 // src/xrain-cli/member-target.mjs
@@ -5656,9 +5839,9 @@ async function workforceCommands(ctx) {
   let upload;
   if (operation.upload) {
     const path = resolve9(args.required("file"));
-    const info = await stat3(path);
+    const info = await stat4(path);
     if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
-    const blob = await openAsBlob3(path);
+    const blob = await openAsBlob4(path);
     if (blob.size !== info.size) throw new CliError("The attachment changed before upload.", { code: "invalid_input" });
     upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
   }

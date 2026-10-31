@@ -20,7 +20,7 @@ export async function runtimeRuns(ctx, helpers) {
     if (['failed', 'cancelled'].includes(value.status)) throw new CliError('The managed run did not succeed.', { code: 'run_failed', details: { runId, ...value, ...context } });
     reporter.print({ runId, ...value, ...context }); return 0;
   }
-  const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID'), prompt = await messageInput(args);
+  const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID'), prompt = await messageInput(args, ctx.stdin);
   const ephemeral = domain === 'ephemeral';
   const body = ephemeral ? { agentId, prompt } : { input: { agentId, prompt, applicationId: applicationId ?? null } };
   const controller = new AbortController(), interrupt = () => controller.abort();

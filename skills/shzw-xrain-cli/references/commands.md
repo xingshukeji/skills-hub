@@ -124,7 +124,7 @@ app status --package <namespace> --profile <平台> --json
 app publish --file "<文件.appkg>" --exchange <市场origin> --profile <市场>
 ```
 
-namespace 2–16 位，小写字母开头，仅小写字母/数字；label 1–256。source≤32 MiB、包≤16 MiB、根 manifest≤1 MiB。build 已服务端构建、校验并保存；只验证不保存才用 check，不先 check 再重复 build。输出已有则拒绝覆盖。
+namespace 2–16 位，小写字母开头，仅小写字母/数字；label 1–256。构建源及包的传输大小由目标服务判断，CLI 不复制固定业务上限。包文件流式传递；CLI 保留身份、摘要及根 manifest 的 1 MiB 解压读取保护，不展开其他条目。build 已服务端构建、校验并保存；只验证不保存才用 check，不先 check 再重复 build。输出已有则拒绝覆盖。
 
 平台和市场分别 auth login。publish 带已知发布版本防并发覆盖，不自动重试；未知结果先同目标/profile 的 status 查询。status 查询发布状态；安装状态使用 app installation show 或 app operation show。
 

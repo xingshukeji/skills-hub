@@ -1,10 +1,12 @@
-import { mkdirSync, writeFileSync, copyFileSync, constants, unlinkSync, existsSync, accessSync } from 'node:fs';
+import { mkdirSync, writeFileSync, constants, existsSync, accessSync } from 'node:fs';
+import { mkdtemp, unlink, rmdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
-import { CliError, isObject, nonempty, parseJson, randomId, readLimited, sha256 } from './core.mjs';
-import { request, requireSuccess, writeOnce } from './http.mjs';
+import { CliError, isObject, nonempty, parseJson, randomId } from './core.mjs';
+import { request, requireSuccess, requireStreamSuccess, writeOnce } from './http.mjs';
 import { browserLogin } from './auth.mjs';
-import { MAX_ARCHIVE, MAX_SOURCE, readManifest, validPackageId } from './archive.mjs';
+import { artifactSource, fileSha256, readManifestFile, validPackageId } from './archive.mjs';
+import { saveResponse } from './data-import.mjs';
 import { appManagementCommands } from './app-management.mjs';
 
 export function appClient(ctx, { allowHost = false, allowAnonymous = false } = {}) {
@@ -15,7 +17,7 @@ export function appClient(ctx, { allowHost = false, allowAnonymous = false } = {
   const token = ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
   if (!token && !(market && allowAnonymous && ctx.args.value('auth') !== 'session')) throw new CliError(market ? 'Market login is required or expired. Run app login --exchange <url>.' : 'App login is required or expired. Run app login --server <url>.', {
     code: 'authentication_required', hint: 'Use auth status to inspect the session, then auth login for this target.' });
-  return { root: market ? '/api/exchange/v1' : '/api/application/v1',
+  return { profile, source: token ? 'application-session' : 'none', root: market ? '/api/exchange/v1' : '/api/application/v1',
     send: (method, path, options = {}) => {
       if (!token && method !== 'GET') throw new CliError('Market maintenance requires a matching login.', { code: 'authentication_required' });
       return request(new URL(path, profile.server), { ...options, method, token, timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) });
@@ -44,9 +46,9 @@ export function initApp(ctx) {
 export async function buildApp(ctx, save) {
   if (ctx.args.has('exchange')) throw new CliError('Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.');
   const sourcePath = resolve(ctx.args.value('source') ?? 'source.json');
-  const source = readLimited(sourcePath, MAX_SOURCE, 'Source JSON');
-  const parsed = parseJson(source, 'Source JSON');
-  if (!isObject(parsed)) throw new CliError('Source JSON must be an object.');
+  const source = await artifactSource(sourcePath), input = parseJson(await source.body.text(), 'Source JSON');
+  if (!isObject(input)) throw new CliError('Source JSON must be an object.');
+  const parsed = { packageId: input.packageId, version: input.version, versionId: input.versionId };
   let output = save && ctx.args.has('output') ? resolve(ctx.args.value('output')) : undefined;
   if (save && !output && validPackageId(parsed.packageId) && typeof parsed.version === 'string' && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
     output = join(dirname(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
@@ -54,30 +56,35 @@ export async function buildApp(ctx, save) {
     if (existsSync(output)) throw new CliError(`Output already exists: ${output}`, { code: 'output_exists' });
     accessSync(dirname(output), constants.W_OK);
   }
-  const { send, root } = client(ctx, { allowHost: true });
-  const response = requireSuccess(await send('POST', root + '/packages:build', { body: source, headers: { 'Content-Type': 'application/json' }, limit: MAX_ARCHIVE }));
-  const sourceHash = sha256(source), fileHash = sha256(response.bytes);
-  if (response.headers.get('x-appkg-source-sha256')?.trim().toLowerCase() !== sourceHash) throw new CliError('Build response source digest does not match the local source.');
-  if (response.headers.get('x-appkg-file-sha256')?.trim().toLowerCase() !== fileHash) throw new CliError('Build response archive digest is invalid.');
-  const packageId = response.headers.get('x-appkg-package-id')?.trim(), version = response.headers.get('x-appkg-version')?.trim();
-  if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError('Build response package identity is invalid.');
-  const manifest = readManifest(response.bytes);
-  if (manifest.packageId !== packageId || (manifest.version !== undefined && manifest.version !== version)) throw new CliError('Build response manifest does not match its headers.');
-  if ((validPackageId(parsed.packageId) && parsed.packageId !== packageId) ||
-      (typeof parsed.version === 'string' && parsed.version !== version) ||
-      (typeof parsed.versionId === 'string' && parsed.versionId !== manifest.versionId)) throw new CliError('Build response package identity does not match the source.');
-  if (!save) { ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`); return 0; }
-  output ??= join(dirname(sourcePath), `${packageId}-${version}.appkg`);
-  if (existsSync(output)) throw new CliError(`Output already exists: ${output}`, { code: 'output_exists' });
-  const temporary = `${output}.${randomBytes(8).toString('hex')}.part`;
+  const api = client(ctx, { allowHost: true }), controller = new AbortController(), interrupt = () => controller.abort();
+  process.once('SIGINT', interrupt);
+  let response, validationDirectory, fileHash;
   try {
-    writeFileSync(temporary, response.bytes, { flag: 'wx' });
-    // Exclusive copy works on filesystems without hard links and refuses to
-    // overwrite a destination that appeared while the build was in progress.
-    copyFileSync(temporary, output, constants.COPYFILE_EXCL);
-  } finally { if (existsSync(temporary)) unlinkSync(temporary); }
-  ctx.reporter.print({ output, sourceSha256: sourceHash, packageSha256: fileHash });
-  return 0;
+    const sourceHash = await fileSha256(sourcePath, controller.signal);
+    response = await requireStreamSuccess(await api.send('POST', api.root + '/packages:build', { body: source.body,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': String(source.length), 'Accept-Encoding': 'identity' }, stream: true, signal: controller.signal }));
+    if (response.headers.get('x-appkg-source-sha256')?.trim().toLowerCase() !== sourceHash) throw new CliError('Build response source digest does not match the local source.');
+    const packageId = response.headers.get('x-appkg-package-id')?.trim(), version = response.headers.get('x-appkg-version')?.trim();
+    if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError('Build response package identity is invalid.');
+    if (!save) validationDirectory = await mkdtemp(join(tmpdir(), 'xrain-cli-build-'));
+    output = save ? output ?? join(dirname(sourcePath), `${packageId}-${version}.appkg`) : join(validationDirectory, 'validated.appkg');
+    await saveResponse({ profile: api.profile, source: api.source, signal: controller.signal }, response, output, undefined, { contentType: null,
+      verify: async temporary => {
+        fileHash = await fileSha256(temporary, controller.signal);
+        if (response.headers.get('x-appkg-file-sha256')?.trim().toLowerCase() !== fileHash) throw new CliError('Build response archive digest is invalid.');
+        const manifest = await readManifestFile(temporary, controller.signal);
+        if (manifest.packageId !== packageId || (manifest.version !== undefined && manifest.version !== version)) throw new CliError('Build response manifest does not match its headers.');
+        if ((validPackageId(parsed.packageId) && parsed.packageId !== packageId) || (typeof parsed.version === 'string' && parsed.version !== version) ||
+            (typeof parsed.versionId === 'string' && parsed.versionId !== manifest.versionId)) throw new CliError('Build response package identity does not match the source.');
+      } });
+    if (!save) ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
+    else ctx.reporter.print({ output, sourceSha256: sourceHash, packageSha256: fileHash });
+    return 0;
+  } finally {
+    process.removeListener('SIGINT', interrupt);
+    await response?.body?.cancel().catch(() => {});
+    if (validationDirectory) { await unlink(join(validationDirectory, 'validated.appkg')).catch(() => {}); await rmdir(validationDirectory); }
+  }
 }
 
 async function published(send, root) {
@@ -88,15 +95,14 @@ async function published(send, root) {
 
 export async function publishApp(ctx) {
   const path = resolve(ctx.args.required('file', ctx.args.operand(2)));
-  const bytes = readLimited(path, MAX_ARCHIVE, 'Package');
-  const manifest = readManifest(bytes);
+  const source = await artifactSource(path), manifest = await readManifestFile(path);
   const { send, root } = client(ctx);
   const packages = await published(send, root);
   const current = packages.find(item => item.id === manifest.packageId);
   const headers = { 'Content-Type': 'application/octet-stream' };
   if (nonempty(current?.publishedVersionId)) headers['X-Appkg-Expected-Published-Version'] = current.publishedVersionId;
   try {
-    const result = requireSuccess(await send('POST', root + '/packages:publish', { body: bytes, headers })).json();
+    const result = requireSuccess(await send('POST', root + '/packages:publish', { body: source.body, headers })).json();
     if (result.packageId !== manifest.packageId || result.versionId !== manifest.versionId) throw new CliError('The publish response does not match the local package.');
     ctx.reporter.print({ packageId: result.packageId, versionId: result.versionId, version: result.version, published: true });
   } catch (error) {
@@ -142,10 +148,10 @@ export async function appCommands(ctx) {
     case 'publish': return publishApp(ctx);
     case 'status': return appStatus(ctx);
     case 'import-file': {
-      const bytes = readLimited(resolve(ctx.args.required('file')), MAX_ARCHIVE, 'Package'), manifest = readManifest(bytes);
+      const path = resolve(ctx.args.required('file')), source = await artifactSource(path), manifest = await readManifestFile(path);
       const api = client(ctx, { allowHost: true });
       const result = await writeOnce(async () => {
-        const response = requireSuccess(await api.send('POST', api.root + '/packages:import', { body: bytes, headers: { 'Content-Type': 'application/octet-stream' } }));
+        const response = requireSuccess(await api.send('POST', api.root + '/packages:import', { body: source.body, headers: { 'Content-Type': 'application/octet-stream' } }));
         let value;
         try { value = response.json(); } catch { throw new CliError('The import response is invalid.', { code: 'invalid_response' }); }
         if (value?.packageId !== manifest.packageId || value?.versionId !== manifest.versionId)
