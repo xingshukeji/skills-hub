@@ -215,5 +215,29 @@
     "request": "请把已发布的应用安装到项目的测试租户。",
     "project": "xrain-workforce",
     "context": "目标平台、测试租户和已授权管理身份已明确；已提供 XRain CLI，当前管理会话属于其他租户。"
+  },
+  {
+    "id": "delivery-managed-release",
+    "request": "继续把这版发到演示站，完成后确认原账号可以登录。",
+    "project": "managed-service",
+    "context": "该项目的 AGENTS 和 Runbook 规定正常发布使用已有事务、操作记录及准入，异常需要跨会话恢复时才登记任务。前文已批准同一固定镜像和命名目标；本次记录包含来源、制品摘要、通过的准入、当前目标基线和可运行恢复入口。原账号及登录验证入口已登记。"
+  },
+  {
+    "id": "delivery-workforce-admission",
+    "request": "用这次构建的制品更新工作台测试目标。",
+    "project": "workforce-target",
+    "context": "该目标采用 Workforce WF-0006。已有 Draft DeploymentPlan，用户已授权其中的固定制品和目标；构建检查通过，计划要求的独立准入与回退运行证据仍为空。当前没有独立测试或数据副本操作授权。"
+  },
+  {
+    "id": "delivery-package-preflight",
+    "request": "先检查这份新版本原包能不能发布。",
+    "project": "public-component",
+    "context": "产品已提供发布声明、原 tarball 和构建摘要。本次没有发布执行请求，发布凭据未注入；本地没有 CI 仓库或消费项目。"
+  },
+  {
+    "id": "delivery-forward-only",
+    "request": "按已确认的安排更新这个演示服务。",
+    "project": "managed-service",
+    "context": "项目 Runbook 规定该目标适配器只允许前向修复并保留数据。前文已批准本次固定镜像、命名目标和这一恢复边界；所需准入、目标基线和最小业务检查均已准备，正常操作使用项目自身受管入口及回执。"
   }
 ]

@@ -5,6 +5,7 @@ environment; this module has no dependency on a CI checkout or consumer lock.
 """
 import argparse
 import base64
+from contextlib import contextmanager, nullcontext
 import datetime
 import hashlib
 import io
@@ -51,6 +52,19 @@ def project_file(project, relative):
     return target
 
 
+def valid_version(value):
+    if not isinstance(value, str):
+        return False
+    numeric = r'(?:0|[1-9][0-9]*)'
+    identifiers = r'[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*'
+    match = re.fullmatch(rf'{numeric}\.{numeric}\.{numeric}(?:-({identifiers}))?(?:\+{identifiers})?', value)
+    if match is None:
+        return False
+    prerelease = match.group(1)
+    return prerelease is None or all(not part.isdigit() or len(part) == 1 or not part.startswith('0')
+                                     for part in prerelease.split('.'))
+
+
 def inspect_package(package, declaration, expected_sha256, expected_integrity=None, version=None):
     raw = Path(package).read_bytes()
     require(0 < len(raw) <= MAX_PACKAGE_BYTES, 'Public component size is invalid')
@@ -68,8 +82,7 @@ def inspect_package(package, declaration, expected_sha256, expected_integrity=No
         metadata = json.load(archive.extractfile('package/package.json'))
         require(metadata.get('name') == declaration['name'], 'Public component identity differs')
         observed_version = metadata.get('version')
-        require(isinstance(observed_version, str)
-                and re.fullmatch(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?', observed_version), 'Invalid public component version')
+        require(valid_version(observed_version), 'Invalid public component version')
         require(version is None or version == observed_version, 'Public component version differs')
         version = observed_version
         build_path = declaration.get('buildMetadata')
@@ -153,19 +166,38 @@ def publish(raw, identity, evidence, authorization, *, http=request):
     return result
 
 
+@contextmanager
+def registry_update(path):
+    """Claim the whole read/validate/merge/write, not just the final replacement."""
+    lock = path.with_name('.' + path.name + '.publication-lock')
+    try:
+        lock.mkdir(mode=0o700)
+    except FileExistsError:
+        raise ValueError(f'Delivered registry is in use; inspect {lock.name} and the original publication '
+                         'before retrying registration') from None
+    owner = lock / 'owner.json'
+    try:
+        write_json(owner, {'pid': os.getpid(), 'startedAt': datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        yield
+    finally:
+        owner.unlink(missing_ok=True)
+        lock.rmdir()
+
+
 def delivered_registry(project, declaration, identity, *, register=False):
     registration = declaration.get('delivered')
     if not registration:
         return False
     path = project_file(project, registration['path'])
-    document = read_json(path)
-    versions = document[registration['key']] if registration.get('key') else document
-    existing = versions.get(identity['version'])
-    require(existing is None or existing.get('integrity') == identity['integrity'],
-            'Delivered version has different integrity; retain the original tarball')
-    if register and existing is None:
-        versions[identity['version']] = {'integrity': identity['integrity']}
-        write_json(path, document)
+    with registry_update(path) if register else nullcontext():
+        document = read_json(path)
+        versions = document[registration['key']] if registration.get('key') else document
+        existing = versions.get(identity['version'])
+        require(existing is None or existing.get('integrity') == identity['integrity'],
+                'Delivered version has different integrity; retain the original tarball')
+        if register and existing is None:
+            versions[identity['version']] = {'integrity': identity['integrity']}
+            write_json(path, document)
     return register
 
 

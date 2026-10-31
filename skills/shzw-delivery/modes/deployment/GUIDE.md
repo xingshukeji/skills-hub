@@ -1,49 +1,53 @@
-# Release Deployment
+# 发布、部署与恢复
 
-本模式的参考、脚本和资源位于加载结果的 resourceBase.path + "/modes/deployment"。命令工作目录与项目事实由当前责任项目入口确定；相对资源链接按本模式目录解析。
+将一个确定制品用于一个命名目标，读到该目标的实际结果。用户请求及必要前文决定操作和授权；构建、测试、Git 推送和候选存在不产生部署授权。只查询现状时不进入本模式，本机开发服务启动和重启沿项目开发入口。
 
-## Goal
+## 先选择目标合同
 
-Change one named target using one immutable, approved artifact and a verified rollback path. Deployment is a user-controlled, always-durable task type with its own authorization and result, not a project/session state or the automatic final step of Development or SystemTest. A work candidate never supplies deployment authority.
+从责任项目的 `AGENTS.md` 找到目标登记、工作流和本次 Runbook。命令、准入、记录及恢复由该项目持有；技能自身资源相对本模式目录解析，不从安装位置推断项目路径。
 
-## Entry gate
+| 目标采用的合同 | 执行依据 |
+|---|---|
+| xrain-cicd、deploy-ops 等项目的正常受管操作 | 使用项目既有事务、操作记录、准入和恢复入口。按其条件决定是否登记恢复任务，不额外叠加 Workforce 的持久计划或另一轮批准 |
+| 采用 Workforce WF-0006 的目标 | 按其 WorkflowContract 和 WF-0006 核对独立 Deployment 任务、Active DeploymentPlan、确定 Artifact/Target、当前授权、规定的准入证据及可运行回滚入口。缺项不得执行，不能自行豁免或激活草案 |
 
-先读目标项目的操作合同。下面的 WF-0006 与持久计划条件适用于采用 Workforce 共同工作流的目标。xrain-cicd、deploy-ops 的正常操作、受管事务、记录及异常恢复门槛继续由其入口持有；不得把通用计划格式叠加为另一审批，也不得削弱其制品、目标、数据保护和恢复边界。
+目标合同要求独立系统测试或明确豁免时，核对已有证据及适用制品；证据不足只阻断依赖它的操作，不自动建立测试任务、复制业务数据或另建环境。项目合同没有这项前提时，不能仅因内部任务分类追加批准。不同来源要求冲突时先查清适用对象及事实所有者，不把两套门禁并列执行。
 
-Read root `AGENTS.md`, `文档/工作流/WORKFLOW_CONTRACT.md`, WF-0006, the referenced DeploymentPlan, the matched project `AGENTS.md`, and only the selected deployment Runbook and admission evidence.
+## 固定本次操作及证据
 
-Proceed only when all are explicit:
+恢复原请求、后续纠正与已确认授权，在现有操作记录或当前工作计划中对应下列事实；不用另建永久台账。
 
-- the user explicitly made deployment to the named target the task goal;
-- an independent task whose execution type is `Deployment`;
-- an `Active` DeploymentPlan;
-- one immutable Artifact and one named Target;
-- current user authorization for that Artifact and Target;
-- required SystemTest evidence or an explicit authorized waiver;
-- a runnable Rollback entry and minimal post-deployment checks.
+| 对象 | 读取及判断 |
+|---|---|
+| 操作、项目、目标 | 对照当前请求和目标登记，确定查询、发布、目标安装、升级、入口切换或回滚及其实际范围；自然语言别名归一到登记目标，不能从 `test` 名称猜用途 |
+| 来源、制品 | 从原构建/发布记录取得源码快照、原包或镜像摘要及检查证据。用户要求“最新”且受支持入口允许构建时，先解析并固定本次来源，再固定产物；不另要求用户提供可自行查得的 SHA |
+| 授权、准入 | 把原请求与当次制品、目标、数据影响和恢复边界对应。回执中的非空授权字段或历史成功不能代替当前授权；准入证据必须适用于同一制品和环境 |
+| 基线、执行、后置条件 | 读取目标当前版本与保护状态，固定原事务/queue/build/operation 标识；写明采用的恢复方式和最小检查，以实际目标回读判断完成 |
 
-Do not create the task or plan until Artifact, Target, and current user authorization are explicit. Keep an existing authorized plan Draft and stop when admission evidence or Rollback is pending. Do not infer authorization from a merged change, Git push, successful build, available package, passed tests, or an older deployment request.
+目标、制品和授权清楚时连续完成必要检查、传输、安装、验证及授权内的恢复。每次外部写入前自行核对命令仍对应本次目标和制品，不为同范围子步骤重复索取批准。目标、制品、费用、保留数据处理、其他服务影响或恢复边界的实际变化超出原授权时，先给出具体差异和需要决定的动作。
 
-## Deploy
+## 执行与恢复
 
-1. Verify Artifact identity, Target baseline, admission evidence, secrets by configuration key, operator permissions, change window, and rollback readiness.
-2. Read commands and ordering from the target Runbook. Do not reconstruct deploy, migration, publication, or rollback commands from memory.
-3. Reconfirm that the command affects only the approved Target and Artifact before each irreversible or externally visible action.
-4. Execute the deployment sequence without rebuilding, replacing the artifact, editing product code, or adding unrelated migrations.
-5. Run only the minimal post-deployment checks needed to prove the target change and choose between retain and rollback. A broad regression campaign belongs to a separate SystemTest task.
-6. On failure, stop or execute the authorized rollback. Preserve sanitized evidence. A product defect or missing candidate evidence blocks this task; create Development or SystemTest only after the user separately authorizes that result.
+1. 从目标 Runbook 读取命令、顺序、秘密引用及权限；核对目标基线、准入和恢复输入，不从记忆拼装迁移或部署命令。涉及数据库或基线迁移时，核对产品已有入口的完整范围、逐库结果及同步影响；用户要求整版升级时，不把只执行部分迁移的临时适配器当作完整交付。
+2. 在本次事务中使用已固定制品，不现场改源码、重建替换制品或加入无关迁移。项目受管入口允许的构建先完成来源及产物固定，再进入目标写入。
+3. 提交结果未知时，先查同一原操作和目标状态；不改用最新记录、重发或盲目取消。已确认失败后，按原授权与目标合同选择继续、恢复或停止，保留失败及其后续结果。
+4. 需要产品或交付入口修复时，按已有修复授权进入唯一源码所有者；只有确实缺少该授权才提交具体修复范围。修复产生新制品时保留原事务结果，核对原授权是否覆盖后续制品，再建立对应事务，不能改绑运行中的事务。
 
-## Boundaries
+恢复方式由目标合同和当前授权确定，不能把“恢复”统一理解为降版：
 
-制品涉及资源释放、启动或恢复行为时，用[运行稳定性](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/modes/stability/GUIDE.md)细化计划中已有的最小部署后检查。固定实例启动时间、背景业务、采样窗口和资源预算，核对原固定身份、代表性业务结果、在途工作及相关资源恢复。空记录读取、短期内存下降或无重启只能证明对应窗口；前后实例年龄和流量不同须注明不可比。已有计划需要回滚时沿原授权执行，不能追加压力或故障注入来补长期稳定性证据。
+| 恢复方式 | 必须核对的条件与结果 |
+|---|---|
+| 回切上一制品 | 原固定摘要、目标适配和保留数据兼容性成立；运行命令存在不证明原业务可以恢复 |
+| 按固定输入重建 | 重建输入可用，用户已明确相应数据及停用范围；不从重启授权推导重建或删除 |
+| 仅前向修复 | 目标明确允许且本次授权覆盖，保留数据和失败现场；报告无法回切的边界，不将其写成“回滚已验证” |
+| 首次包发布无旧版本 | 采用包发布模式的原字节核对和前向修正，不覆盖、删除已发布包来制造回滚 |
 
-- Git add, commit, fetch, push, branch movement, and local service restart are repository or development operations, not Deployment.
-- Test-environment preparation inside an Active SystemTestPlan is not formal Deployment and must not use this skill unless it changes a declared deployment target.
-- Never publish from an ambiguous dirty workspace or substitute a newly built artifact for the approved Artifact.
-- Never modify source, tests, plans, or product configuration as an inline deployment fix.
-- Never expand post-deployment checks into a system-wide test campaign.
-- Missing admission evidence never auto-creates or authorizes SystemTest.
+目标明确要求可运行回滚时，前向修复说明不能代替其准入证据；目标只支持前向修复时，不要求一个并不存在的降版入口。
 
-## Closeout
+## 最小检查与收口
 
-Report `Task type: Deployment`, Artifact, Target, authorization source, admission evidence, exact Runbook, executed actions, target result, rollback result, minimal checks, skipped actions, residual risk, and repository state. Remove the DeploymentPlan and task only after deployment, rollback, or cancellation has a truthful final result and long-lived Runbook facts are reconciled.
+沿原用户动作分别核对：目标实际制品与来源、进程健康、固定身份的代表性业务结果，以及受影响的拒绝和恢复分支。构建成功、制品已发布、目标已切换及业务可用分别报告；只完成其中一项就保留其余缺口，不扩大为另一项系统级回归。
+
+制品涉及资源释放、启动或恢复时，按[运行稳定性](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/modes/stability/GUIDE.md)细化已有的最小检查。固定实例年龄、后台业务、采样窗口及预算，核对代表性业务、在途工作和资源恢复。空记录、短期内存下降或无重启只证明对应窗口；条件不同注明不可比，不追加压力或故障注入来补长期结论。
+
+报告原授权来源、实际 Runbook、来源与制品、目标及原操作、准入、执行与恢复结果、最小检查、未验证边界和独立 Git 状态。项目存在任务或 DeploymentPlan 时，按其工作流在真实完成、恢复或取消后收口；正常受管操作不为套用通用格式另建计划。

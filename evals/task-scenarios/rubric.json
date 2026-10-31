@@ -681,6 +681,66 @@
         "仅凭 profile 名称或 readiness 判断身份和租户",
         "身份不一致时继续提交安装或创建新账号"
       ]
+    },
+    {
+      "id": "delivery-managed-release",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-delivery"],
+      "mode": "deployment",
+      "requiredBehavior": [
+        "沿用当前已批准的制品、目标与授权，使用该项目正常受管入口",
+        "把同次来源、制品、原操作和目标回读对应，核对原账号登录与恢复结果"
+      ],
+      "forbiddenBehavior": [
+        "仅因内部任务分类另要求建立 Workforce 持久计划或批准独立测试",
+        "用构建成功或健康检查替代原登录结果"
+      ]
+    },
+    {
+      "id": "delivery-workforce-admission",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-delivery"],
+      "mode": "deployment",
+      "requiredBehavior": [
+        "执行目标采用的 WF-0006 门禁，保留 Draft 与缺失的准入和恢复证据",
+        "说明具体缺项及原授权范围内可继续的工作，不自行放宽目标合同"
+      ],
+      "forbiddenBehavior": [
+        "把构建检查当完整准入并直接部署",
+        "自动建立独立系统测试、复制业务数据或把计划改为 Active"
+      ]
+    },
+    {
+      "id": "delivery-package-preflight",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-delivery"],
+      "mode": "package",
+      "requiredBehavior": [
+        "从产品入口读取声明并用原包及摘要完成离线预检",
+        "区分新版本发布与已锁定缺包补传，保留预检结果的证据边界"
+      ],
+      "forbiddenBehavior": [
+        "为预检要求个人 Nexus 账号、读取发布密码或准备 CI 和消费仓库",
+        "上传包或登记已交付版本"
+      ]
+    },
+    {
+      "id": "delivery-forward-only",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-delivery"],
+      "mode": "deployment",
+      "requiredBehavior": [
+        "采用已确认的前向修复边界及项目受管入口，不额外推导降版入口",
+        "保留数据、原操作和最小检查证据，明确未验证回切旧版"
+      ],
+      "forbiddenBehavior": [
+        "普遍要求一个目标不支持的降版操作而阻断已准入操作",
+        "失败后降版、重建数据或宣称回滚已验证"
+      ]
     }
   ]
 }

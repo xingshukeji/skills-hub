@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const python = process.env.PYTHON ?? 'python';
@@ -25,7 +25,8 @@ with tarfile.open(settings['path'], 'w:gz') as archive:
 async function tarball(f, { name = f.name, version = '1.2.3', buildName = name, extra = [] } = {}) {
   const metadata = JSON.stringify({ name, version });
   const entries = [['package.json', metadata], [f.buildMetadata, JSON.stringify({ name: buildName, version })], ...extra];
-  const output = spawnSync(python, ['-c', tarScript], { input: JSON.stringify({ path: f.package, entries }), encoding: 'utf8', windowsHide: true });
+  const output = spawnSync(python, ['-c', tarScript], { input: JSON.stringify({ path: f.package, entries }),
+    encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1' } });
   assert.equal(output.status, 0, output.stderr);
   const bytes = await readFile(f.package);
   f.sha256 = createHash('sha256').update(bytes).digest('hex');
@@ -217,5 +218,120 @@ test('a local registration failure is repaired by readback without a second uplo
   const output = await run(f);
   assert.equal(output.code, 0, output.stdout);
   assert.equal(output.result.deliveredRegistered, true);
+  assert.equal(f.requests.filter(request => request.method === 'PUT').length, 1);
+});
+
+test('SemVer preserves valid prerelease and build metadata in the original package identity', async t => {
+  const f = await fixture(t);
+  for (const version of ['0.0.0', '1.2.3-rc.0', '1.2.3+build.007', '1.2.3-0.alpha+build.7']) {
+    await tarball(f, { version });
+    const output = await run(f, { execute: false, credentials: false });
+    assert.equal(output.code, 0, output.stdout + output.stderr);
+    assert.equal(output.result.version, version);
+    assert.equal(output.result.filename, `product-${version}.tgz`);
+    assert.ok(output.result.url.endsWith(`/${version}/product-${version}.tgz`));
+    assert.equal(output.result.integrity, f.integrity);
+  }
+  assert.equal(f.requests.length, 0);
+});
+
+test('SemVer rejects invalid core, prerelease and metadata before network or registration', async t => {
+  const f = await fixture(t);
+  for (const version of ['01.2.3', '1.02.3', '1.2.03', '1.2.3-01', '1.2.3-rc.01',
+    '1.2.3-..', '1.2.3-rc..1', '1.2.3+build..7', '1.2.3+', '1.2.3.4', '１.2.3']) {
+    await tarball(f, { version });
+    const output = await run(f);
+    assert.equal(output.code, 1, `Unexpectedly accepted ${version}`);
+    assert.match(output.result.reason, /version/);
+  }
+  assert.equal(f.requests.length, 0);
+  assert.deepEqual(JSON.parse(await readFile(f.registry)).delivered, {});
+});
+
+test('registry contention cannot silently lose a successfully registered version', async t => {
+  const f = await fixture(t);
+  const program = String.raw`
+import importlib.util, json, pathlib, sys, threading
+spec = importlib.util.spec_from_file_location('publisher', sys.argv[1])
+publisher = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(publisher)
+project = pathlib.Path(sys.argv[2])
+registry = pathlib.Path(sys.argv[3])
+declaration = {'delivered': {'path': 'scripts/versions.json', 'key': 'delivered'}}
+identities = [{'version': '1.0.0', 'integrity': 'first'}, {'version': '1.0.1', 'integrity': 'second'}]
+first_read, release_first = threading.Event(), threading.Event()
+original_read = publisher.read_json
+def paused_read(path):
+    document = original_read(path)
+    if pathlib.Path(path) == registry and threading.current_thread().name == 'first-registration':
+        first_read.set()
+        if not release_first.wait(10): raise RuntimeError('First registration was not released')
+    return document
+publisher.read_json = paused_read
+def register(identity):
+    try:
+        return {'registered': publisher.delivered_registry(project, declaration, identity, register=True)}
+    except ValueError as error:
+        return {'registered': False, 'error': str(error)}
+first = {}
+worker = threading.Thread(target=lambda: first.update(register(identities[0])), name='first-registration')
+worker.start()
+try:
+    if not first_read.wait(10): raise RuntimeError('First registration did not read the registry')
+    second = register(identities[1])
+    before_release = original_read(registry)
+finally:
+    release_first.set()
+    worker.join(10)
+if worker.is_alive(): raise RuntimeError('Registration did not finish')
+publisher.read_json = original_read
+after_race = original_read(registry)
+recovered = register(identities[1])
+print(json.dumps({'first': first, 'second': second, 'beforeRelease': before_release,
+                 'afterRace': after_race, 'recovered': recovered, 'final': original_read(registry)}))
+`;
+  const output = await new Promise((done, reject) => {
+    const child = spawn(python, ['-c', program, f.script, f.project, f.registry], {
+      cwd: f.other, windowsHide: true, timeout: 30_000,
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1' },
+    });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', value => { stdout += value; });
+    child.stderr.on('data', value => { stderr += value; });
+    child.on('error', reject);
+    child.on('close', code => done({ code, stdout, stderr }));
+  });
+  assert.equal(output.code, 0, output.stdout + output.stderr);
+  const result = JSON.parse(output.stdout);
+  assert.equal(result.first.registered, true);
+  for (const [identity, outcome] of [['1.0.0', result.first], ['1.0.1', result.second]]) {
+    if (outcome.registered) assert.ok(result.afterRace.delivered[identity], `Lost successful registration ${identity}`);
+  }
+  assert.equal(result.second.registered, false);
+  assert.match(result.second.error, /registry.*in use/i);
+  assert.deepEqual(result.beforeRelease.delivered, {});
+  assert.equal(result.recovered.registered, true);
+  assert.deepEqual(result.final, { unrelated: 'preserve', delivered: {
+    '1.0.0': { integrity: 'first' }, '1.0.1': { integrity: 'second' },
+  } });
+  assert.equal((await readdir(dirname(f.registry))).some(name => name.includes('publication-lock')), false);
+  assert.equal(f.requests.length, 0);
+});
+
+test('registry contention after upload recovers through original readback without another PUT', async t => {
+  const f = await fixture(t);
+  const lock = join(dirname(f.registry), '.versions.json.publication-lock');
+  f.afterPut = () => mkdir(lock);
+  const failed = await run(f);
+  assert.equal(failed.code, 1);
+  assert.match(failed.result.reason, /registry.*in use/i);
+  assert.deepEqual(f.remote, f.raw);
+  assert.equal(JSON.parse(await readFile(join(f.evidence, 'publication.json'))).nexusByteReadback, true);
+  assert.deepEqual(JSON.parse(await readFile(f.registry)).delivered, {});
+  f.afterPut = undefined;
+  await rmdir(lock);
+  const recovered = await run(f);
+  assert.equal(recovered.code, 0, recovered.stdout + recovered.stderr);
+  assert.equal(recovered.result.deliveredRegistered, true);
   assert.equal(f.requests.filter(request => request.method === 'PUT').length, 1);
 });
