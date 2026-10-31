@@ -839,9 +839,10 @@ async function capabilities(client2, options, requireSupported = true, deadline)
   }
   return jobs;
 }
-async function importOptions(args) {
+async function importOptions(args, job = false) {
   const value = args.has("options-json") ? await readJsonInput(args.value("options-json"), "Import options") : { ...defaultOptions };
-  if (!isObject(value) || Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import options must be a JSON object of at most 65536 bytes.");
+  if (!isObject(value)) throw invalid("Import options must be a JSON object.");
+  if (job && Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import job options must be at most 65536 bytes.");
   return value;
 }
 function query(fields) {
@@ -993,16 +994,19 @@ async function dataImportCommands(ctx) {
     const root2 = `${client2.root}/imports/jobs`;
     const wait2 = action === "wait" || args.has("wait");
     const deadline = wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
+    if (action === "capabilities") {
+      reporter.print(await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`));
+      return 0;
+    }
     if (action === "template") {
       const options = await importOptions(args), out = args.required("out");
-      const jobs = await capabilities(client2, options, true, deadline);
-      reporter.print(await saveFile(client2, "POST", `${client2.root}/imports/template`, out, jobs.limits.maximumFileBytes, options));
+      reporter.print(await saveFile(client2, "POST", `${client2.root}/imports/template`, out, void 0, options));
       return 0;
     }
     if (action === "check") {
       requestId = requireId(args.value("request-id") ?? randomBytes3(16).toString("hex"), "--request-id");
       reporter.progress(`Request ID: ${requestId}. ${hint(client2.entity, void 0, requestId)}`);
-      const options = await importOptions(args), input3 = resolve2(args.required("file"));
+      const options = await importOptions(args, true), input3 = resolve2(args.required("file"));
       if (extname(input3).toLowerCase() !== ".xlsx") throw invalid("--file must be an XLSX file.");
       const jobs = await capabilities(client2, options, true, deadline);
       const info = await stat(input3);
@@ -3841,11 +3845,11 @@ var workforceOperations = [
   define6("enterprise open", "GET", "/context", { browser: "enterprise-management" }),
   define6("task list", "GET", "/tasks"),
   define6("task show", "GET", "/tasks/{task-id}"),
-  define6("task create", "POST", "/tasks", { input: "object" }),
-  define6("task update", "PUT", "/tasks/{task-id}", { input: "object" }),
-  define6("task confirm", "POST", "/tasks/{task-id}/confirm"),
+  define6("task create", "POST", "/tasks", { input: "object", taskReceipt: "creationIssues" }),
+  define6("task update", "PUT", "/tasks/{task-id}", { input: "object", taskReceipt: "executionAdmission" }),
+  define6("task confirm", "POST", "/tasks/{task-id}/confirm", { taskReceipt: "confirmationIssues" }),
   define6("task assist", "POST", "/tasks/{task-id}/assist", { input: "object" }),
-  define6("task status", "PUT", "/tasks/{task-id}/status", { input: "object" }),
+  define6("task status", "PUT", "/tasks/{task-id}/status", { input: "object", taskReceipt: "executionAdmission" }),
   define6("task attach", "POST", "/tasks/{task-id}/channels", { input: "object" }),
   define6("task reminder get", "GET", "/tasks/{task-id}/reminder"),
   define6("task reminder set", "PUT", "/tasks/{task-id}/reminder", { input: "object" }),
@@ -3894,6 +3898,11 @@ var applicationUserOperations = [
   retail("context", "GET", "/context"),
   retail("customers", "GET", "/customers", { query: ["search", "order", "cursor", "includeArchived", "archivedOnly"] }),
   retail("customer describe", "GET", "/records/objects/{object-id}/describe"),
+  retail("customer options", "GET", "/records/objects/{object-id}/fields/{field}/options", {
+    query: ["page", "pageSize", "search", "selected"],
+    repeatedQuery: ["selected"],
+    description: "Read current field choices and saved selections. Query JSON supports page, pageSize, search and selected; selected can be an array of original values."
+  }),
   retail("customer show", "GET", "/records/objects/{object-id}/records/{record-id}"),
   retail("customer create", "POST", "/records/objects/{object-id}/records", { input: true }),
   retail("customer update", "PUT", "/records/objects/{object-id}/records/{record-id}", { input: true }),
@@ -4036,7 +4045,8 @@ command("file preview-asset", [...api2, "id", "asset-id", "out"], [slot("id"), s
 var importTarget = [...api2, "entity", "application"];
 var importJob = [...importTarget, "job"];
 var importWait = ["wait", "wait-timeout", "poll-interval"];
-command("data import template", [...importTarget, "options-json", "out"], [slot("entity")], "Download a signed XLSX template for a supported import job.");
+command("data import capabilities", importTarget, [slot("entity")], "Read the current import fields, bindings, job availability and limits, including reasons when jobs are unavailable.");
+command("data import template", [...importTarget, "options-json", "out"], [slot("entity")], "Download a signed XLSX template through the original template service; job eligibility is checked when submitting a job.");
 command("data import check", [...importTarget, "options-json", "file", "request-id", ...importWait], [slot("entity")], "Upload and check one complete XLSX without writing business records; preserve the request ID.");
 command("data import list", [...importTarget, "request-id", "import-source-key", "status", "cursor", "page-size"], [slot("entity")], "List your jobs or find an interrupted upload by request ID.");
 command("data import show", importJob, [slot("entity"), slot("job")], "Read one job without starting or resuming it.");
@@ -4161,7 +4171,7 @@ for (const operation of applicationUserOperations) command(
     ...operation.query ? ["query-json"] : []
   ],
   routeParameters(operation.route).map((name) => slot(name)),
-  "Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft."
+  operation.description ?? "Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft."
 );
 function words(args) {
   return args.commands.map((word, index) => {
@@ -5859,6 +5869,13 @@ async function workforceCommands(ctx) {
   };
   const recovery2 = operation.publication ? "Application message outcome is unknown. Preserve the original application, target and clientMessageId. Look up the original request if its channelId is known; do not resend or replay a batch." : operation.path.startsWith("workforce speech ") ? "Speech outcome is unknown. Read the current speech catalog before another action; do not replay this write or a batch." : "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.";
   const result = operation.method === "GET" ? await call() : await writeOnce(call, recovery2, details);
+  const taskReceipt = result?.[operation.taskReceipt];
+  if (operation.taskReceipt && (Array.isArray(taskReceipt) && taskReceipt.length > 0 || taskReceipt === "unavailable"))
+    throw new CliError("The task was saved, but its channel association or AI execution did not fully complete.", {
+      code: "partial_success",
+      hint: "Keep the saved task. Read that task and its execution conversation or channel associations before continuing; do not create it again or replay the batch.",
+      details: { ...details, taskId: result.id ?? args.value("task-id"), result }
+    });
   if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", {
     code: "execution_failed",
     hint: "Inspect the original session and command result before another action. Do not replay the command or batch.",
@@ -5878,9 +5895,12 @@ async function applicationUserCommand(ctx) {
   for (const [key, value] of Object.entries(operation.queryDefaults ?? {})) url.searchParams.set(key, value);
   if (operation.query && args.has("query-json")) {
     const query2 = await readJsonInput(args.value("query-json"), "Application query", { stdin: ctx.stdin });
-    if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((value) => !["string", "boolean", "number"].includes(typeof value)))
-      throw new CliError("Use native supported query keys and scalar values.", { code: "invalid_arguments" });
-    for (const [key, value] of Object.entries(query2)) url.searchParams.set(key, String(value));
+    if (!isObject(query2) || Object.entries(query2).some(([key, value]) => !operation.query.includes(key) || !["string", "boolean", "number"].includes(typeof value) && !(operation.repeatedQuery?.includes(key) && Array.isArray(value) && value.every((item) => typeof item === "string"))))
+      throw new CliError("Use native supported query keys and scalar values; repeated query keys also accept arrays of strings.", { code: "invalid_arguments" });
+    for (const [key, value] of Object.entries(query2)) {
+      if (Array.isArray(value)) for (const item of value) url.searchParams.append(key, item);
+      else url.searchParams.set(key, String(value));
+    }
   }
   let body;
   if (operation.input) {

@@ -147,9 +147,11 @@ async function capabilities(client, options, requireSupported = true, deadline) 
   return jobs;
 }
 
-async function importOptions(args) {
+async function importOptions(args, job = false) {
   const value = args.has('options-json') ? await readJsonInput(args.value('options-json'), 'Import options') : { ...defaultOptions };
-  if (!isObject(value) || Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid('Import options must be a JSON object of at most 65536 bytes.');
+  if (!isObject(value)) throw invalid('Import options must be a JSON object.');
+  // Only the job multipart protocol caps its options part at 65536 bytes.
+  if (job && Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid('Import job options must be at most 65536 bytes.');
   return value;
 }
 
@@ -298,16 +300,19 @@ export async function dataImportCommands(ctx) {
     const root = `${client.root}/imports/jobs`;
     const wait = action === 'wait' || args.has('wait');
     const deadline = wait ? performance.now() + args.integer('wait-timeout', 300) * 1000 : undefined;
+    if (action === 'capabilities') {
+      reporter.print(await jsonRequest(client, 'GET', `${client.root}/imports/capabilities`));
+      return 0;
+    }
     if (action === 'template') {
       const options = await importOptions(args), out = args.required('out');
-      const jobs = await capabilities(client, options, true, deadline);
-      reporter.print(await saveFile(client, 'POST', `${client.root}/imports/template`, out, jobs.limits.maximumFileBytes, options));
+      reporter.print(await saveFile(client, 'POST', `${client.root}/imports/template`, out, undefined, options));
       return 0;
     }
     if (action === 'check') {
       requestId = requireId(args.value('request-id') ?? randomBytes(16).toString('hex'), '--request-id');
       reporter.progress(`Request ID: ${requestId}. ${hint(client.entity, undefined, requestId)}`);
-      const options = await importOptions(args), input = resolve(args.required('file'));
+      const options = await importOptions(args, true), input = resolve(args.required('file'));
       if (extname(input).toLowerCase() !== '.xlsx') throw invalid('--file must be an XLSX file.');
       const jobs = await capabilities(client, options, true, deadline);
       const info = await stat(input);

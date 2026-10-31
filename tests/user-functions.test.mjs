@@ -103,6 +103,26 @@ test('retail discovers original customer conversations and continues the selecte
   assert.equal((await f.run(['retail', 'session', 'send', 'original', '--app-url', f.app.url, '--request-json', f.input('send', { content: [{ type: 'text', text: '继续接待' }], requestId: 'one' }), '--json'])).code, 0);
 });
 
+test('retail field options preserve paging, search and each original selection, including service denial', async t => {
+  let denied = false;
+  const choices = { page: 2, pageSize: 25, totalCount: 30, items: [{ value: 'native', label: '原选项' }],
+    selectedItems: [{ value: 'a/b', label: '已有甲' }, { value: 'saved & two', label: '已有乙', available: false }] };
+  const f = await member(t, (hit, res) => {
+    const url = new URL(hit.url, 'http://app');
+    assert.equal(url.pathname, '/api/cli/v1/applications/retail-assistant/records/objects/customer/fields/status__c/options');
+    assert.equal(url.searchParams.get('page'), '2'); assert.equal(url.searchParams.get('pageSize'), '25');
+    assert.equal(url.searchParams.get('search'), '原选择'); assert.deepEqual(url.searchParams.getAll('selected'), ['a/b', 'saved & two']);
+    respond(res, denied ? { error: 'records.field_unavailable' } : choices, denied ? 404 : 200);
+  });
+  const query = f.input('query', { page: 2, pageSize: 25, search: '原选择', selected: ['a/b', 'saved & two'] });
+  const args = ['retail', 'customer', 'options', 'customer', 'status__c', '--app-url', f.app.url, '--query-json', query, '--json'];
+  const result = await f.run(args); assert.equal(result.code, 0, result.stdout); assert.deepEqual(output(result).data, choices);
+  denied = true;
+  const rejected = await f.run(args); assert.equal(rejected.code, 1); assert.equal(output(rejected).error.serverCode, 'records.field_unavailable');
+  writeFileSync(query, JSON.stringify({ page: [1, 2] }));
+  assert.equal(output(await f.run(args)).error.code, 'invalid_arguments'); assert.equal(f.app.hits.length, 2);
+});
+
 test('account and enterprise entries preserve native browser confirmation without performing identity writes', async t => {
   const f = await member(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human', applicationId: 'APP' }));
   for (const action of ['account', 'enterprise']) {

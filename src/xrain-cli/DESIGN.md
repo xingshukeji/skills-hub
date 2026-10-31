@@ -4,7 +4,7 @@ Status: Active
 Kind: CurrentDesign
 Scope: skills-hub / xrain-cli 的平台连接、智能体入口、身份诊断与设置管理
 Owner: skills-hub 维护者
-Updated: 2026-10-31
+Updated: 2026-11-01
 Depends On:
 - ../../AGENTS.md
 - ../../skills/shzw-xrain-cli/SKILL.md
@@ -28,6 +28,10 @@ Runtime 会话的停止、问题取消、命令及模型操作沿公开工作台
 执行动作按各自原生 DTO 声明结果判断：HTTP 与编排使用 isSuccess；账户和连接检查使用对应布尔值或状态；投递区分受理、失败、未知及跳过。Runtime 命令与 Workforce 转发使用 execution.result.kind。失败或未知返回非零退出码并停止 batch，保留原回执；历史和记录查询不据其业务失败状态改变退出码。Host 构建、组件与版本查询及时间解析沿原生允许范围执行。
 
 Workforce 命令使用明确 `--workforce` 地址、原平台登录会话和实际 applicationId。宿主专用 `/api/cli/v1` 每次核验主体、租户及应用准入，再调用原 Task、消息、工作台和计划任务处理器；不把 Token 通用于网页路由。Task grant 由宿主内部准备并交给 Runtime，不交给 CLI。计划任务启用时宿主复验并保存同一主体的原凭据；CLI 不借管理员或浏览器会话，不持有第二套调度状态。
+
+Task 写入保留原保存回执。挂载或 AI 接纳未完成时返回 partial_success 并停止 batch；回读仍是成功的查询，不重新触发任务执行。接待字段选项通过原应用的获权接口读取，保留每个 selected 值及分页；应用决定字段是否可见和可选。
+
+导入能力查询返回原服务的当前能力及不可用原因。下载模板只调用原模板服务，不以分块作业资格、上传文件上限或分块 options 字节上限作为前提。提交作业继续按服务当前资格和上传协议判断，下载继续保护目标文件及完整长度。
 
 应用发布使用原 `/api/application-messages` 和执行者凭据，不经 Workforce 成员别名。原服务核验发布应用及机器人目标资格；CLI 保留应用、目标和 clientMessageId，分别报告 accepted、saved、failed 与查询 unknown，结果不明不重发。本人回答反馈和语音经成员别名复用原会话权限、反馈存储及 speech Remote；语音输入能力由当前目录声明，CLI 传递原音频字节和选择，不自动准备模型或发送识别文字。
 

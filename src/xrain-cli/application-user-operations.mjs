@@ -13,6 +13,8 @@ export const applicationUserOperations = [
   retail('context', 'GET', '/context'),
   retail('customers', 'GET', '/customers', { query: ['search', 'order', 'cursor', 'includeArchived', 'archivedOnly'] }),
   retail('customer describe', 'GET', '/records/objects/{object-id}/describe'),
+  retail('customer options', 'GET', '/records/objects/{object-id}/fields/{field}/options', { query: ['page', 'pageSize', 'search', 'selected'], repeatedQuery: ['selected'],
+    description: 'Read current field choices and saved selections. Query JSON supports page, pageSize, search and selected; selected can be an array of original values.' }),
   retail('customer show', 'GET', '/records/objects/{object-id}/records/{record-id}'),
   retail('customer create', 'POST', '/records/objects/{object-id}/records', { input: true }),
   retail('customer update', 'PUT', '/records/objects/{object-id}/records/{record-id}', { input: true }),

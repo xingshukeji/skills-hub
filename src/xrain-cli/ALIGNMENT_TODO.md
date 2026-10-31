@@ -1,99 +1,56 @@
 # XRain CLI 用户功能对齐
 
-核对日期：2026-10-31。范围：XRain 平台、Workforce 标准功能及现有公共子应用。CLI 维护者为 skills-hub；各产品仍持有自己的业务规则。
+核对日期：2026-11-01。范围：当前 Node.js CLI、XRain 平台、Workforce、Runtime 和现有公共子应用。任务类型为 Development。CLI 由 skills-hub 维护，各产品保留业务规则和状态所有权。
 
-## 对齐口径与结论
+## 判断口径
 
-对齐以用户任务为单位：用户在产品中能完成什么，CLI 是否能以同一身份和权限完成相同操作，并取得可继续使用的业务结果。存在接口、通用记录命令或通过工程检查，均不能单独证明子应用功能已经对齐。
+按用户从发现入口、读取与操作、取得回执、保存后重入到失败后继续的任务核对。命令存在只证明可达；源码、CLI 替身、原处理器隔离验证和共享环境实读分别记录。旧 .NET CLI 保持退役。
 
-已补齐确认的用户功能：群管理与本人附件、其他消息操作、个人功能组合及应用目录、原邮件 AI、顾客接待、企业发现及公开浏览，以及保留本人确认的账号和企业管理页面入口。应用消息发布与回查、助手回答反馈和语音复用原入口。文件与包的大小规则归服务，原始响应与包流式保存；普通对话不套用临时文本限制，原请求号与 Runtime 完成状态保持原义。实现复用原业务处理器和权限规则；没有另建业务存储或执行状态。
+本轮重新追踪当前源码，确认并修复三项差距：导入模板误用分块资格、Task 部分完成误报成功、顾客字段选项缺少应用内 CLI 入口。下表中的“实现对齐”表示已找到对应业务入口及恢复路径，不表示每个真实角色都完成了实环境验收。
 
-“已有主要入口”只表示源码中存在相应业务命令，不表示每个角色、字段和失败场景均已完成实环境验收。“部分覆盖”分别列出已能完成的动作和缺失环节，不把整个模块判为已有或没有。
+## 用户任务对照
 
-## XRain 平台
-
-| 用户任务 | CLI 现状 | 功能结论与剩余事项 |
+| 用户任务 | 当前 CLI 与原业务结果 | 本轮判断和证据范围 |
 |---|---|---|
-| 登录、查看当前身份、发现及选择企业 | auth login/whoami/tenants、profile。 | 本人企业发现使用当前平台会话读取原 security/tenants；不借用 Host 企业列表，不切换当前连接。 |
-| 查询、录入和修改业务记录 | data 提供查询、单条及集合写入、字段选项、原值。 | 已有主要入口；按实际对象权限使用。不能因此认定具体子应用的完整流程已覆盖。 |
-| 分享记录、转移负责人、查看历史 | data 的分享、Owner 与历史命令。 | 已有主要入口；保持平台的对象、字段及记录范围。 |
-| 导入和导出业务文件 | data import、export-file 等命令。 | 已有主要入口；当前可恢复导入路径已经覆盖的用户任务，不因缺少旧接口别名另算功能缺口。 |
-| 设计对象、字段、视图、选项、记录类型和触发器 | metadata 命令组。 | 已有主要入口；创建、修改、删除和恢复仍按平台业务约束判断。 |
-| 管理企业成员、角色、权限集和组织 | security、host tenant member 等命令。 | 已有主要入口；区分全局身份与当前企业成员资格。 |
-| 配置应用、应用角色、使用范围和函数 | application 命令组。 | 已有主要入口；不能代替 Workforce 的本人可用应用目录和功能组合。 |
-| 配置编排、自动化、HTTP 集成、投递和存储 | orchestration、function、routine、http、email/feishu/sms、storage/file。 | 原始调试响应可流式保存，不受终端 JSON 缓冲上限影响；保留原错误响应，失败不重发。文件上传与下载大小由原服务判断。 |
-| 构建、发布、安装、升级和维护应用包 | app、market 命令组。 | 原包流式传输并核对清单、身份和摘要，不复制服务的固定大小限额；发布包、租户安装和本人能否打开应用是三种不同用户结果。 |
-| 浏览 Host 平台库及已就绪企业库的结构和样例 | host database sources/catalog/table；原 metadata dblink 保留。 | 已接入现有受控数据源、结构及样例读取；使用 Host 登录，数据源和读取范围由服务器决定。 |
+| 连接、统一登录、发现与切换企业、核对身份和应用准入 | profile 与 auth 使用平台登录；会话绑定服务器、租户和作用域。Workforce、邮箱和接待使用本人会话及实际应用。切换后不借用旧目标配置。 | 实现对齐。重新实读既有管理员的当前身份和四个可用企业；企业发现与原接口结果一致。浏览器全新登录、真实跨企业操作仍未验证。 |
+| 设计对象、字段、视图、选项和记录类型，删除后恢复 | metadata 保留 ETag、创建请求键、删除影响令牌及失败部署恢复；recycle 使用平台原回收站。 | 入口与合同对齐；元数据、权限、冲突及恢复由现有定向测试验证，未在共享租户修改结构。 |
+| 查询与写入记录、选用视图、分享、转移负责人和查看历史 | data 与 metadata view 复用平台查询、记录、共享及历史；单记录创建可用原 requestKey 回查，集合保留逐项结果。 | 实现对齐。实读查询能力与原接口一致；写入、共享和恢复为隔离证据，未写共享业务数据。 |
+| 取模板、检查完整文件、分块导入、暂停恢复、导出文件 | data import capabilities 返回当前能力及不可用原因；template 独立调用原模板服务，不套用分块资格、上传文件或选项大小限制；作业仍核对当前资格和计划修订，保留已提交进度。 | 已修复模板误拒。隔离验证覆盖分块不可用但模板允许、原服务拒绝、分块选项限制保留、断流和文件不覆盖；共享平台能力结果与原接口一致，模板实际下载成功。真实导入提交未执行。 |
+| 上传下载文件、附件和原始响应 | file、Workforce attachment 及原始输出流式传递；服务决定业务限额，客户端保留长度、摘要、清单解码、临时文件及不覆盖保护。 | 实现对齐；本轮沿既有大文件、拒绝、断流、磁盘失败与恢复测试复验，不把本地资源预算当作业务配额。 |
+| 找人、单聊群聊、群管理、消息编辑撤回、转发、搜索、草稿和附件 | workforce people/channel/group/message/search/draft/attachment 沿原处理器；各转发目标独立提交，来源范围和版本不变。 | 实现对齐；当前 CLI 与宿主隔离回归核对身份、群角色、冲突和范围，未发送真实消息。 |
+| 应用机器人发通知并查回执 | application-message 使用原执行者凭据和 clientMessageId，区分 accepted、saved、failed 和 unknown；不借成员接口发布。 | 实现对齐；原发布处理器及独立 CLI 消费验证，未向真实群或公告发布。 |
+| 建立和交办 Task、改派、状态、挂载、提醒及执行对话 | workforce task 保留原任务；创建、确认、改派或重开后的挂载/AI 接纳失败返回 partial_success，batch 停止并保留失败步骤回执。 | 已修复部分完成误报。原处理器验证 AI 拒绝后原任务恢复且不重复执行；CLI 验证只写一次、停止后续步骤、读取原任务和服务拒绝。accepted 不表示 AI 已完成。 |
+| 建立和修改计划、启用暂停、读历史、处理问题和取消运行 | workforce schedule 调用原计划及运行接口；主体凭据、调度和执行历史由宿主持有。 | 实现对齐；按原服务已有动作核对，不编造原产品未提供的计划删除等功能。真实调度运行未验证。 |
+| 定义、工具、工作区、订阅和应用选用 | agent definition/tool/workspace/policy/subscription/application 使用原版本、工具目录和资格；保存后读原定义，申请不等于批准。 | 实现对齐；现有定向测试覆盖并发、启停、导入导出、工作区切换及上下文，未改真实定义或订阅。 |
+| 与助手对话、续聊、回读工具和终态、提问审批、取消与恢复 | agent chat 与 workforce session 保留原 sessionId/requestId；等待或回读不重发。工具结果和无文字完成按原终态报告，Ctrl+C 只结束本地观察。 | 实现对齐；隔离回归覆盖迟到回执、断流、历史分页、问题/审批、取消及模型和命令。真实模型与工具闭环未验证。 |
+| 受管单次执行与临时文本 | agent run start/show 按原 runId 查询服务的有界结果；ephemeral 使用原纯文本协议，没有持久会话、工具和历史。 | 与当前服务能力对齐。受管回执丢失没有客户端请求键可恢复，当前服务也无受管 runId 取消接口；CLI 如实保留未知，不另造恢复状态或自动重放。 |
+| 回答反馈和语音 | workforce session feedback 与 speech 复用原会话、回答、本人反馈和 speech Remote；语音识别不自动发送。 | 实现对齐；原处理器与 CLI 隔离验证已覆盖撤销、非助手回答、失权、服务未就绪及原音频输入。未下载模型或录制真实音频。 |
+| 本人功能组合、应用目录、账号绑定和企业管理 | composition 保存本人的选择；applications 返回实际准入和打开地址。account/enterprise open 返回或打开原确认页面；平台 security/host 管理已有成员和角色。 | 实现对齐；组合回读和身份隔离为原处理器证据。成员代登录、本人绑定及返回保留网页确认，未改变真实账号或权限。 |
+| 独立邮箱：账户、文件夹、搜索、原邮件、AI 和草稿 | mail 访问原邮箱；app search/read 保留原 reference，assist 仅返回建议，app draft 显式保存并校验原草稿回执。 | 实现对齐；原应用和 CLI 隔离证据覆盖原引用及明确保存。没有真实邮箱收读/草稿验收；发信、删除、移动、归档不属于当前个人邮箱范围。 |
+| 顾客接待：查询、登记、编辑、字段选项和继续原对话 | retail context/customer/options 使用实际对象和字段；selected 可传多个原值。conversation 复用原顾客、本人和 AI 的会话，明确 createNew 才另开。 | 已补字段选项。原应用用相同身份、租户、应用和输入对照网页与 CLI 路径，结果一致；失去字段权限、换对象或撤销准入后拒绝。保存、冲突和顾客关联由原处理器隔离验证。 |
+| 应用管理、市场和应用包开发安装 | application 管理治理；app 构建、发布、导入、安装、升级及操作恢复；market 按精确版本读包，核验身份和摘要，公开包允许匿名浏览。 | 实现对齐；继续区分包已安装、应用已准入和 Workforce 目录可打开。现有定向测试覆盖服务拒绝、恢复和制品完整性，本轮未发布或安装真实包。 |
 
-## Workforce
+## 本轮验证与未验证范围
 
-| 用户任务 | CLI 现状 | 功能结论与剩余事项 |
-|---|---|---|
-| 找人、发起私聊、创建群聊和退出群聊 | workforce people、channel list/dm/group/leave。 | 已有主要入口。 |
-| 邀请成员、申请入群、处理申请、改群设置、调整角色、移除成员、转让群主 | workforce group show/update/invite/apply/decide/member-role/remove-member/transfer。 | 已接入原群治理，保留邀请凭据、当前版本及群主、管理员和普通成员规则。 |
-| 发送、读取、编辑、撤回消息及按会话检索 | workforce message 命令组。 | 已有主要入口；仍使用原消息和会话身份。 |
-| 转发消息、添加或撤销表情、明确标读或标未读、恢复草稿、跨会话搜索消息 | workforce message forward/react/read/read-all/unread、draft get/set、search。 | 已接入同一原消息和本人草稿；保留冲突、搜索游标及来源会话隔离。每个转发目标有独立请求和结果。 |
-| 从本地上传附件、发入会话、按会话权限查看和下载附件 | workforce attachment upload/list/download，再使用 message send。 | 已接入本人的原文件处理器，独立核验文件及消息范围；不以平台服务凭据代替本人权限。 |
-| 以已授权应用机器人发布通知并查原回执 | workforce application-message send/lookup。 | 使用原执行者凭据、发布应用及目标，机器人保留作者身份；accepted 与 saved 分开，回执不明不自动重发。 |
-| 建立任务、确认交办、改派、更新状态、挂载会话、请求 AI 协助、提醒和查看执行对话 | workforce task 命令组。 | 已有主要入口；需要按人工负责、AI 负责和主动协助分别验收。 |
-| 新建和修改计划任务、启用、暂停、查看历史、处理运行中的问题或取消 | workforce schedule 命令组。 | 已有主要入口；不把原产品没有提供的操作编造成 CLI 功能。 |
-| 在我的助手中选择智能体、开始和继续对话、读历史、停止、响应问题和审批、切换模型 | agent 与 workforce session 命令组。 | 沿原服务判断输入，保留原请求与响应编号；Runtime 完成而没有文字回复时仍返回原完成和工具结果。侧栏显示、切页和布局不要求复制成终端界面。 |
-| 对原助手回答提交、读取和撤销反馈 | workforce session feedback list/set。 | 原 Runtime 核验会话和助手回答，反馈按原本人身份保存和读取，撤销继续提交原回答。 |
-| 选择已有语音服务、准备或取消准备、将本地音频转成文字 | workforce speech catalog/configure/prepare/cancel-preparation/transcribe。 | 复用原 speech Remote、选择及输入能力；保留原不可用和拒绝结果，不自动准备模型或发送识别文字。 |
-| 与 AI 员工消息协作或交办工作 | 原消息处理器及 task assist 等命令可达。 | 已有主要入口。自然语言请求继续进入原员工处理流程，不要求每个 AI 工具另造 CLI 命令。 |
-| 修改本人在线功能组合 | workforce composition get/set。 | 已接入当前选择、可选功能及原依赖处理；只保存本人的在线选择，关闭功能不删除业务数据。 |
-| 查看本人实际可用的独立应用及其打开地址 | workforce applications。 | 已接入原应用中心目录，保留实际接入、本人准入、打开地址及 incomplete；不以包安装代替可用性。 |
-| 查看本人已绑定登录方式并发起绑定 | workforce account open，可用 --no-browser 仅取入口。 | 打开原账号页面；本人验证和第三方授权仍在原页面完成，不后台绑定或替换身份。 |
+CLI 定向及完整 Skill 消费测试见 [导入](../../tests/data-import.test.mjs)、[Task 回执](../../tests/workforce-cli.test.mjs)、[用户功能](../../tests/user-functions.test.mjs)和[独立消费](../../tests/cli-alignment-bundle.test.mjs)。顾客原入口对照见 [独立应用测试](../../../xrain-workforce/applications/retail-assistant/tests/server.test.mjs)，Task 的保存和重入见 [原回执测试](../../../xrain-workforce/tests/task-write-receipts.test.mjs)。
 
-## 公共子应用
+共享平台实读复用 anbang-dev01 的已有 xrain-test-host 身份和租户 00k01a1551dfeae60vvl。企业列表、查询能力、顾客对象导入/导出能力与同身份原接口结果一致。不存在对象返回相同 404 和业务错误；现部署的 gender__c 选项请求返回相同 400，未把现部署不支持该字段请求改报为成功。模板从原服务下载为 5276 字节；此事实只证明该对象当次模板请求。
 
-| 子应用及用户任务 | CLI 入口及复用能力 | 当前用户结果 |
-|---|---|---|
-| 个人邮箱：管理多个账户、检查连接、查看文件夹、搜索和读取邮件、保存原生草稿 | mail 命令已有这些主要入口，访问原邮箱而非创建邮件副本库。 | 基础动作已有入口；仍需用邮箱实际用户场景核验同一账户、原邮件引用和保存目标。 |
-| 个人邮箱：在当前邮件中选择 AI，总结邮件或拟写回复，再明确保存草稿 | mail ai list/subscribe、mail assist、mail app accounts/folders/search/read/draft。 | 已接入邮箱原 AI 目录和原邮件 assist；摘要/拟稿不保存、不发送。明确保存时写入原邮箱的新草稿。 |
-| 顾客接待：查找、登记、编辑顾客 | retail context/customers/customer describe/show/create/update。 | 已接入接待应用的实际对象、字段与原资料读写；按本企业元数据和原权限登记、修改并回读，不假定所有企业使用相同字段。 |
-| 顾客接待：选定顾客、查原接待对话、选择获准智能体、新建或续接同一顾客的对话 | retail context/customers/customer、agents、conversation list/start、session。 | 已接入实际对象和字段、原顾客关联及应用选定 AI。默认查复用原对话；明确 createNew 才另开话题，保存后回读原资料。 |
-| 企业管理：查看和开通成员、编辑资料、停用或恢复成员资格、分配已有角色 | 子应用和 CLI 使用相同的平台成员及角色接口。 | 主要动作可复用，不能误报整个企业管理缺失；仍需按企业管理员的实际角色验收。 |
-| 企业管理：以成员身份查看工作页面并返回 | workforce enterprise open。 | 打开原企业管理页，由管理员在原页面选择成员、确认代登录及返回。CLI 不签发或保存代登录身份。 |
-| 智能体定义管理：创建、修改、启停、导入导出、选择工具和工作目录、配置个人订阅或应用选用 | agent definition/tool/workspace/policy/subscription/application。 | 已有主要入口。表单展示差异不单独算 CLI 缺口，实际配置和使用资格仍需一致。 |
-| 应用开发与应用市场：应用治理、包开发发布、版本查看、安装升级和维护 | application、app、market。 | 主要动作已有入口；不要把包安装等同应用已在 Workforce 目录可用。 |
-| 应用市场：未登录浏览公开包 | app list --exchange；market show/versions/manifest/components/download。 | 公开只读不再强制登录，服务仍决定公开版本范围；维护及本人发布历史继续使用原市场身份。 |
+同一对象的模板请求还接受了 90166 字节的有效选项，返回 247529 字节模板。该原服务结果证明模板不能套用分块上传的 65536 字节选项限制；CLI 对分块上传仍保留该原协议限制。
 
-## 本轮工作项结果
+测试市场的公开目录用无登录状态读取，与网页原接口同为 200 和空列表。此结果证明匿名目录可达，不能证明非空包的版本查看、下载或安装已在该环境实测。
 
-已认可的工作项均已落实到 CLI 和相应业务入口。操作及原 DTO 示例随完整 Skill 交付，见 [Workforce](../../skills/shzw-xrain-cli/references/workforce.md)与[子应用](../../skills/shzw-xrain-cli/references/applications.md)。本轮没有遗留的功能实现项；共享部署与真实角色验收的证据范围见下文。
+以下保留为未验证，不归并成“全功能真实闭环通过”：
 
-| 工作项 | 用户结果与责任方 | 已实现与隔离验证的结果 |
-|---|---|---|
-| 1 | Workforce 与 skills-hub：群管理和本人附件。 | 原群角色、邀请及审批、移除与转让已接通；本人附件经原上传与授权下载入口传递。 |
-| 2 | Workforce 与 skills-hub：消息转发、回应、已读、草稿和跨会话搜索。 | 操作原消息和草稿，保留版本冲突与来源隔离；各转发目标分别提交及记录结果。 |
-| 3 | Workforce 与 skills-hub：本人组合和实际可用应用。 | 组合保存后可回读、不同成员隔离；目录反映原应用准入与打开地址，失权后拒绝新增选择。 |
-| 4 | 邮箱应用与 skills-hub：原邮件 AI。 | 原邮箱和原邮件引用进入临时 AI；没有自动保存或发送，保存草稿是独立显式命令。 |
-| 5 | 顾客接待应用与 skills-hub：顾客到原对话。 | 顾客按实际字段保存及回读，旧对话按原顾客和 AI 查找复用，明确新建保持原业务对象关联。 |
-| 6 | 平台、市场与 skills-hub：本人企业、Host 数据库及公开包浏览。 | 本人企业读取不切换连接；Host 使用受控数据源；公开包匿名读取，维护仍要求市场登录。 |
-| 7 | 原账号与企业管理网页。 | CLI 仅打开或返回原页面和预期身份；本人验证、代登录确认与返回均保留原交互。 |
-| 8 | 文件服务与 skills-hub：下载大小职责。 | 移除本人附件、原文件及预览资产的客户端固定下载上限；大于原上限的流式下载、拒绝、断流清理及已有文件保护通过隔离回归。 |
-| 9 | Workforce 与 skills-hub：应用通知及公告。 | 原发布与原请求回查可达；保留执行者、机器人作者、原目标和请求号，失败及回执丢失均不自动重发。 |
-| 10 | Workforce 与 skills-hub：回答反馈。 | 对原助手回答提交、读取和撤销反馈；原会话拒绝、非助手消息及不同成员隔离通过原处理器验证。 |
-| 11 | Workforce 与 skills-hub：语音。 | 目录、配置、准备、取消准备及转写接入原 Remote；原字节、选择、服务输入能力、当前准入及未就绪分支通过隔离验证。 |
+- Workforce 与 Runtime：本机固定入口 15380、15381 在本轮核对时未监听；尚无当前宿主下的真实消息、计划、工具执行、反馈及语音闭环。运行所有者启动当前受支持宿主后，可沿已有身份和原会话补证。
+- 邮箱与公共子应用：真实邮箱引用/草稿、普通成员和失权角色、跨企业及跨应用重入尚未完整实测。继续使用已登记人物和获准测试资料，不另建身份或改真实权限来凑覆盖。
+- XRain 平台：共享结构修改、导入提交、分享写入和应用包安装未执行。按原任务需要在获准隔离数据范围补证，服务允许及拒绝分支的当前证据以源码和定向测试为界。
 
-## 不计为 CLI 缺口的内容
+本次没有需要另行产品决定的 CLI 差距。若要求受管单次执行具备持久恢复或按 runId 取消，应先由 Runtime 确认产品承诺和原生协议；不能以客户端命令存在代替服务能力。纯布局、窗口、动画和本地焦点不复制为 CLI 功能。
 
-- 窗口、Dock、页面排版、主题动画、拖拽布局、侧栏展开位置和本地焦点等纯显示或设备交互，不机械复制成终端功能。
-- 产品尚未实现、仍暂停或只是需求目标的能力，先由原产品确认交付范围，不能只记成 CLI 漏实现。
-- 演示应用、企业私有应用和任意第三方应用，不因目录里存在源码就默认属于已交付的公共子应用；按实际接入和用户任务另行核对。
-- CI 额度、包锁、操作系统矩阵、Runtime 内部恢复机制及已经完成的协议修复，不作为本次用户功能对齐的主待办。
-- 个人邮箱本期不提供的发信、删除、批量移动或归档，不因有底层服务能力就擅自加入个人入口。
+## 事实所有者
 
-## 依据与验证边界
-
-验证包含 CLI 消费、完整 Skill 独立消费及原业务处理器的隔离回归：群角色、邀请与审批、草稿冲突、转发隔离、附件范围、大文件传输、应用发布及回查、原回答反馈、语音 Remote、本人组合、应用准入、原邮箱 AI、顾客保存和对话关联。企业和市场读取保留原登录与匿名范围，错误身份和失权不触发业务写入。代码及隔离验证不代表共享环境中每个角色的实测签收；本轮未部署、未创建共享账号、未发送真实消息、下载语音模型或修改共享业务数据。旧服务需要更新到支持这些 CLI 路径的版本；不做网页 Cookie 回退。
-
-- 平台功能范围：[产品能力边界](../../../all_in_one/文档/项目/项目_XRain/产品契约/DOC-0020-低代码平台功能树.md)及其用户操作清单。
-- Workforce 标准功能：[产品需求目录](../../../xrain-workforce/文档/项目/项目_XRAIN_WORKFORCE/PRD/PRD-0000-功能目录.md)。
-- CLI 实际入口：[命令定义](schema.mjs)、[Workforce 命令](workforce-operations.mjs)、[管理命令](management.mjs)。
-- 消息与群：[业务处理器](../../../xrain-workforce/src/backend/plugins/messaging/host/routes.mjs)。
-- 功能组合与目录：[成员入口](../../../xrain-workforce/src/backend/bootstrap/http-server.mjs)、[应用目录](../../../xrain-workforce/src/backend/plugins/app-center/host/index.mjs)。
-- 邮箱 AI：[原邮件操作](../../../xrain-workforce/applications/mail/backend/routes/personal-mail-message-routes.mjs)。
-- 顾客接待及原记录对话：[资料与对话入口](../../../xrain-workforce/src/backend/plugins/xrain-records/host/routes.mjs)。
-- 企业管理复用：[成员入口](../../../xrain-workforce/src/backend/plugins/enterprise-management/host/index.mjs)、[平台客户端](../../../xrain-workforce/src/backend/platform/xrain-client.mjs)。
+- XRain 范围：[产品能力边界](../../../all_in_one/文档/项目/项目_XRain/产品契约/DOC-0020-低代码平台功能树.md)。
+- Workforce 范围：[产品需求目录](../../../xrain-workforce/文档/项目/项目_XRAIN_WORKFORCE/PRD/PRD-0000-功能目录.md)。
+- Runtime 执行：[受管执行](../../../xrain-harness/packages/xrain-agent-runtime/src/managed-agent-runs.ts)、[临时文本](../../../xrain-harness/packages/xrain-agent-runtime/src/ephemeral-runs.ts)与[工作台](../../../xrain-harness/packages/xrain-agent-runtime/src/workbench.ts)。
+- CLI 使用与恢复：[设计](DESIGN.md)、[完整命令说明](../../skills/shzw-xrain-cli/references/commands.md)、[Workforce](../../skills/shzw-xrain-cli/references/workforce.md)与[公共子应用](../../skills/shzw-xrain-cli/references/applications.md)。

@@ -90,6 +90,12 @@ export async function workforceCommands(ctx) {
     : operation.path.startsWith('workforce speech ') ? 'Speech outcome is unknown. Read the current speech catalog before another action; do not replay this write or a batch.'
     : 'Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.';
   const result = operation.method === 'GET' ? await call() : await writeOnce(call, recovery, details);
+  const taskReceipt = result?.[operation.taskReceipt];
+  if (operation.taskReceipt && (Array.isArray(taskReceipt) && taskReceipt.length > 0 || taskReceipt === 'unavailable'))
+    throw new CliError('The task was saved, but its channel association or AI execution did not fully complete.', {
+      code: 'partial_success', hint: 'Keep the saved task. Read that task and its execution conversation or channel associations before continuing; do not create it again or replay the batch.',
+      details: { ...details, taskId: result.id ?? args.value('task-id'), result },
+    });
   if (command && commandOutcome(result) === 'failed') throw new CliError('The Runtime command reported failure.', { code: 'execution_failed',
     hint: 'Inspect the original session and command result before another action. Do not replay the command or batch.', details: { ...details, result } });
   if (operation.publication && result.status === 'failed') throw new CliError('The application message was not saved.', { code: 'execution_failed', details: { ...details, result } });

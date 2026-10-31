@@ -30,6 +30,49 @@ function job(status, overrides = {}) {
 const output = result => JSON.parse(result.stdout);
 const baseArgs = ['--entity', entity, '--application', 'app-demo', '--json'];
 
+test('import discovery preserves unavailable capabilities and template download does not require job eligibility', async t => {
+  const f = fixture(t);
+  const unavailable = { ...capabilities, uniqueFields: [{ apiName: 'Id' }],
+    jobs: { ...capabilities.jobs, supported: false, unavailableReasons: ['import_jobs_disabled'], limits: { maximumFileBytes: 1 } } };
+  let denied = false;
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-import-application'], 'app-demo');
+    if (hit.url === `${root}/capabilities`) return respond(res, unavailable);
+    assert.equal(hit.url, `${root}/template`); assert.equal(hit.method, 'POST');
+    assert.deepEqual(hit.json(), options);
+    if (denied) return respond(res, { errorCode: 'import_template_forbidden' }, 403);
+    res.writeHead(200, { 'Content-Type': mime }); res.end('signed-template');
+  });
+  f.profile(service.url);
+  const discovered = await f.run(['data', 'import', 'capabilities', ...baseArgs]);
+  assert.equal(discovered.code, 0, discovered.stdout); assert.deepEqual(output(discovered).data, unavailable);
+  const optionsFile = join(f.directory, 'options.json'), destination = join(f.directory, 'template.xlsx');
+  await writeFile(optionsFile, JSON.stringify(options));
+  const args = ['data', 'import', 'template', ...baseArgs, '--options-json', optionsFile, '--out', destination];
+  const downloaded = await f.run(args);
+  assert.equal(downloaded.code, 0, downloaded.stdout); assert.equal(await readFile(destination, 'utf8'), 'signed-template');
+  assert.equal(service.hits.length, 2, 'template service owns its eligibility; no job capability precondition');
+  assert.equal(output(await f.run(args)).error.code, 'output_exists'); assert.equal(service.hits.length, 2);
+  denied = true;
+  const rejected = await f.run([...args.slice(0, -1), join(f.directory, 'denied.xlsx')]);
+  assert.equal(output(rejected).error.code, 'permission_denied'); assert.equal(output(rejected).error.serverCode, 'import_template_forbidden');
+});
+
+test('template JSON options do not inherit the job multipart part limit', async t => {
+  const f = fixture(t), largeOptions = { ...options, importBinding: { importSourceKey: 'original-source', parameters: { text: '原始参数'.repeat(6000) } } };
+  assert.ok(Buffer.byteLength(JSON.stringify(largeOptions)) > 65536);
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.url, `${root}/template`); assert.deepEqual(hit.json(), largeOptions);
+    res.writeHead(200, { 'Content-Type': mime }); res.end('signed-template');
+  });
+  f.profile(service.url);
+  const file = join(f.directory, 'large-options.json'); await writeFile(file, JSON.stringify(largeOptions));
+  const result = await f.run(['data', 'import', 'template', ...baseArgs, '--options-json', file, '--out', join(f.directory, 'large-template.xlsx')]);
+  assert.equal(result.code, 0, result.stdout);
+  const job = await f.run(['data', 'import', 'check', ...baseArgs, '--options-json', file, '--file', join(f.directory, 'source.xlsx')]);
+  assert.equal(output(job).error.code, 'invalid_arguments'); assert.equal(service.hits.length, 1, 'the actual job part limit is retained');
+});
+
 test('template, whole-file check and reviewed revision use the documented paths without implicit confirmation', async t => {
   const f = fixture(t), calls = [];
   const service = await mockServer(t, (hit, res) => {

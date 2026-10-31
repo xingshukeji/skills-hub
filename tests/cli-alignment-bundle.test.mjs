@@ -68,6 +68,10 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
       assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
       return respond(res, { objectType: 'native-customer', owner: { tenantId: 'TEN', userId: 'human' } });
     }
+    if (hit.url === '/api/cli/v1/applications/retail-assistant/records/objects/customer/fields/status/options?selected=original&selected=other')
+      return respond(res, { items: [], selectedItems: [{ value: 'original', label: '原值' }, { value: 'other', available: false }] });
+    if (hit.url === '/api/data/v1/entities/customer/imports/capabilities') return respond(res, { jobs: { supported: false, unavailableReasons: ['import_jobs_disabled'] } });
+    if (hit.url === '/api/cli/v1/tasks') return respond(res, { id: 'saved-task', creationIssues: ['execution'] });
     if (hit.url === '/api/service/authen/v1/security/tenants') return respond(res, [{ tenantId: 'TEN', userId: 'human' }]);
     if (hit.url === '/api/service/files/v1/files/file-one') return respond(res, { id: 'file-one', length: bytes.length, contentType: 'text/plain' });
     assert.equal(hit.url, '/api/service/files/v1/files/file-one/content');
@@ -95,6 +99,14 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   assert.equal(receipt.code, 0, receipt.stdout); assert.equal(receipt.result.data.status, 'saved');
   const mail = await run(['mail', 'ai', 'list', '--app-url', service.url]); assert.equal(mail.code, 0, mail.stdout); assert.equal(mail.result.data.items[0].id, 'mail-ai');
   const retail = await run(['retail', 'context', '--app-url', service.url]); assert.equal(retail.code, 0, retail.stdout); assert.equal(retail.result.data.objectType, 'native-customer');
+  const selectionFile = join(f.directory, 'selected.json'); writeFileSync(selectionFile, JSON.stringify({ selected: ['original', 'other'] }));
+  const choices = await run(['retail', 'customer', 'options', 'customer', 'status', '--app-url', service.url, '--query-json', selectionFile]);
+  assert.equal(choices.code, 0, choices.stdout); assert.equal(choices.result.data.selectedItems.length, 2);
+  const capabilities = await run(['data', 'import', 'capabilities', 'customer']);
+  assert.equal(capabilities.code, 0, capabilities.stdout); assert.equal(capabilities.result.data.jobs.supported, false);
+  const taskFile = join(f.directory, 'task.json'); writeFileSync(taskFile, JSON.stringify({ description: '原任务' }));
+  const partial = await run(['workforce', 'task', 'create', '--workforce', service.url, '--request-json', taskFile]);
+  assert.equal(partial.code, 1, partial.stdout); assert.equal(partial.result.error.code, 'partial_success'); assert.equal(partial.result.error.details.taskId, 'saved-task');
   const tenants = await run(['auth', 'tenants']); assert.equal(tenants.code, 0, tenants.stdout); assert.equal(tenants.result.data[0].tenantId, 'TEN');
   const downloaded = await run(['file', 'download', 'file-one', '--out', file]); assert.equal(downloaded.code, 0, downloaded.stdout); assert.deepEqual(readFileSync(file), bytes);
   assert.equal((await run(['routine', 'list'])).code, 0);

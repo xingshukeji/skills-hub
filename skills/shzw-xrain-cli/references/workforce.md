@@ -105,6 +105,8 @@ workforce session send <sessionId> --request-json <输入.json>
 
 创建和修改沿 Task 原生 description、assigneeId、dueAt 及挂载字段；只提交实际变化，不用状态更新绕过草稿确认。status 为 `{"status":"<允许的当前目标状态>"}`；assist 为 agentUserId、instruction；attach 为 channelId。本人提醒使用 task reminder get/set，set 为 enabled。Task 执行会话读取用 task execution-conversation。
 
+Task 已保存，但 creationIssues、confirmationIssues 非空或 executionAdmission=unavailable 时，命令返回 partial_success 和非零退出码；batch 停在该步，并在失败步骤中保留原 Task 和完整回执。先用 task show、task execution-conversation 核对原任务，再处理未完成的挂载或执行。不要重新创建任务或重放整批。executionAdmission=accepted 只说明 AI 已接纳；查询原任务或历史不会因既有执行失败而变成命令失败。
+
 Task 会话请求为 `{"taskId":"<原任务>","source":"xrain-cli","requestId":"<原请求>"}`，可显式带已获权的 agentId。宿主签发并保管 grant，CLI 不接收该值。本人普通会话改用 agentId，保留明确应用来源。session list 查询 source 使用创建时的来源；默认 workbench，读取 CLI 来源时显式为 xrain-cli。send 请求沿 Runtime 的 requestId、content 原输入结构；受理不代表本轮完成，回读原 session 的 history/pending 判断。
 
 session 还支持 subagents、commands、models 读取，command、model、respond、cancel-question 带原请求对象；cancel 明确停止原运行。respond/cancel-question 以 action-ref 定位，带原 responseId 和明确答案或审批决定。审批不得自动放行。Task 改派、撤权、暂停或恢复后的旧 grant 不得继续写入。

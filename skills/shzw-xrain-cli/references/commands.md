@@ -54,9 +54,12 @@ data delete <entity> <id>
 
 ### 完整文件导入
 
-先核对目标服务和对象是否支持 `xrain-import-jobs-v1`。使用相同主体、租户和选项下载模板、检查完整文件；如应用限定导入范围，每条命令都带相同的 `--application <应用ID>`。服务尚未实现或未启用该协议时命令会拒绝，不能改为循环调用旧原子导入。
+先运行 `data import capabilities`，读取当前对象的匹配字段、编排、分块导入资格、限制及不可用原因。模板由原模板服务生成，下载模板不要求分块作业已启用。提交完整文件检查时才核对 `xrain-import-jobs-v1` 资格；协议不可用时不能改为循环调用旧原子导入。
+
+使用相同主体、租户和选项下载模板、检查完整文件。如应用限定导入范围，每条命令都带相同的 `--application <应用ID>`。
 
 ```text
+data import capabilities --entity <对象>
 data import template --entity <对象> --options-json <选项.json> --out <新模板.xlsx>
 data import check --entity <对象> --options-json <选项.json> --file <完整文件.xlsx> --wait
 data import issues --entity <对象> --job <作业ID>

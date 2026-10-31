@@ -12,9 +12,13 @@ export async function applicationUserCommand(ctx) {
   for (const [key, value] of Object.entries(operation.queryDefaults ?? {})) url.searchParams.set(key, value);
   if (operation.query && args.has('query-json')) {
     const query = await readJsonInput(args.value('query-json'), 'Application query', { stdin: ctx.stdin });
-    if (!isObject(query) || Object.keys(query).some(key => !operation.query.includes(key)) || Object.values(query).some(value => !['string', 'boolean', 'number'].includes(typeof value)))
-      throw new CliError('Use native supported query keys and scalar values.', { code: 'invalid_arguments' });
-    for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
+    if (!isObject(query) || Object.entries(query).some(([key, value]) => !operation.query.includes(key) ||
+        !['string', 'boolean', 'number'].includes(typeof value) && !(operation.repeatedQuery?.includes(key) && Array.isArray(value) && value.every(item => typeof item === 'string'))))
+      throw new CliError('Use native supported query keys and scalar values; repeated query keys also accept arrays of strings.', { code: 'invalid_arguments' });
+    for (const [key, value] of Object.entries(query)) {
+      if (Array.isArray(value)) for (const item of value) url.searchParams.append(key, item);
+      else url.searchParams.set(key, String(value));
+    }
   }
   let body;
   if (operation.input) {

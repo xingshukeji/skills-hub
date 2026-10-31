@@ -108,7 +108,8 @@ command('file preview-asset', [...api, 'id', 'asset-id', 'out'], [slot('id'), sl
 const importTarget = [...api, 'entity', 'application'];
 const importJob = [...importTarget, 'job'];
 const importWait = ['wait', 'wait-timeout', 'poll-interval'];
-command('data import template', [...importTarget, 'options-json', 'out'], [slot('entity')], 'Download a signed XLSX template for a supported import job.');
+command('data import capabilities', importTarget, [slot('entity')], 'Read the current import fields, bindings, job availability and limits, including reasons when jobs are unavailable.');
+command('data import template', [...importTarget, 'options-json', 'out'], [slot('entity')], 'Download a signed XLSX template through the original template service; job eligibility is checked when submitting a job.');
 command('data import check', [...importTarget, 'options-json', 'file', 'request-id', ...importWait], [slot('entity')], 'Upload and check one complete XLSX without writing business records; preserve the request ID.');
 command('data import list', [...importTarget, 'request-id', 'import-source-key', 'status', 'cursor', 'page-size'], [slot('entity')], 'List your jobs or find an interrupted upload by request ID.');
 command('data import show', importJob, [slot('entity'), slot('job')], 'Read one job without starting or resuming it.');
@@ -185,7 +186,7 @@ for (const operation of workforceOperations) command(operation.path, [...target,
   'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.');
 for (const operation of applicationUserOperations) command(operation.path, [...target, 'app-url', 'application-id', 'auth', ...routeParameters(operation.route),
   ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
-  'Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft.');
+  operation.description ?? 'Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft.');
 
 function words(args) {
   return args.commands.map((word, index) => {
