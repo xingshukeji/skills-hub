@@ -8,11 +8,11 @@ Keep only current facts, runnable entrypoints, necessary boundaries, and unresol
 
 ## Load
 
-1. Read root `AGENTS.md` and `文档/TASK_CONTROL.md`.
-   Read `WORK_CANDIDATES.md` under `文档/` only when the task concerns known later work, candidate inventory, promotion, or completeness of remaining work.
-2. For a workspace change, read `文档/工作流/WORKFLOW_CONTRACT.md` and select one main Workflow; read WF-0004 before closeout.
+1. Read the target root `AGENTS.md`; resolve its actual task-control owner, workflow, structure contract and validation command from that entry. Routed repositories may use shared owners outside their root. Do not create local copies or demand a missing `文档/` tree merely to follow this method.
+   Read the declared candidate inventory only when the task concerns known later work, candidate inventory, promotion, or completeness of remaining work.
+2. For a workspace change, read the declared WorkflowContract and select one main Workflow; read its closeout workflow before delivery.
 3. Read the matched project `AGENTS.md` and only the ProductContract, CurrentDesign, Runbook or skill it routes to.
-4. Read `文档/WORKSPACE_STRUCTURE.md` only when creating, moving, deleting or classifying documents, or when the owner is unclear.
+4. Read the declared StructureContract only when creating, moving, deleting or classifying documents, or when the owner is unclear.
 
 ## Workflow
 
@@ -20,9 +20,9 @@ Keep only current facts, runnable entrypoints, necessary boundaries, and unresol
 2. Put cross-project human tasks in `/人类-文档/`, project-specific human guidance in the adjacent README, and agent routing or reusable methods in AGENTS/Workflow/skill. Do not treat every file a person may read as shzw-human-documentation content.
 3. Keep facts shared by people and agents in their sole ProductContract, CurrentDesign, Decision, Runbook, Material or source owner; expose them to people through links instead of copies. Split mixed documents before moving only the human task flow.
 4. Preserve the sole source of a current contract, design, decision, runnable procedure, safety constraint, material or unresolved Issue. Merge duplicate facts and delete absorbed reviews, completed plans, reports, placeholders and stale navigation without tombstones.
-5. Classify each task on three independent axes through `WORKFLOW_CONTRACT.md`: execution type, normal or controlled strength, and temporary or durable recovery. Never declare a project/session current phase or use CI, release gates, test tooling, breadth, candidates or environments to create an unrequested SystemTest. Put only user-authorized durable work and every active ChangePlan/SystemTestPlan/DeploymentPlan/Issue in `TASK_CONTROL.md`; controlled strength alone does not register work.
-6. Put only independent, evidence-backed, uncommitted outcomes in `WORK_CANDIDATES.md`. Require a valid Basis, one actual Owner, a user-visible Trigger, and dependencies; omit status, execution type, environment, artifact, target and authorization. Promote only on an explicit user task by atomically removing the candidate, classifying the three axes, and registering only when durable recovery is required. Treat the inventory as known, not exhaustive; audit the declared scope before claiming completeness.
-7. Repair all inbound links, Depends On paths, source comments, task entries and skill references before deleting or moving a path. Token savings require removing an unnecessary agent default route, not merely changing a directory.
+5. Apply the actual WorkflowContract's execution, control and recovery rules. Register only work that needs recovery at its declared owner; controlled work alone does not require a persistent plan. Preserve the original task identity and remove the old registration in the same migration instead of creating a second owner.
+6. Keep evidence-backed uncommitted outcomes in the declared candidate inventory, separate from authorized tasks. Promote only after an explicit user task; remove that candidate and register the result only if the adopted workflow requires recovery. An inventory is not proof that all remaining work was discovered.
+7. Before a move, deletion or rule replacement, use the target entry to identify real source roots and the rule's direct readers, generators, generated entrypoints and selected installed copies. Record each affected entry's owner, keep/replace/remove decision and verification in the current task, not a permanent register. Repair inbound links, heading fragments, Depends On paths, source comments and task entries. A failed or skipped search is not evidence of no consumers. Token savings require removing an unnecessary agent default route, not merely changing a directory.
 8. When a user correction changes a durable rule, identify the mistaken assumption, choose the narrowest truthful generality (`case`, `capability`, `project`, or `workspace`), and replace the conflicting rule at its sole owner. Re-evaluate dependent documents, skills, task state, candidates, and links; update the same outcome instead of appending a caveat or creating a duplicate.
 
 ## Writing Rules
@@ -34,7 +34,7 @@ For new or materially revised technical prose in workspace documents, apply the 
 - Human task-page filenames match their H1 exactly. Preserve standard entry filenames, numbered durable documents and activity IDs instead of renaming them as part of unrelated cleanup.
 - Product behavior belongs to ProductContract; capability implementation belongs to CurrentDesign; irreversible choice belongs to Decision; agent-facing operational selection belongs to Runbook; human procedure belongs to `/人类-文档/` or an adjacent README; specialist method belongs to skill.
 - A specific incident or conversation is evidence for a correction, not automatically a workspace-wide rule. Store only the reusable invariant at the owner and level where it remains true without the originating example.
-- ChangePlan records one durable controlled Development A→B task; SystemTestPlan records one explicitly requested durable controlled candidate/environment campaign and its request source; DeploymentPlan records one explicitly requested artifact/target operation and is always durable. Temporary work has no activity document even when controlled. Each activity document is deleted when its own task concludes and must never absorb a different execution type. Issue exists only while a recoverable problem remains.
+- Activity creation, registration and removal follow the adopted WorkflowContract and StructureContract. Keep one result identity; an activity must not absorb a different task or remain solely for Git closeout.
 - Preserve detailed history only for a Decision, required Material or unresolved handoff. Code-reconstructible routes, DTOs, fields, test outputs and fixed defects do not become long-lived documentation.
 - Read and write UTF-8. Use relative paths inside the workspace and never copy secrets, logs, customer data or generated artifacts.
 
@@ -57,4 +57,4 @@ For new or materially revised technical prose in workspace documents, apply the 
 
 ## Validate and Close
 
-When formal documents or governance entrypoints changed, run `npm run check:docs`, targeted inbound-reference scans and scoped `git diff --check`; confirm human pages are not mandatory agent context and that shared owners were linked rather than copied. Do not run a workspace-wide diff check solely for an unrelated dirty worktree. Execute WF-0004 conditionally: reconcile only real long-lived facts, remove this task's activity entry when its completion rule passes, and append a completion fact only for a registered result that will affect later choices. Never retain one task plan for a different execution type or Git closeout. Report this task's type, conclusion, evidence, and repository state; mention another task type only when the user requested or the workflow actually established it.
+When formal documents or governance entrypoints changed, run the target entry's declared documentation check, targeted inbound-reference scans and scoped `git diff --check`. Use `npm run check:docs` only where that command is provided. Verify file targets and affected heading fragments separately when the checker does not cover both; structure checks do not prove fact ownership or later model behavior. Confirm human pages are not mandatory agent context and shared owners were linked rather than copied. Execute the adopted closeout conditionally: reconcile only actual long-lived facts, resolve the original activity under its lifecycle, and report the actual result, evidence and repository state. Do not run unrelated workspace-wide checks solely because concurrent files are dirty.

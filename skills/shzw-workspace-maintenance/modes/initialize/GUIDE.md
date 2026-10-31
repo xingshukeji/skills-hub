@@ -32,6 +32,8 @@ Keep target creation and reference remediation as separate phases. Complete and 
 
 For work routed through Workforce, new recoverable tasks remain registered in its central TASK_CONTROL; do not create an empty second register. A standalone target may retain its own task register only when its adopted workflow requires one. Preserve existing registered tasks and their owners rather than duplicating them.
 
+When adopting the shared checker, declare only existing target locations in its StructureContract's `document-policy`. If no human task is grounded, set `humanDocumentationRequired` to `false` in that same block; omission preserves the existing required human-entry contract. Existing human pages are still validated. Do not declare a local TaskControl placement when the sole register is central; a declared local file and the selected central owner remain required. A non-Node target without documented npm commands does not need `package.json` for documentation validation.
+
 When a real project ID and source root are known, add only `文档/项目/项目_<id>/AGENTS.md` and the category directories required by grounded current documents. Create an Archive or activity directory only when a qualifying fact or recovery task exists. Do not create README inside the governed `文档/` tree, TASKS, relationship indexes or placeholder category files.
 
 When a human surface is grounded, add only the real entries needed now:
@@ -49,12 +51,12 @@ The root README is the shortest human navigation, `/人类-文档/README.md` is 
 ## Workflow
 
 1. Execute the Workspace Isolation Gate and keep the resolved roots visible in every write operation.
-2. Read the reference root AGENTS, task control, structure contract, workflow contract, relevant project entry and validation script. If a human surface is requested, also read its shzw-human-documentation method and navigation pattern. Extract only startup order, task truth, Kind/lifecycle, safety gates, closeout, routing and audience separation.
+2. Read the reference root AGENTS and resolve its actual task control, structure, workflow, relevant project entry and validation script. Select the target's adopted owners and supported check command before creating files; do not assume those owners are target-local. If a human surface is requested, also read its shzw-human-documentation method and navigation pattern. Extract only startup order, task truth, Kind/lifecycle, safety gates, closeout, routing and audience separation.
 3. Inspect the target and preserve `.git`, existing source roots, current tasks and user-created content. Never overwrite dirty or concurrent work.
 4. Treat control-plane initialization and semantic repair as controlled work, then independently decide persistence. Same-turn work uses the current task plan. Durable recovery updates the sole task register chosen above and, for checker or other technical changes, one Active WF-0002 ChangePlan at the result owner. Require CurrentDesign only when capability-design facts change.
 5. Create or repair the minimal control plane using only verified absolute target paths. Declare only real document locations and classify existing content by both authoritative owner and primary consumer, not by filename or reference-workspace layout. Create the human surface only from verified target commands, source entries and facts.
 6. Do not seed an unrequested active task. When the reference provides evidence-backed future outcomes, create or update a lazily read WorkInventory without status or execution type; do not invent build, API, UI, database, deployment or source work.
-7. Validate the target metadata, Kind/Status placement, Workflow/Action definitions, task/activity bindings, links, materials and UTF-8; run scoped whitespace checks that include untracked target files. Recheck both workspace statuses and all captured reference hashes; fail if the reference differs from its baseline.
+7. Run the target's adopted validation command against its actual root and declared shared owners. Validate metadata, Kind/Status placement, Workflow/Action definitions, task/activity bindings, file links and affected heading fragments, materials and UTF-8; run scoped whitespace checks that include untracked target files. Do not add placeholder human tasks, a duplicate register or a framework file to satisfy an incompatible checker. Recheck both workspace statuses and all captured reference hashes; fail if the reference differs from its baseline.
 8. Execute the target WF-0004. Remove any migration ChangePlan and task only after current facts are reconciled and all triggered checks pass; append one completion fact only when a registered result will affect later choices.
 
 ## Boundaries
