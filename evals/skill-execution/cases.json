@@ -54,6 +54,30 @@
     "workspace": "fixtures/diagnose-contrasts"
   },
   {
+    "id": "business-whole-file",
+    "request": "请先下载模板，把这份四万行资料整理成文件供我检查，之后由我自己导入。上次 accepted-original 批次提交后没收到结果，也请核对一下，不要重新提交。",
+    "context": "本地合同和平台模型在当前目录；来源为 makeRows(40000, 4)。按现有平台能力完成准备、检查和结果说明，只在临时目录保存产物，不修改平台模型或执行导入。",
+    "workspace": "fixtures/business-boundaries"
+  },
+  {
+    "id": "business-department-files",
+    "request": "这批资料请按四个部门各准备一个文件，跨部门不要合并。我检查后自行导入。",
+    "context": "本地合同和平台模型在当前目录；来源为 makeRows(400, 4)。只准备和检查文件，不修改平台模型或执行导入。",
+    "workspace": "fixtures/business-boundaries"
+  },
+  {
+    "id": "business-query-incomplete",
+    "request": "请接通本人待处理工单和设备备件的只读查询工具，并用它说明当前结果。这次还没有设备编号。",
+    "context": "当前目录提供现有平台合同和实际可调用的本地模型。待处理状态为 open；只在临时目录实现工具消费者并保存实参、返回和回答，不修改平台或扩大查询身份。",
+    "workspace": "fixtures/business-boundaries"
+  },
+  {
+    "id": "business-query-empty",
+    "request": "请接通本人待处理工单和设备备件的只读查询工具。设备编号是 equipment-a，请查询并说明当前结果。",
+    "context": "当前目录提供现有平台合同和实际可调用的本地模型。待处理状态为 open；只在临时目录实现工具消费者并保存实参、返回和回答，不修改平台或扩大查询身份。",
+    "workspace": "fixtures/business-boundaries"
+  },
+  {
     "id": "understand-first",
     "request": "我觉得这些 skill 还是没让我少解释，尤其继续对话的时候。先告诉我你的理解，不要修改。",
     "context": "前文在讨论技能职责与执行连续性，此轮尚未授权任何调整。当前目录中有一个待评估技能。",
