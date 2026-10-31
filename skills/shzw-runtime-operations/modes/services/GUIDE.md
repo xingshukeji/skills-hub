@@ -19,6 +19,8 @@ Determine this task's execution type from the user's primary requested result be
 
 ## Run
 
+For .NET CPU, memory, GC, slow requests or database waits, use [service diagnostics](references/dotnet.md). For XRain/AiInfra, also use the [provider and unit-of-work map](references/xrain-dotnet.md). These references guide evidence collection on the identified process; `status` and `doctor` check startup prerequisites and do not establish a performance root cause. Bounded diagnostics remain in the original task.
+
 From `<WORKSPACE_ROOT>`, prefer the matching `npm run <script>` shown in root `AGENTS.md` and `package.json`. 只有 all_in_one 的既有别名才用以下 helper 执行；其他项目直接用自己的根脚本。helper 的 `--list` 只读取所给项目的脚本：
 
 ```powershell
