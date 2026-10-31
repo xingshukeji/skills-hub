@@ -74,6 +74,19 @@ class Image:
                 + chunk(b"IDAT", zlib.compress(rows, 3)) + chunk(b"IEND", b""))
 
 
+def target_region_changed(before: Image, after: Image, region: dict, checkpoint=lambda: None) -> bool:
+    """Compare only the chosen target, tolerating small caret/antialiasing changes."""
+    if (before.width, before.height) != (after.width, after.height):
+        return True
+    left, right = before.crop(region).rgb, after.crop(region).rgb
+    changed = 0
+    for i in range(0, len(left), 3):
+        if i % (4096 * 3) == 0:
+            checkpoint()
+        changed += max(abs(left[i + channel] - right[i + channel]) for channel in range(3)) > 24
+    return changed > (len(left) // 3) * 0.03
+
+
 class Ort:
     """Small typed binding to the pinned public OrtApi v23 table.
 

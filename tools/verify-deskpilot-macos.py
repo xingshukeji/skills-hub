@@ -346,6 +346,7 @@ def verify(output):
                 bounds, area = observed["elements"][0]["bounds"], observed["window"]["bounds"]
                 before = read_json(state_path)["scroll_y"]
                 client.call("input.scroll", {"title_exact": title, "observation_id": observed["observation_id"],
+                                             "element_id": observed["elements"][0]["element_id"],
                                              "x": bounds["x"] + bounds["width"] // 2 - area["x"],
                                              "y": bounds["y"] + bounds["height"] // 2 - area["y"], "amount": -2400})
                 wait_for(lambda: read_json(state_path), lambda value: value["scroll_y"] > before + 1,

@@ -77,4 +77,4 @@ jobs:
       - name: Exercise the native Windows fixtures
         shell: pwsh
         run: |
-          python -c 'import sys, unittest; suite = unittest.defaultTestLoader.discover("src/deskpilot-cli/tests", pattern="test_windows_live.py"); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(0 if result.wasSuccessful() and result.testsRun == 4 and not result.skipped else 1)'
+          python -c 'import sys, unittest; suite = unittest.defaultTestLoader.discover("src/deskpilot-cli/tests", pattern="test_windows_live.py"); result = unittest.TextTestRunner(verbosity=2).run(suite); sys.exit(0 if result.wasSuccessful() and result.testsRun == 5 and not result.skipped else 1)'

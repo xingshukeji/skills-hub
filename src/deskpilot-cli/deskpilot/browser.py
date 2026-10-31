@@ -577,10 +577,22 @@ return {verified:p.values.length===el.selectedOptions.length&&Array.from(el.sele
             require(state.get("visibility") == "visible", "CHROME_PAGE_NOT_VISIBLE",
                     "The browser page is not visible, so mouse input cannot be verified. Bring the intended page forward and observe it again.",
                     retryable=True, details={"visibility": state.get("visibility")})
-            point = self._js(r"""p=>{const els=document.querySelectorAll(p.selector);if(els.length!==1)return {__deskpilot_error:'CHROME_TARGET_AMBIGUOUS',count:els.length};const el=els[0];
-el.scrollIntoView({block:'center',inline:'center'});const r=el.getBoundingClientRect();if(!r.width||!r.height||el.disabled||el.getAttribute('aria-disabled')==='true')return {__deskpilot_error:'CHROME_TARGET_NOT_ACTIONABLE'};
+            point = self._js(r"""async p=>{const els=document.querySelectorAll(p.selector);if(els.length!==1)return {__deskpilot_error:'CHROME_TARGET_AMBIGUOUS',count:els.length};const el=els[0];
+el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
+let r=el.getBoundingClientRect();
+for(let sample=0;sample<2;sample++){
+await new Promise(resolve=>requestAnimationFrame(resolve));const current=document.querySelectorAll(p.selector),next=el.getBoundingClientRect();
+if(current.length!==1||current[0]!==el||!el.isConnected||['left','top','width','height'].some(k=>Math.abs(r[k]-next[k])>.5))return {__deskpilot_error:'CHROME_TARGET_MOVED'};r=next;}
+if(!r.width||!r.height||el.disabled||el.getAttribute('aria-disabled')==='true')return {__deskpilot_error:'CHROME_TARGET_NOT_ACTIONABLE'};
 const x=r.left+r.width/2,y=r.top+r.height/2,top=document.elementFromPoint(x,y);if(!top||!(top===el||el.contains(top)))return {__deskpilot_error:'CHROME_TARGET_OCCLUDED'};return {x,y};}""", {"selector": params["selector"]})
             self.socket.call("Input.dispatchMouseEvent", {"type": "mouseMoved", **point})
+            # Hover can itself move a control. Recheck before the first button event;
+            # once a press is sent, connection failures retain unknown and are not replayed.
+            self._js(r"""p=>{const els=document.querySelectorAll(p.selector);if(els.length!==1)return {__deskpilot_error:'CHROME_TARGET_AMBIGUOUS',count:els.length};const el=els[0],r=el.getBoundingClientRect();
+if(document.visibilityState!=='visible'||!r.width||!r.height||el.disabled||el.getAttribute('aria-disabled')==='true')return {__deskpilot_error:'CHROME_TARGET_NOT_ACTIONABLE'};
+if(Math.abs(r.left+r.width/2-p.x)>.5||Math.abs(r.top+r.height/2-p.y)>.5)return {__deskpilot_error:'CHROME_TARGET_MOVED'};
+const top=document.elementFromPoint(p.x,p.y);if(!top||!(top===el||el.contains(top)))return {__deskpilot_error:'CHROME_TARGET_OCCLUDED'};return {x:p.x,y:p.y};}""",
+                     {"selector": params["selector"], **point})
             self.socket.call("Input.dispatchMouseEvent", {"type": "mousePressed", "button": "left", "clickCount": 1, **point}, mutation=True)
             self.socket.call("Input.dispatchMouseEvent", {"type": "mouseReleased", "button": "left", "clickCount": 1, **point}, mutation=True)
             result = {"dispatched": True, "coordinate_space": "css_viewport"}

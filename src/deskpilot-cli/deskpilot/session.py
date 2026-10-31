@@ -163,6 +163,9 @@ class Session:
         self._deadline = time.monotonic() + timeout / 1000
         implicit = False
         try:
+            if method == "input.secret" and params.get("target_kind") in ("native_password", "observed_opaque_password"):
+                require(self._secret_capabilities()[params["target_kind"]]["implemented"], "UNSUPPORTED_PLATFORM",
+                        "This platform backend does not implement native sensitive input.")
             if mutating(method, params):
                 self._authorize(params)
                 if not self._lease:
@@ -201,6 +204,14 @@ class Session:
     def _authorize(self, params: dict):
         require(not params.get("require_confirmation") or params.get("confirmed") is True,
                 "NEED_USER_CONFIRMATION", "The caller requested explicit confirmation for this operation.")
+
+    def _secret_capabilities(self):
+        # Discovery must also work without initializing a native desktop.
+        native = (callable(getattr(self._desktop, "type_secret", None)) if self._desktop is not None
+                  else platform_key() == "windows-x64")
+        return {"native_password": {"implemented": native},
+                "observed_opaque_password": {"implemented": native},
+                "android_password": {"implemented": True, "requires": "bound_local_emulator_and_focused_password_control"}}
 
     def _begin(self, params: dict, *, explicit=True) -> dict:
         require(not self._lease, "INTERACTION_ALREADY_ACTIVE", "An interaction is already active in this session.")
@@ -534,7 +545,8 @@ class Session:
                 continue
             element_id = self._token("element")
             self._elements[element_id] = {"native": node["native"], "window_id": window_id,
-                                          "observation_id": observation_id}
+                                          "observation_id": observation_id,
+                                          "observed": copy.deepcopy({key: node.get(key) for key in ("name", "bounds", "control_type")})}
             item = {key: value for key, value in node.items() if key != "native"}
             item["element_id"] = element_id
             item["observation_id"] = observation_id
@@ -582,7 +594,73 @@ class Session:
                 and observed["title"] == window.get("title", ""),
                 "STALE_OBSERVATION", "The observation no longer describes this window; observe again.")
 
-    def _coordinate(self, params: dict, *, activate=True):
+    def _stable_control(self, native, window_id, observed, *, coordinate=False):
+        first = self.desktop.element_info(native)
+        self._cancelled.wait(0.05)
+        self.checkpoint()
+        second = self.desktop.element_info(native)
+        _, current = self._window({"window_id": window_id})
+        self._check_observation(window_id, current, self._observations[window_id]["id"])
+        unchanged = (first["bounds"] == second["bounds"]
+                     and first.get("name") == second.get("name")
+                     and ("name" not in second or second["name"] == observed.get("name"))
+                     and (not coordinate or second["bounds"] == observed.get("bounds")))
+        if not unchanged:
+            self._invalidate(window_id)
+            raise DeskPilotError("STALE_OBSERVATION", "The observed control changed or moved; locate the target again.")
+        require(second.get("enabled") and not second.get("offscreen"), "ELEMENT_NOT_ACTIONABLE",
+                "The control is not enabled and visible.")
+        return second
+
+    def _coordinate_control(self, params, window_id, window, x, y, *, allow_container):
+        absolute_x, absolute_y = window["bounds"]["x"] + x, window["bounds"]["y"] + y
+        candidates = []
+        for element_id, item in self._elements.items():
+            if item["window_id"] != window_id or item["observation_id"] != params.get("observation_id"):
+                continue
+            area = item["observed"].get("bounds")
+            if (area and area["x"] <= absolute_x < area["x"] + area["width"]
+                    and area["y"] <= absolute_y < area["y"] + area["height"]
+                    and (not params.get("element_id") or params["element_id"] == element_id)):
+                candidates.append((area["width"] * area["height"], item))
+        candidates.sort(key=lambda item: item[0])
+        require(candidates and (len(candidates) == 1 or candidates[0][0] < candidates[1][0]),
+                "COORDINATE_TARGET_REQUIRED", "Choose a unique observed control at this point, or use a current screenshot.")
+        item = candidates[0][1]
+        container = item["observed"].get("control_type") in (50008, 50009, 50010, 50021, 50023, 50025, 50026, 50028, 50030, 50032, 50033, 50036)
+        require(not container or allow_container and params.get("element_id"),
+                "COORDINATE_TARGET_REQUIRED", "Container scrolling requires its element_id; a coordinate click inside a container requires a screenshot.")
+        self._stable_control(item["native"], window_id, item["observed"], coordinate=True)
+
+    def _coordinate_frame(self, params, window_id, window, shot, x, y):
+        from .screen import target_region_changed
+        image = shot["image"]
+        region = (bounds(params["target_region"]) if params.get("target_region") is not None else
+                  {"x": max(0, x - 24), "y": max(0, y - 24),
+                   "width": min(image.width, x + 25) - max(0, x - 24),
+                   "height": min(image.height, y + 25) - max(0, y - 24)})
+        require(0 <= region["x"] <= x < region["x"] + region["width"] <= image.width
+                and 0 <= region["y"] <= y < region["y"] + region["height"] <= image.height,
+                "INVALID_ARGUMENT", "target_region must contain the point and lie within its screenshot.")
+        for sample in range(2):
+            self.checkpoint()
+            if sample:
+                self._cancelled.wait(0.05)
+                self.checkpoint()
+            current_image, evidence = self.desktop.capture(window, checkpoint=self.checkpoint)
+            _, current_window = self._window({"window_id": window_id})
+            same_window = (current_window["identity"] == window["identity"] and current_window["bounds"] == window["bounds"]
+                           and current_window.get("title", "") == window.get("title", ""))
+            origin = evidence.get("origin", {"x": window["bounds"]["x"], "y": window["bounds"]["y"]})
+            require(evidence.get("trusted") is True, "WINDOW_CAPTURE_UNTRUSTED", "The current target frame could not be trusted.")
+            if (not same_window or origin != shot["origin"]
+                    or evidence.get("capture_scope") != shot["evidence"].get("capture_scope")
+                    or target_region_changed(image, current_image, region, self.checkpoint)):
+                self._invalidate(window_id)
+                raise DeskPilotError("STALE_OBSERVATION", "The target region changed; capture and locate the target again.",
+                                     details={"target_region": region})
+
+    def _coordinate(self, params: dict, *, activate=True, allow_container=False):
         window_id, window = self._window(params, activate=activate)
         shot = None
         if not params.get("allow_unobserved", False):
@@ -601,10 +679,13 @@ class Session:
         x = int(number(params.get("x"), "x", minimum=0, maximum=width - 1))
         y = int(number(params.get("y"), "y", minimum=0, maximum=height - 1))
         if shot:
+            self._coordinate_frame(params, window_id, window, shot, x, y)
             x += shot["origin"]["x"] - window["bounds"]["x"]
             y += shot["origin"]["y"] - window["bounds"]["y"]
             require(0 <= x < window["bounds"]["width"] and 0 <= y < window["bounds"]["height"],
                     "WINDOW_CAPTURE_UNTRUSTED", "The screenshot coordinate is outside its target window.")
+        elif not params.get("allow_unobserved", False):
+            self._coordinate_control(params, window_id, window, x, y, allow_container=allow_container)
         target_content_only = bool(shot and shot["evidence"].get("capture_scope") == "target_window_only")
         return window_id, window, x, y, target_content_only
 
@@ -821,20 +902,23 @@ class Session:
         if method == "capabilities":
             return {"name": "DeskPilot", "version": VERSION, "protocol_version": PROTOCOL_VERSION,
                     "platform": platform_key(), "methods": list(METHODS), "session_id": self.id,
-                    "batch_limit": 32, "references": "session_owned_short_lived", "business_policy": False}
+                    "batch_limit": 32, "references": "session_owned_short_lived", "business_policy": False,
+                    "sensitive_input": self._secret_capabilities()}
         if method == "schema":
             selected = params.get("method")
             require(selected is None or selected in METHODS, "UNKNOWN_METHOD", "Unknown schema method.")
             return {"protocol_version": PROTOCOL_VERSION, "request": {"id": "string|number", "method": "string", "params": "object"},
+                    **({"sensitive_input": self._secret_capabilities()} if selected in (None, "input.secret") else {}),
                     "methods": [{"method": item, "mutates": mutating(item),
-                                 "reference": "observation_id + element_id" if item in UI_MUTATIONS | ANDROID_MUTATIONS | {"ui.get"} else
+                                 "reference": "screenshot_id for native/opaque; observation_id + element_id for Android" if item == "input.secret" else
+                                              "observation_id + element_id" if item in UI_MUTATIONS | ANDROID_MUTATIONS | {"ui.get"} else
                                               "observation_id or screenshot_id for coordinate input" if item.startswith("input.") else None}
                                 for item in ([selected] if selected else METHODS)]}
         if method == "doctor":
             from .screen import Ocr
             return {"version": VERSION, "platform": platform_key(), "session_id": self.id,
                     "process_id": os.getpid(), **self.desktop.doctor(), "desktop_text": Ocr.diagnose(),
-                    "chrome": self.browser.diagnose()}
+                    "chrome": self.browser.diagnose(), "sensitive_input": self._secret_capabilities()}
         if method == "close":
             self.close()
             return {"status": "closed", "session_id": self.id}
@@ -880,7 +964,7 @@ class Session:
             self._activity(window, method, params)
             verification = None
             if method == "ui.click":
-                info = self.desktop.element_info(element)
+                info = self._stable_control(element, window_id, self._elements[params["element_id"]]["observed"])
                 area = info["bounds"]
                 require(info["enabled"] and not info["offscreen"], "ELEMENT_NOT_ACTIONABLE", "The control is not enabled and visible.")
                 self._activity(window, method, params, (area["x"] + area["width"] // 2 - window["bounds"]["x"],
@@ -932,7 +1016,7 @@ class Session:
                     self._dispatched = True
                     self.desktop.key(keys)
             else:
-                window_id, window, x, y, target_content_only = self._coordinate(params)
+                window_id, window, x, y, target_content_only = self._coordinate(params, allow_container=method == "input.scroll")
                 self._activity(window, method, params, (x, y))
                 if method == "input.scroll":
                     amount = int(number(params.get("amount"), "amount", minimum=-100000, maximum=100000))
@@ -966,7 +1050,7 @@ class Session:
                 "Choose a native password control or an observed opaque password control.")
         require(kind != "observed_opaque_password" or params.get("observed_password_focus") is True,
                 "SENSITIVE_FOCUS_NOT_CONFIRMED", "Confirm the opaque password control and its focus from the current screen.")
-        require(hasattr(self.desktop, "type_secret"), "UNSUPPORTED_PLATFORM",
+        require(callable(getattr(self.desktop, "type_secret", None)), "UNSUPPORTED_PLATFORM",
                 "Secure sensitive input is not supported by this platform backend.")
         window_id, window = self._window(params)
         require(self.desktop.foreground() == window["native"], "WINDOW_NOT_FOREGROUND",

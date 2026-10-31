@@ -5,6 +5,7 @@
 | 当前返回或现象 | 下一步 |
 |---|---|
 | STALE_OBSERVATION | 重新确认窗口并观察，不继续用旧 ID |
+| COORDINATE_TARGET_REQUIRED | 用唯一控件的语义点击；容器滚动明确传当前 element_id；容器内坐标点击或控件不足时重新截图定位 |
 | ELEMENT_NOT_FOUND | 核对范围和页面，必要时 wait.element；深层 Electron 文档见[桌面](desktop.md) |
 | ELEMENT_NOT_UNIQUE、UI_AUTOMATION_INCOMPLETE 或 truncated | 缩小条件或调整上限；不能取首项，也不能断言不存在 |
 | TEXT_INPUT_STRATEGY_REQUIRED | 尚未输入，核对换行行为后选策略，见[桌面](desktop.md) |

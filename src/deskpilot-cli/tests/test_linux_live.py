@@ -135,6 +135,10 @@ class LinuxLiveTests(unittest.TestCase):
                 observed = session.execute("observe", {"title_exact": title})
                 with self.assertRaises(DeskPilotError) as raised:
                     session.execute(method, {"title_exact": title, "observation_id": observed["observation_id"],
+                                             "element_id": observed["elements"][0]["element_id"],
+                                             # This isolated click probes the OS hit guard itself;
+                                             # a foreign overlay prevents a trusted fresh screenshot.
+                                             "allow_unobserved": method == "input.click",
                                              "x": 10, "y": 10, "amount": 120})
                 self.assertEqual(raised.exception.code, "INPUT_TARGET_MISMATCH")
         finally:

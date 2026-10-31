@@ -11,6 +11,7 @@ const python = process.env.DESKPILOT_TEST_PYTHON || (process.platform === 'win32
 const helper = resolve('skills/shzw-deskpilot-cli/tools/observe-view.py');
 const fixture = `
 import json, sys, threading, time
+sys.stdin.reconfigure(encoding='utf-8')
 lock = threading.Lock()
 workers = []
 def emit(value):
@@ -23,7 +24,14 @@ for line in sys.stdin:
     request = json.loads(line)
     request_id = request.get('id', request.get('request_id'))
     method = request['method']
-    if method == 'android.observe':
+    if method == 'android.observe' and request.get('params',{}).get('fragmented'):
+        payload={'id':request_id,'ok':True,'result':{'observation_id':'unicode','count':2,'truncated':False,'elements':[{'text':'Keep target','element_id':'keep'},{'text':'中文🙂'*20000,'element_id':'large'}]}}
+        raw=(' \\t'+json.dumps(payload,ensure_ascii=False,separators=(',',':'))+'  \\r\\n').encode('utf-8')
+        split=raw.index('中'.encode('utf-8'))+1
+        with lock:
+            for start,end in [(0,split),(split,split+1),(split+1,4096),(4096,len(raw))]:
+                sys.stdout.buffer.write(raw[start:end]);sys.stdout.buffer.flush();time.sleep(.003)
+    elif method == 'android.observe':
         nodes = [{'text':'row '+str(i), 'element_id':'e'+str(i), 'observation_id':'o1', 'scrollable':False} for i in range(80)]
         nodes[2]['text'] = 'Save'; nodes[4]['scrollable'] = True; nodes[6]['text'] = 'Edit'; nodes[6]['password'] = True
         emit({'id':request_id, 'ok':True, 'result':{'observation_id':'o1', 'count':80, 'truncated':True, 'elements':nodes}})
@@ -130,6 +138,11 @@ test('focused views retain raw evidence, completeness, errors and cancellation',
     assert.equal((await nextLine(lines)).result.method, 'ui.click');
     send({ inspect: { terms: ['Edit'] } });
     assert.equal((await nextLine(lines)).transport_error.code, 'NO_CURRENT_OBSERVATION');
+    send({ request: { id: '片段-utf8', method: 'android.observe', params: { fragmented: true } }, view: { terms: ['Keep target'] } });
+    const fragmented = await nextLine(lines);
+    assert.equal(fragmented.id, '片段-utf8');
+    assert.deepEqual(fragmented.result.elements.map(x => x.element_id), ['keep']);
+    assert.equal(fragmented.result._view.source_elements, 2);
     send({ id: 'malformed', method: 'invalid_bytes', params: {} });
     assert.equal((await nextLine(lines)).transport_error.code, 'INVALID_RESPONSE');
     send({ id: 'cancel-after-malformed', method: 'interaction.cancel', params: {} });
@@ -148,6 +161,11 @@ test('focused views retain raw evidence, completeness, errors and cancellation',
     const raw = receipts.find(row => row.kind === 'response' && JSON.parse(row.body.raw).id === 'obs');
     assert.equal(JSON.parse(raw.body.raw).result.elements.length, 80);
     assert.equal(JSON.parse(raw.body.raw).result.elements[6].text, 'Edit');
+    const fragmentedRaw = receipts.find(row => row.kind === 'response' && JSON.parse(row.body.raw).id === '片段-utf8');
+    const expectedFragmented = { id: '片段-utf8', ok: true, result: { observation_id: 'unicode', count: 2, truncated: false,
+      elements: [{ text: 'Keep target', element_id: 'keep' }, { text: '中文🙂'.repeat(20000), element_id: 'large' }] } };
+    assert.deepEqual(Buffer.from(fragmentedRaw.body.raw, 'utf8'), Buffer.from(' \t' + JSON.stringify(expectedFragmented) + '  ', 'utf8'));
+    assert.equal(receipts.filter(row => row.kind === 'request' && JSON.parse(row.body.raw).id === '片段-utf8').length, 1);
     assert.equal(receipts.filter(row => row.kind === 'request' && JSON.parse(row.body.raw).id === 'obs').length, 1);
     assert.equal(receipts.filter(row => row.kind === 'request' && JSON.parse(row.body.raw).id === 'invalid').length, 0);
     assert.equal(receipts.filter(row => row.kind === 'request' && JSON.parse(row.body.raw).id === 'invalid-unicode').length, 0);

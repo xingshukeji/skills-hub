@@ -22,6 +22,8 @@ Windows 在常规环境路径之外也检查已注册的 Chrome/Edge 安装位�
 
 `chrome.click` 使用鼠标事件；页面处于隐藏状态时返回 `CHROME_PAGE_NOT_VISIBLE`，不声称已点击。先核对正确浏览器和标签是否可见，再决定如何恢复；不要把协议接收事件当作业务动作成功。
 
+点击前核对唯一元素在连续动画帧中的位置，鼠标移入后再核对中心与实际命中。目标移动返回 `CHROME_TARGET_MOVED / not_dispatched`：重新查询目标，稳定后再发起该未派发点击。页面其他区域的动画不阻止稳定目标；派发后的未知结果仍须先核对实际效果，工具不会自动重发点击。
+
 macOS 本机新启动的浏览器可能已显示标签，但原生窗口尚未完成激活。需要前台鼠标操作时，先按当前进程和页面标题唯一定位浏览器窗口，用 `windows.activate` 激活；再用 `chrome.wait` 的 `ready_expression: "document.hasFocus() && document.visibilityState === 'visible'"` 确认页面焦点，可用 `stable_ms` 等待状态稳定。已经派发却没有预期结果时，先读回当前页面，不能直接重放点击或整批操作。
 
 点击返回 `CHROME_TARGET_OCCLUDED` 且 `outcome: not_dispatched` 时，先观察页面上的登录提示或广告；能安全关闭的提示可关闭，再等待遮挡消失后重试该未派发动作。页面跳转等待超时也先检查当前地址和界面，判断是否出现拦截或仍在加载；不能因为点击已派发就声称目标页面已打开。

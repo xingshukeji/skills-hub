@@ -21,6 +21,54 @@ from deskpilot.session import Session
 
 @unittest.skipUnless(sys.platform == "win32" and os.environ.get("DESKPILOT_LIVE_TESTS") == "1", "requires an explicitly selected Windows interactive fixture run")
 class WindowsLiveTests(unittest.TestCase):
+    def test_changed_target_rejects_old_screenshot_and_fresh_location_clicks(self):
+        title = "DeskPilot moving target fixture " + uuid.uuid4().hex[:8]
+        fixture = subprocess.Popen([sys.executable, "-B", str(Path(__file__).with_name("windows_fixture.py")), title],
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+        session, ready = Session(), None
+        user = ctypes.WinDLL("user32")
+        user.GetDlgItem.argtypes, user.GetDlgItem.restype = [ctypes.c_void_p, ctypes.c_int], ctypes.c_void_p
+        user.MoveWindow.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_bool]
+        user.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+        try:
+            ready = json.loads(fixture.stdout.readline())
+            session.execute("interaction.begin", {"show_overlay": False, "restore_original_window": False})
+            def locate():
+                found = session.execute("ui.find", {"title_exact": title, "automation_id": "102", "require_unique": True})
+                return found["elements"][0]["bounds"]
+            def coordinates(area):
+                captured = session.execute("screen.capture", {"title_exact": title})
+                shot = captured["screenshot"]
+                return {"window_id": captured["window"]["window_id"], "screenshot_id": shot["screenshot_id"],
+                        "x": area["x"] + area["width"] // 2 - shot["origin"]["x"],
+                        "y": area["y"] + area["height"] // 2 - shot["origin"]["y"]}
+            old = coordinates(locate())
+            # Move our fixture's child directly: the DeskPilot session receives no
+            # action/observation invalidation, and the top-level identity stays fixed.
+            self.assertTrue(user.MoveWindow(user.GetDlgItem(ready["handle"], 102), 620, 210, 150, 44, True))
+            time.sleep(0.1)
+            with self.assertRaises(DeskPilotError) as moved:
+                session.execute("input.click", old)
+            self.assertEqual((moved.exception.code, moved.exception.outcome), ("STALE_OBSERVATION", "not_dispatched"))
+            self.assertTrue(session.execute("input.click", coordinates(locate()))["dispatched"])
+            status = session.execute("ui.find", {"title_exact": title, "automation_id": "103", "require_unique": True})
+            self.assertEqual(status["elements"][0]["name"], "Result: Initial")
+        finally:
+            session.execute("interaction.end", {"restore_original_window": False})
+            session.close()
+            if ready:
+                user.PostMessageW(ready["handle"], 0x0010, 0, 0)
+            try:
+                fixture.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                fixture.terminate()
+                fixture.wait(timeout=3)
+            fixture.stdout.close()
+            errors = fixture.stderr.read()
+            fixture.stderr.close()
+            self.assertEqual(errors, "")
+
     def test_authorized_local_native_password_uses_local_reference(self):
         title = "DeskPilot password fixture " + uuid.uuid4().hex[:8]
         marker = secrets.token_urlsafe(18)

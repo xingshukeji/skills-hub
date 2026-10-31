@@ -44,7 +44,8 @@ class BrowserLiveTests(unittest.TestCase):
         process = None
         try:
             url = f"http://127.0.0.1:{server.server_port}/fixture"
-            connected = session.execute("chrome.ensure", {"profile_dir": profile.name, "url": url, "timeout_ms": 30000})
+            connected = session.execute("chrome.ensure", {"profile_dir": profile.name, "url": url, "timeout_ms": 30000,
+                                                         "launch_args": ["--headless=new"] if os.environ.get("DESKPILOT_HEADLESS_TESTS") == "1" else []})
             owned = True
             self.assertIn("target_id", connected)
             session.execute("chrome.navigate", {"url": url, "ready_selector": "#input", "timeout_ms": 10000})
@@ -67,6 +68,24 @@ class BrowserLiveTests(unittest.TestCase):
                 session.execute("chrome.fill", {"selector": "#password", "value": "not authorized here"})
             self.assertEqual(raised.exception.code, "SENSITIVE_INPUT_BLOCKED")
             self.assertEqual(raised.exception.outcome, "not_dispatched")
+            # Continuous unrelated animation must not block an otherwise stable target.
+            session.execute("chrome.evaluate", {"expression": """window.targetClicks=0;
+const moving=document.createElement('button');moving.id='moving';moving.textContent='Moving target';moving.style='position:fixed;left:160px;top:200px';moving.onclick=()=>window.targetClicks++;
+document.body.append(moving);let tick=0;window.keepMoving=true;
+function move(){if(!window.keepMoving)return;moving.style.left=(tick++%2?160:360)+'px';requestAnimationFrame(move)}requestAnimationFrame(move);"""})
+            session.execute("chrome.click", {"selector": "#apply"})
+            with self.assertRaises(DeskPilotError) as moved:
+                session.execute("chrome.click", {"selector": "#moving"})
+            self.assertEqual((moved.exception.code, moved.exception.outcome), ("CHROME_TARGET_MOVED", "not_dispatched"))
+            self.assertEqual(session.execute("chrome.evaluate", {"expression": "window.targetClicks", "read_only": True})["value"], 0)
+            session.execute("chrome.evaluate", {"expression": "window.keepMoving=false;document.querySelector('#moving').onmouseenter=()=>{document.querySelector('#moving').style.top='300px'}"})
+            with self.assertRaises(DeskPilotError) as hovered:
+                session.execute("chrome.click", {"selector": "#moving"})
+            self.assertEqual((hovered.exception.code, hovered.exception.outcome), ("CHROME_TARGET_MOVED", "not_dispatched"))
+            self.assertEqual(session.execute("chrome.evaluate", {"expression": "window.targetClicks", "read_only": True})["value"], 0)
+            session.execute("chrome.evaluate", {"expression": "document.querySelector('#moving').onmouseenter=null"})
+            session.execute("chrome.click", {"selector": "#moving"})
+            self.assertEqual(session.execute("chrome.evaluate", {"expression": "window.targetClicks", "read_only": True})["value"], 1)
             with self.assertRaises(DeskPilotError) as raised:
                 session.execute("chrome.click", {"selector": ".ambiguous"})
             self.assertEqual(raised.exception.code, "CHROME_TARGET_AMBIGUOUS")

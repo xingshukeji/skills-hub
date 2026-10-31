@@ -37,7 +37,7 @@
 | input.type / input.key / input.hotkey | 窗口 + text 或 keys 字符串数组，作用于当前焦点 |
 | android.observe / android.click / android.set_value / android.swipe | 设备绑定、引用、输入限制及手势参数见 [Android](android.md) |
 | input.secret | 仅受管 JSON 引用，不得批次，见[测试凭据](credentials.md) |
-| input.click / input.double_click / input.right_click / input.scroll | 窗口 + 当前 observation_id 或 screenshot_id + x、y，坐标系见[截图](screen.md)；scroll 加 amount，可选 horizontal |
+| input.click / input.double_click / input.right_click / input.scroll | 窗口 + 当前 observation_id 或 screenshot_id + x、y；滚动容器需明确 element_id，容器内坐标点击需截图；截图可选 target_region；坐标系与动作前目标核对见[截图](screen.md)；scroll 加 amount，可选 horizontal |
 | screen.capture / screen.capture_window / screen.read_text / messages.observe | 路径、区域和文字候选见[截图与 OCR](screen.md) |
 | wait.window / wait.element | 窗口/元素条件 + timeout_ms、poll_ms，返回满足条件的当前观察 |
 | interaction.begin / interaction.status / interaction.end | 提示和原前台恢复，可设 show_overlay、show_action_trace、restore_original_window |

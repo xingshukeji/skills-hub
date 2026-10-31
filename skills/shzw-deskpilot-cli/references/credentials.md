@@ -4,7 +4,7 @@
 
 从责任项目确定受管本地 JSON 文件及字段名。input.secret 只接收文件引用，不接收密码字符串；不把密码读入对话、普通输入请求、命令行、日志或截图。普通 ui.set_value、android.set_value、input.type、chrome.fill 的密码限制不因授权取消。
 
-已验证 Windows 原生密码控件和本机 Android 模拟器；其他平台原生密码入口尚未验证。保持同一 DeskPilot 进程，专用输入不得放入 actions.batch。
+Windows 已实现原生密码及观察确认的非原生密码入口（含屏幕键盘）；本机 Android 模拟器另有设备绑定的密码控件通道。macOS/Linux 原生 `type_secret` 尚未实现，会在读取凭据或派发输入前返回 `UNSUPPORTED_PLATFORM`，不能回退到普通密码输入。`capabilities`、`schema(input.secret)` 和 `doctor` 的 `sensitive_input` 分别列出这些入口是否已实现；Android 仍须核对设备、焦点及输入命令前提。保持同一 DeskPilot 进程，专用输入不得放入 actions.batch。
 
 ## Windows 原生密码控件
 

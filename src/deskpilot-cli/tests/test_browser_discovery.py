@@ -68,6 +68,40 @@ class BrowserDiscoveryTests(unittest.TestCase):
         self.assertTrue(result['dispatched'])
         self.assertEqual(calls, ['mouseMoved', 'mousePressed', 'mouseReleased'])
 
+    def test_hover_relocation_rejects_before_button_events(self):
+        chrome = browser.Chrome(lambda: None)
+        chrome._ensure_target = lambda params: None
+        chrome._state = lambda: {'visibility': 'visible'}
+        calls = []
+        def target(function, params, **kwargs):
+            if 'x' in params:
+                raise DeskPilotError('CHROME_TARGET_MOVED', 'Target moved')
+            return {'x': 1, 'y': 1}
+        chrome._js = target
+        chrome.socket = types.SimpleNamespace(call=lambda method, params, **kwargs: calls.append(params['type']))
+        chrome.target = {'id': 'test'}
+        with self.assertRaises(DeskPilotError) as caught:
+            chrome.call('chrome.click', {'selector': '#safe'})
+        self.assertEqual((caught.exception.code, caught.exception.outcome), ('CHROME_TARGET_MOVED', 'not_dispatched'))
+        self.assertEqual(calls, ['mouseMoved'])
+
+    def test_lost_press_receipt_never_replays_click(self):
+        chrome = browser.Chrome(lambda: None)
+        chrome._ensure_target = lambda params: None
+        chrome._state = lambda: {'visibility': 'visible'}
+        chrome._js = lambda *args, **kwargs: {'x': 1, 'y': 1}
+        calls = []
+        def send(method, params, **kwargs):
+            calls.append(params['type'])
+            if params['type'] == 'mousePressed':
+                raise DeskPilotError('CHROME_CONNECTION_LOST', 'Lost press receipt', outcome='unknown')
+        chrome.socket = types.SimpleNamespace(call=send)
+        chrome.target = {'id': 'test'}
+        with self.assertRaises(DeskPilotError) as caught:
+            chrome.call('chrome.click', {'selector': '#safe'})
+        self.assertEqual(caught.exception.outcome, 'unknown')
+        self.assertEqual(calls, ['mouseMoved', 'mousePressed'])
+
 
 if __name__ == '__main__':
     unittest.main()
