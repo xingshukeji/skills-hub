@@ -34,11 +34,21 @@ data query <entity> --fields name,status --page 1 --page-size 25 --sort name:asc
 data query <entity> --query-json "<query.json>"
 data get <entity> <id>
 data create <entity> --values-json "<values.json>"
+data create <entity> --request-key <业务请求稳定键> --values-json "<values.json>"
+data creation-result <entity> --request-key <原业务请求稳定键>
 data update <entity> <id> --values-json "<update.json>"
 data delete <entity> <id>
 ```
 
 支持 --entity/--id 替代位置参数，每次只选一种。delete 仅单条 ID，不接 filter。更新并发条件按目标字段契约提供，完成后回读。
+
+### 单记录创建恢复
+
+目标服务支持 keyed creation 时，在第一次创建前由调用者选定并保存稳定 `requestKey`（非空字符串，最多 160 字符）。可以用 `--request-key`，或在完整请求 JSON 中提供 `{"values":{"name":"示例"},"requestKey":"<业务请求稳定键>"}`；两种方式不能同时提供。CLI 在发送前将键写入 stderr，不自动生成、换键、查询或重试。未提供键时保留原创建请求，不向旧服务注入字段。
+
+服务按当前租户、执行主体、对象和键恢复原创建；相同键及相同 values 返回原记录，不同 values 返回冲突。连接中断、超时或回执无效时，`outcome_unknown` 保留对象和键。保持相同平台、租户和身份，先执行 `data creation-result`；该命令只查询 `records:creationResult`，不创建记录。`completed` 返回原记录，`unknown` 只表示当前查询没有可返回的结果，不能当作从未创建的证明。查询重新检查当前读取权限，记录隐藏、删除或权限变化不能靠切换主体绕过。
+
+旧服务可能拒绝键或未提供查询入口。400、403、404 及冲突仍明确报错；查询入口不可用不代表原写入失败，CLI 不会删除键再写一次，也不退回宽泛条件查重。自行处理未知结果后再决定下一步；不要把一次调用变成新键重建或整批重放。此能力只覆盖单记录创建，不为更新、删除或 CLI `batch` 增加事务或幂等保证。
 
 ### 完整文件导入
 

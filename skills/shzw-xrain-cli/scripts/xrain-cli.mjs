@@ -21,7 +21,7 @@ function segment(value) {
   return encodeURIComponent(value);
 }
 var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
-var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor view-version source-row match-value code purpose import-source-key".split(" "));
+var valued = new Set("server tenant tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id preset session-id action-ref message message-file job options-json out application plan-revision action status cursor view-version source-row match-value code purpose import-source-key".split(" "));
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
   constructor(argv) {
@@ -432,9 +432,15 @@ var Store = class {
 };
 
 // src/xrain-cli/http.mjs
-async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, limit = 32 * 1024 * 1024 } = {}) {
+async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = 32 * 1024 * 1024 } = {}) {
   url = httpUrl(url);
-  const options = { method, redirect: "error", signal: AbortSignal.timeout(timeout), headers: { Accept: "application/json", ...headers } };
+  const requestTimeout = AbortSignal.timeout(timeout);
+  const options = {
+    method,
+    redirect: "error",
+    signal: signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout,
+    headers: { Accept: "application/json", ...headers }
+  };
   if (token) options.headers.Authorization = `Bearer ${token}`;
   if (json !== void 0) {
     options.body = JSON.stringify(json);
@@ -889,6 +895,60 @@ async function dataImportCommands(ctx) {
   }
 }
 
+// src/xrain-cli/record-creation.mjs
+function creationKey(value) {
+  if (!nonempty(value) || value.length > 160)
+    throw new CliError("requestKey must be a nonempty string of at most 160 characters.", { code: "invalid_arguments" });
+  return value;
+}
+var isRecord = (value) => isObject(value) && nonempty(value.entityCode) && nonempty(value.recordId) && isObject(value.values);
+var recovery = "Use data creation-result with the same entity, --request-key, target and identity before another write. Keep the original key and values; the CLI does not retry automatically.";
+function contextualError2(error, entity, key, write = false) {
+  if (!(error instanceof CliError)) return error;
+  const unknown = write && (["network_error", "timeout", "invalid_response"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500);
+  return new CliError(error.message, {
+    code: unknown ? "outcome_unknown" : error.code,
+    httpStatus: error.httpStatus,
+    serverCode: error.serverCode,
+    requestId: error.requestId,
+    hint: [error.hint, recovery].filter(Boolean).join(" "),
+    details: { ...error.details, entityCode: entity, requestKey: key }
+  });
+}
+async function createRecord(ctx, entity, path, input2) {
+  const body = { ...input2 };
+  if (ctx.args.has("request-key")) {
+    if (Object.hasOwn(body, "requestKey")) throw new CliError("Supply requestKey in JSON or --request-key, not both.", { code: "invalid_arguments" });
+    body.requestKey = ctx.args.value("request-key");
+  }
+  if (body.requestKey == null) {
+    ctx.reporter.print(await apiValue(ctx, "POST", path, body));
+    return 0;
+  }
+  const key = creationKey(body.requestKey);
+  ctx.reporter.progress(`Request key: ${key}`);
+  try {
+    const record = await apiValue(ctx, "POST", path, body);
+    if (!isRecord(record)) throw new CliError("The server returned an invalid creation receipt.", { code: "invalid_response" });
+    ctx.reporter.print(record);
+    return 0;
+  } catch (error) {
+    throw contextualError2(error, entity, key, true);
+  }
+}
+async function creationResult(ctx, entity, path) {
+  const key = creationKey(ctx.args.required("request-key"));
+  try {
+    const value = await apiValue(ctx, "POST", path + ":creationResult", { requestKey: key });
+    if (!isObject(value) || !["unknown", "completed"].includes(value.status) || (value.status === "completed" ? !isRecord(value.record) : value.record != null))
+      throw new CliError("The server returned an invalid creation result.", { code: "invalid_response" });
+    ctx.reporter.print({ ...value, requestKey: key });
+    return 0;
+  } catch (error) {
+    throw contextualError2(error, entity, key);
+  }
+}
+
 // src/xrain-cli/commands.mjs
 async function profileCommands(ctx, action = ctx.args.command(1)) {
   const { args, store, reporter } = ctx;
@@ -984,9 +1044,10 @@ async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === "import") return dataImportCommands(ctx);
-  if (!["query", "get", "create", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, update or delete.");
+  if (!["query", "get", "create", "creation-result", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, creation-result, update or delete.");
   const entity = args.required("entity", args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;
+  if (action === "creation-result") return creationResult(ctx, entity, root);
   if (action === "query") {
     let query2 = await jsonInput(args, "query");
     if (query2 === void 0) {
@@ -1010,7 +1071,8 @@ async function dataCommands(ctx) {
   if (action === "get" || action === "delete") return api(ctx, action === "get" ? "GET" : "DELETE", path);
   const values = await jsonInput(args, "values");
   if (!isObject(values)) throw new CliError("Values JSON must be an object. Use --values or --values-json.");
-  return api(ctx, action === "create" ? "POST" : "PUT", path, Object.hasOwn(values, "values") ? values : { values });
+  const body = Object.hasOwn(values, "values") ? values : { values };
+  return action === "create" ? createRecord(ctx, entity, path, body) : api(ctx, "PUT", path, body);
 }
 async function securityCommands(ctx) {
   const { args, store, reporter } = ctx;
@@ -2207,15 +2269,15 @@ function operationResponse(value, expectedId, expectedVersion, previous) {
 function queryHint(id) {
   return `Use app operation show --operation ${id} with the same target/profile before any further write.`;
 }
-function contextualError2(error, context, operation) {
+function contextualError3(error, context, operation) {
   const needsQuery = !error.httpStatus || error.httpStatus >= 500;
-  const recovery = context.operationId ? queryHint(context.operationId) : `Use app versions --package ${context.packageId} with the same platform profile to check whether the import was accepted.`;
+  const recovery2 = context.operationId ? queryHint(context.operationId) : `Use app versions --package ${context.packageId} with the same platform profile to check whether the import was accepted.`;
   return new CliError(error instanceof CliError ? error.message : "Application request failed.", {
     code: error.code ?? "operation_failed",
     httpStatus: error.httpStatus,
     serverCode: error.serverCode,
     requestId: error.requestId,
-    hint: needsQuery && !error.code?.startsWith("operation_") ? [recovery, error.hint].filter(Boolean).join(" ") : error.hint,
+    hint: needsQuery && !error.code?.startsWith("operation_") ? [recovery2, error.hint].filter(Boolean).join(" ") : error.hint,
     details: { ...error.details, ...context, ...operation ? { operation } : {} }
   });
 }
@@ -2281,7 +2343,7 @@ async function waitOperation(ctx, api3, operation, settings) {
           "Stopped waiting; the server operation may still be running.",
           `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
         );
-      throw contextualError2(error, { operationId: operation.id, installationId: operation.installationId }, operation);
+      throw contextualError3(error, { operationId: operation.id, installationId: operation.installationId }, operation);
     }
   }
   return operation;
@@ -2299,7 +2361,7 @@ async function submit(ctx, api3, path, body, context, { cancel = false } = {}) {
   } catch (error) {
     const latest = error.details?.operation ?? operation;
     exposeApplicationConfirmations(ctx.reporter, latest);
-    throw contextualError2(error, context, latest);
+    throw contextualError3(error, context, latest);
   }
 }
 async function appManagementCommands(ctx, createClient) {
@@ -2321,7 +2383,7 @@ async function appManagementCommands(ctx, createClient) {
         throw new CliError("The import response does not match the requested package version.", { code: "invalid_response" });
       return output(ctx, result);
     } catch (error) {
-      throw contextualError2(error, { packageId, versionId });
+      throw contextualError3(error, { packageId, versionId });
     }
   }
   if (action === "preview" || action === "install") {
@@ -2364,7 +2426,7 @@ async function appManagementCommands(ctx, createClient) {
       } catch (error) {
         const latest = error.details?.operation ?? operation;
         exposeApplicationConfirmations(ctx.reporter, latest);
-        throw contextualError2(error, { operationId: id }, latest);
+        throw contextualError3(error, { operationId: id }, latest);
       }
     }
     const operationId = operationAction === "retry" ? body.requestId : id;
@@ -2727,7 +2789,8 @@ for (const action of ["browse", "create", "register"]) command(
 command("data query", [...api2, "entity", "query", "query-json", "file", "page", "page-size", "search", "fields", "filter", "filter-json", "sort", "no-total"], [slot("entity")], "Query runtime records using a complete JSON request or individual query options.");
 command("data get", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Read one runtime record.");
 command("data delete", [...api2, "entity", "id"], [slot("entity"), slot("id")], "Delete exactly one runtime record. Filters are not accepted.");
-command("data create", [...api2, "entity", "values", "values-json", "file"], [slot("entity")], "Create one record; JSON file options accept - for stdin.");
+command("data create", [...api2, "entity", "request-key", "values", "values-json", "file"], [slot("entity")], "Create one record; optional requestKey enables recovery on a server that supports keyed creation. No automatic retry.");
+command("data creation-result", [...api2, "entity", "request-key"], [slot("entity")], "Read the original creation by --request-key without creating or retrying a record. Inspect status: unknown or completed.");
 command("data update", [...api2, "entity", "id", "values", "values-json", "file"], [slot("entity"), slot("id")], "Update one record; a full values envelope can include expectedValues.");
 var importTarget = [...api2, "entity", "application"];
 var importJob = [...importTarget, "job"];
@@ -2831,6 +2894,8 @@ function validateCommand(args) {
     }
   }
   exclusive(["application-id", "personal"]);
+  if (spec.path === "data creation-result") args.required("request-key");
+  if (args.has("request-key")) creationKey(args.value("request-key"));
   if (args.has("runtime")) origin(args.value("runtime"));
   if (spec.path === "data query") {
     exclusive(["query", "query-json", "file"]);
@@ -2984,6 +3049,7 @@ import { randomBytes as randomBytes6 } from "node:crypto";
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
+import { performance as performance3 } from "node:perf_hooks";
 var sessions = "/v1/dsh/sessions";
 var pendingPath = "/v1/dsh/pending-actions";
 async function messageInput(args) {
@@ -3090,28 +3156,40 @@ function visibleHistory(frame, sessionId) {
   }
   return { sessionId, ...frame.cursor !== void 0 ? { cursor: frame.cursor } : {}, hasMore: frame.hasMore === true, items };
 }
-async function openStream(ctx, sessionId, headers, runtimeConnection2) {
+function turnBudget(args) {
+  const controller = new AbortController(), milliseconds = args.integer("wait-timeout", 120) * 1e3;
+  const deadline = performance3.now() + milliseconds;
+  const timeout = setTimeout(() => controller.abort(), milliseconds);
+  return {
+    signal: controller.signal,
+    expired: () => performance3.now() >= deadline,
+    check() {
+      if (controller.signal.aborted || performance3.now() >= deadline)
+        throw new CliError("Waiting for the conversation timed out.", { code: "turn_timeout" });
+    },
+    close() {
+      clearTimeout(timeout);
+      controller.abort();
+    }
+  };
+}
+async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
   const { args } = ctx;
   const { runtime: runtime2, token, profile, source } = runtimeConnection2(ctx);
   const controller = new AbortController();
-  let expired = false;
-  const timeout = setTimeout(() => {
-    expired = true;
-    controller.abort();
-  }, args.integer("wait-timeout", 120) * 1e3);
   const connectTimeout = setTimeout(() => controller.abort(), args.timeout());
+  const signal = AbortSignal.any([controller.signal, budget.signal]);
   let response;
   try {
     response = await fetch(new URL(`${sessions}/${segment(sessionId)}/stream`, runtime2), {
       method: "GET",
       redirect: "error",
-      signal: controller.signal,
+      signal,
       headers: { Accept: "text/event-stream", Authorization: `Bearer ${token}`, "X-XRain-Authorization": `Bearer ${token}`, ...headers }
     });
   } catch (error) {
-    clearTimeout(timeout);
     clearTimeout(connectTimeout);
-    throw new CliError(expired ? "Waiting for the conversation timed out." : "Could not open the conversation stream.", { code: expired ? "turn_timeout" : "network_error" });
+    throw new CliError(budget.expired() ? "Waiting for the conversation timed out." : "Could not open the conversation stream.", { code: budget.expired() ? "turn_timeout" : "network_error" });
   }
   clearTimeout(connectTimeout);
   if (!response.ok) {
@@ -3129,15 +3207,13 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2) {
       throw responseError({ status: response.status, headers: response.headers, json: () => JSON.parse(text) }, "", { credentialSource: source, profile: profile.name });
     } catch (error) {
       if (error instanceof CliError) throw error;
-      throw new CliError(expired ? "Waiting for the conversation timed out." : "Conversation response was interrupted.", { code: expired ? "turn_timeout" : "network_error" });
+      throw new CliError(budget.expired() ? "Waiting for the conversation timed out." : "Conversation response was interrupted.", { code: budget.expired() ? "turn_timeout" : "network_error" });
     } finally {
-      clearTimeout(timeout);
       controller.abort();
     }
   }
   if (!response.body || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
     controller.abort();
-    clearTimeout(timeout);
     throw new CliError("Runtime returned an invalid conversation stream.", { code: "invalid_response" });
   }
   const reader = response.body.getReader(), decoder2 = new TextDecoder();
@@ -3161,7 +3237,7 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2) {
         try {
           part = await reader.read();
         } catch {
-          throw new CliError(expired ? "Waiting for the conversation timed out." : "Conversation stream was interrupted.", { code: expired ? "turn_timeout" : "network_error" });
+          throw new CliError(budget.expired() ? "Waiting for the conversation timed out." : "Conversation stream was interrupted.", { code: budget.expired() ? "turn_timeout" : "network_error" });
         }
         if (part.done) throw new CliError("Conversation stream ended before the turn completed.", { code: "stream_ended" });
         buffer += decoder2.decode(part.value, { stream: true });
@@ -3169,7 +3245,6 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2) {
       }
     },
     close() {
-      clearTimeout(timeout);
       controller.abort();
     }
   };
@@ -3186,11 +3261,12 @@ function finish(sessionId, requestId, result) {
   if (!nonempty(result.answer)) throw new CliError("The turn completed without a text reply.", { code: "no_answer", details: { sessionId, requestId, ...result } });
   return { sessionId, requestId, ...result };
 }
-async function follow(ctx, sessionId, requestId, text, headers, helpers) {
-  let stream, submitted = text === void 0, snapshot = false, initialPending = [], incomplete = false;
+async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
+  let stream, submitted = text === void 0, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
   const turn = collector(requestId, text);
   try {
-    stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection);
+    budget.check();
+    stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
     while (!snapshot) {
       const frame = await stream.next();
       if (frame?.type === "stream-error") throw new CliError("Runtime could not follow the conversation.", { code: "stream_ended" });
@@ -3204,23 +3280,38 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers) {
     }
     if (turn.result()) return finish(sessionId, requestId, turn.result());
     if (initialPending.length) throw actionRequired(sessionId, requestId, initialPending, submitted);
+    let submission = Promise.resolve();
     if (!submitted) {
+      budget.check();
       const body = { requestId, content: [{ type: "text", text }] };
-      await helpers.writeOnce(async () => {
-        const accepted = await helpers.runtimeValue(ctx, "POST", `${sessions}/${segment(sessionId)}/inputs`, body, headers);
+      inputAttempted = true;
+      submission = helpers.writeOnce(async () => {
+        const accepted = await helpers.runtimeValue(ctx, "POST", `${sessions}/${segment(sessionId)}/inputs`, body, headers, { signal: budget.signal });
         if (!isObject(accepted) || accepted.accepted !== true) throw new CliError("Runtime returned an invalid input receipt.", { code: "invalid_response" });
-      }, "Input outcome is unknown. Inspect the same conversation and request ID before deciding whether to retry.", { sessionId, requestId });
-      submitted = true;
+      }, "Input outcome is unknown. Inspect the same conversation and request ID before deciding whether to retry.", { sessionId, requestId }).then(() => {
+        submitted = true;
+      });
     }
-    while (true) {
-      const frame = await stream.next();
-      if (frame?.type === "stream-error") throw new CliError("Runtime could not follow the conversation.", { code: "stream_ended" });
-      if (frame?.type === "pending-actions" && Array.isArray(frame.items) && frame.items.length) throw actionRequired(sessionId, requestId, frame.items);
-      if (frame?.type === "event") turn.accept(eventOf(frame));
-      if (turn.result()) return finish(sessionId, requestId, turn.result());
-    }
+    const following = (async () => {
+      while (true) {
+        const frame = await stream.next();
+        if (frame?.type === "stream-error") throw new CliError("Runtime could not follow the conversation.", { code: "stream_ended" });
+        if (frame?.type === "pending-actions" && Array.isArray(frame.items) && frame.items.length) {
+          await submission;
+          throw actionRequired(sessionId, requestId, frame.items);
+        }
+        if (frame?.type === "event") turn.accept(eventOf(frame));
+        if (turn.result()) return finish(sessionId, requestId, turn.result());
+      }
+    })();
+    await Promise.race([submission, following]);
+    return await following;
   } catch (error) {
     if (error instanceof CliError) {
+      if (inputAttempted && !submitted && ["turn_timeout", "network_error", "stream_ended", "invalid_response"].includes(error.code)) {
+        error.code = "outcome_unknown";
+        error.hint = "Input outcome is unknown. Do not resend. Read history or wait on this session and request ID.";
+      }
       error.details = { ...error.details, sessionId, requestId, ...incomplete && !turn.found() ? { historyIncomplete: true } : {} };
       if (["turn_timeout", "network_error", "stream_ended", "invalid_response"].includes(error.code))
         error.hint = submitted ? "Do not resend. Read history or wait on this session and request ID." : "The input was not submitted. Inspect the created session before continuing.";
@@ -3273,23 +3364,26 @@ async function chatCommands(ctx, helpers) {
   }
   const text = action === "wait" ? void 0 : await messageInput(args);
   const requestId = helpers.identifier(args.value("request-id") ?? randomUUID(), "Request ID");
-  if (action === "start") {
-    const agentId = helpers.identifier(args.required("agent-id"), "Agent ID");
-    const created = await helpers.writeOnce(async () => {
-      const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli" }, headers);
-      if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError("Runtime returned an invalid session receipt.", { code: "invalid_response" });
-      return result;
-    }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, ...context });
-    sessionId = created.sessionId;
-    reporter.progress(`Session ID: ${sessionId}`);
-  }
-  sessionId = helpers.identifier(sessionId, "Session ID");
   reporter.progress(`Request ID: ${requestId}`);
+  const budget = turnBudget(args);
   try {
-    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers), ...context });
+    if (action === "start") {
+      const agentId = helpers.identifier(args.required("agent-id"), "Agent ID");
+      const created = await helpers.writeOnce(async () => {
+        const result = await helpers.runtimeValue(ctx, "POST", sessions, { agentId, source: "xrain-cli" }, headers, { signal: budget.signal });
+        if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError("Runtime returned an invalid session receipt.", { code: "invalid_response" });
+        return result;
+      }, "Session creation outcome is unknown. Inspect your conversation list before creating another.", { agentId, requestId, ...context });
+      sessionId = created.sessionId;
+      reporter.progress(`Session ID: ${sessionId}`);
+    }
+    sessionId = helpers.identifier(sessionId, "Session ID");
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers, budget), ...context });
   } catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...context };
     throw error;
+  } finally {
+    budget.close();
   }
   return 0;
 }
@@ -3356,7 +3450,7 @@ function runtimeConnection(ctx) {
   runtimeConnections.set(ctx, connection);
   return connection;
 }
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal } = {}) {
   const { args } = ctx;
   const { runtime: runtime2, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime2), {
@@ -3364,6 +3458,7 @@ async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
     token,
     json,
     timeout: args.timeout(),
+    signal,
     headers: { "X-XRain-Authorization": `Bearer ${token}`, ...extraHeaders }
   });
   if (!response.ok) throw responseError(response, "", { credentialSource: source, profile: profile.name });

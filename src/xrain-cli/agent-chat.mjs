@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { CliError, isObject, jsonInput, nonempty, readLimited, segment } from './core.mjs';
 import { responseError } from './http.mjs';
 
@@ -106,20 +107,34 @@ function visibleHistory(frame, sessionId) {
   return { sessionId, ...(frame.cursor !== undefined ? { cursor: frame.cursor } : {}), hasMore: frame.hasMore === true, items };
 }
 
-async function openStream(ctx, sessionId, headers, runtimeConnection) {
+function turnBudget(args) {
+  const controller = new AbortController(), milliseconds = args.integer('wait-timeout', 120) * 1000;
+  const deadline = performance.now() + milliseconds;
+  const timeout = setTimeout(() => controller.abort(), milliseconds);
+  return {
+    signal: controller.signal,
+    expired: () => performance.now() >= deadline,
+    check() {
+      if (controller.signal.aborted || performance.now() >= deadline)
+        throw new CliError('Waiting for the conversation timed out.', { code: 'turn_timeout' });
+    },
+    close() { clearTimeout(timeout); controller.abort(); },
+  };
+}
+
+async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
   const { args } = ctx;
   const { runtime, token, profile, source } = runtimeConnection(ctx);
   const controller = new AbortController();
-  let expired = false;
-  const timeout = setTimeout(() => { expired = true; controller.abort(); }, args.integer('wait-timeout', 120) * 1000);
   const connectTimeout = setTimeout(() => controller.abort(), args.timeout());
+  const signal = AbortSignal.any([controller.signal, budget.signal]);
   let response;
   try {
-    response = await fetch(new URL(`${sessions}/${segment(sessionId)}/stream`, runtime), { method: 'GET', redirect: 'error', signal: controller.signal,
+    response = await fetch(new URL(`${sessions}/${segment(sessionId)}/stream`, runtime), { method: 'GET', redirect: 'error', signal,
       headers: { Accept: 'text/event-stream', Authorization: `Bearer ${token}`, 'X-XRain-Authorization': `Bearer ${token}`, ...headers } });
   } catch (error) {
-    clearTimeout(timeout); clearTimeout(connectTimeout);
-    throw new CliError(expired ? 'Waiting for the conversation timed out.' : 'Could not open the conversation stream.', { code: expired ? 'turn_timeout' : 'network_error' });
+    clearTimeout(connectTimeout);
+    throw new CliError(budget.expired() ? 'Waiting for the conversation timed out.' : 'Could not open the conversation stream.', { code: budget.expired() ? 'turn_timeout' : 'network_error' });
   }
   clearTimeout(connectTimeout);
   if (!response.ok) {
@@ -135,11 +150,11 @@ async function openStream(ctx, sessionId, headers, runtimeConnection) {
       throw responseError({ status: response.status, headers: response.headers, json: () => JSON.parse(text) }, '', { credentialSource: source, profile: profile.name });
     } catch (error) {
       if (error instanceof CliError) throw error;
-      throw new CliError(expired ? 'Waiting for the conversation timed out.' : 'Conversation response was interrupted.', { code: expired ? 'turn_timeout' : 'network_error' });
-    } finally { clearTimeout(timeout); controller.abort(); }
+      throw new CliError(budget.expired() ? 'Waiting for the conversation timed out.' : 'Conversation response was interrupted.', { code: budget.expired() ? 'turn_timeout' : 'network_error' });
+    } finally { controller.abort(); }
   }
   if (!response.body || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
-    controller.abort(); clearTimeout(timeout);
+    controller.abort();
     throw new CliError('Runtime returned an invalid conversation stream.', { code: 'invalid_response' });
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -155,13 +170,13 @@ async function openStream(ctx, sessionId, headers, runtimeConnection) {
           try { return JSON.parse(data); } catch { throw new CliError('Runtime returned an invalid conversation event.', { code: 'invalid_response' }); }
         }
         let part;
-        try { part = await reader.read(); } catch { throw new CliError(expired ? 'Waiting for the conversation timed out.' : 'Conversation stream was interrupted.', { code: expired ? 'turn_timeout' : 'network_error' }); }
+        try { part = await reader.read(); } catch { throw new CliError(budget.expired() ? 'Waiting for the conversation timed out.' : 'Conversation stream was interrupted.', { code: budget.expired() ? 'turn_timeout' : 'network_error' }); }
         if (part.done) throw new CliError('Conversation stream ended before the turn completed.', { code: 'stream_ended' });
         buffer += decoder.decode(part.value, { stream: true });
         if (buffer.length > 32 * 1024 * 1024) throw new CliError('Conversation event exceeds the size limit.', { code: 'invalid_response' });
       }
     },
-    close() { clearTimeout(timeout); controller.abort(); },
+    close() { controller.abort(); },
   };
 }
 function actionRequired(sessionId, requestId, items, submitted = true) {
@@ -174,11 +189,12 @@ function finish(sessionId, requestId, result) {
   if (!nonempty(result.answer)) throw new CliError('The turn completed without a text reply.', { code: 'no_answer', details: { sessionId, requestId, ...result } });
   return { sessionId, requestId, ...result };
 }
-async function follow(ctx, sessionId, requestId, text, headers, helpers) {
-  let stream, submitted = text === undefined, snapshot = false, initialPending = [], incomplete = false;
+async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
+  let stream, submitted = text === undefined, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
   const turn = collector(requestId, text);
   try {
-    stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection);
+    budget.check();
+    stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
     while (!snapshot) {
       const frame = await stream.next();
       if (frame?.type === 'stream-error') throw new CliError('Runtime could not follow the conversation.', { code: 'stream_ended' });
@@ -191,23 +207,39 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers) {
     }
     if (turn.result()) return finish(sessionId, requestId, turn.result());
     if (initialPending.length) throw actionRequired(sessionId, requestId, initialPending, submitted);
+    let submission = Promise.resolve();
     if (!submitted) {
+      budget.check();
       const body = { requestId, content: [{ type: 'text', text }] };
-      await helpers.writeOnce(async () => {
-        const accepted = await helpers.runtimeValue(ctx, 'POST', `${sessions}/${segment(sessionId)}/inputs`, body, headers);
+      inputAttempted = true;
+      submission = helpers.writeOnce(async () => {
+        const accepted = await helpers.runtimeValue(ctx, 'POST', `${sessions}/${segment(sessionId)}/inputs`, body, headers, { signal: budget.signal });
         if (!isObject(accepted) || accepted.accepted !== true) throw new CliError('Runtime returned an invalid input receipt.', { code: 'invalid_response' });
-      }, 'Input outcome is unknown. Inspect the same conversation and request ID before deciding whether to retry.', { sessionId, requestId });
-      submitted = true;
+      }, 'Input outcome is unknown. Inspect the same conversation and request ID before deciding whether to retry.', { sessionId, requestId })
+        .then(() => { submitted = true; });
     }
-    while (true) {
-      const frame = await stream.next();
-      if (frame?.type === 'stream-error') throw new CliError('Runtime could not follow the conversation.', { code: 'stream_ended' });
-      if (frame?.type === 'pending-actions' && Array.isArray(frame.items) && frame.items.length) throw actionRequired(sessionId, requestId, frame.items);
-      if (frame?.type === 'event') turn.accept(eventOf(frame));
-      if (turn.result()) return finish(sessionId, requestId, turn.result());
-    }
+    const following = (async () => {
+      while (true) {
+        const frame = await stream.next();
+        if (frame?.type === 'stream-error') throw new CliError('Runtime could not follow the conversation.', { code: 'stream_ended' });
+        if (frame?.type === 'pending-actions' && Array.isArray(frame.items) && frame.items.length) {
+          await submission;
+          throw actionRequired(sessionId, requestId, frame.items);
+        }
+        if (frame?.type === 'event') turn.accept(eventOf(frame));
+        if (turn.result()) return finish(sessionId, requestId, turn.result());
+      }
+    })();
+    // A correlated terminal event is sufficient even if its HTTP receipt is late.
+    // Observe both promises so closing after that event cannot leak a rejection.
+    await Promise.race([submission, following]);
+    return await following;
   } catch (error) {
     if (error instanceof CliError) {
+      if (inputAttempted && !submitted && ['turn_timeout', 'network_error', 'stream_ended', 'invalid_response'].includes(error.code)) {
+        error.code = 'outcome_unknown';
+        error.hint = 'Input outcome is unknown. Do not resend. Read history or wait on this session and request ID.';
+      }
       error.details = { ...error.details, sessionId, requestId, ...(incomplete && !turn.found() ? { historyIncomplete: true } : {}) };
       if (['turn_timeout', 'network_error', 'stream_ended', 'invalid_response'].includes(error.code))
         error.hint = submitted ? 'Do not resend. Read history or wait on this session and request ID.' : 'The input was not submitted. Inspect the created session before continuing.';
@@ -255,22 +287,25 @@ export async function chatCommands(ctx, helpers) {
   }
   const text = action === 'wait' ? undefined : await messageInput(args);
   const requestId = helpers.identifier(args.value('request-id') ?? randomUUID(), 'Request ID');
-  if (action === 'start') {
-    const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID');
-    const created = await helpers.writeOnce(async () => {
-      const result = await helpers.runtimeValue(ctx, 'POST', sessions, { agentId, source: 'xrain-cli' }, headers);
-      if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError('Runtime returned an invalid session receipt.', { code: 'invalid_response' });
-      return result;
-    }, 'Session creation outcome is unknown. Inspect your conversation list before creating another.', { agentId, ...context });
-    sessionId = created.sessionId;
-    reporter.progress(`Session ID: ${sessionId}`);
-  }
-  sessionId = helpers.identifier(sessionId, 'Session ID');
   reporter.progress(`Request ID: ${requestId}`);
-  try { reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers), ...context }); }
+  const budget = turnBudget(args);
+  try {
+    if (action === 'start') {
+      const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID');
+      const created = await helpers.writeOnce(async () => {
+        const result = await helpers.runtimeValue(ctx, 'POST', sessions, { agentId, source: 'xrain-cli' }, headers, { signal: budget.signal });
+        if (!isObject(result) || !nonempty(result.sessionId)) throw new CliError('Runtime returned an invalid session receipt.', { code: 'invalid_response' });
+        return result;
+      }, 'Session creation outcome is unknown. Inspect your conversation list before creating another.', { agentId, requestId, ...context });
+      sessionId = created.sessionId;
+      reporter.progress(`Session ID: ${sessionId}`);
+    }
+    sessionId = helpers.identifier(sessionId, 'Session ID');
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers, budget), ...context });
+  }
   catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...context };
     throw error;
-  }
+  } finally { budget.close(); }
   return 0;
 }

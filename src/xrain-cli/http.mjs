@@ -1,8 +1,10 @@
 import { CliError, httpUrl, parseJson } from './core.mjs';
 
-export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, limit = 32 * 1024 * 1024 } = {}) {
+export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = 32 * 1024 * 1024 } = {}) {
   url = httpUrl(url);
-  const options = { method, redirect: 'error', signal: AbortSignal.timeout(timeout), headers: { Accept: 'application/json', ...headers } };
+  const requestTimeout = AbortSignal.timeout(timeout);
+  const options = { method, redirect: 'error', signal: signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout,
+    headers: { Accept: 'application/json', ...headers } };
   if (token) options.headers.Authorization = `Bearer ${token}`;
   if (json !== undefined) { options.body = JSON.stringify(json); options.headers['Content-Type'] = 'application/json'; }
   else if (body !== undefined) options.body = body;

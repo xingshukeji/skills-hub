@@ -40,9 +40,9 @@ agent chat respond <actionRef> --values-json <回答.json>
 
 `--message-file -` 从标准输入读取 UTF-8 文本，也可用 `--message` 直接提供短输入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；也可通过 `--request-id` 显式指定本次输入的稳定 ID。
 
-命令等待本次请求自己的 `turn/end`，默认最多 120 秒，可用 `--wait-timeout` 调整。返回 `completed` 和文本答复只证明该轮运行完成，不证明答复正确或业务写入成功；`toolCalls` 的状态反映 Runtime 工具回执。历史只展示可见用户、助手、工具及结束状态，`hasMore` 表示当前返回并非完整历史。
+命令等待本次请求自己的 `turn/end`，默认最多 120 秒，可用 `--wait-timeout` 调整。该总预算在本地输入校验后、首次网络操作前开始，覆盖 `start` 的会话创建，以及流连接、输入提交回执和本轮结果跟随，不在各阶段重新计时。单次 HTTP 请求仍受 `--timeout` 约束。已经观察到同一 requestId、输入及本轮结束的完成事件时，可先于迟到的提交回执返回。返回 `completed` 和文本答复只证明该轮运行完成，不证明答复正确或业务写入成功；`toolCalls` 的状态反映 Runtime 工具回执。历史只展示可见用户、助手、工具及结束状态，`hasMore` 表示当前返回并非完整历史。
 
-`action_required` 会给出待处理问题或审批的 actionRef；不能自动批准。用户明确选择后可发送 `{"outcome":"allowed-once"}` 或 `{"outcome":"rejected"}`，问题按服务返回的 question ID 提供 `{"answers":[{"id":"<问题ID>","selected":["<选择>"],"custom":"<可选文字>"}]}`。响应有独立的 responseId，结果未知时先检查原事项；提交后使用原 sessionId/requestId 的 `wait` 读取该轮结果，不重发对话。超时、断流、会话创建或输入结果未知也先查 `list`、`history` 或 `wait`；历史分页导致无法确认时不能把旧回复当作新结果。
+`action_required` 会给出待处理问题或审批的 actionRef；不能自动批准。用户明确选择后可发送 `{"outcome":"allowed-once"}` 或 `{"outcome":"rejected"}`，问题按服务返回的 question ID 提供 `{"answers":[{"id":"<问题ID>","selected":["<选择>"],"custom":"<可选文字>"}]}`。响应有独立的 responseId，结果未知时先检查原事项；提交后使用原 sessionId/requestId 的 `wait` 读取该轮结果，不重发对话。超时只结束本地等待，不发出服务端取消请求，也不证明输入未接收。输入已尝试提交但未确认时返回 `outcome_unknown` 并保留原 ID；超时、断流、会话创建或输入结果未知先查 `list`、`history` 或 `wait`。历史分页导致无法确认时不能把旧回复当作新结果。
 
 创建可提供 `--agent-id <稳定ID>`；省略时生成 ID 并在提交前写入 stderr。请保留此 ID，不按名称认领另一条定义。`--name` 给出名称，其他配置以 JSON 对象提供。下例的值须取自实际 `options`；工作要求可包含多行：
 

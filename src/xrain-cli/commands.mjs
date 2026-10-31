@@ -1,6 +1,7 @@
 import { CliError, DEFAULT_SERVER, equalIgnoreCase, isObject, jsonInput, origin, segment } from './core.mjs';
 import { api, apiValue } from './http.mjs';
 import { dataImportCommands } from './data-import.mjs';
+import { createRecord, creationResult } from './record-creation.mjs';
 import { identifier, samePlatformTarget } from './agent-target.mjs';
 
 export async function profileCommands(ctx, action = ctx.args.command(1)) {
@@ -79,9 +80,10 @@ export async function dataCommands(ctx) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === 'import') return dataImportCommands(ctx);
-  if (!['query', 'get', 'create', 'update', 'delete'].includes(action)) throw new CliError('Use data query, get, create, update or delete.');
+  if (!['query', 'get', 'create', 'creation-result', 'update', 'delete'].includes(action)) throw new CliError('Use data query, get, create, creation-result, update or delete.');
   const entity = args.required('entity', args.operand(2));
   const root = `/api/data/v1/entities/${segment(entity)}/records`;
+  if (action === 'creation-result') return creationResult(ctx, entity, root);
   if (action === 'query') {
     let query = await jsonInput(args, 'query');
     if (query === undefined) {
@@ -105,7 +107,8 @@ export async function dataCommands(ctx) {
   if (action === 'get' || action === 'delete') return api(ctx, action === 'get' ? 'GET' : 'DELETE', path);
   const values = await jsonInput(args, 'values');
   if (!isObject(values)) throw new CliError('Values JSON must be an object. Use --values or --values-json.');
-  return api(ctx, action === 'create' ? 'POST' : 'PUT', path, Object.hasOwn(values, 'values') ? values : { values });
+  const body = Object.hasOwn(values, 'values') ? values : { values };
+  return action === 'create' ? createRecord(ctx, entity, path, body) : api(ctx, 'PUT', path, body);
 }
 
 export async function securityCommands(ctx) {

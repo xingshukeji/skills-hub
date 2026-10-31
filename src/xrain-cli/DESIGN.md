@@ -4,7 +4,7 @@ Status: Active
 Kind: CurrentDesign
 Scope: skills-hub / xrain-cli 的平台连接、智能体入口与身份诊断
 Owner: skills-hub 维护者
-Updated: 2026-10-30
+Updated: 2026-10-31
 Depends On:
 - ../../AGENTS.md
 - ../../skills/shzw-xrain-cli/SKILL.md
@@ -71,6 +71,8 @@ xrain-cli agent chat send <sessionId> --message <后续问题>
 创建会话时保留实际 Runtime、应用上下文、sessionId 和 requestId 的可见结果。继续、等待和处理待答事项时使用同一 Runtime 与原应用上下文。更换 profile 后，不根据智能体名称、平台默认应用或同名会话猜测原目标；使用者可选回原 profile 或显式指定原入口和应用。现有会话历史由 Runtime 持有，CLI 不建立副本。
 
 对话继续等待本轮完成，并区分接纳与完成。提交结果未知时回读原会话或等待原 requestId，不自动重发。待处理审批或问题仍由使用者明确决定；登录、创建定义或订阅不隐式发起对话。
+
+`--wait-timeout` 是从本地输入校验结束、首次网络动作前开始的总预算，覆盖会话创建、流连接、输入 POST 及本轮跟随；每个 HTTP 请求另受 `--timeout` 约束。流与输入提交并行观察，只有关联到本请求、输入及本轮终态的事件才能先于迟到回执完成。预算到期或断流时，已尝试提交的输入保留结果未知及原标识；本地中止连接不调用服务端取消入口。
 
 ## 实施归属与验收
 

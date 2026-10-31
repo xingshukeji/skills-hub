@@ -27,7 +27,7 @@ node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
 - 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
 - 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。
 
-管理操作选 `--auth session`，避免旧 API Token 抢先；应用包命令检查身份也选 `--auth session`，与其实际凭据一致。租户由 token 绑定，`--tenant` 不能换身份；Host 身份的 tenantId 为 null，目标租户由操作参数单独确定。身份查询不证明具体业务权限，检查后会话若被并发替换也不构成强绑定。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。记录操作按目标服务实际返回判断。
+管理操作选 `--auth session`，避免旧 API Token 抢先；应用包命令检查身份也选 `--auth session`，与其实际凭据一致。租户由 token 绑定，`--tenant` 不能换身份；Host 身份的 tenantId 为 null，目标租户由操作参数单独确定。身份查询不证明具体业务权限，检查后会话若被并发替换也不构成强绑定。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。支持 keyed creation 的服务可在单记录创建时显式提供 `--request-key`；结果未知先用原对象、身份和键执行 `data creation-result`，不自动重放或改键。记录操作按目标服务实际返回判断。
 
 安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
 

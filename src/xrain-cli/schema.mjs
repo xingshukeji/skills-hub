@@ -1,4 +1,5 @@
 import { CliError, origin } from './core.mjs';
+import { creationKey } from './record-creation.mjs';
 
 const common = ['help', 'json'];
 const target = ['server', 'tenant', 'profile', 'timeout'];
@@ -62,7 +63,8 @@ for (const action of ['browse', 'create', 'register']) command(`agent workspace 
 command('data query', [...api, 'entity', 'query', 'query-json', 'file', 'page', 'page-size', 'search', 'fields', 'filter', 'filter-json', 'sort', 'no-total'], [slot('entity')], 'Query runtime records using a complete JSON request or individual query options.');
 command('data get', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Read one runtime record.');
 command('data delete', [...api, 'entity', 'id'], [slot('entity'), slot('id')], 'Delete exactly one runtime record. Filters are not accepted.');
-command('data create', [...api, 'entity', 'values', 'values-json', 'file'], [slot('entity')], 'Create one record; JSON file options accept - for stdin.');
+command('data create', [...api, 'entity', 'request-key', 'values', 'values-json', 'file'], [slot('entity')], 'Create one record; optional requestKey enables recovery on a server that supports keyed creation. No automatic retry.');
+command('data creation-result', [...api, 'entity', 'request-key'], [slot('entity')], 'Read the original creation by --request-key without creating or retrying a record. Inspect status: unknown or completed.');
 command('data update', [...api, 'entity', 'id', 'values', 'values-json', 'file'], [slot('entity'), slot('id')], 'Update one record; a full values envelope can include expectedValues.');
 const importTarget = [...api, 'entity', 'application'];
 const importJob = [...importTarget, 'job'];
@@ -155,6 +157,8 @@ export function validateCommand(args) {
     }
   }
   exclusive(['application-id', 'personal']);
+  if (spec.path === 'data creation-result') args.required('request-key');
+  if (args.has('request-key')) creationKey(args.value('request-key'));
   if (args.has('runtime')) origin(args.value('runtime'));
   if (spec.path === 'data query') {
     exclusive(['query', 'query-json', 'file']); exclusive(['filter', 'filter-json']);

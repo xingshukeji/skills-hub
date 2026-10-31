@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { fixture, mockServer, respond } from './helpers.mjs';
 
 const result = value => JSON.parse(value.stdout);
@@ -11,6 +12,86 @@ const user = (seq, requestId, text) => event('user/message', seq, { source: { ki
 const assistant = (seq, turn, text) => event('assistant/message', seq, { turn, message: { content: [{ type: 'text', text }] } });
 const start = (seq, turn) => event('turn/start', seq, { turn });
 const end = (seq, turn, kind = 'completed') => event('turn/end', seq, { turn, reason: { kind } });
+
+async function delayedConversation(t, { inputDelay = 0, creationDelay = 0, earlyTerminal = false, dropStream = false } = {}) {
+  let stream, records = [], creates = 0, sends = 0;
+  const timers = new Set();
+  const later = (action, ms) => { const timer = setTimeout(() => { timers.delete(timer); action(); }, ms); timers.add(timer); };
+  t.after(() => { for (const timer of timers) clearTimeout(timer); });
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.method === 'POST' && hit.url === '/v1/dsh/sessions') {
+      creates++; later(() => { if (!res.destroyed) respond(res, { sessionId: 'delayed-session' }, 201); }, creationDelay); return;
+    }
+    if (hit.url === '/v1/dsh/sessions/delayed-session/stream') {
+      stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(frame({ type: 'snapshot', records, hasMore: false })); return;
+    }
+    if (hit.url === '/v1/dsh/sessions/delayed-session/inputs') {
+      sends++;
+      const input = hit.json();
+      records = [start(1, 1), user(2, input.requestId, input.content[0].text), assistant(3, 1, 'stored reply'), end(4, 1)];
+      const publish = () => { if (!stream.destroyed) for (const record of records) stream.write(frame({ type: 'event', ...record })); };
+      if (earlyTerminal) publish();
+      if (dropStream) stream.end();
+      later(() => {
+        if (!res.destroyed) respond(res, { accepted: true }, 202);
+        if (!earlyTerminal && !dropStream) publish();
+      }, inputDelay);
+      return;
+    }
+    respond(res, {}, 404);
+  });
+  return { ...service, state: () => ({ creates, sends }) };
+}
+
+test('the deadline bounds a delayed POST and the original request can be read without another input', async t => {
+  const f = fixture(t), service = await delayedConversation(t, { inputDelay: 2300 });
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const target = ['--runtime', service.url, '--request-id', 'original-request', '--wait-timeout', '1', '--timeout', '5', '--json'];
+  const began = performance.now();
+  const sent = await f.run(['agent', 'chat', 'send', 'delayed-session', '--message', 'test', ...target]);
+  assert.ok(performance.now() - began < 1800, sent.stdout);
+  assert.equal(result(sent).error.code, 'outcome_unknown');
+  assert.equal(result(sent).error.details.sessionId, 'delayed-session');
+  assert.equal(result(sent).error.details.requestId, 'original-request');
+  assert.ok(!sent.stdout.includes('not submitted'));
+  const read = await f.run(['agent', 'chat', 'wait', 'delayed-session', ...target]);
+  assert.equal(read.code, 0, read.stdout); assert.equal(result(read).data.answer, 'stored reply');
+  assert.deepEqual(service.state(), { creates: 0, sends: 1 });
+  assert.ok(service.hits.every(hit => !hit.url.endsWith('/cancel')));
+});
+
+test('the same deadline includes session creation and is not restarted before input submission', async t => {
+  const f = fixture(t), service = await delayedConversation(t, { creationDelay: 600, inputDelay: 700 });
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const sent = await f.run(['agent', 'chat', 'start', 'agent-one', '--message', 'test', '--runtime', service.url,
+    '--request-id', 'creation-budget', '--wait-timeout', '1', '--timeout', '5', '--json']);
+  assert.equal(result(sent).error.code, 'outcome_unknown');
+  assert.equal(result(sent).error.details.sessionId, 'delayed-session');
+  assert.equal(result(sent).error.details.requestId, 'creation-budget');
+  assert.deepEqual(service.state(), { creates: 1, sends: 1 });
+});
+
+test('a correlated terminal event completes before its delayed HTTP receipt', async t => {
+  const f = fixture(t), service = await delayedConversation(t, { inputDelay: 2300, earlyTerminal: true });
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const sent = await f.run(['agent', 'chat', 'send', 'delayed-session', '--message', 'test', '--runtime', service.url,
+    '--request-id', 'early-terminal', '--wait-timeout', '1', '--timeout', '5', '--json']);
+  assert.equal(sent.code, 0, sent.stdout); assert.equal(result(sent).data.status, 'completed');
+  assert.equal(result(sent).data.requestId, 'early-terminal'); assert.equal(result(sent).data.answer, 'stored reply');
+  assert.equal(service.state().sends, 1);
+});
+
+test('stream loss during an unconfirmed POST retains the original input for readback', async t => {
+  const f = fixture(t), service = await delayedConversation(t, { inputDelay: 2300, dropStream: true });
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const target = ['--runtime', service.url, '--request-id', 'lost-stream', '--wait-timeout', '1', '--json'];
+  const sent = await f.run(['agent', 'chat', 'send', 'delayed-session', '--message', 'test', ...target]);
+  assert.equal(result(sent).error.code, 'outcome_unknown');
+  const read = await f.run(['agent', 'chat', 'wait', 'delayed-session', ...target]);
+  assert.equal(read.code, 0, read.stdout); assert.equal(result(read).data.answer, 'stored reply');
+  assert.equal(service.state().sends, 1);
+});
 
 function setup(t, { pending = false, initialPending = false, interrupted = false, neverFinish = false, denied = false, reason = 'completed' } = {}) {
   let stream, requestId, savedText = '', answered = false, creates = 0, sends = 0;

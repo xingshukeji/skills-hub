@@ -57,10 +57,10 @@ export function runtimeConnection(ctx) {
   runtimeConnections.set(ctx, connection);
   return connection;
 }
-export async function runtimeValue(ctx, method, path, json, extraHeaders = {}) {
+export async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal } = {}) {
   const { args } = ctx;
   const { runtime, profile, token, source } = runtimeConnection(ctx);
-  const response = await request(new URL(path, runtime), { method, token, json, timeout: args.timeout(),
+  const response = await request(new URL(path, runtime), { method, token, json, timeout: args.timeout(), signal,
     headers: { 'X-XRain-Authorization': `Bearer ${token}`, ...extraHeaders } });
   if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
   if (!response.bytes.length) return null;

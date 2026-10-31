@@ -4,6 +4,8 @@
 
 执行 `node "<skill目录>/scripts/install-cli.mjs" --json`，使用返回的 `commandPath`。脚本在当前用户的 `.local/bin` 注册指向本技能 CLI 的入口，不使用 npm、不修改 PATH、profile 或会话。可用 `--bin-dir <目录>` 选择其他用户可写目录；目标已有非本技能命令时拒绝覆盖。技能脚本原地更新后无需重新注册；技能位置变化时再运行安装入口。不在 PATH 时使用 `commandPath`，或由使用者自行配置 PATH。安装不可用时继续使用 `node "<skill目录>/scripts/xrain-cli.mjs"`。
 
+本技能交付的是 Node.js 22.12+ 独立脚本，不依赖 npm 或 .NET。项目中保留的旧 .NET XRain CLI 有其原有用途和操作入口，不随本技能更新或卸载，也不据此获得本文的新命令。执行本技能操作时使用上述 `commandPath` 或本目录脚本，先查当前入口的帮助，不以 PATH 中的同名命令代替。
+
 ## 连接与身份
 
 目标优先级：命令参数 → XRAIN_SERVER/XRAIN_TENANT → profile → 内置默认地址。实际环境必须用登记地址；历史默认 127.0.0.1:5410 不代表当前部署。--server/--exchange 只接受 origin，不带路径、查询或用户密码；独立市场使用 --exchange，不能混平台 --server/--tenant/Token 参数。
@@ -63,4 +65,4 @@ auth status --json 只查本地，remoteValidation=not_checked；valid 不证明
 
 doctor --json 的平台 /health/ready 可能无需认证，成功只说明该接口可访问，remoteValidation 仍为 not_checked；市场 /api/exchange/v1/my-published 的成功只证明该接口接受对应市场会话。两者都不证明完整业务权限。无需每次操作前运行整套诊断。
 
-401 查来源/过期及认证方式；authentication_method_not_allowed 不能靠加角色解决。403 查原用户成员和授权；TLS/网络查目标与信任，不关闭校验。HTTP 默认 100 秒，--timeout 为正整数秒，上限一天；登录各请求固定 30 秒。缺身份或原应用登录失败读[账号与登录](login.md)。
+401 查来源/过期及认证方式；authentication_method_not_allowed 不能靠加角色解决。403 查原用户成员和授权；TLS/网络查目标与信任，不关闭校验。HTTP 默认 100 秒，--timeout 为正整数秒，上限一天；原生账号登录也使用此值。浏览器与设备登录的单次 HTTP 请求最多 30 秒，设备轮询还受授权剩余时间约束；浏览器回调另有三分钟等待时间。缺身份或原应用登录失败读[账号与登录](login.md)。
