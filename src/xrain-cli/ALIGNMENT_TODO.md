@@ -34,7 +34,7 @@
 
 CLI 定向及完整 Skill 消费测试见 [导入](../../tests/data-import.test.mjs)、[Task 回执](../../tests/workforce-cli.test.mjs)、[用户功能](../../tests/user-functions.test.mjs)和[独立消费](../../tests/cli-alignment-bundle.test.mjs)。顾客原入口对照见 [独立应用测试](../../../xrain-workforce/applications/retail-assistant/tests/server.test.mjs)，Task 的保存和重入见 [原回执测试](../../../xrain-workforce/tests/task-write-receipts.test.mjs)。
 
-本轮新增证据见[工具回执与重入](../../tests/cli-tool-receipts.test.mjs)、[元数据请求键](../../tests/metadata-operations.test.mjs)及[记录创建恢复](../../tests/cli-record-creation.test.mjs)。原工作台的 tool-role 和嵌套 tool-result 格式均保留正文、错误及元数据；验证只读取已有授权会话，不增加另一套历史。
+本轮新增证据见[工具回执与重入](../../tests/cli-tool-receipts.test.mjs)、[元数据请求键](../../tests/metadata-operations.test.mjs)及[记录创建恢复](../../tests/cli-record-creation.test.mjs)。CLI 隔离验证覆盖原工作台的 tool-role 和嵌套 tool-result 格式，保留正文、错误及元数据。历史查询仍由 Runtime 按原会话授权，不建立另一套历史。
 
 本机已构建的原 XRain 元数据 AppService 在隔离测试存储中接受 2160 字符请求键，对象创建、字段创建及失败部署修正均成功；重复同键没有重复创建。使用的是 2026-10-31 23:52 的既有构建，当前源码的相应请求键处理未变化。此证据属于原服务组件验证，不代表共享租户结构写入已验证。
 
