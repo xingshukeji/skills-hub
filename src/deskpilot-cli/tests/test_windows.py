@@ -50,6 +50,26 @@ class WindowsContracts(unittest.TestCase):
         self.desktop._pattern = lambda *args: pattern
         return pattern
 
+    def test_click_and_scroll_do_not_dispatch_outside_a_monitor(self):
+        user = SimpleNamespace(GetCursorPos=Mock(return_value=True), SetCursorPos=Mock(return_value=True),
+                               WindowFromPoint=Mock(return_value=10), MonitorFromPoint=Mock(return_value=0))
+        self.desktop.user = user
+        self.desktop.foreground = lambda: 10
+        self.desktop.related = lambda *_: True
+        self.desktop._send = Mock()
+        window = {'native': 10, 'bounds': {'x': 0, 'y': 0}}
+        for target_only in (False, True):
+            for action in (lambda: self.desktop.click(window, 1058, 351, target_content_only=target_only),
+                           lambda: self.desktop.scroll(window, 1058, 351, -120, target_content_only=target_only)):
+                with self.assertRaises(DeskPilotError) as caught:
+                    action()
+                self.assertEqual((caught.exception.code, caught.exception.outcome), ('POINT_OFFSCREEN', 'not_dispatched'))
+        user.SetCursorPos.assert_not_called()
+        self.desktop._send.assert_not_called()
+        user.MonitorFromPoint.return_value = 1
+        self.desktop.click(window, 500, 351)
+        self.desktop._send.assert_called_once()
+
     def test_delayed_value_is_read_until_confirmed_without_repeating_write(self):
         pattern = self.value_pattern(['old', 'old', 'new', 'new'])
         result = self.desktop.set_value(self.element, 'new')

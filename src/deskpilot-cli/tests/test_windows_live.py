@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ctypes
-from ctypes import wintypes
 import hashlib
 import json
 import os
@@ -16,6 +15,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deskpilot import DeskPilotError
+from deskpilot.platforms.windows import POINT
 from deskpilot.screen import Image
 from deskpilot.session import Session
 
@@ -34,6 +34,8 @@ class WindowsLiveTests(unittest.TestCase):
         user.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
         try:
             ready = json.loads(fixture.stdout.readline())
+            # Keep the tested control on the 1024x768 hosted runner's display.
+            self.assertTrue(user.MoveWindow(ready["handle"], 16, 16, 900, 560, True))
             session.execute("interaction.begin", {"show_overlay": False, "restore_original_window": False})
             def locate():
                 found = session.execute("ui.find", {"title_exact": title, "automation_id": "102", "require_unique": True})
@@ -44,41 +46,18 @@ class WindowsLiveTests(unittest.TestCase):
                 return {"window_id": captured["window"]["window_id"], "screenshot_id": shot["screenshot_id"],
                         "x": area["x"] + area["width"] // 2 - shot["origin"]["x"],
                         "y": area["y"] + area["height"] // 2 - shot["origin"]["y"]}
-            initial_bounds = locate()
-            old = coordinates(initial_bounds)
+            old = coordinates(locate())
+            _, window = session._window({"window_id": old["window_id"]}, activate=False)
+            outside = POINT(user.GetSystemMetrics(76) + user.GetSystemMetrics(78) + 1, user.GetSystemMetrics(77))
+            with self.assertRaises(DeskPilotError) as offscreen:
+                session.desktop._point_owned(window, outside)
+            self.assertEqual((offscreen.exception.code, offscreen.exception.outcome), ("POINT_OFFSCREEN", "not_dispatched"))
             # Move our fixture's child directly: the DeskPilot session receives no
             # action/observation invalidation, and the top-level identity stays fixed.
             self.assertTrue(user.MoveWindow(user.GetDlgItem(ready["handle"], 102), 620, 210, 150, 44, True))
             time.sleep(0.1)
-            try:
-                with self.assertRaises(DeskPilotError) as moved:
-                    session.execute("input.click", old)
-            except AssertionError:
-                # Keep the failing assertion intact while recording only this
-                # disposable fixture's capture geometry and pixel difference.
-                try:
-                    shot = session._shots[old["screenshot_id"]]
-                    _, window = session._window({"window_id": old["window_id"]}, activate=False)
-                    current, evidence = session.desktop.capture(window, checkpoint=session.checkpoint)
-                    x, y, image = old["x"], old["y"], shot["image"]
-                    region = {"x": max(0, x - 24), "y": max(0, y - 24),
-                              "width": min(image.width, x + 25) - max(0, x - 24),
-                              "height": min(image.height, y + 25) - max(0, y - 24)}
-                    before, after = image.crop(region).rgb, current.crop(region).rgb
-                    changed = sum(max(abs(before[i + channel] - after[i + channel]) for channel in range(3)) > 24
-                                  for i in range(0, len(before), 3))
-                    rect = wintypes.RECT()
-                    user.GetWindowRect.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.RECT)]
-                    has_rect = bool(user.GetWindowRect(user.GetDlgItem(ready["handle"], 102), ctypes.byref(rect)))
-                    print("Fixture capture diagnostic:", json.dumps({"point": [x, y], "region": region,
-                          "changed_pixels": changed, "total_pixels": len(before) // 3,
-                          "origin": shot["origin"], "initial_control": initial_bounds,
-                          "current_control": [rect.left, rect.top, rect.right, rect.bottom] if has_rect else None,
-                          "capture_layer": evidence.get("capture_layer"), "capture_scope": evidence.get("capture_scope"),
-                          "virtual_screen": [user.GetSystemMetrics(i) for i in (76, 77, 78, 79)]}))
-                except Exception as diagnostic:
-                    print("Fixture capture diagnostic unavailable:", type(diagnostic).__name__)
-                raise
+            with self.assertRaises(DeskPilotError) as moved:
+                session.execute("input.click", old)
             self.assertEqual((moved.exception.code, moved.exception.outcome), ("STALE_OBSERVATION", "not_dispatched"))
             self.assertTrue(session.execute("input.click", coordinates(locate()))["dispatched"])
             status = session.execute("ui.find", {"title_exact": title, "automation_id": "103", "require_unique": True})

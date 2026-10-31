@@ -18,7 +18,7 @@ screen.capture 传 window_id，返回图片绝对路径、尺寸、屏幕原点�
 
 | 平台 | 截图和操作边界 |
 |---|---|
-| Windows | 优先核对前台及遮挡后读取屏幕区域。外部覆盖时可尝试 Windows Graphics Capture，返回 capture_layer: windows_graphics_capture、capture_scope: target_window_only、覆盖者及单独的所属窗口列表。该帧不含独立弹窗或外来覆盖，需这些界面时重新定位。引用专属帧点击或滚动仍核对实际命中和上方窗口，鼠标可穿透覆盖也可能阻止操作。 |
+| Windows | 优先核对前台及遮挡后读取屏幕区域。外部覆盖时可尝试 Windows Graphics Capture，返回 capture_layer: windows_graphics_capture、capture_scope: target_window_only、覆盖者及单独的所属窗口列表。该帧不含独立弹窗或外来覆盖，需这些界面时重新定位。引用专属帧点击或滚动仍核对实际命中和上方窗口，鼠标可穿透覆盖也可能阻止操作；坐标不在任何显示器时返回 POINT_OFFSCREEN。 |
 | macOS | 按系统窗口 ID 取专属帧，尺寸规范为窗口坐标，不含独立弹窗和外来覆盖。点击/滚动前检查目标位置，外来可见窗口覆盖时拒绝派发。其他缩放和多屏须另行确认。 |
 | Linux X11 | 只在目标前台、完整可见且无遮挡时读取；无法归属时不返回可信图像。Wayland 原生截图尚不可用。 |
 

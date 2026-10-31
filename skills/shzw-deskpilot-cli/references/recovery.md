@@ -12,6 +12,7 @@
 | VALUE_NOT_VERIFIED、BATCH_OUTCOME_UNKNOWN 或 outcome: unknown | 读下方“输入未确认或结果未知” |
 | BATCH_STEP_FAILED | 看已完成步骤和 cause_code，批次没有回滚语义 |
 | WINDOW_ACTIVATION_FAILED | 读下方“前台与焦点” |
+| POINT_OFFSCREEN | 将目标窗口移到显示器内，重新观察后再操作 |
 | WINDOW_CAPTURE_UNTRUSTED、POINT_OCCLUDED 或覆盖诊断 | 读下方“遮挡与不可信截图” |
 | doctor 缺系统库/权限，或 WAYLAND_PORTAL_REQUIRED | 按[安装与平台](install.md)核对前提 |
 | 浏览器目标、跳转、隐藏或断连错误 | 查[浏览器](browser.md)对应现象 |

@@ -87,6 +87,7 @@ class WindowsDesktop:
             "IsChild": (W.BOOL, [W.HWND, W.HWND]),
             "GetAncestor": (W.HWND, [W.HWND, W.UINT]),
             "WindowFromPoint": (W.HWND, [POINT]),
+            "MonitorFromPoint": (W.HANDLE, [POINT, W.DWORD]),
             "GetWindowDisplayAffinity": (W.BOOL, [W.HWND, C.POINTER(W.DWORD)]),
             "SetForegroundWindow": (W.BOOL, [W.HWND]),
             "ShowWindow": (W.BOOL, [W.HWND, C.c_int]),
@@ -588,6 +589,8 @@ class WindowsDesktop:
         require(sent == len(events), "INPUT_NOT_DELIVERED", "Windows did not accept all input events; check window privilege and desktop access.", outcome="unknown")
 
     def _point_owned(self, window, point, *, target_content_only=False):
+        require(bool(self.user.MonitorFromPoint(point, 0)), "POINT_OFFSCREEN",
+                "The requested point is outside every display; move the window into view and observe again.")
         if target_content_only:
             # WindowFromPoint intentionally skips click-through layered windows.
             # A target-only capture does not show them, so also check every
