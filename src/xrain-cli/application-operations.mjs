@@ -1,3 +1,5 @@
+import { booleanOutcome } from './core.mjs';
+
 const applications = '/api/xrain/v1/applications';
 const app = applications + '/{application-id}';
 const define = (path, method, route, options = {}) => ({ path: 'application ' + path, method, route, readback: ['application', 'list'], ...options });
@@ -51,7 +53,7 @@ export const hostOperations = [
   host('tenant update', 'PATCH', tenant, { input: 'object', headers: { 'If-Match': 'if-match' } }),
   ...['activate', 'suspend'].map(action => host('tenant ' + action, 'POST', tenant + '/' + action)),
   host('tenant connection set', 'PUT', tenant + '/connections/{name}', { input: 'object' }),
-  host('tenant connection check', 'POST', tenant + '/connections/{name}/validate', { readOnly: true }),
+  host('tenant connection check', 'POST', tenant + '/connections/{name}/validate', { readOnly: true, outcome: value => booleanOutcome(value, 'ready') }),
   host('tenant member create', 'POST', tenant + '/members', { input: 'object' }),
   host('tenant member update', 'PUT', tenant + '/members/{user-id}', { input: 'object' }),
   host('tenant member delete', 'DELETE', tenant + '/members/{user-id}'),

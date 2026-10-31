@@ -52,7 +52,7 @@ export async function buildApp(ctx, save) {
     if (existsSync(output)) throw new CliError(`Output already exists: ${output}`, { code: 'output_exists' });
     accessSync(dirname(output), constants.W_OK);
   }
-  const { send, root } = client(ctx);
+  const { send, root } = client(ctx, { allowHost: true });
   const response = requireSuccess(await send('POST', root + '/packages:build', { body: source, headers: { 'Content-Type': 'application/json' }, limit: MAX_ARCHIVE }));
   const sourceHash = sha256(source), fileHash = sha256(response.bytes);
   if (response.headers.get('x-appkg-source-sha256')?.trim().toLowerCase() !== sourceHash) throw new CliError('Build response source digest does not match the local source.');

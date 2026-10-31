@@ -22,6 +22,10 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
     if (hit.url === '/api/integration/v1/http-interfaces/original/debug/raw') {
       res.writeHead(200, { 'content-type': 'text/plain', 'x-original': 'yes' }); return res.end('raw text');
     }
+    if (hit.url === '/api/service/authen/v1/security/api-debug') {
+      res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('security raw text');
+    }
+    if (hit.url === '/v1/dsh/sessions/original/commands') return respond(res, { execution: { commandId: 'native', result: { kind: 'error', text: 'rejected command' } } });
     if (hit.url === '/api/cli/v1/context') {
       assert.equal(hit.headers.authorization, 'Bearer original-session'); assert.equal(hit.headers['x-xrain-application-id'], 'APP');
       return respond(res, { tenantId: 'TEN', userId: 'human', applicationId: 'APP' });
@@ -46,4 +50,8 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   const input = join(f.directory, 'input.json'); writeFileSync(input, '{}');
   const raw = await run(['http', 'interface', 'debug', 'original', '--request-json', input]);
   assert.equal(raw.code, 0, raw.stdout); assert.equal(raw.result.data.body, 'raw text'); assert.equal(raw.result.data.headers['x-original'], 'yes');
+  const security = await run(['security', 'api-debug', '--request-json', input]);
+  assert.equal(security.code, 0, security.stdout); assert.equal(security.result.data.body, 'security raw text');
+  const command = await run(['agent', 'chat', 'command', 'original', '--line', '/status']);
+  assert.equal(command.code, 1, command.stdout); assert.equal(command.result.error.code, 'execution_failed');
 });

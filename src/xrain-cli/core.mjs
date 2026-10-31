@@ -13,6 +13,7 @@ export const randomId = prefix => prefix + randomBytes(9).toString('hex').slice(
 export const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 export const equalIgnoreCase = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
 export const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+export const booleanOutcome = (value, key) => typeof value?.[key] === 'boolean' ? value[key] ? 'succeeded' : 'failed' : undefined;
 export function segment(value) {
   if (value === '.' || value === '..') throw new CliError('Resource names cannot be dot path segments.');
   return encodeURIComponent(value);

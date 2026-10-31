@@ -16,6 +16,7 @@ var randomId = (prefix) => prefix + randomBytes(9).toString("hex").slice(0, 17);
 var nonempty = (value2) => typeof value2 === "string" && value2.trim().length > 0;
 var equalIgnoreCase = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
 var isObject = (value2) => value2 !== null && typeof value2 === "object" && !Array.isArray(value2);
+var booleanOutcome = (value2, key) => typeof value2?.[key] === "boolean" ? value2[key] ? "succeeded" : "failed" : void 0;
 function segment(value2) {
   if (value2 === "." || value2 === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value2);
@@ -645,7 +646,7 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     if (validate && !validate(value2)) throw new CliError("The server returned an invalid operation receipt.", { code: "invalid_response" });
     return responseHeaders ? { value: value2, headers: Object.fromEntries(responseHeaders.map((name) => [name, response.headers.get(name)]).filter(([, value3]) => value3 !== null)) } : value2;
   };
-  if (!mutation2) return perform();
+  if (!mutation2 || raw) return perform();
   const { hint: hint2 = "The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.", ...recovery2 } = mutation2;
   const details = {
     operation: ctx.spec?.path,
@@ -2649,7 +2650,7 @@ async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === "components") {
-    const packageId = args.required("package"), versionId = args.required("version-id"), api3 = createClient();
+    const packageId = args.required("package"), versionId = args.required("version-id"), api3 = createClient({ allowHost: true });
     return output(ctx, requireSuccess(await api3.send("GET", `${api3.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());
   }
   if (action === "withdraw") {
@@ -2837,7 +2838,7 @@ async function buildApp(ctx, save2) {
     if (existsSync2(output2)) throw new CliError(`Output already exists: ${output2}`, { code: "output_exists" });
     accessSync(dirname3(output2), constants.W_OK);
   }
-  const { send: send2, root: root2 } = client(ctx);
+  const { send: send2, root: root2 } = client(ctx, { allowHost: true });
   const response = requireSuccess(await send2("POST", root2 + "/packages:build", { body: source, headers: { "Content-Type": "application/json" }, limit: MAX_ARCHIVE }));
   const sourceHash = sha256(source), fileHash = sha256(response.bytes);
   if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
@@ -3136,7 +3137,7 @@ var securityOperations = [
   define("api-token revoke", "POST", "/api-tokens/{id}/revoke"),
   define("api-catalog", "GET", "/tenant-api-catalog", { query: ["catalog", "format"] }),
   define("api-registry", "GET", "/api-registry", { host: true }),
-  define("api-debug", "POST", "/api-debug", { input: "object" }),
+  define("api-debug", "POST", "/api-debug", { input: "object", raw: true }),
   define("audit", "GET", "/audit-events", { query: ["from", "to", "resourceType", "pageSize", "cursor", "actorId", "agentId", "resourceId", "action", "outcome"], requiredQuery: ["from", "to", "resourceType"] })
 ];
 
@@ -3194,7 +3195,7 @@ var hostOperations = [
   host("tenant update", "PATCH", tenant, { input: "object", headers: { "If-Match": "if-match" } }),
   ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
   host("tenant connection set", "PUT", tenant + "/connections/{name}", { input: "object" }),
-  host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true }),
+  host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true, outcome: (value2) => booleanOutcome(value2, "ready") }),
   host("tenant member create", "POST", tenant + "/members", { input: "object" }),
   host("tenant member update", "PUT", tenant + "/members/{user-id}", { input: "object" }),
   host("tenant member delete", "DELETE", tenant + "/members/{user-id}"),
@@ -3298,7 +3299,7 @@ var workflowOperations = [
   define4("orchestration create", "POST", orchestration + "/definitions", { input: "object" }),
   define4("orchestration update", "PUT", orchestration + "/definitions/{id}", { input: "object" }),
   define4("orchestration delete", "DELETE", orchestration + "/definitions/{id}"),
-  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object", execution: true }),
+  define4("orchestration debug", "POST", orchestration + "/debug", { input: "object", outcome: (value2) => booleanOutcome(value2, "isSuccess") }),
   define4("orchestration policy get", "GET", orchestration + "/policy"),
   define4("orchestration policy set", "PUT", orchestration + "/policy", { input: "object" }),
   define4("function list", "GET", orchestration + "/functions"),
@@ -3340,7 +3341,7 @@ var workflowOperations = [
   define4("http interface policy set", "PUT", iface + "/{id}/orchestration-policy", { input: "object" }),
   define4("http interface invoke", "POST", iface + "/{id}", {
     input: "json",
-    execution: true,
+    outcome: (value2) => booleanOutcome(value2, "isSuccess"),
     validate: (value2) => Number.isInteger(value2?.statusCode) && value2.statusCode >= 100 && value2.statusCode <= 599
   }),
   define4("http interface debug", "POST", iface + "/{id}/debug/raw", { input: "json", raw: true })
@@ -3369,6 +3370,14 @@ var s3 = "/api/service/storage/v1/s3-accounts";
 var email = "/api/delivery/v1/email";
 var feishu = "/api/delivery/v1/feishu";
 var personal = email + "/me";
+var statusOutcome = (value2, key, successes, failure) => successes.includes(value2?.[key]) ? "succeeded" : value2?.[key] === failure ? "failed" : value2?.[key] === "Unknown" ? "unknown" : void 0;
+var authentication = (value2) => statusOutcome(value2, "status", ["Succeeded"], "Failed");
+var emailSend = (value2) => nonempty(value2?.messageId) ? statusOutcome(value2, "status", ["Queued", "Sending", "Accepted"], "Failed") : void 0;
+var providerSend = (value2, id, status) => typeof value2?.ignored !== "boolean" ? void 0 : value2.ignored ? "succeeded" : nonempty(value2[id]) ? statusOutcome(value2, status, ["Accepted"], "Rejected") : void 0;
+var mailboxCheck = (value2) => {
+  const states = [authentication(value2?.receive), authentication(value2?.send)];
+  return states.some((state) => state === void 0) ? void 0 : states.includes("unknown") ? "unknown" : states.includes("failed") ? "failed" : "succeeded";
+};
 var deliveryOperations = [
   define5("storage account list", "GET", s3),
   define5("storage account create", "POST", s3, { input: "object", secretInput: ["accessKeyId", "secretAccessKey"] }),
@@ -3378,17 +3387,23 @@ var deliveryOperations = [
   define5("storage account default", "PUT", s3 + "/{id}/default"),
   define5("email account list", "GET", email + "/accounts"),
   define5("email account set", "PUT", email + "/accounts", { input: "object", secretInput: ["password", "smtpPassword"] }),
-  define5("email account check", "POST", email + "/accounts/{id}/test"),
+  define5("email account check", "POST", email + "/accounts/{id}/test", {
+    outcome: authentication,
+    description: "Send the native SMTP test email to this account's own address and report the result. Requires an authorized test."
+  }),
   define5("feishu account get", "GET", feishu + "/account"),
   define5("feishu account set", "PUT", feishu + "/account", { input: "object" }),
-  define5("feishu account check", "POST", feishu + "/account/test"),
+  define5("feishu account check", "POST", feishu + "/account/test", { outcome: (value2) => booleanOutcome(value2, "succeeded") }),
   ...[["email", email], ["feishu", feishu]].flatMap(([name, base4]) => [
     define5(`${name} template list`, "GET", base4 + "/templates"),
     define5(`${name} template show`, "GET", base4 + "/templates/{id}"),
     define5(`${name} template create`, "POST", base4 + "/templates", { input: "object" }),
     define5(`${name} template update`, "PATCH", base4 + "/templates/{id}", { input: "object" }),
     define5(`${name} template preview`, "POST", base4 + "/templates/{id}/" + (name === "email" ? "preview" : "render-check"), { input: "object", readOnly: true }),
-    define5(`${name} template send-test`, "POST", base4 + "/templates/{id}/send-test", { input: "object" }),
+    define5(`${name} template send-test`, "POST", base4 + "/templates/{id}/send-test", {
+      input: "object",
+      outcome: name === "email" ? emailSend : (value2) => providerSend(value2, "messageId", "status")
+    }),
     define5(`${name} message list`, "GET", base4 + "/messages", { query: name === "email" ? ["accountId", "status", "whatId", "search", "limit"] : ["templateId", "status", "receiveIdType", "whatId", "search", "limit"] }),
     define5(`${name} message show`, "GET", base4 + "/messages/{id}")
   ]),
@@ -3399,12 +3414,12 @@ var deliveryOperations = [
   define5("sms account set", "PUT", "/api/sms/accounts", { host: true, query: ["tenantId"], input: "object" }),
   define5("sms template list", "GET", "/api/sms/templates", { host: true, query: ["tenantId", "accountId"] }),
   define5("sms template bind", "POST", "/api/sms/templates", { host: true, query: ["tenantId"], input: "object" }),
-  define5("sms send-test", "POST", "/api/sms/test", { host: true, query: ["tenantId"], input: "object" }),
+  define5("sms send-test", "POST", "/api/sms/test", { host: true, query: ["tenantId"], input: "object", outcome: (value2) => providerSend(value2, "recordId", "submitStatus") }),
   define5("sms records", "GET", "/api/sms/records", { host: true, query: ["tenantId"] }),
   define5("mail providers", "GET", personal + "/providers"),
   define5("mail account list", "GET", personal + "/accounts"),
   define5("mail account set", "PUT", personal + "/accounts", { input: "object", secretInput: ["password", "imapPassword", "smtpPassword"] }),
-  define5("mail account check", "POST", personal + "/accounts/{id}/check"),
+  define5("mail account check", "POST", personal + "/accounts/{id}/check", { outcome: mailboxCheck }),
   define5("mail account delete", "DELETE", personal + "/accounts/{id}"),
   define5("mail account clear-credentials", "DELETE", personal + "/accounts/{id}/credentials", { query: ["action"] }),
   define5("mail folders", "GET", personal + "/accounts/{id}/folders"),
@@ -3539,7 +3554,7 @@ async function managementCommand(ctx) {
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
   }
   const write = operation.method !== "GET" && !operation.readOnly;
-  const selectors = isObject(body) ? Object.fromEntries(["requestId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
+  const selectors = isObject(body) ? Object.fromEntries(["requestId", "idempotencyKey", "whatId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
   const mutation2 = {
     resource: operation.route,
     target: {
@@ -3560,13 +3575,18 @@ async function managementCommand(ctx) {
     sessionOnly: operation.sessionOnly,
     signal,
     raw: operation.raw,
-    validate: (value3) => (!operation.execution || isObject(value3) && typeof value3.isSuccess === "boolean") && (!operation.validate || operation.validate(value3, { args, body })),
+    validate: (value3) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value3))) && (!operation.validate || operation.validate(value3, { args, body })),
     ...write ? { mutation: mutation2 } : {}
   });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation2 };
-  let value2 = operation.raw ? await rawOutput(ctx, call, context) : await call();
-  if (operation.execution && !value2.isSuccess) throw new CliError("The execution reported failure.", {
-    code: "execution_failed",
+  let value2 = operation.raw ? await writeOnce(
+    () => rawOutput(ctx, call, context),
+    "Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.",
+    context
+  ) : await call();
+  const outcome = operation.outcome?.(value2);
+  if (outcome === "failed" || outcome === "unknown") throw new CliError(outcome === "unknown" ? "The service reported an unknown outcome." : "The execution reported failure.", {
+    code: outcome === "unknown" ? "outcome_unknown" : "execution_failed",
     hint: "Inspect the returned result and any effects before another action. Do not replay the batch.",
     details: { ...context, result: value2 }
   });
@@ -4254,6 +4274,11 @@ import { performance as performance3 } from "node:perf_hooks";
 // src/xrain-cli/runtime-controls.mjs
 var reads = { subagents: "subagents", commands: "commands", models: "models" };
 var writes = /* @__PURE__ */ new Set(["cancel", "command", "model"]);
+function commandOutcome(value2) {
+  const execution = value2?.execution;
+  if (!isObject(execution) || !nonempty(execution.commandId) || !isObject(execution.result)) return void 0;
+  return execution.result.kind === "success" ? "succeeded" : execution.result.kind === "error" && typeof execution.result.text === "string" ? "failed" : void 0;
+}
 async function sessionControl(ctx, helpers, connection2) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
@@ -4281,10 +4306,15 @@ async function sessionControl(ctx, helpers, connection2) {
   const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
   const value2 = await helpers.writeOnce(async () => {
     const result = await helpers.runtimeValue(ctx, "POST", `${root2}/${suffix}`, body);
-    if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !Object.hasOwn(result, "execution"))
+    if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !commandOutcome(result))
       throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
     return result;
   }, action === "cancel" ? "Stop outcome is unknown. Inspect this session and its pending actions. Do not assume that earlier external effects were undone." : "Operation outcome is unknown. Read this session, its command catalog or model state before another write; do not automatically replay the command.", details);
+  if (action === "command" && commandOutcome(value2) === "failed") throw new CliError("The Runtime command reported failure.", {
+    code: "execution_failed",
+    hint: "Inspect the native command result and any effects before another action. Do not replay the command or batch.",
+    details: { ...details, result: value2 }
+  });
   reporter.print({ ...value2, ...details });
   return true;
 }
@@ -5456,12 +5486,22 @@ async function workforceCommands(ctx) {
     target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
     ...Object.fromEntries(["requestId", "clientMessageId", "taskId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
   };
-  const call = () => request(new URL(route, host3), { method: operation.method, token, headers, json: body, timeout: args.timeout() }).then(value);
+  const command2 = operation.path === "workforce session command";
+  const call = async () => {
+    const result2 = value(await request(new URL(route, host3), { method: operation.method, token, headers, json: body, timeout: args.timeout() }));
+    if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
+    return result2;
+  };
   const result = operation.method === "GET" ? await call() : await writeOnce(
     call,
     "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.",
     details
   );
+  if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", {
+    code: "execution_failed",
+    hint: "Inspect the original session and command result before another action. Do not replay the command or batch.",
+    details: { ...details, result }
+  });
   reporter.print(result);
   return 0;
 }

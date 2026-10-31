@@ -35,7 +35,9 @@ S3 创建字段为 name、serviceUrl、signingRegion、forcePathStyle、bucketNa
 
 邮件模板字段为 id、accountId、name、label、helpText、inputModelJson、toRules、ccRules、bccRules、replyToRule、subjectTemplate、textBodyTemplate、htmlBodyTemplate、isActive。飞书模板使用 id、name、label、inputModelJson、messageType、contentTemplate、isActive。update 提交实际变化。邮件 preview/send-test 为 `{"data":{},"whatId":"<可选业务ID>","idempotencyKey":"<可选稳定键>"}`；飞书 preview 为 `{"data":{}}`，send-test 为 `{"recipient":{"kind":"<服务支持类型>","userId":"<明确收件人>"},"data":{}}`，群收件人使用 chatId。
 
-短信账户写入 name、credentialVariableId、enabled；模板绑定使用 accountId、localTemplateKey、providerTemplateCode、signName、remark；send-test 使用 accountId、localTemplateKey、recipient。账户检查和模板预览不会发出测试消息；send-test 必须有用户明确要求和收件目标。查看原发送记录判断队列、成功或失败；未知结果不重发。
+短信账户写入 name、credentialVariableId、enabled；模板绑定使用 accountId、localTemplateKey、providerTemplateCode、signName、remark；send-test 使用 accountId、localTemplateKey、recipient。模板预览不发送消息。email account check 会按原生合同向账户自身地址发送 SMTP 测试邮件；调用须属于用户已授权的测试范围。send-test 须有对应用户要求和收件目标。本人邮箱的 mail account check 只认证收发连接，不发送邮件。
+
+邮件、飞书及本人邮箱账户检查失败时返回 execution_failed 和非零退出码。Host tenant connection check 的 ready=false 同样停止 batch。发送测试的 Failed/Rejected 返回 execution_failed，Unknown 返回 outcome_unknown；原结果保留在 error.details.result。Queued/Sending/Accepted 仅保留原受理状态，不证明最终送达；ignored=true 保留原跳过结果，不自动启用渠道。发送记录和历史查询中的失败状态仍可正常读取。未知回执保留原 idempotencyKey、whatId 及路由目标，不自动重发。
 
 ## 本人邮箱
 

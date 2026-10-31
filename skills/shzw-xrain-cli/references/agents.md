@@ -4,6 +4,8 @@
 
 会话扩展读取为 `agent chat subagents|commands|models <sessionId>`。执行一个明确的原生斜杠命令使用 `agent chat command <sessionId> --line "/<命令>"`；切换模型使用 `agent chat model <sessionId> --values-json <选择.json>`，文件包含 provider、model 和可选 reasoningEffort。原生所有权、子智能体工作方式、当前定义资格及模型可用性由 Runtime 判断，错误不回退到其他会话或定义。
 
+command 按原生 execution.commandId 和 execution.result.kind 校验回执。kind=error 返回 execution_failed 和非零退出码，并停止 batch；失败结果保留在 error.details.result。回执缺失或结构异常返回 outcome_unknown，不自动重发。Workforce 的 session command 消费同一原生结果。
+
 所有命令接在 `node "<skill目录>/scripts/xrain-cli.mjs"` 后。先按 [连接与认证](configuration.md) 保存服务方提供的 Runtime 入口、登录并核对平台及 Runtime 的本人身份；以下示例省略共同的 `--profile <连接> --auth session --json`。Runtime 命令复用该 profile，也可用 `--runtime <Runtime origin>` 单次覆盖。所选平台凭据会发送到该地址，不能从平台地址推断它。
 
 ## 职责和顺序

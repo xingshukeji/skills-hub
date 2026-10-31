@@ -82,7 +82,7 @@ export async function apiValue(ctx, method, path, json, { requireTenant = true, 
     if (validate && !validate(value)) throw new CliError('The server returned an invalid operation receipt.', { code: 'invalid_response' });
     return responseHeaders ? { value, headers: Object.fromEntries(responseHeaders.map(name => [name, response.headers.get(name)]).filter(([, value]) => value !== null)) } : value;
   };
-  if (!mutation) return perform();
+  if (!mutation || raw) return perform();
   const { hint = 'The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.', ...recovery } = mutation;
   const details = { operation: ctx.spec?.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null,
     credentialSource: source, ...recovery };

@@ -163,7 +163,7 @@ export async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
   if (action === 'components') {
-    const packageId = args.required('package'), versionId = args.required('version-id'), api = createClient();
+    const packageId = args.required('package'), versionId = args.required('version-id'), api = createClient({ allowHost: true });
     return output(ctx, requireSuccess(await api.send('GET', `${api.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());
   }
   if (action === 'withdraw') {

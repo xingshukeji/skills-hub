@@ -3,6 +3,12 @@ import { CliError, isObject, jsonInput, nonempty, segment } from './core.mjs';
 const reads = { subagents: 'subagents', commands: 'commands', models: 'models' };
 const writes = new Set(['cancel', 'command', 'model']);
 
+export function commandOutcome(value) {
+  const execution = value?.execution;
+  if (!isObject(execution) || !nonempty(execution.commandId) || !isObject(execution.result)) return undefined;
+  return execution.result.kind === 'success' ? 'succeeded' : execution.result.kind === 'error' && typeof execution.result.text === 'string' ? 'failed' : undefined;
+}
+
 export async function sessionControl(ctx, helpers, connection) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
@@ -32,11 +38,13 @@ export async function sessionControl(ctx, helpers, connection) {
   const value = await helpers.writeOnce(async () => {
     const result = await helpers.runtimeValue(ctx, 'POST', `${root}/${suffix}`, body);
     if (!isObject(result) || action === 'cancel' && result.accepted !== true ||
-        action === 'command' && !Object.hasOwn(result, 'execution'))
+        action === 'command' && !commandOutcome(result))
       throw new CliError('Runtime returned an invalid operation receipt.', { code: 'invalid_response' });
     return result;
   }, action === 'cancel'
     ? 'Stop outcome is unknown. Inspect this session and its pending actions. Do not assume that earlier external effects were undone.'
     : 'Operation outcome is unknown. Read this session, its command catalog or model state before another write; do not automatically replay the command.', details);
+  if (action === 'command' && commandOutcome(value) === 'failed') throw new CliError('The Runtime command reported failure.', { code: 'execution_failed',
+    hint: 'Inspect the native command result and any effects before another action. Do not replay the command or batch.', details: { ...details, result: value } });
   reporter.print({ ...value, ...details }); return true;
 }

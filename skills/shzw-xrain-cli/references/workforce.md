@@ -48,6 +48,8 @@ Task 会话请求为 `{"taskId":"<原任务>","source":"xrain-cli","requestId":"
 
 session 还支持 subagents、commands、models 读取，command、model、respond、cancel-question 带原请求对象；cancel 明确停止原运行。respond/cancel-question 以 action-ref 定位，带原 responseId 和明确答案或审批决定。审批不得自动放行。Task 改派、撤权、暂停或恢复后的旧 grant 不得继续写入。
 
+session command 按[智能体命令](agents.md)中的原生执行结果判断成功、失败及未知回执；失败停止 batch，查询原历史不改变其业务状态。
+
 ## Workforce 计划任务
 
 `workforce schedule` 支持 list/options/bootstrap/agents/models、create/update、enable/pause、history；update、enable、pause、history 带 schedule-id。create/update 的请求为 name、description、ownerId、assigneeId、agentId、scheduleType、executeTime、timeZoneId，可带 provider、model、reasoningEffort；scheduleType 为 Daily 或 Workday，executeTime 为 HH:mm，timeZoneId 使用平台 IANA 选项。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。

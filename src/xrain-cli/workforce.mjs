@@ -2,6 +2,7 @@ import { CliError, isObject, origin, readJsonInput, registerSecrets, segment } f
 import { applicationId } from './agent-target.mjs';
 import { request, requireSuccess, writeOnce } from './http.mjs';
 import { workforceOperations } from './workforce-operations.mjs';
+import { commandOutcome } from './runtime-controls.mjs';
 
 function value(response) {
   requireSuccess(response);
@@ -36,8 +37,15 @@ export async function workforceCommands(ctx) {
   const details = { workforce: host, server: profile.server, tenantId: profile.tenant, userId: identity.userId, applicationId: appId,
     operation: operation.path, target: Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
     ...Object.fromEntries(['requestId', 'clientMessageId', 'taskId'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
-  const call = () => request(new URL(route, host), { method: operation.method, token, headers, json: body, timeout: args.timeout() }).then(value);
+  const command = operation.path === 'workforce session command';
+  const call = async () => {
+    const result = value(await request(new URL(route, host), { method: operation.method, token, headers, json: body, timeout: args.timeout() }));
+    if (command && !commandOutcome(result)) throw new CliError('Workforce returned an invalid command receipt.', { code: 'invalid_response' });
+    return result;
+  };
   const result = operation.method === 'GET' ? await call() : await writeOnce(call,
     'Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.', details);
+  if (command && commandOutcome(result) === 'failed') throw new CliError('The Runtime command reported failure.', { code: 'execution_failed',
+    hint: 'Inspect the original session and command result before another action. Do not replay the command or batch.', details: { ...details, result } });
   reporter.print(result); return 0;
 }

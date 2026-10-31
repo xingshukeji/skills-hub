@@ -1,3 +1,5 @@
+import { booleanOutcome } from './core.mjs';
+
 const define = (path, method, route, options = {}) => ({ path, method, route, ...options });
 const orchestration = '/api/orchestration/v1';
 const routine = '/api/automation/routines';
@@ -12,7 +14,7 @@ export const workflowOperations = [
   define('orchestration create', 'POST', orchestration + '/definitions', { input: 'object' }),
   define('orchestration update', 'PUT', orchestration + '/definitions/{id}', { input: 'object' }),
   define('orchestration delete', 'DELETE', orchestration + '/definitions/{id}'),
-  define('orchestration debug', 'POST', orchestration + '/debug', { input: 'object', execution: true }),
+  define('orchestration debug', 'POST', orchestration + '/debug', { input: 'object', outcome: value => booleanOutcome(value, 'isSuccess') }),
   define('orchestration policy get', 'GET', orchestration + '/policy'),
   define('orchestration policy set', 'PUT', orchestration + '/policy', { input: 'object' }),
   define('function list', 'GET', orchestration + '/functions'),
@@ -52,7 +54,7 @@ export const workflowOperations = [
   define('http interface from-orchestration', 'POST', iface + '/from-orchestration/{id}', { input: 'object' }),
   define('http interface policy get', 'GET', iface + '/{id}/orchestration-policy'),
   define('http interface policy set', 'PUT', iface + '/{id}/orchestration-policy', { input: 'object' }),
-  define('http interface invoke', 'POST', iface + '/{id}', { input: 'json', execution: true,
+  define('http interface invoke', 'POST', iface + '/{id}', { input: 'json', outcome: value => booleanOutcome(value, 'isSuccess'),
     validate: value => Number.isInteger(value?.statusCode) && value.statusCode >= 100 && value.statusCode <= 599 }),
   define('http interface debug', 'POST', iface + '/{id}/debug/raw', { input: 'json', raw: true }),
 ];

@@ -66,13 +66,13 @@ test('session catalogs, slash commands and model selection use their native sess
     else if (hit.url.endsWith('/models')) respond(res, { catalog: { providers: [{ id: 'provider', models: [model] }] } });
     else if (hit.url.endsWith('/model')) { assert.deepEqual(hit.json(), { provider: 'provider', model: 'second', reasoningEffort: 'high' }); model = hit.json().model; respond(res, { provider: 'provider', model }); }
     else if (hit.method === 'GET') respond(res, { items: [{ name: '/status' }] });
-    else { assert.deepEqual(hit.json(), { line: '/status' }); respond(res, { execution: { status: 'completed' } }); }
+    else { assert.deepEqual(hit.json(), { line: '/status' }); respond(res, { execution: { commandId: 'native', result: { kind: 'success' } } }); }
   });
   f.profile(service.url, 'tenant-one', 'own-token');
   const target = ['original', '--runtime', service.url, '--json'];
   for (const action of ['subagents', 'commands', 'models']) assert.equal((await f.run(['agent', 'chat', action, ...target])).code, 0);
   const command = await f.run(['agent', 'chat', 'command', ...target, '--line', '/status']);
-  assert.equal(output(command).data.execution.status, 'completed');
+  assert.equal(output(command).data.execution.result.kind, 'success');
   const selected = await f.run(['agent', 'chat', 'model', ...target, '--values', '{"provider":"provider","model":"second","reasoningEffort":"high"}']);
   assert.equal(selected.code, 0, selected.stdout); assert.equal(model, 'second');
   assert.equal(service.hits.length, 5);

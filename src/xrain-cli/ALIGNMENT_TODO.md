@@ -12,12 +12,15 @@
 |---|---|
 | 原生必填分页 | routine list、metadata picklist list、metadata picklist-item list 默认 page=1、pageSize=20；显式参数与查询文件覆盖默认值。 |
 | Runtime 临时文本 | directory/generate 传递 profile 或单次选择的应用 ID，支持 --personal；普通单次执行继续使用原协议。[使用说明](../../skills/shzw-xrain-cli/references/runtime-runs.md)。 |
-| HTTP 原始调试 | 保留状态、响应头及原始内容。文本或 base64 输出注明编码；--out 排他保存原始字节，已有文件在请求前拒绝。失败响应仍可检查，断连不重发。[使用说明](../../skills/shzw-xrain-cli/references/workflows.md)。 |
-| 执行结果与 batch | HTTP interface invoke、orchestration debug 的 isSuccess=false 返回非零退出码并停止 batch。查询历史中的失败记录仍可读取；不从任意业务 JSON 推断执行失败。 |
-| Host 合法操作 | app versions 支持同一 Host 导入身份回读原版本；time resolve/day-range 接受原生 Host 身份。其他操作保留原租户要求。[应用维护](../../skills/shzw-xrain-cli/references/application-maintenance.md)。 |
-| 写入恢复与关键回执 | 管理写入保留原请求键、ETag 及安全目标标识。对象、字段及字段部署恢复校验原生版本和目标；异常回执结果未知，原生删除及权限重建的 204 保持有效。[元数据](../../skills/shzw-xrain-cli/references/metadata.md)。 |
+| HTTP 原始调试 | HTTP request/interface debug 与 security api-debug 保留原始状态、响应头和内容；--out 排他保存原始字节。408、5xx、超时和断连保留结果未知，明确拒绝保留原错误。[使用说明](../../skills/shzw-xrain-cli/references/workflows.md)。 |
+| 执行结果与 batch | HTTP、编排、Runtime 命令及 Workforce 命令转发按各自原生回执判断结果；失败或未知停止 batch。历史和记录查询保持查询语义。 |
+| 投递与连接校验 | 邮件、飞书、本人邮箱及 Host 连接检查区分成功与失败；发送测试区分受理、失败、未知和跳过。邮件账户检查会发送原生 SMTP 测试邮件，完整 Skill 与帮助已注明。[使用说明](../../skills/shzw-xrain-cli/references/files-delivery.md)。 |
+| Host 合法操作 | app check/build、components、versions 支持原生 Host 权限；time resolve/day-range 接受原生 Host 身份。其他操作保留原租户要求。[应用维护](../../skills/shzw-xrain-cli/references/application-maintenance.md)。 |
+| 写入恢复与关键回执 | 管理写入保留原请求键、ETag、idempotencyKey、whatId 及安全目标标识。对象、字段及字段部署恢复校验原生版本和目标；异常回执结果未知，原生删除及权限重建的 204 保持有效。[元数据](../../skills/shzw-xrain-cli/references/metadata.md)。 |
 
 验收覆盖原缺陷、显式参数、Host 与租户边界、正常 204、业务失败停止、异常回执不重发及输出文件不覆盖。独立完整 Skill 从复制后的目录运行，验证默认分页、应用上下文、原始 HTTP 响应及原有文件与 Workforce 接入。其余能力入口见完整 Skill；本表不表示平台全部接口均已映射。
+
+再次复核补齐 Host 构建与组件、API 集成中心原始响应、投递和连接结果、Runtime 命令与宿主转发、调试网关错误及请求体幂等键。回归保留原反例和受理、忽略、历史读取、明确拒绝等相邻正常场景；Runtime 命令夹具使用原生 commandId/result.kind，不再使用虚构 status 回执。
 
 本机检查使用 npm run check，交付前重新构建独立脚本并核对 Workforce 完整消费副本。源码与隔离服务验证不证明实际部署已升级，也不表示已对真实收件人发送消息或修改共享数据。Windows、Linux、macOS × Node 22.12/24 使用仓库既有 CI 矩阵；当前变更以自身提交的检查结果为准，不能沿用旧制品的通过记录。
 

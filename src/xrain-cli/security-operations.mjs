@@ -51,6 +51,6 @@ export const securityOperations = [
   define('api-token revoke', 'POST', '/api-tokens/{id}/revoke'),
   define('api-catalog', 'GET', '/tenant-api-catalog', { query: ['catalog', 'format'] }),
   define('api-registry', 'GET', '/api-registry', { host: true }),
-  define('api-debug', 'POST', '/api-debug', { input: 'object' }),
+  define('api-debug', 'POST', '/api-debug', { input: 'object', raw: true }),
   define('audit', 'GET', '/audit-events', { query: ['from', 'to', 'resourceType', 'pageSize', 'cursor', 'actorId', 'agentId', 'resourceId', 'action', 'outcome'], requiredQuery: ['from', 'to', 'resourceType'] }),
 ];

@@ -1,5 +1,5 @@
 import { CliError, isObject, readJsonInput, registerSecrets, segment } from './core.mjs';
-import { apiValue } from './http.mjs';
+import { apiValue, writeOnce } from './http.mjs';
 import { securityOperations } from './security-operations.mjs';
 import { applicationOperations, hostOperations } from './application-operations.mjs';
 import { requireNewCredentialPath, saveCredentialFile } from './store.mjs';
@@ -63,7 +63,7 @@ export async function managementCommand(ctx) {
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === 'string') reporter.secret(body[field]);
   }
   const write = operation.method !== 'GET' && !operation.readOnly;
-  const selectors = isObject(body) ? Object.fromEntries(['requestId', 'operationId', 'versionId', 'applicationId', 'installationId', 'expectedRevision', 'entityCode', 'resourceId', 'recordId', 'subjectUserId', 'catalogKey', 'tokenId']
+  const selectors = isObject(body) ? Object.fromEntries(['requestId', 'idempotencyKey', 'whatId', 'operationId', 'versionId', 'applicationId', 'installationId', 'expectedRevision', 'entityCode', 'resourceId', 'recordId', 'subjectUserId', 'catalogKey', 'tokenId']
     .filter(key => ['string', 'number'].includes(typeof body[key])).map(key => [key, body[key]])) : {};
   const mutation = { resource: operation.route, target: { ...Object.fromEntries(['entityApiName', 'fieldApiName'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])),
       ...Object.fromEntries(routeParameters(operation.route).map(name => [name, args.value(name)])) },
@@ -72,11 +72,13 @@ export async function managementCommand(ctx) {
       ...(headers['If-Match'] ? { ifMatch: headers['If-Match'] } : {}),
       ...selectors, readback: operation.readback ?? ['security', 'directory'] };
   const call = signal => apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly, signal,
-    raw: operation.raw, validate: value => (!operation.execution || isObject(value) && typeof value.isSuccess === 'boolean') && (!operation.validate || operation.validate(value, { args, body })),
+    raw: operation.raw, validate: value => (!operation.outcome || ['succeeded', 'failed', 'unknown'].includes(operation.outcome(value))) && (!operation.validate || operation.validate(value, { args, body })),
     ...(write ? { mutation } : {}) });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation };
-  let value = operation.raw ? await rawOutput(ctx, call, context) : await call();
-  if (operation.execution && !value.isSuccess) throw new CliError('The execution reported failure.', { code: 'execution_failed',
+  let value = operation.raw ? await writeOnce(() => rawOutput(ctx, call, context),
+    'Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.', context) : await call();
+  const outcome = operation.outcome?.(value);
+  if (outcome === 'failed' || outcome === 'unknown') throw new CliError(outcome === 'unknown' ? 'The service reported an unknown outcome.' : 'The execution reported failure.', { code: outcome === 'unknown' ? 'outcome_unknown' : 'execution_failed',
     hint: 'Inspect the returned result and any effects before another action. Do not replay the batch.',
     details: { ...context, result: value } });
   if (operation.select) {
