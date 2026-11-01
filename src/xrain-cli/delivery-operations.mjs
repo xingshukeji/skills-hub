@@ -57,6 +57,7 @@ export const deliveryOperations = [
   define('sms template bind', 'POST', '/api/sms/templates', { host: true, query: ['tenantId'], input: 'object' }),
   define('sms send-test', 'POST', '/api/sms/test', { host: true, query: ['tenantId'], input: 'object', outcome: value => providerSend(value, 'recordId', 'submitStatus') }),
   define('sms records', 'GET', '/api/sms/records', { host: true, query: ['tenantId'] }),
+  define('mail capabilities', 'GET', personal + '/capabilities', { description: 'Read the current personal mailbox body, recipient and search limits from the platform.' }),
   define('mail providers', 'GET', personal + '/providers'),
   define('mail account list', 'GET', personal + '/accounts'),
   define('mail account set', 'PUT', personal + '/accounts', { input: 'object', secretInput: ['password', 'imapPassword', 'smtpPassword'] }),

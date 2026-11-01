@@ -1,9 +1,23 @@
-import { CliError, isObject, readJsonInput, segment } from './core.mjs';
+import { CliError, isObject, nonempty, readJsonInput, segment } from './core.mjs';
 import { api, apiValue } from './http.mjs';
 import { exportRecordsFile } from './data-import.mjs';
 
 const queryActions = { export: 'export', count: 'count', distinct: 'distinct', single: 'single', 'single-or-default': 'singleOrDefault', first: 'first', 'first-or-default': 'firstOrDefault' };
 const batchActions = { 'batch-create': ['batchCreate', 'records'], 'batch-update': ['batchUpdate', 'records'], 'batch-delete': ['batchDelete', 'recordIds'] };
+
+function collectionReceipt(value, action, body, count, recordIds) {
+  const matches = (id, index) => nonempty(id) && (!recordIds || id === recordIds[index]);
+  const valid = body.allOrNone === false
+    ? isObject(value) && value.allOrNone === false && nonempty(value.commitState) && Array.isArray(value.results) && value.results.length === count &&
+      value.results.every((item, index) => isObject(item) && item.index === index && typeof item.success === 'boolean' && Array.isArray(item.errors) &&
+        (item.success ? matches(item.recordId, index) : item.recordId == null || matches(item.recordId, index)))
+    : action === 'batch-delete' ? value === null
+      : Array.isArray(value) && value.length === count && value.every((record, index) => isObject(record) && matches(record.recordId, index));
+  if (!valid) throw new CliError('The collection receipt does not confirm every original input.', { code: 'invalid_response', details: { result: value } });
+  if (body.allOrNone === false && value.commitState !== 'committed')
+    throw new CliError('The collection receipt has not confirmed a committed transaction.', { code: 'invalid_response', details: { result: value } });
+  return true;
+}
 
 async function input(args) {
   const value = await readJsonInput(args.required('request-json', args.value('file')), 'Request JSON');
@@ -37,10 +51,11 @@ export async function dataOperations(ctx) {
       throw new CliError(`Supply a nonempty ${key} array and optional boolean allOrNone.`, { code: 'invalid_arguments' });
     const recordIds = key === 'recordIds' ? body.recordIds : action === 'batch-update' ? body.records.map(item => item?.recordId) : undefined;
     if (recordIds?.some(id => typeof id !== 'string' || !id)) throw new CliError('Each record ID must be a nonempty string.', { code: 'invalid_arguments' });
-    const value = await apiValue(ctx, 'POST', `${records}:${suffix}`, body, { mutation: {
-      entityCode, recordCount: body[key].length, ...(recordIds ? { recordIds } : {}), readback: ['data', 'query', entityCode],
-    } });
-    if (isObject(value) && Array.isArray(value.results) && value.results.some(item => item?.success === false))
+    const recovery = { entityCode, recordCount: body[key].length, ...(recordIds ? { recordIds } : {}), readback: ['data', 'query', entityCode] };
+    const value = await apiValue(ctx, 'POST', `${records}:${suffix}`, body, {
+      validate: value => collectionReceipt(value, action, body, body[key].length, recordIds), mutation: recovery,
+    });
+    if (body.allOrNone === false && value.results.some(item => item.success === false))
       throw new CliError('One or more collection items failed. Inspect each result before another write.', { code: 'collection_failed', details: { entityCode, result: value } });
     reporter.print(value); return true;
   }

@@ -4,6 +4,7 @@ const mail = (path, method, route, options) => define('mail ' + path, method, '/
 export const applicationUserOperations = [
   mail('ai list', 'GET', '/ais'),
   mail('ai subscribe', 'POST', '/agents/{agent-id}/subscription'),
+  mail('app capabilities', 'GET', '/capabilities'),
   mail('app accounts', 'GET', '/accounts'),
   mail('app folders', 'GET', '/accounts/{id}/folders'),
   mail('app search', 'POST', '/accounts/{id}/messages/search', { input: true, readOnly: true }),
@@ -21,7 +22,7 @@ export const applicationUserOperations = [
   retail('conversation list', 'GET', '/records/objects/{object-id}/records/{record-id}/conversations', { query: ['source'], queryDefaults: { source: 'retail-assistant' } }),
   retail('conversation start', 'POST', '/records/objects/{object-id}/records/{record-id}/conversations', { input: true }),
   retail('agents', 'GET', '/assistant/agents'),
-  retail('agent-catalog', 'GET', '/assistant/agent-catalog', { query: ['search', 'page', 'pageSize'] }),
+  retail('agent-catalog', 'GET', '/assistant/agent-catalog', { query: ['search', 'page'] }),
   retail('subscribe', 'POST', '/assistant/agents/{agent-id}/subscription'),
   retail('unsubscribe', 'DELETE', '/assistant/agents/{agent-id}/subscription'),
   ...['history', 'subagents', 'commands', 'models'].map(action => retail('session ' + action, 'GET', `/assistant/sessions/{session-id}/${action}`,

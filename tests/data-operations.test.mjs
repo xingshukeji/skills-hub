@@ -15,7 +15,7 @@ test('native collection writes keep allOrNone and expected values in one transac
     assert.deepEqual(body.records[0], { recordId: 'one', values: { name: 'new' }, expectedValues: { name: 'old' } });
     if (body.allOrNone) { respond(res, { errorCode: 'record.conflict' }, 409); return; }
     persisted.set('one', 'new');
-    respond(res, { allOrNone: false, commitState: 'partial', results: [
+    respond(res, { allOrNone: false, commitState: 'committed', results: [
       { index: 0, success: true, recordId: 'one', errors: [] }, { index: 1, success: false, recordId: 'two', errors: [{ code: 'conflict' }] },
     ] });
   });
@@ -36,7 +36,15 @@ test('native collection writes keep allOrNone and expected values in one transac
 });
 
 test('record inspection, sharing and owner operations preserve native paths, subjects and request bodies', async t => {
-  const f = fixture(t), service = await mockServer(t, (_hit, res) => respond(res, { result: 'native' }));
+  const f = fixture(t), service = await mockServer(t, (hit, res) => {
+    if (hit.url.includes('/records:batch')) {
+      const body = hit.json(), ids = body.recordIds ?? body.records.map((record, index) => record.recordId ?? 'created-' + index);
+      if (body.allOrNone === false) return respond(res, { allOrNone: false, commitState: 'committed',
+        results: ids.map((recordId, index) => ({ index, success: true, recordId, errors: [] })) });
+      return respond(res, body.records.map((record, index) => ({ ...record, recordId: ids[index] })));
+    }
+    respond(res, { result: 'native' });
+  });
   f.profile(service.url, 'tenant-one', 'synthetic-token');
   const file = join(f.directory, 'request.json');
   const cases = [

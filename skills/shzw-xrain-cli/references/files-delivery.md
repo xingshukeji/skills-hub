@@ -44,6 +44,7 @@ S3 创建字段为 name、serviceUrl、signingRegion、forcePathStyle、bucketNa
 ## 本人邮箱
 
 ```text
+mail capabilities
 mail providers
 mail account list
 mail account set --request-json <邮箱.json>
@@ -55,6 +56,8 @@ mail draft <id> --request-json <草稿.json>
 mail account clear-credentials <id> --query-json <清理范围.json>
 mail account delete <id>
 ```
+
+`mail capabilities` 读取当前平台的正文、主题、收件人、地址及搜索限额。限额由邮箱服务持有；CLI 保留原值，不能用另一部署或邮箱应用的旧值代替。读取失败时保留原错误，不退回固定限额。
 
 邮箱保存字段为 id、label、emailAddress、displayName、providerType、receiveUserName、receivePassword、sendUserName、sendPassword、enabled；先从 providers 确认可用服务。search 为 folder、text、limit、cursor；分页保留原 nextCursor。read 为 `{"reference":<原搜索结果reference>}`，保留 accountId、mailbox、folder、uidValidity、uid，引用过期不猜新 UID。draft 为 to、subject、textBody，可带 cc、bcc、source；保存草稿不发送。clear-credentials 的 action 由服务决定，省略为 all。个人邮箱不接受 Host、智能体或服务 API Token。
 

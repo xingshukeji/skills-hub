@@ -27,6 +27,8 @@ data batch-delete <entity> --request-json <集合.json>
 
 集合命令只发送一次原生集合请求。`allOrNone` 沿用平台规则，省略时使用服务端默认值；不要把 CLI `batch` 当成集合事务。选择 `false` 时，逐条结果可能部分成功；CLI 对已返回的失败项以 `collection_failed` 退出，并在 `error.details.result` 中保留原提交状态及全部逐条结果。先检查已完成项，不整批重放。
 
+原子创建和更新返回与输入对应的记录数组，原子删除返回空回执。逐条结果必须包含每个原输入的 index、success、errors 及成功项的原 recordId，并以 commitState=committed 确认提交。空回执、缺项、重复或错位索引、错误记录 ID，以及 pending 等未确认提交的结果，均为 `outcome_unknown`；原回执保留在 error.details.result，CLI 停止 batch，不再次写入。先用同一身份查询原对象和已知记录，再决定下一步。
+
 `single` 与 `first` 的无记录或多记录结果由原查询规则判断；不会用另一端点重查。服务不支持某接口或拒绝权限时，保留其错误。
 
 ## 字段、历史与所有者

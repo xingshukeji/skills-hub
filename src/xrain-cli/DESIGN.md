@@ -170,6 +170,10 @@ Workforce 的助手目录、订阅和取消使用宿主原工作台处理器，�
 
 平台和独立邮箱的草稿入口共享回执检查。Saved 和非空 internetMessageId 确认已保存，reference 可空，提供时核对原账号。原服务明确的 `email_draft_outcome_unknown` 保留未知结果，即使其 HTTP 状态是 409；其他冲突和拒绝按原含义报告。未知结果停止 batch，沿原邮箱查询恢复，不自动再次保存。
 
+平台个人邮箱和独立邮箱应用分别提供 capabilities 查询。CLI 读取各自实际服务的当前限额，不复制固定业务限额；独立邮箱的准入和预期身份校验仍由原应用完成。顾客接待助手目录只接受原 search、page，每页固定 20 项。
+
+记录集合写入按原 allOrNone 区分记录数组、空删除回执与逐条结果。CLI 核对输入数量、索引和已知记录 ID；逐条结果还须确认 committed。回执缺失、错位或尚未提交时保留原结果为未知并停止 batch，不用缺少明确失败项推断全部成功。
+
 `auth tenants` 读取平台的本人企业列表，不修改本地选择；Host 数据库浏览消费原受控数据源 API。独立市场公开读取可匿名进行，写入和本人发布历史仍需独立市场登录。账号绑定和企业代登录通过原浏览器页面完成；CLI 仅返回或打开页面及预期身份，不持有代登录凭据，不把页面打开当成操作完成。
 
 用户功能范围及本轮结果由 [功能对齐](ALIGNMENT_TODO.md)持有；参数、完整请求与恢复动作随 [Workforce](../../skills/shzw-xrain-cli/references/workforce.md)和[子应用](../../skills/shzw-xrain-cli/references/applications.md)参考交付。

@@ -4,7 +4,7 @@
 
 ## 在原邮件中使用 AI
 
-1. 运行 `mail app accounts`，选定本人的邮箱。使用 `mail app folders <accountId>` 查询原文件夹。
+1. 运行 `mail app capabilities` 读取该应用当前连接的平台邮箱限额，再运行 `mail app accounts` 选定本人的邮箱。使用 `mail app folders <accountId>` 查询原文件夹。
 2. 运行 `mail app search <accountId> --request-json <搜索.json>`。查询使用 folder、text、limit；将上次返回的 nextCursor 作为 cursor。按发件人筛选时用 sender，不能同时指定 text。
 3. 运行 `mail app read <accountId> --request-json <原邮件.json>`。请求为 `{"reference":<搜索返回的完整reference>}`，保留 accountId、mailbox、folder、uidValidity 和 uid。
 4. 运行 `mail ai list`，从目录中选择当前 canUse 的 AI。需要申请个人订阅时运行 `mail ai subscribe <agentId>`；申请不等于已获批准。
@@ -41,4 +41,4 @@ action 为 summary 或 draft；instructions 可省略，最多 2000 字符。协
 
 需要选取字段值时，运行 `retail customer options <objectType> <fieldApiName> --query-json <查询.json>`。查询支持 page、pageSize、search、selected；例如 `{"page":1,"pageSize":50,"search":"","selected":["<原选中值>","<另一个原选中值>"]}`。使用返回的 items 选择新值，使用 selectedItems 核对已保存值的标签和可用状态。原选项未出现在当前搜索页不等于已失效。应用仍按当前对象、字段权限和字段类型决定是否支持该查询。
 
-`retail agent-catalog` 提供可发现目录，`retail subscribe <agentId>` 申请个人订阅，`retail unsubscribe <agentId>` 取消本人订阅；应用选用继续由原应用管理。对话还支持 subagents、commands、models、command、model、cancel、pending、respond、cancel-question；请求沿原工作台 DTO。命令结果为失败时返回非零退出码。所有操作使用同一应用及本人原会话；审批必须有明确决定，停止或回执不明不自动重发。
+`retail agent-catalog` 提供可发现目录，查询支持 search、page，原应用每页固定返回 20 项。`retail subscribe <agentId>` 申请个人订阅，`retail unsubscribe <agentId>` 取消本人订阅；应用选用继续由原应用管理。对话还支持 subagents、commands、models、command、model、cancel、pending、respond、cancel-question；请求沿原工作台 DTO。命令结果为失败时返回非零退出码。所有操作使用同一应用及本人原会话；审批必须有明确决定，停止或回执不明不自动重发。

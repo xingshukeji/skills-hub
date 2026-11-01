@@ -34,6 +34,18 @@ async function member(t, handle) {
   return { ...f, app, input(name, body) { const file = join(f.directory, name + '.json'); writeFileSync(file, JSON.stringify(body)); return file; } };
 }
 
+test('retail assistant catalog keeps the native fixed-size page and rejects unsupported page-size overrides', async t => {
+  const f = await member(t, (hit, res) => {
+    assert.equal(hit.url, '/api/cli/v1/applications/retail-assistant/assistant/agent-catalog?search=%E6%8E%A5%E5%BE%85&page=2');
+    respond(res, { items: [{ agentId: 'next-page' }], page: 2, pageSize: 20, total: 21 });
+  });
+  const args = ['retail', 'agent-catalog', '--app-url', f.app.url];
+  const result = await f.run([...args, '--query-json', f.input('catalog', { search: '接待', page: 2 }), '--json']);
+  assert.equal(result.code, 0, result.stdout); assert.equal(output(result).data.pageSize, 20);
+  const rejected = await f.run([...args, '--query-json', f.input('unsupported', { pageSize: 100 }), '--json']);
+  assert.equal(output(rejected).error.code, 'invalid_arguments'); assert.equal(f.app.hits.length, 1);
+});
+
 test('group and messaging writes retain native revisions, entry evidence, original message and independent target', async t => {
   let conflict = false;
   const f = await member(t, (hit, res) => respond(res, conflict ? { error: { code: 'draft.conflict' } } : hit.json(), conflict ? 409 : 200));
