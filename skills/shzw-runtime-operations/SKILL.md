@@ -1,6 +1,6 @@
 ---
 name: shzw-runtime-operations
-description: 启动、恢复或诊断项目服务，包括 .NET 服务的 CPU、GC、内存、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。
+description: 启动、恢复、诊断或优化项目服务，包括 CPU、内存、IO、吞吐与延迟，以及 .NET 的 GC、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/SKILL.md
@@ -18,6 +18,8 @@ Workforce 当前默认路径是本机统一宿主连接共享测试平台、统�
 
 若故障落在 XRain 对象、字段、权限或编排资源，先按应用包技能的[资源归属判断](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/SKILL.md#修复先判断资源归属)核对安装版本与定义来源。包缺陷进入原包源码和正常升级路径；租户配置及业务记录按其管理合同修正，不在启动脚本或目标库临时补资源来宣称恢复。
 
+用户明确要求性能或资源优化时，按[性能优化方法](modes/performance/GUIDE.md)从业务负载、成本和预算选择候选，兼顾代码逻辑、维护代价及原功能。业务开发或客户端优化保留原主入口，不因需要指标而转换任务类型或展开故障恢复。
+
 慢、错误或资源异常需要找因时，按实际影响分步调查；简单的单项检查直接核对相关依据。
 
 .NET 服务诊断直接读[指标、栈与跟踪的选择方法](modes/services/references/dotnet.md)；涉及 XRain/AiInfra 时再读[数据访问、连接池与工作单元](modes/services/references/xrain-dotnet.md)。诊断沿原任务执行，不因需要采样而转成独立测试，也不以启动检查代替原因定位。
@@ -33,6 +35,7 @@ Workforce 当前默认路径是本机统一宿主连接共享测试平台、统�
 ## 按需资料
 
 - [操作目标项目根入口或服务别名](modes/services/GUIDE.md)
+- [性能、CPU、内存及 IO 的优化选择与工程取舍](modes/performance/GUIDE.md)
 - [.NET 服务诊断与采集示例](modes/services/references/dotnet.md)
 - [启动依赖、版本核对、原场景验收和慢链路](modes/workforce/GUIDE.md)
 - [原任务、会话、工具、消息和执行生命周期故障](modes/agents/GUIDE.md)

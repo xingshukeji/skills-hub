@@ -6,6 +6,7 @@
 
 先从用户问题选择相关维度，再按实际技术栈读取参考。未涉及的维度不成为本次固定门禁。
 
+- 验证优化收益或防止修复引入相邻功能回退：读[功能回归与性能验证](../../references/functional-regression.md)。
 - 设计验证或调查覆盖缺口：读[场景与判定](references/scenarios.md)。真实数据规模、登录慢、完整生命周期和依赖恢复分别有独立入口。
 - .NET 的分配、GC、线程池、连接及保留对象：读[.NET 诊断](references/dotnet.md)。
 - Node.js 的堆外内存、事件循环、流连接及资源释放：读[Node.js 诊断](references/node.md)。

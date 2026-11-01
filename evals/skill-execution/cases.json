@@ -88,5 +88,17 @@
     "request": "我觉得这些 skill 还是没让我少解释，尤其继续对话的时候。先告诉我你的理解，不要修改。",
     "context": "前文在讨论技能职责与执行连续性，此轮尚未授权任何调整。当前目录中有一个待评估技能。",
     "workspace": "fixtures/understand-first"
+  },
+  {
+    "id": "optimize-import",
+    "request": "请优化当前导入流程的内存、CPU 和不必要的编码工作，保持原功能，代码要清楚，并完成实际功能验证。",
+    "context": "当前目录包含公开业务合同、实现、提供者及隔离运行入口；只修改 app.mjs，保留已经提供的事务和回执接口。无需真实平台或其他仓库。",
+    "workspace": "fixtures/optimize-import"
+  },
+  {
+    "id": "review-optimized-import",
+    "request": "请 review 这次导入优化，结合实际功能检查有没有回退，只审查。",
+    "context": "合同、当前实现和已有测试在当前目录，重点由你沿调用和数据流判断。不要修改产品或访问真实服务。",
+    "workspace": "fixtures/review-optimized-import"
   }
 ]

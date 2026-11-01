@@ -1,6 +1,6 @@
 ---
 name: shzw-client-development
-description: 开发或修复桌面、原生、移动及 Web 客户端，涵盖插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。
+description: 开发或修复桌面、原生、移动及 Web 客户端，涵盖交互性能、内存与资源生命周期、插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-client-development/SKILL.md
@@ -13,6 +13,8 @@ metadata:
 在当前平台先分清改动落点：Workforce 公共 Web 界面与 Electron 原生宿主、React Native 移动壳、业务应用的页面/导航，以及 Harness 的执行生命周期分别有源码和构建所有者。沿目标项目实际配置确认本次端和包；不把其他桌面产品的 Launcher/Manager、MSI 或 OSS 方案当作这些客户端的前置条件。
 
 业务记录和智能体工具通过应用已消费的公共 SDK/API 接入。新增外壳不能复制业务页面、另存租户身份或重建 Runtime；能力确实需要应用自管时，才继续检查执行程序、资源和退出恢复。
+
+涉及打开慢、列表/输入卡顿、媒体或长时资源保留时，读[客户端性能与资源](modes/application/references/performance.md)。从用户可见动作及实际技术栈选择优化，同时保留草稿、完整数据、选择、权限和异步结果归属；逻辑与状态保持可核对。
 
 普通功能直接实现并验证。涉及交付、托管进程或能力程序时，沿实际入口追踪最终候选、依赖准备、健康、关闭及用户状态保留；采用与本次改变相称的安装或候选检查，不要求每个 UI 修复打完整安装包。
 
@@ -29,6 +31,7 @@ metadata:
 ## 按需资料
 
 - [客户端选型、UI、安装、更新及分发](modes/application/GUIDE.md)
+- [交互性能、渲染、媒体及资源生命周期](modes/application/references/performance.md)
 - [应用拥有执行程序、工具、资源与生命周期的内部能力](modes/managed-capability/GUIDE.md)
 
 按需读取命中资料。项目源码、命令和收口遵循目标项目入口；技能自身资源相对本目录解析。
