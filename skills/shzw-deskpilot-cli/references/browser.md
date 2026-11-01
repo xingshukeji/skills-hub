@@ -4,6 +4,8 @@ Chrome/CDP 使用 Python 标准库，优先于网页坐标操作。连接已有�
 
 Windows 在常规环境路径之外也检查已注册的 Chrome/Edge 安装位置；仍找不到时，可在核实可执行文件后显式传入 `executable`。新建页面的 `chrome.ensure` 可能先返回 `about:blank` 或加载中状态：用 `chrome.wait` 等待目标地址和实际页面元素，再执行操作。
 
+同一执行流已经连接浏览器时，新建另一个专用 profile 须在 `chrome.ensure` 中显式传 `endpoint: null`。省略 `endpoint` 会复用当前连接，单独传 `profile_dir` 不会切换浏览器。切换两个已有浏览器时，先用 `chrome.attach` 明确传入各自的 `endpoint` 和 `target_id`，核对返回页面及业务身份，再执行后续操作。
+
 不要把普通 Chrome 主 profile 改成调试 profile。专用 profile 的认证和业务资料由用户拥有；工具退出不会删除它。已指定 endpoint 但不可连接时返回错误，不另启一个浏览器假装恢复。没有找到现成目标时 ensure 可新建页面；attach 只连接指定页面。
 
 | 方法 | 参数 |
