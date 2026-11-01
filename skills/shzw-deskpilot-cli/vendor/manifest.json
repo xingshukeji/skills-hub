@@ -130,8 +130,8 @@
     },
     {
       "path": "scripts/deskpilot/browser.py",
-      "bytes": 37391,
-      "sha256": "fafefb6d1a719177436754a18c28157a23c906a770e7a06e3f58c2924c4fa236",
+      "bytes": 37728,
+      "sha256": "2d8cf527973492b181ed54353be70d2b9d99d79bd9e361fb59822e13bfc09067",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/browser.py"
