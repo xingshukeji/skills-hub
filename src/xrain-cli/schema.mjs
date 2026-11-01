@@ -24,6 +24,7 @@ command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
 command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.');
+command('auth login-as', [...target, 'auth', 'user', 'save-profile'], [], 'Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.');
 command('auth tenants', [...target, 'auth'], [], 'Discover your accessible enterprises using the saved platform login. Does not switch the current connection.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
 command('auth whoami', [...api, 'agent', 'runtime', 'application-id', 'personal'], [], 'Read the verified XRain identity; --agent also checks the selected Runtime caller.');
@@ -280,6 +281,12 @@ export function validateCommand(args) {
     } else if (args.has('user') || args.has('password-stdin')) {
       throw new CliError('--user and --password-stdin require --native.', { code: 'invalid_arguments' });
     }
+  }
+  if (spec.path === 'auth login-as') {
+    args.required('user');
+    args.required('save-profile');
+    if (args.has('auth') && args.value('auth') !== 'session')
+      throw new CliError('Administrator proxy login uses the saved platform session; --auth must be session.', { code: 'invalid_arguments' });
   }
   exclusive(['application-id', 'personal']);
   if (spec.path === 'data creation-result') args.required('request-key');

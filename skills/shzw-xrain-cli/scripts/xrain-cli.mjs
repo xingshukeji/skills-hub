@@ -38,6 +38,7 @@ valued.add("asset-id");
 valued.add("expected-published-version");
 valued.add("context-json");
 valued.add("run-id");
+valued.add("save-profile");
 for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id", "emoji", "app-url", "source-id", "object-id", "record-id", "request-seq"]) valued.add(name);
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
@@ -2410,6 +2411,56 @@ async function nativeLogin(ctx) {
   ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : `Logged in with profile '${profile.name}'.`);
   return 0;
 }
+async function proxyLogin(ctx) {
+  const { args, store, reporter } = ctx;
+  const administrator = store.resolve(args, true);
+  if (administrator.scope !== "tenant")
+    throw new CliError("Proxy login requires a tenant administrator session.", { code: "tenant_required" });
+  const destination = store.canonical(args.required("save-profile"));
+  if (equalIgnoreCase(destination, administrator.name))
+    throw new CliError("--save-profile must differ from the administrator profile.", { code: "invalid_arguments" });
+  const token = store.loadSession(administrator.name, administrator.server, administrator.tenant, "tenant");
+  if (!token) throw new CliError("No usable administrator login is saved for this tenant.", {
+    code: "authentication_required",
+    hint: "Log in to the authorized tenant administrator profile first."
+  });
+  const response = await request(new URL("/api/service/authen/v1/account/login-as", administrator.server), {
+    method: "POST",
+    token,
+    json: { userName: args.required("user") },
+    timeout: args.timeout(),
+    limit: 1024 * 1024
+  });
+  const session = tenantSession(response);
+  reporter.secret(session.token);
+  const identity = response.json();
+  if (!equalIgnoreCase(session.tenant, administrator.tenant))
+    throw new CliError("The server returned a different tenant session.", { code: "identity_mismatch" });
+  if (!nonempty(identity.userId) || !nonempty(identity.proxyByUserId))
+    throw new CliError("XRain returned a proxy session without its member and administrator identities.", { code: "invalid_response" });
+  const config = store.load();
+  const previous = config.profiles[destination] ?? {};
+  const settings = samePlatformTarget(previous, administrator.server, session.tenant, "tenant") ? previous : administrator;
+  store.saveSession(destination, administrator.server, session.tenant, session.token, session.expiry, "tenant");
+  config.profiles[destination] = {
+    server: administrator.server,
+    tenant: session.tenant,
+    scope: "tenant",
+    ...settings.runtime ? { runtime: settings.runtime } : {},
+    ...settings.applicationId ? { applicationId: settings.applicationId } : {}
+  };
+  store.save(config);
+  reporter.print({
+    profile: destination,
+    administratorProfile: administrator.name,
+    server: administrator.server,
+    tenantId: session.tenant,
+    userId: identity.userId,
+    proxyByUserId: identity.proxyByUserId,
+    authenticated: true
+  });
+  return 0;
+}
 async function browserLogin(ctx) {
   const market = ctx.args.has("exchange");
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, false, { allowMissing: true });
@@ -3091,6 +3142,7 @@ async function authCommands(ctx) {
     return 0;
   }
   if (args.command(1) === "login") return args.has("native") ? nativeLogin(ctx) : browserLogin(ctx);
+  if (args.command(1) === "login-as") return proxyLogin(ctx);
   const market = args.has("exchange"), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === "status") {
     reporter.print(store.authStatus(args, profile, market));
@@ -3961,6 +4013,7 @@ command("profile use", ["name", "profile"], [slot("name", ["profile"])], "Select
 command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), optional: true }], "Remove a saved profile and session.");
 command("profile path", [], [], "Show the profile store path.");
 command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.");
+command("auth login-as", [...target, "auth", "user", "save-profile"], [], "Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.");
 command("auth tenants", [...target, "auth"], [], "Discover your accessible enterprises using the saved platform login. Does not switch the current connection.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
 command("auth whoami", [...api2, "agent", "runtime", "application-id", "personal"], [], "Read the verified XRain identity; --agent also checks the selected Runtime caller.");
@@ -4282,6 +4335,12 @@ function validateCommand(args) {
     } else if (args.has("user") || args.has("password-stdin")) {
       throw new CliError("--user and --password-stdin require --native.", { code: "invalid_arguments" });
     }
+  }
+  if (spec.path === "auth login-as") {
+    args.required("user");
+    args.required("save-profile");
+    if (args.has("auth") && args.value("auth") !== "session")
+      throw new CliError("Administrator proxy login uses the saved platform session; --auth must be session.", { code: "invalid_arguments" });
   }
   exclusive(["application-id", "personal"]);
   if (spec.path === "data creation-result") args.required("request-key");

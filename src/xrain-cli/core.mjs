@@ -36,6 +36,7 @@ valued.add('asset-id');
 valued.add('expected-published-version');
 valued.add('context-json');
 valued.add('run-id');
+valued.add('save-profile');
 for (const name of ['workforce', 'channel', 'message-seq', 'task-id', 'schedule-id', 'emoji', 'app-url', 'source-id', 'object-id', 'record-id', 'request-seq']) valued.add(name);
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 

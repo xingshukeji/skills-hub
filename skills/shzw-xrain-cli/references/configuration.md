@@ -57,6 +57,10 @@ Host 使用 `auth login --scope host --native --user <已有Host账号> --passwo
 
 作用域默认为 tenant，缺租户不推断 Host。显式 `--scope host` 忽略继承的租户并拒绝同时传 `--tenant`。已保存 Host profile 遇到显式或环境租户覆盖时按 tenant 解析，原 Host 会话不复用；需要 Host 时显式给出作用域。独立市场不能使用平台 `--scope`。
 
+## 管理员代理成员
+
+`auth login-as --profile <管理员连接> --user <固定登录名> --save-profile <成员连接>` 通过平台已有租户管理员代理入口签发同租户成员会话。它只使用已保存的管理员登录，不受环境API Token覆盖；目标连接必须与管理员连接不同。成员会话使用原DPAPI或0600存储，管理员会话及全局活动连接保持，失败不覆盖已有成员会话。后续用成员profile执行 `auth whoami --auth session`，核对真实主体后完成业务。角色、成员状态、应用准入及业务范围仍由各服务核验，详见[代理执行](login.md#租户管理员代理执行)。
+
 ## 本地状态与诊断
 
 | 内容 | 默认 | 覆盖 |

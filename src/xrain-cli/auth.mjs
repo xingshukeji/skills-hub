@@ -249,6 +249,41 @@ export async function nativeLogin(ctx) {
   return 0;
 }
 
+export async function proxyLogin(ctx) {
+  const { args, store, reporter } = ctx;
+  const administrator = store.resolve(args, true);
+  if (administrator.scope !== 'tenant')
+    throw new CliError('Proxy login requires a tenant administrator session.', { code: 'tenant_required' });
+  const destination = store.canonical(args.required('save-profile'));
+  if (equalIgnoreCase(destination, administrator.name))
+    throw new CliError('--save-profile must differ from the administrator profile.', { code: 'invalid_arguments' });
+  const token = store.loadSession(administrator.name, administrator.server, administrator.tenant, 'tenant');
+  if (!token) throw new CliError('No usable administrator login is saved for this tenant.', {
+    code: 'authentication_required', hint: 'Log in to the authorized tenant administrator profile first.',
+  });
+  const response = await request(new URL('/api/service/authen/v1/account/login-as', administrator.server), {
+    method: 'POST', token, json: { userName: args.required('user') }, timeout: args.timeout(), limit: 1024 * 1024,
+  });
+  const session = tenantSession(response);
+  reporter.secret(session.token);
+  const identity = response.json();
+  if (!equalIgnoreCase(session.tenant, administrator.tenant))
+    throw new CliError('The server returned a different tenant session.', { code: 'identity_mismatch' });
+  if (!nonempty(identity.userId) || !nonempty(identity.proxyByUserId))
+    throw new CliError('XRain returned a proxy session without its member and administrator identities.', { code: 'invalid_response' });
+  const config = store.load();
+  const previous = config.profiles[destination] ?? {};
+  const settings = samePlatformTarget(previous, administrator.server, session.tenant, 'tenant') ? previous : administrator;
+  store.saveSession(destination, administrator.server, session.tenant, session.token, session.expiry, 'tenant');
+  config.profiles[destination] = { server: administrator.server, tenant: session.tenant, scope: 'tenant',
+    ...(settings.runtime ? { runtime: settings.runtime } : {}),
+    ...(settings.applicationId ? { applicationId: settings.applicationId } : {}) };
+  store.save(config);
+  reporter.print({ profile: destination, administratorProfile: administrator.name, server: administrator.server,
+    tenantId: session.tenant, userId: identity.userId, proxyByUserId: identity.proxyByUserId, authenticated: true });
+  return 0;
+}
+
 export async function browserLogin(ctx) {
   const market = ctx.args.has('exchange');
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, false, { allowMissing: true });

@@ -22,6 +22,19 @@ security user ensure --user <固定登录名> --values-json - --profile <目标>
 
 新合成身份用系统随机密码并存指定秘密库；不要内联密码。创建不自动授角色；全局同名身份已存在时，由获准 Host 管理入口将原 userId 加入目标租户，不改名再建。提交未知先 security user show 查询。
 
+## 租户管理员代理执行
+
+租户管理员可以用现有平台登录代理同租户的有效成员，不需要目标用户密码：
+
+```text
+auth login-as --profile <管理员连接> --user <固定登录名> --save-profile <成员连接> --auth session --json
+auth whoami --profile <成员连接> --auth session --json
+```
+
+`--profile` 选择已有租户管理员会话，`--save-profile` 是另一个成员连接。命令调用平台原生 `account/login-as`，返回实际 `userId`、`tenantId` 和 `proxyByUserId`，并按现有会话保护方式保存成员会话。原管理员会话和活动连接保持。目标连接已配置同一平台和租户时保留其Runtime及应用；新连接继承管理员连接的对应配置。
+
+后续消息、群管理及其他业务命令使用该成员连接和 `--auth session`，按成员自己的权限执行；目标成员不因此获得管理员角色。普通用户、Host作用域、其他租户及停用或不存在的成员由原平台拒绝。失败保留原连接和会话。代理能力不构成任意发送或批量外部操作的授权，实际动作仍须来自当前用户任务。
+
 ## 原应用登录
 
 中心身份不能用 security user ensure 创建。需要统一认证时使用可用的 shzw-xrain-access 或中心原网页：/admin/local-accounts 与 /admin/users 查重；已有主体“设置本地登录”，确实缺失才创建普通账号并在 /login/activate 激活，保留 MFA。原码失效后的“恢复密码与验证器”会撤销登录、清除验证器，须已有恢复授权。中心管理员网页不依赖 CLI 客户端。
