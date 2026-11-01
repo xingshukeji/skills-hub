@@ -1,6 +1,6 @@
 interface:
   display_name: "XRain CLI"
-  short_description: "Manage XRain platform accounts, data and applications"
-  default_prompt: "使用 $shzw-xrain-cli，从任务和项目配置确定目标，用 whoami 核对服务器身份与租户后复用有效连接；目标或身份变化时重查，只有必要时恢复浏览器认证。账号准备遵循固定身份和当前授权，认证中心身份及客户端登记使用其自身管理入口，不输出凭据。"
+  short_description: "Use XRain and Workforce data, messages, tasks, mail and agents"
+  default_prompt: "使用 $shzw-xrain-cli，按业务目标选择已有命令；未给命令名时先查业务任务参考。从任务和项目配置确定平台、租户、应用与主体，用 whoami 核对后复用有效连接。查询真实字段、选项和子命令帮助，只执行获准动作并核对业务回执；未知结果先查原请求。目标或身份变化时重查，缺少工具或权限时报告具体缺口，不扩权、不输出凭据。"
 policy:
   allow_implicit_invocation: true

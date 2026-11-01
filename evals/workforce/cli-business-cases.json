@@ -1,0 +1,47 @@
+[
+  {
+    "id": "cli-business-tasks",
+    "request": "看看我在 Workforce 还有哪些没处理完的任务，列出名称、当前状态和负责人。只查询，不修改。",
+    "context": "当前平台、租户、Workforce 应用及本人已有登录已确认；员工可读取本机技能并执行命令。"
+  },
+  {
+    "id": "cli-business-messages",
+    "request": "整理刚才选中群聊昨天提到的采购需求，附原消息位置。不要往群里发消息。",
+    "context": "当前 Workforce 应用、本人已有登录、原群 channelId 和当地日期范围已确认；员工可读取本机技能并执行命令。"
+  },
+  {
+    "id": "cli-business-schedules",
+    "request": "查一下我的周期安排和最近一次执行情况，先不要改动或启用。",
+    "context": "当前系统为 Workforce，已有本人登录与应用上下文；员工可读取本机技能并执行命令。"
+  },
+  {
+    "id": "cli-business-mail",
+    "request": "看看当前邮箱里最近的客户来信，给我一份摘要，不保存草稿，也不发送。",
+    "context": "当前使用独立邮箱应用，实际应用 ID、本人已有登录和邮箱账号已确认；员工可读取本机技能并执行命令。"
+  },
+  {
+    "id": "cli-business-members",
+    "request": "帮我查一下同事李四的联系资料。",
+    "context": "当前系统为 XRain；本人是普通租户成员。已有平台登录和成员窄目录读取资格，未授予账号管理权限。员工可读取本机技能并执行命令。"
+  },
+  {
+    "id": "cli-business-no-executor",
+    "request": "看看我在 Workforce 还有哪些没处理完的任务。",
+    "context": "当前平台、租户和本人已确定；员工只有消息回复工具，没有命令执行、文件读取或等价业务查询工具。"
+  },
+  {
+    "id": "cli-business-denied",
+    "request": "继续查刚才那个群的消息。",
+    "context": "此前读取原 channelId 返回 403。已确认本人已离开该群，目标和登录未改变；没有重新入群或增加权限的授权。"
+  },
+  {
+    "id": "cli-business-unknown",
+    "request": "刚才交办任务时断线了，帮我确认现在怎么样。",
+    "context": "原 Task 创建返回 partial_success，回执中有原 taskId 和 executionAdmission=unavailable；已有本人登录与原任务查询能力，没有重新创建任务的要求。"
+  },
+  {
+    "id": "cli-business-unrelated-ui",
+    "request": "把 Workforce 首页标题改成“工作台”。",
+    "context": "本次要求修改项目页面源码；已有责任项目和前端开发入口。"
+  }
+]

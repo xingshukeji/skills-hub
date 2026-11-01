@@ -17,4 +17,4 @@
 
 只修本次获准且符合原职责的缺口，保留其他授权；集合替换前先读取，并发冲突后重新合并。以原用户复测相关允许及禁止动作，不能换管理员证明修复。固定身份先按目标账号规则复用。
 
-通过目标管理页面、受管 API 或已可用 CLI 操作。参考相对本模式目录（Workforce 的 `resourceBase.path + "/modes/authorization"`）；报告拒绝层、授权差异和复测结果。
+通过目标管理页面、受管 API 或已可用 CLI 操作。宿主提供 `shzw-xrain-cli` 时，先读取其[入口](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/SKILL.md)，按实际目标及身份使用已有 `member/security/application` 命令；成员普通目录与 Host 管理目录分别选择，不因查人扩大权限。认证中心身份仍使用其自身网页。参考相对本模式目录（Workforce 的 `resourceBase.path + "/modes/authorization"`）；报告拒绝层、授权差异和复测结果。
