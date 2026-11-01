@@ -66,7 +66,7 @@ environment 只允许 development/test/production；不从端口或域名猜环�
 
 导入成功结果：`packageId,versionId,namespace,version,digest,recordCount,alreadyExisted`。必须与所选市场版本或本地原包交付清单一致；alreadyExisted 只代表相同版本幂等，不代表已安装。
 
-已提供 `shzw-xrain-cli` 时先读其入口并核对实际平台身份。目录和版本使用 app list/versions，市场指定版导入用 app import，预检/提交用 app preview/install；app status 仍只查发布状态。app import 没有本地 Host 原包上传能力；本地文件按上面的原二进制 HTTP 合同和原管理入口导入，不编造 CLI 上传参数。安装自带服务端预检，需要先审阅影响时才另调 preview。
+已提供 `shzw-xrain-cli` 时先读其入口并核对实际平台身份。目录和版本使用app list/versions，市场指定版导入用app import，本地原包使用app import-file <文件> --scope host，预检/提交用app preview/install；app status仍只查发布状态。app import-file使用原Host登录，经服务端读取器核验后导入，不安装或发布。未提供该命令时，按上面的原二进制HTTP合同和获准管理入口导入，不编造参数。安装自带服务端预检，需要先审阅影响时才另调preview。
 
 原操作使用 app operation show/wait/resolve/continue/retry/cancel；等待只查询，不自动恢复。CLI 提交前打印 requestId，结果未知先按该 ID 查询。`--json` 的读取结果在 data，写入或等待失败时的最近回执在 error.details.operation；回执工具输入须取出原对象。具体选项查对应命令 `--help`。
 

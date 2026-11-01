@@ -9,6 +9,43 @@ function setup(f, url) {
   f.store.saveSession('Demo', url, 'TEN', 'platform-session', Date.now() + 300000);
 }
 
+test('message execution commands retain the source, native session and explicit approval decision', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  const host = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
+    respond(res, hit.method === 'GET' ? { items: [] } : { accepted: true });
+  });
+  setup(f, platform.url);
+  assert.equal((await f.run(['workforce', 'message', 'execution', 'show', 'chat', '7', '--workforce', host.url, '--json'])).code, 0);
+  const file = join(f.directory, 'decision.json');
+  const body = { sessionId: 'native', actionRef: 'original-action', response: { responseId: 'original-decision', outcome: 'rejected' } };
+  writeFileSync(file, JSON.stringify(body));
+  const decision = await f.run(['workforce', 'message', 'execution', 'respond', 'chat', '7', 'employee', '--request-json', file, '--workforce', host.url, '--json']);
+  assert.equal(decision.code, 0, decision.stdout);
+  assert.deepEqual(host.hits.map(hit => [hit.method, hit.url]), [['GET', '/api/cli/v1/channels/chat/messages/7/agent-executions'], ['POST', '/api/cli/v1/channels/chat/messages/7/agent-executions/employee/respond']]);
+  assert.deepEqual(host.hits[1].json(), body);
+});
+
+test('task detach uses the original member, preserves the receipt and stops after an unknown removal', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  let fail = false;
+  const host = await mockServer(t, (hit, res) => {
+    assert.equal(hit.method, 'DELETE'); assert.equal(hit.url, '/api/cli/v1/tasks/original/channels/chat');
+    assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
+    respond(res, fail ? { error: { code: 'platform.unavailable' } } : { id: 'original', channelIds: [] }, fail ? 502 : 200);
+  });
+  setup(f, platform.url);
+  const args = ['workforce', 'task', 'detach', 'original', 'chat', '--workforce', host.url];
+  const removed = await f.run([...args, '--json']);
+  assert.equal(removed.code, 0, removed.stdout); assert.deepEqual(output(removed).data, { id: 'original', channelIds: [] });
+  fail = true;
+  const batch = join(f.directory, 'detach-batch.json');
+  writeFileSync(batch, JSON.stringify([args, ['workforce', 'people', '--workforce', host.url]]));
+  const unknown = await f.run(['batch', batch, '--json']);
+  assert.equal(unknown.code, 1); assert.equal(host.hits.length, 2, 'one deletion per explicit command and no next step');
+  assert.equal(output(unknown).error.details.results[0].error.code, 'outcome_unknown');
+});
+
 test('saved Task receipts stop a batch on incomplete follow-up steps and remain readable without repeating writes', async t => {
   const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
   let receipt, rejected = false;

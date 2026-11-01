@@ -16,6 +16,10 @@ workforce channel dm --request-json <私聊.json>
 workforce channel group --request-json <群.json>
 workforce message list <channelId> --query-json <分页.json>
 workforce message show <channelId> <messageSeq>
+workforce message execution show <channelId> <messageSeq>
+workforce message execution cancel <channelId> <messageSeq> <agentUserId> --request-json <停止.json>
+workforce message execution respond <channelId> <messageSeq> <agentUserId> --request-json <决定.json>
+workforce message execution cancel-action <channelId> <messageSeq> <agentUserId> --request-json <取消问题.json>
 workforce message send <channelId> --request-json <消息.json>
 workforce message edit <channelId> <messageSeq> --request-json <编辑.json>
 workforce message withdraw <channelId> <messageSeq> --request-json <撤回.json>
@@ -26,6 +30,8 @@ workforce channel leave <channelId> --request-json <退出.json>
 people 返回当前人可见的目录；employee profile 和 agents 读取本人工作资料及既有智能体关系。协作通过原私聊、消息与 Task 进行，不另建员工或替换关系。dm 请求为 `{"otherUserId":"<已有成员>"}`；group 请求为 name、memberIds、invitePermission（members 或 managers）、searchable、approvalRequired，可带稳定 requestId。
 
 消息请求保留稳定 clientMessageId，正文用 text，可带 replyToSeq、mentionUserIds、attachments、richBlocks；replyToSeq是原消息序号，mentionUserIds是结构化提及的实际成员ID。不附带任意发送者身份。edit为text、expectedRevision；withdraw为expectedRevision。消息列表查询为before、after、limit，搜索为q、before、limit、category、senderId。退出为`{}`，群主移交时显式带successorId。发送必须有用户要求，回执丢失保留原clientMessageId，先回读，不自动重发。
+
+消息处理查询只读取当前消息对应的 AI 原生处理，发起人按当前消息权限操作，不取得其他群成员输入的控制权。cancel 请求为查询返回的 `sessionId`。respond 和 cancel-action 使用同次查询的 `sessionId`、`actionRef` 与 `response`；response 保留原 `responseId`，允许一次或拒绝用 outcome，问题答复用 answers。停止只报告请求受理，处理状态由再次查询确认；结果未知先查询，不自动批准或重发。
 
 ## 群管理、消息与附件
 
@@ -110,11 +116,14 @@ workforce task confirm <taskId>
 workforce task status <taskId> --request-json <状态.json>
 workforce task assist <taskId> --request-json <协作.json>
 workforce task attach <taskId> --request-json <频道.json>
+workforce task detach <taskId> <channelId>
 workforce session create --request-json <会话.json>
 workforce session list --query-json <来源.json>
 workforce session history <sessionId>
 workforce session send <sessionId> --request-json <输入.json>
 ```
+
+detach 只移除指定会话的任务关联，保留任务和原消息。创建者或当前负责人还须有该会话发消息资格；回执未知时先用 task show 读取原任务，不能直接重放删除或整批命令。
 
 创建和修改沿 Task 原生 description、assigneeId、dueAt 及挂载字段；只提交实际变化，不用状态更新绕过草稿确认。status 为 `{"status":"<允许的当前目标状态>"}`；assist 为 agentUserId、instruction；attach 为 channelId。本人提醒使用 task reminder get/set，set 为 enabled。Task 执行会话读取用 task execution-conversation。
 
