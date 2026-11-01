@@ -6,6 +6,8 @@
 
 ## 租户成员与组织
 
+普通成员查询可见人员时使用 `member list --page 1 --page-size 20 --search <姓名>` 和 `member show <userId>`。命令使用平台原窄目录，只返回当前身份可见的同租户成员资料。此读取不要求用管理员目录代替，也不取得账号凭据或授权详情。目录被拒绝时保留原错误。
+
 本人企业发现使用 `auth tenants`。Host 数据库浏览使用 `host database sources`、`host database catalog <sourceId>`、`host database table <sourceId> <schema> <table>`，要求已保存的 Host 登录。sourceId 从实际返回的数据源中选择；table 可用 `--query-json` 指定 previewLimit。服务决定就绪数据源、结构和样例范围；命令不接受连接字符串或任意 SQL。
 
 ```text
@@ -122,6 +124,7 @@ host tenant activate <tenantId>
 host tenant suspend <tenantId>
 host tenant connection set <tenantId> <连接名> --request-json <连接.json>
 host tenant connection check <tenantId> <连接名>
+host tenant member list <tenantId> --query-json <成员筛选.json>
 host tenant member create <tenantId> --request-json <成员.json>
 host tenant member update <tenantId> <userId> --request-json <成员.json>
 host tenant member delete <tenantId> <userId>
@@ -130,5 +133,7 @@ host user ai set <userId> --request-json <AI标记.json>
 ```
 
 使用已有 Host 登录及实际管理权限。租户创建保留显式 Idempotency-Key，修改使用原 If-Match，冲突不更新基线重试。连接凭据经文件传递，不打印或写入命令参数。成员创建复用既有全局 userId；普通添加优先沿用 member ensure，不自动改成管理员。Host 用户 AI 标记与租户成员字段分别判断。
+
+Host member list 的查询文件支持 page、pageSize、search、isActive；例如 `{"page":1,"pageSize":20,"isActive":false}` 读取目标租户的停用成员。基础分页和搜索也可使用原快捷参数；不要与完整查询文件混用。
 
 以上写入结果未知时保留目标、原请求标识和回读入口。服务器拒绝、版本冲突和未知结果分别处理，不换身份、自动授予或重放。

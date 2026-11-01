@@ -22,6 +22,25 @@ security user ensure --user <固定登录名> --values-json - --profile <目标>
 
 新合成身份用系统随机密码并存指定秘密库；不要内联密码。创建不自动授角色；全局同名身份已存在时，由获准 Host 管理入口将原 userId 加入目标租户，不改名再建。提交未知先 security user show 查询。
 
+## 切换本人的企业
+
+先用 `auth tenants --auth session` 查询本人可访问企业，再执行：
+
+```text
+auth switch-tenant <目标租户ID> --profile <原连接> --auth session --json
+auth switch-tenant <目标租户ID> --profile <原连接> --save-profile <另一个连接> --auth session --json
+```
+
+命令使用原连接的已保存租户会话，先读取实际主体，再通过平台原切换接口取得同一人在目标租户的会话。省略 save-profile 时替换当前连接；指定另一个连接时保留原连接和登录。成功后选中目标连接，只保留已绑定同一平台和目标租户的 Runtime、应用配置。Host 登录及服务 Token 不能代替租户登录。
+
+目标成员失效、平台拒绝或回执无法确认时，CLI 保留原连接，不自动重试。切换后用 `auth whoami --auth session` 核对新企业，再执行其业务操作；切换不会授予成员资格或应用准入。
+
+## 签发本人 API Token
+
+`auth api-token create --request-json <签发.json> --out <新凭据文件.json>` 使用本人已保存的租户或 Host 登录。签发文件只接收 `endTimeUtc`，例如 `{"endTimeUtc":null}`，有效期由平台决定。命令不接受目标用户，不替换登录，Token 保存为绑定服务器、租户和作用域的受保护文件。后续通过 `--token-file` 消费，不能把凭据文件当作登录会话。
+
+输出文件须不存在。签发回执丢失时，原接口没有客户端请求键可回查；先由同作用域的获权维护者核对原服务 Token 清单，不自动再次签发。管理员为指定成员签发、查询和撤销的入口仍为 `security api-token`。
+
 ## 租户管理员代理执行
 
 租户管理员可以用现有平台登录代理同租户的有效成员，不需要目标用户密码：

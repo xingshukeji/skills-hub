@@ -23,6 +23,7 @@ export const applicationUserOperations = [
   retail('agents', 'GET', '/assistant/agents'),
   retail('agent-catalog', 'GET', '/assistant/agent-catalog', { query: ['search', 'page', 'pageSize'] }),
   retail('subscribe', 'POST', '/assistant/agents/{agent-id}/subscription'),
+  retail('unsubscribe', 'DELETE', '/assistant/agents/{agent-id}/subscription'),
   ...['history', 'subagents', 'commands', 'models'].map(action => retail('session ' + action, 'GET', `/assistant/sessions/{session-id}/${action}`,
     action === 'history' ? { query: ['throughSeq', 'beforeSeq', 'maxMessages'] } : {})),
   ...['inputs', 'commands', 'model'].map(action => retail('session ' + ({ inputs: 'send', commands: 'command' }[action] ?? action), 'POST', `/assistant/sessions/{session-id}/${action}`, { input: true })),

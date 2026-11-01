@@ -160,6 +160,8 @@ async function definitionCommands(ctx) {
   const action = args.command(2);
   if (action === 'list') { reporter.print(await runtimeValue(ctx, 'GET', definitions + '/summaries')); return 0; }
   if (action === 'options') { reporter.print(await runtimeValue(ctx, 'GET', definitions + '/options')); return 0; }
+  if (action === 'employee-options') { reporter.print(await runtimeValue(ctx, 'GET', definitions + '/employee-options')); return 0; }
+  if (action === 'member') { reporter.print(await runtimeValue(ctx, 'GET', `${definitions}/members/${segment(args.required('user-id'))}`)); return 0; }
   if (action === 'limits') { reporter.print({ ...await definitionLimits(ctx), runtime: runtimeConnection(ctx).runtime }); return 0; }
   if (action === 'import') return importDefinition(ctx);
   if (action === 'create') {

@@ -1,5 +1,5 @@
 import { CliError, isObject, nonempty } from './core.mjs';
-import { browserLogin, nativeLogin, proxyLogin } from './auth.mjs';
+import { browserLogin, nativeLogin, proxyLogin, switchTenant } from './auth.mjs';
 import { apiValue, request, responseError } from './http.mjs';
 import { applicationId, runtimeOrigin } from './agent-target.mjs';
 
@@ -11,6 +11,7 @@ export async function authCommands(ctx) {
   }
   if (args.command(1) === 'login') return args.has('native') ? nativeLogin(ctx) : browserLogin(ctx);
   if (args.command(1) === 'login-as') return proxyLogin(ctx);
+  if (args.command(1) === 'switch-tenant') return switchTenant(ctx);
   const market = args.has('exchange'), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === 'status') {
     reporter.print(store.authStatus(args, profile, market));

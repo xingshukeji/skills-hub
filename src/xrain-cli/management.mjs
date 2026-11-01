@@ -1,6 +1,6 @@
 import { CliError, isObject, readJsonInput, registerSecrets, segment } from './core.mjs';
 import { apiValue, writeOnce } from './http.mjs';
-import { securityOperations } from './security-operations.mjs';
+import { authOperations, memberOperations, securityOperations } from './security-operations.mjs';
 import { applicationOperations, hostOperations } from './application-operations.mjs';
 import { requireNewCredentialPath, saveCredentialFile } from './store.mjs';
 import { resolve } from 'node:path';
@@ -9,7 +9,7 @@ import { workflowOperations, settingsOperations } from './workflow-operations.mj
 import { deliveryOperations } from './delivery-operations.mjs';
 import { rawOutput } from './raw-response.mjs';
 
-export const managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
+export const managementOperations = [...authOperations, ...memberOperations, ...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 export const routeParameters = route => [...route.matchAll(/\{([^}]+)\}/g)].map(match => match[1]);
 const pageOptions = new Map([['page', 'page'], ['page-size', 'pageSize'], ['search', 'search'], ['status', 'status']]);
 export const operationOptions = operation => [...routeParameters(operation.route),
@@ -59,6 +59,8 @@ export async function managementCommand(ctx) {
     body = await readJsonInput(args.required('request-json', args.value('file')), 'Request JSON', { stdin: ctx.stdin });
     if (operation.input === 'object' && !isObject(body) || operation.input === 'array' && !Array.isArray(body))
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: 'invalid_arguments' });
+    if (operation.inputFields && Object.keys(body).some(key => !operation.inputFields.includes(key)))
+      throw new CliError(`Request JSON supports only ${operation.inputFields.join(', ')}.`, { code: 'invalid_arguments' });
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === 'string') reporter.secret(body[field]);
   }
@@ -70,7 +72,7 @@ export async function managementCommand(ctx) {
       ...(targetTenantId !== undefined ? { targetTenantId } : {}),
       ...(headers['Idempotency-Key'] ? { requestKey: headers['Idempotency-Key'] } : {}),
       ...(headers['If-Match'] ? { ifMatch: headers['If-Match'] } : {}),
-      ...selectors, readback: operation.readback ?? ['security', 'directory'] };
+      ...selectors, ...(operation.recoveryHint ? { hint: operation.recoveryHint } : {}), readback: operation.readback ?? ['security', 'directory'] };
   const call = signal => apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly, signal,
     unknownServerCodes: operation.unknownServerCodes,
     raw: operation.raw, validate: value => (!operation.outcome || ['succeeded', 'failed', 'unknown'].includes(operation.outcome(value))) && (!operation.validate || operation.validate(value, { args, body })),

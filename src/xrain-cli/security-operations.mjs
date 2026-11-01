@@ -2,6 +2,20 @@ const base = '/api/service/authen/v1/security';
 const define = (path, method, route, options = {}) => ({ path: 'security ' + path, method, route: base + route, ...options });
 const page = ['page', 'pageSize', 'search'];
 
+export const memberOperations = [
+  { path: 'member list', method: 'GET', route: '/api/tenant/v1/members', query: page, queryDefaults: { page: 1, pageSize: 20 },
+    description: 'Search the member profiles visible to the current person in the token-bound tenant; administrator access is not substituted.' },
+  { path: 'member show', method: 'GET', route: '/api/tenant/v1/members/{user-id}',
+    description: 'Read one visible same-tenant member profile by its exact user ID.' },
+];
+
+export const authOperations = [
+  { path: 'auth api-token create', method: 'POST', route: '/api/service/authen/v1/account/api-token', host: true, sessionOnly: true,
+    input: 'object', inputFields: ['endTimeUtc'], credentialOutput: true, readback: [],
+    recoveryHint: 'Token issuance outcome is unknown. The native API has no client request key. Inspect the original server token inventory using the same identity and scope before issuing another token; the saved login was not replaced.',
+    description: 'Issue a token for the currently saved login only. Supply the native endTimeUtc request and a new --out protected credential file; no subject can be selected.' },
+];
+
 export const securityOperations = [
   define('directory', 'GET', '/directory'),
   define('directory-visibility get', 'GET', '/directory-visibility'),

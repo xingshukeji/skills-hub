@@ -4,8 +4,8 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalJWKSet, jwtVerify } from 'jose';
-import { CliError, equalIgnoreCase, httpUrl, nonempty } from './core.mjs';
-import { request, requireSuccess } from './http.mjs';
+import { CliError, equalIgnoreCase, httpUrl, isObject, nonempty, segment } from './core.mjs';
+import { request, requireSuccess, writeOnce } from './http.mjs';
 import { samePlatformTarget } from './agent-target.mjs';
 
 export const REDIRECT_URI = 'http://127.0.0.1:38749/callback/';
@@ -281,6 +281,34 @@ export async function proxyLogin(ctx) {
   store.save(config);
   reporter.print({ profile: destination, administratorProfile: administrator.name, server: administrator.server,
     tenantId: session.tenant, userId: identity.userId, proxyByUserId: identity.proxyByUserId, authenticated: true });
+  return 0;
+}
+
+export async function switchTenant(ctx) {
+  const { args, store, reporter } = ctx, profile = store.resolve(args, true);
+  if (profile.scope !== 'tenant') throw new CliError('Tenant switching requires a saved tenant login.', { code: 'tenant_required' });
+  const tenantId = args.required('tenant-id'), destination = store.canonical(args.value('save-profile') ?? profile.name);
+  if (!nonempty(destination) || args.has('save-profile') && equalIgnoreCase(destination, profile.name))
+    throw new CliError('--save-profile must name a separate connection; omit it to switch the current profile.', { code: 'invalid_arguments' });
+  const token = store.loadSession(profile.name, profile.server, profile.tenant, 'tenant');
+  if (!token) throw new CliError('A matching saved platform login is required.', { code: 'authentication_required' });
+  const call = (method, path) => request(new URL(path, profile.server), { method, token, timeout: args.timeout(), limit: 1024 * 1024 });
+  const current = requireSuccess(await call('GET', '/api/service/authen/v1/account/context')).json();
+  if (!isObject(current) || current.scope !== 'tenant' || !nonempty(current.userId) || !equalIgnoreCase(current.tenantId, profile.tenant))
+    throw new CliError('The saved login does not match the current tenant context.', { code: 'identity_mismatch' });
+  const details = { server: profile.server, sourceProfile: profile.name, sourceTenantId: current.tenantId, tenantId, userId: current.userId };
+  const session = await writeOnce(async () => {
+    const response = await call('POST', `/api/service/authen/v1/security/tenants/${segment(tenantId)}/switch`);
+    let result;
+    try { result = tenantSession(response); }
+    catch (error) { if (error instanceof CliError && !error.httpStatus) error.code = 'invalid_response'; throw error; }
+    reporter.secret(result.token);
+    if (!equalIgnoreCase(result.tenant, tenantId) || response.json().userId !== current.userId)
+      throw new CliError('The switched session does not match the same person and requested tenant.', { code: 'invalid_response' });
+    return result;
+  }, 'Tenant switch outcome is unknown. The saved connections were not changed. Inspect them before explicitly switching or logging in again; no request was replayed.', details);
+  savePlatformLogin(ctx, { ...profile, name: destination }, session);
+  reporter.print({ ...details, profile: destination, tenantId: session.tenant, authenticated: true });
   return 0;
 }
 

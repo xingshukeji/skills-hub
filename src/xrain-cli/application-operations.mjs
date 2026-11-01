@@ -57,6 +57,7 @@ export const hostOperations = [
   ...['activate', 'suspend'].map(action => host('tenant ' + action, 'POST', tenant + '/' + action)),
   host('tenant connection set', 'PUT', tenant + '/connections/{name}', { input: 'object' }),
   host('tenant connection check', 'POST', tenant + '/connections/{name}/validate', { readOnly: true, outcome: value => booleanOutcome(value, 'ready') }),
+  host('tenant member list', 'GET', tenant + '/members', { query: ['page', 'pageSize', 'search', 'isActive'], queryDefaults: { page: 1, pageSize: 20 } }),
   host('tenant member create', 'POST', tenant + '/members', { input: 'object' }),
   host('tenant member update', 'PUT', tenant + '/members/{user-id}', { input: 'object' }),
   host('tenant member delete', 'DELETE', tenant + '/members/{user-id}'),

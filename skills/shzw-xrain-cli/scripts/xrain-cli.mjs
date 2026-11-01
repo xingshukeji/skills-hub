@@ -1461,11 +1461,6 @@ async function hostCommands(ctx) {
   const tenantId = args.required("tenant-id");
   const root2 = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
   const options = { requireTenant: false };
-  if (args.command(3) === "list") {
-    const query2 = new URLSearchParams({ page: String(args.integer("page", 1)), pageSize: String(args.integer("page-size", 20)) });
-    if (args.has("search")) query2.set("search", args.value("search"));
-    return api(ctx, "GET", `${root2}?${query2}`, void 0, options);
-  }
   const userId = args.required("user-id");
   for (let page3 = 1; ; page3++) {
     const query2 = new URLSearchParams({ search: userId, page: String(page3), pageSize: "100" });
@@ -2461,6 +2456,37 @@ async function proxyLogin(ctx) {
   });
   return 0;
 }
+async function switchTenant(ctx) {
+  const { args, store, reporter } = ctx, profile = store.resolve(args, true);
+  if (profile.scope !== "tenant") throw new CliError("Tenant switching requires a saved tenant login.", { code: "tenant_required" });
+  const tenantId = args.required("tenant-id"), destination = store.canonical(args.value("save-profile") ?? profile.name);
+  if (!nonempty(destination) || args.has("save-profile") && equalIgnoreCase(destination, profile.name))
+    throw new CliError("--save-profile must name a separate connection; omit it to switch the current profile.", { code: "invalid_arguments" });
+  const token = store.loadSession(profile.name, profile.server, profile.tenant, "tenant");
+  if (!token) throw new CliError("A matching saved platform login is required.", { code: "authentication_required" });
+  const call = (method, path) => request(new URL(path, profile.server), { method, token, timeout: args.timeout(), limit: 1024 * 1024 });
+  const current = requireSuccess(await call("GET", "/api/service/authen/v1/account/context")).json();
+  if (!isObject(current) || current.scope !== "tenant" || !nonempty(current.userId) || !equalIgnoreCase(current.tenantId, profile.tenant))
+    throw new CliError("The saved login does not match the current tenant context.", { code: "identity_mismatch" });
+  const details = { server: profile.server, sourceProfile: profile.name, sourceTenantId: current.tenantId, tenantId, userId: current.userId };
+  const session = await writeOnce(async () => {
+    const response = await call("POST", `/api/service/authen/v1/security/tenants/${segment(tenantId)}/switch`);
+    let result;
+    try {
+      result = tenantSession(response);
+    } catch (error) {
+      if (error instanceof CliError && !error.httpStatus) error.code = "invalid_response";
+      throw error;
+    }
+    reporter.secret(result.token);
+    if (!equalIgnoreCase(result.tenant, tenantId) || response.json().userId !== current.userId)
+      throw new CliError("The switched session does not match the same person and requested tenant.", { code: "invalid_response" });
+    return result;
+  }, "Tenant switch outcome is unknown. The saved connections were not changed. Inspect them before explicitly switching or logging in again; no request was replayed.", details);
+  savePlatformLogin(ctx, { ...profile, name: destination }, session);
+  reporter.print({ ...details, profile: destination, tenantId: session.tenant, authenticated: true });
+  return 0;
+}
 async function browserLogin(ctx) {
   const market = ctx.args.has("exchange");
   const profile = market ? ctx.store.market(ctx.args) : ctx.store.resolve(ctx.args, false, { allowMissing: true });
@@ -2813,6 +2839,13 @@ async function submit(ctx, api3, path, body, context, { cancel = false, method =
 async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === "capabilities" || action === "candidates") {
+    const api3 = createClient({ allowHost: true });
+    const result = requireSuccess(await api3.send("GET", api3.root + "/" + action)).json();
+    if (action === "candidates" ? !Array.isArray(result) : !isObject(result) || !["canInstall", "canSubmit", "canReview", "canPublish", "canCreateApplication"].every((key) => typeof result[key] === "boolean"))
+      throw new CliError("The server returned an invalid application capability or candidate catalog.", { code: "invalid_response" });
+    return output(ctx, result);
+  }
   if (action === "components") {
     const packageId = args.required("package"), versionId = args.required("version-id"), api3 = createClient({ allowHost: true });
     return output(ctx, requireSuccess(await api3.send("GET", `${api3.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());
@@ -3143,6 +3176,7 @@ async function authCommands(ctx) {
   }
   if (args.command(1) === "login") return args.has("native") ? nativeLogin(ctx) : browserLogin(ctx);
   if (args.command(1) === "login-as") return proxyLogin(ctx);
+  if (args.command(1) === "switch-tenant") return switchTenant(ctx);
   const market = args.has("exchange"), profile = market ? store.market(args) : store.resolve(args);
   if (args.command(1) === "status") {
     reporter.print(store.authStatus(args, profile, market));
@@ -3270,6 +3304,37 @@ async function doctor(ctx) {
 var base = "/api/service/authen/v1/security";
 var define = (path, method, route, options = {}) => ({ path: "security " + path, method, route: base + route, ...options });
 var page2 = ["page", "pageSize", "search"];
+var memberOperations = [
+  {
+    path: "member list",
+    method: "GET",
+    route: "/api/tenant/v1/members",
+    query: page2,
+    queryDefaults: { page: 1, pageSize: 20 },
+    description: "Search the member profiles visible to the current person in the token-bound tenant; administrator access is not substituted."
+  },
+  {
+    path: "member show",
+    method: "GET",
+    route: "/api/tenant/v1/members/{user-id}",
+    description: "Read one visible same-tenant member profile by its exact user ID."
+  }
+];
+var authOperations = [
+  {
+    path: "auth api-token create",
+    method: "POST",
+    route: "/api/service/authen/v1/account/api-token",
+    host: true,
+    sessionOnly: true,
+    input: "object",
+    inputFields: ["endTimeUtc"],
+    credentialOutput: true,
+    readback: [],
+    recoveryHint: "Token issuance outcome is unknown. The native API has no client request key. Inspect the original server token inventory using the same identity and scope before issuing another token; the saved login was not replaced.",
+    description: "Issue a token for the currently saved login only. Supply the native endTimeUtc request and a new --out protected credential file; no subject can be selected."
+  }
+];
 var securityOperations = [
   define("directory", "GET", "/directory"),
   define("directory-visibility get", "GET", "/directory-visibility"),
@@ -3381,6 +3446,7 @@ var hostOperations = [
   ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
   host("tenant connection set", "PUT", tenant + "/connections/{name}", { input: "object" }),
   host("tenant connection check", "POST", tenant + "/connections/{name}/validate", { readOnly: true, outcome: (value) => booleanOutcome(value, "ready") }),
+  host("tenant member list", "GET", tenant + "/members", { query: ["page", "pageSize", "search", "isActive"], queryDefaults: { page: 1, pageSize: 20 } }),
   host("tenant member create", "POST", tenant + "/members", { input: "object" }),
   host("tenant member update", "PUT", tenant + "/members/{user-id}", { input: "object" }),
   host("tenant member delete", "DELETE", tenant + "/members/{user-id}"),
@@ -3754,7 +3820,7 @@ async function rawOutput(ctx, call, context) {
 }
 
 // src/xrain-cli/management.mjs
-var managementOperations = [...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
+var managementOperations = [...authOperations, ...memberOperations, ...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2) => match2[1]);
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
@@ -3802,6 +3868,8 @@ async function managementCommand(ctx) {
     body = await readJsonInput(args.required("request-json", args.value("file")), "Request JSON", { stdin: ctx.stdin });
     if (operation.input === "object" && !isObject(body) || operation.input === "array" && !Array.isArray(body))
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: "invalid_arguments" });
+    if (operation.inputFields && Object.keys(body).some((key) => !operation.inputFields.includes(key)))
+      throw new CliError(`Request JSON supports only ${operation.inputFields.join(", ")}.`, { code: "invalid_arguments" });
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
   }
@@ -3817,6 +3885,7 @@ async function managementCommand(ctx) {
     ...headers["Idempotency-Key"] ? { requestKey: headers["Idempotency-Key"] } : {},
     ...headers["If-Match"] ? { ifMatch: headers["If-Match"] } : {},
     ...selectors,
+    ...operation.recoveryHint ? { hint: operation.recoveryHint } : {},
     readback: operation.readback ?? ["security", "directory"]
   };
   const call = (signal) => apiValue(ctx, operation.method, route, body, {
@@ -3923,6 +3992,10 @@ var workforceOperations = [
   define6("task reminder get", "GET", "/tasks/{task-id}/reminder"),
   define6("task reminder set", "PUT", "/tasks/{task-id}/reminder", { input: "object" }),
   define6("task execution-conversation", "GET", "/tasks/{task-id}/execution-conversation"),
+  define6("agent list", "GET", "/workbench/agents"),
+  define6("agent catalog", "GET", "/workbench/agent-catalog", { query: ["search", "page"] }),
+  define6("agent subscribe", "POST", "/workbench/agents/{agent-id}/subscription"),
+  define6("agent unsubscribe", "DELETE", "/workbench/agents/{agent-id}/subscription"),
   define6("session list", "GET", "/workbench/sessions", { query: ["source"] }),
   define6("session create", "POST", "/workbench/sessions", { input: "object" }),
   ...["history", "subagents", "commands", "models"].map((action) => define6(
@@ -3945,7 +4018,8 @@ var workforceOperations = [
   define6("schedule create", "POST", "/task-schedules", { input: "object" }),
   define6("schedule update", "PUT", "/task-schedules/{schedule-id}", { input: "object" }),
   ...["enable", "pause"].map((action) => define6("schedule " + action, "POST", `/task-schedules/{schedule-id}/${action}`)),
-  define6("schedule history", "GET", "/task-schedules/{schedule-id}/history"),
+  define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["paged", "before"] }),
+  define6("schedule run show", "GET", "/task-schedules/{schedule-id}/runs/{run-id}"),
   ...["conversation", "pending-actions"].map((action) => define6("schedule run " + action, "GET", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
   ...["respond", "cancel-action"].map((action) => define6("schedule run " + action, "POST", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: "object" })),
   define6("schedule run cancel", "POST", "/task-schedules/{schedule-id}/runs/{run-id}/cancel")
@@ -3980,6 +4054,7 @@ var applicationUserOperations = [
   retail("agents", "GET", "/assistant/agents"),
   retail("agent-catalog", "GET", "/assistant/agent-catalog", { query: ["search", "page", "pageSize"] }),
   retail("subscribe", "POST", "/assistant/agents/{agent-id}/subscription"),
+  retail("unsubscribe", "DELETE", "/assistant/agents/{agent-id}/subscription"),
   ...["history", "subagents", "commands", "models"].map((action) => retail(
     "session " + action,
     "GET",
@@ -4015,6 +4090,7 @@ command("profile path", [], [], "Show the profile store path.");
 command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.");
 command("auth login-as", [...target, "auth", "user", "save-profile"], [], "Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.");
 command("auth tenants", [...target, "auth"], [], "Discover your accessible enterprises using the saved platform login. Does not switch the current connection.");
+command("auth switch-tenant", ["server", "profile", "timeout", "auth", "tenant-id", "save-profile"], [slot("tenant-id")], "Exchange your saved tenant session for the same person in another accessible tenant and select it. --save-profile preserves the original connection separately.");
 command("auth status", [...api2, "exchange"], [], "Inspect local authentication state; this does not validate a token remotely.");
 command("auth whoami", [...api2, "agent", "runtime", "application-id", "personal"], [], "Read the verified XRain identity; --agent also checks the selected Runtime caller.");
 command("auth logout", ["server", "tenant", "profile", "exchange"], [], "Delete the saved session, keeping the platform profile.");
@@ -4060,6 +4136,8 @@ command("agent application set", [...api2, "application-id", "values", "values-j
 command("agent definition list", runtime, [], "List definition summaries without full instructions.");
 command("agent definition show", [...runtime, "agent-id"], [slot("agent-id")], "Read one definition and its revision by exact agent ID.");
 command("agent definition options", runtime, [], "Read Runtime models, workspaces and presets available to this caller.");
+command("agent definition employee-options", runtime, [], "Read definition choices for employee associations using the original relation-read permission.");
+command("agent definition member", [...runtime, "user-id"], [slot("user-id")], "Validate one known member through the narrow definition-management directory, without gaining directory search.");
 command("agent definition limits", runtime, [], "Read the current Runtime write limit and lightweight status capability.");
 command("agent definition export", [...runtime, "agent-id", "out"], [slot("agent-id")], "Export one saved definition as a version 1 exchange file; --out must name a new file.");
 command("agent definition import", [...runtime, "agent-id", "expected-revision", "file"], [], "Import a version 1 exchange file. No ID creates a disabled definition; an existing ID requires --expected-revision and retains its enabled state.");
@@ -4158,7 +4236,6 @@ command("host settings get", [...host2, "setting"], [slot("setting")], "Read age
 command("host settings set", [...host2, "setting", "mib", "bytes", "expected-bytes"], [slot("setting")], "Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.");
 command("user settings get", [...api2, "setting"], [slot("setting")], "Read your Workforce send-shortcut or unread-badge preference.");
 command("user settings set", [...api2, "setting", "value"], [slot("setting")], "Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).");
-command("host tenant member list", [...host2, "tenant-id", "page", "page-size", "search"], [slot("tenant-id")], "List one named tenant membership directory using an authorized Host login.");
 command("host tenant member ensure", [...host2, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
 command("app login", [...target, "exchange", "device", "no-browser"], [], "Compatibility alias for auth login.");
 command("app logout", ["server", "tenant", "profile", "exchange"], [], "Compatibility alias for auth logout.");
@@ -4167,6 +4244,8 @@ command("app check", [...app2, "source"], [], "Build and validate remotely witho
 command("app build", [...app2, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
 command("app publish", [...app2, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
 command("app status", [...app2, "exchange", "package"], [], "Read published applications and version history. JSON mode always returns an array.");
+command("app capabilities", app2, [], "Read the current platform identity’s package submission, review, publication, installation and application-creation capabilities.");
+command("app candidates", app2, [], "Read package candidates visible to the current platform publisher or reviewer; this does not install or publish them.");
 command("app list", [...app2, "exchange"], [], "List visible platform packages, or browse the independent market with --exchange.");
 command("app versions", [...app2, "exchange", "package"], [slot("package")], "List versions of an exact package ID; availability for installation is decided by the platform.");
 var wait = ["wait", "wait-timeout", "poll-interval"];
@@ -4269,7 +4348,7 @@ function validateCommand(args) {
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: "invalid_arguments", hint: `Run ${spec.path} --help.` });
   const management = managementOperations.find((item) => item.path === spec.path);
   const applicationUser = applicationUserOperations.find((item) => item.path === spec.path);
-  if (spec.path === "auth tenants" && args.has("auth") && args.value("auth") !== "session") throw new CliError("Enterprise discovery uses your saved platform login.", { code: "invalid_arguments" });
+  if (["auth tenants", "auth switch-tenant"].includes(spec.path) && args.has("auth") && args.value("auth") !== "session") throw new CliError("Enterprise discovery and switching use your saved platform login.", { code: "invalid_arguments" });
   if (applicationUser) {
     args.required("app-url");
     if (applicationUser.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
@@ -5362,6 +5441,14 @@ async function definitionCommands(ctx) {
   }
   if (action === "options") {
     reporter.print(await runtimeValue(ctx, "GET", definitions + "/options"));
+    return 0;
+  }
+  if (action === "employee-options") {
+    reporter.print(await runtimeValue(ctx, "GET", definitions + "/employee-options"));
+    return 0;
+  }
+  if (action === "member") {
+    reporter.print(await runtimeValue(ctx, "GET", `${definitions}/members/${segment(args.required("user-id"))}`));
     return 0;
   }
   if (action === "limits") {

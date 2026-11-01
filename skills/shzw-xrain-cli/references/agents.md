@@ -18,6 +18,8 @@ Runtime 持有智能体定义、工作区和工具配置；XRain 持有个人订
 
 ```text
 agent definition options
+agent definition employee-options
+agent definition member <userId>
 agent definition limits
 agent definition list
 agent definition show <agentId>
@@ -31,6 +33,8 @@ agent use <agentId> [--application-id <应用ID> | --personal]
 `directory` 汇合 Runtime 定义与平台资格，默认使用 profile 配置的应用上下文；`--personal` 单次选择个人上下文，`--mine` 始终仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。个人订阅命令始终以当前人为主体。
 
 `list` 返回不含完整工作要求的摘要，`show` 按 ID 读取单条定义。CLI 直接使用当前 Runtime 接口；缺失接口、鉴权失败、服务故障或无效响应保留原错误。读取和导出已有定义不采用当前写入限额，也不受通用 32 MiB 响应限制。
+
+`employee-options` 读取员工关联可选定义，只需要 Runtime 声明的关联读取权限，不读取完整定义、工具或工作要求。`member` 供定义管理者按已知 userId 核验成员，沿原窄目录门禁，不开放人员搜索。两者均保留原权限拒绝和租户隔离。
 
 ## 发起和继续对话
 

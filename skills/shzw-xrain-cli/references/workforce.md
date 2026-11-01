@@ -88,6 +88,17 @@ composition get 返回当前选择、可选功能和依赖。set 提交 `{"plugi
 
 account open 打开原个人设置，绑定登录方式仍需本人验证和第三方授权。enterprise open 打开企业管理，选择成员、确认代登录和返回原账号均在原网页完成。命令只报告网页入口和预期身份；浏览器登录可能不同，先核对当前企业和本人。`--no-browser` 仅返回地址；返回 requires_browser_interaction 不表示绑定或身份切换已经完成。
 
+## 发现和选用助手
+
+```text
+workforce agent list
+workforce agent catalog --query-json <目录查询.json>
+workforce agent subscribe <agentId>
+workforce agent unsubscribe <agentId>
+```
+
+list 读取当前宿主实际使用的 Runtime 目录和默认助手，不要求调用者另行配置该 Runtime 地址。catalog 支持 search、page，原宿主每页返回 20 项；目录中可发现的定义不一定已获准使用。subscribe 申请本人订阅，审批结果由平台决定；unsubscribe 取消本人订阅。随后用原 agentId 创建 session。拒绝或回执不明时，读取同一目录和本人订阅状态，不自动审批或重复写入。
+
 ## Task 与原生会话
 
 ```text
@@ -138,3 +149,5 @@ transcribe 的 --file 读取原始 16 kHz 单声道 PCM WAV；可用选择.json 
 `workforce schedule` 支持 list/options/bootstrap/agents/models、create/update、enable/pause、history；update、enable、pause、history 带 schedule-id。create/update 的请求为 name、description、ownerId、assigneeId、agentId、scheduleType、executeTime、timeZoneId，可带 provider、model、reasoningEffort；scheduleType 为 Daily 或 Workday，executeTime 为 HH:mm，timeZoneId 使用平台 IANA 选项。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。
 
 启用时宿主复核并保存同一成员的原凭据，不改执行身份。history 保存原 runId；`workforce schedule run conversation/pending-actions/respond/cancel-action/cancel <scheduleId> <runId>` 沿原运行回读或响应，respond/cancel-action 带 actionRef 和 response。旧平台安排可读历史和 pause，编辑、enable 不会恢复旧执行链。周期安排和员工一次性检查继续由宿主调度与恢复，CLI 不另起调度进程。
+
+`workforce schedule run show <scheduleId> <runId>` 读取单次原运行；读取到失败运行仍是成功的查询。读取当前宿主保存的新安排历史时，history 可用 `--query-json` 提交 `{"paged":true}`，再把原 nextCursor 放入 `{"paged":true,"before":"<原游标>"}` 读取较早历史。CLI 保留原分页和运行结果，不触发执行。

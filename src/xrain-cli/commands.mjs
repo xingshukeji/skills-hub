@@ -194,11 +194,6 @@ export async function hostCommands(ctx) {
   const tenantId = args.required('tenant-id');
   const root = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
   const options = { requireTenant: false };
-  if (args.command(3) === 'list') {
-    const query = new URLSearchParams({ page: String(args.integer('page', 1)), pageSize: String(args.integer('page-size', 20)) });
-    if (args.has('search')) query.set('search', args.value('search'));
-    return api(ctx, 'GET', `${root}?${query}`, undefined, options);
-  }
   const userId = args.required('user-id');
   for (let page = 1; ; page++) {
     const query = new URLSearchParams({ search: userId, page: String(page), pageSize: '100' });

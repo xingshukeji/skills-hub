@@ -162,6 +162,14 @@ async function submit(ctx, api, path, body, context, { cancel = false, method = 
 export async function appManagementCommands(ctx, createClient) {
   const { args } = ctx;
   const action = args.command(1);
+  if (action === 'capabilities' || action === 'candidates') {
+    const api = createClient({ allowHost: true });
+    const result = requireSuccess(await api.send('GET', api.root + '/' + action)).json();
+    if (action === 'candidates' ? !Array.isArray(result) : !isObject(result) ||
+        !['canInstall', 'canSubmit', 'canReview', 'canPublish', 'canCreateApplication'].every(key => typeof result[key] === 'boolean'))
+      throw new CliError('The server returned an invalid application capability or candidate catalog.', { code: 'invalid_response' });
+    return output(ctx, result);
+  }
   if (action === 'components') {
     const packageId = args.required('package'), versionId = args.required('version-id'), api = createClient({ allowHost: true });
     return output(ctx, requireSuccess(await api.send('GET', `${api.root}/packages/${segment(packageId)}/versions/${segment(versionId)}/components`)).json());

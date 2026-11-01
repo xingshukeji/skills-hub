@@ -5,6 +5,8 @@
 ## 查找与导入
 
 ```text
+app capabilities
+app candidates
 app list
 app versions --package <packageId>
 app list --exchange <市场origin> --profile <市场>
@@ -13,6 +15,8 @@ app import --package <packageId> --version-id <versionId>
 ```
 
 平台 list 返回本地可见包及安装指针。市场 list/versions 使用独立市场浏览器会话。import 使用目标平台配置的市场来源，不能附加 --exchange、任意下载地址或本地包文件。导入成功不表示安装或发布；Host 本地包使用 `app import-file <文件.appkg> --scope host` 及原 Host 会话。
+
+capabilities 返回当前身份的 canInstall、canSubmit、canReview、canPublish、canCreateApplication。candidates 返回当前发布者或审核者可见的提交包。两个命令均使用目标平台的原租户或 Host 登录，不接受 exchange；读取不会安装、提交或发布。
 
 versions 列出历史版本；平台决定当前版本是否可安装。CLI 不替调用者选“最新版”，不重新发布旧版来实现回退。导入响应丢失时，先在同一平台查询 versions，不自动重复导入。
 

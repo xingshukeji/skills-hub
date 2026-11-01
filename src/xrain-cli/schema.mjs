@@ -26,6 +26,7 @@ command('profile path', [], [], 'Show the profile store path.');
 command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.');
 command('auth login-as', [...target, 'auth', 'user', 'save-profile'], [], 'Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.');
 command('auth tenants', [...target, 'auth'], [], 'Discover your accessible enterprises using the saved platform login. Does not switch the current connection.');
+command('auth switch-tenant', ['server', 'profile', 'timeout', 'auth', 'tenant-id', 'save-profile'], [slot('tenant-id')], 'Exchange your saved tenant session for the same person in another accessible tenant and select it. --save-profile preserves the original connection separately.');
 command('auth status', [...api, 'exchange'], [], 'Inspect local authentication state; this does not validate a token remotely.');
 command('auth whoami', [...api, 'agent', 'runtime', 'application-id', 'personal'], [], 'Read the verified XRain identity; --agent also checks the selected Runtime caller.');
 command('auth logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Delete the saved session, keeping the platform profile.');
@@ -67,6 +68,8 @@ command('agent application set', [...api, 'application-id', 'values', 'values-js
 command('agent definition list', runtime, [], 'List definition summaries without full instructions.');
 command('agent definition show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read one definition and its revision by exact agent ID.');
 command('agent definition options', runtime, [], 'Read Runtime models, workspaces and presets available to this caller.');
+command('agent definition employee-options', runtime, [], 'Read definition choices for employee associations using the original relation-read permission.');
+command('agent definition member', [...runtime, 'user-id'], [slot('user-id')], 'Validate one known member through the narrow definition-management directory, without gaining directory search.');
 command('agent definition limits', runtime, [], 'Read the current Runtime write limit and lightweight status capability.');
 command('agent definition export', [...runtime, 'agent-id', 'out'], [slot('agent-id')], 'Export one saved definition as a version 1 exchange file; --out must name a new file.');
 command('agent definition import', [...runtime, 'agent-id', 'expected-revision', 'file'], [], 'Import a version 1 exchange file. No ID creates a disabled definition; an existing ID requires --expected-revision and retains its enabled state.');
@@ -140,7 +143,6 @@ command('host settings get', [...host, 'setting'], [slot('setting')], 'Read agen
 command('host settings set', [...host, 'setting', 'mib', 'bytes', 'expected-bytes'], [slot('setting')], 'Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.');
 command('user settings get', [...api, 'setting'], [slot('setting')], 'Read your Workforce send-shortcut or unread-badge preference.');
 command('user settings set', [...api, 'setting', 'value'], [slot('setting')], 'Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).');
-command('host tenant member list', [...host, 'tenant-id', 'page', 'page-size', 'search'], [slot('tenant-id')], 'List one named tenant membership directory using an authorized Host login.');
 command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('tenant-id'), slot('user-id')], 'Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.');
 command('app login', [...target, 'exchange', 'device', 'no-browser'], [], 'Compatibility alias for auth login.');
 command('app logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Compatibility alias for auth logout.');
@@ -149,6 +151,8 @@ command('app check', [...app, 'source'], [], 'Build and validate remotely withou
 command('app build', [...app, 'source', 'output'], [], 'Build remotely, validate the returned package, and save it exclusively.');
 command('app publish', [...app, 'exchange', 'file'], [slot('file')], 'Publish an existing application package without automatic retries.');
 command('app status', [...app, 'exchange', 'package'], [], 'Read published applications and version history. JSON mode always returns an array.');
+command('app capabilities', app, [], 'Read the current platform identity’s package submission, review, publication, installation and application-creation capabilities.');
+command('app candidates', app, [], 'Read package candidates visible to the current platform publisher or reviewer; this does not install or publish them.');
 command('app list', [...app, 'exchange'], [], 'List visible platform packages, or browse the independent market with --exchange.');
 command('app versions', [...app, 'exchange', 'package'], [slot('package')], 'List versions of an exact package ID; availability for installation is decided by the platform.');
 const wait = ['wait', 'wait-timeout', 'poll-interval'];
@@ -215,7 +219,7 @@ export function validateCommand(args) {
   if (operands.length) throw new CliError(`Unexpected positional argument for '${spec.path}'.`, { code: 'invalid_arguments', hint: `Run ${spec.path} --help.` });
   const management = managementOperations.find(item => item.path === spec.path);
   const applicationUser = applicationUserOperations.find(item => item.path === spec.path);
-  if (spec.path === 'auth tenants' && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Enterprise discovery uses your saved platform login.', { code: 'invalid_arguments' });
+  if (['auth tenants', 'auth switch-tenant'].includes(spec.path) && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Enterprise discovery and switching use your saved platform login.', { code: 'invalid_arguments' });
   if (applicationUser) {
     args.required('app-url');
     if (applicationUser.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
