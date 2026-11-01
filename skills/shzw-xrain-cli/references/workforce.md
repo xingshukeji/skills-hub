@@ -82,7 +82,7 @@ workforce account open [--no-browser]
 workforce enterprise open [--no-browser]
 ```
 
-composition get 返回当前选择、可选功能和依赖。set 提交 `{"plugins":["<实际插件ID>"],"applications":["<实际目录ID>"]}`；完整保留仍需使用的选择，恢复默认用 `{"reset":true}`。可用 `--query-json` 指定 client（web 或 desktop）。关闭功能只修改本人的在线选择，不删除数据。applications 返回本人实际可用目录、打开地址和 incomplete；应用安装列表不能代替它。
+composition get 返回当前选择、可选功能和依赖。set 提交 `{"plugins":["<实际插件ID>"],"applications":["<实际目录ID>"]}`；完整保留仍需使用的选择，恢复默认用 `{"reset":true}`。可用 `--query-json` 指定 client（web 或 desktop）。关闭功能只修改本人的在线选择，不删除数据。applications 返回本人实际可用目录、应用声明的普通打开地址和 incomplete；应用安装列表不能代替它。打开地址使用浏览器自己的登录和准入，不携带 CLI 的平台凭据或浏览器会话；先核对当前企业和本人，再继续页面操作。
 
 account open 打开原个人设置，绑定登录方式仍需本人验证和第三方授权。enterprise open 打开企业管理，选择成员、确认代登录和返回原账号均在原网页完成。命令只报告网页入口和预期身份；浏览器登录可能不同，先核对当前企业和本人。`--no-browser` 仅返回地址；返回 requires_browser_interaction 不表示绑定或身份切换已经完成。
 
