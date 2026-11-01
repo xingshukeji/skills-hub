@@ -30,15 +30,23 @@
 | 建立和交办 Task、改派、状态、挂载、提醒及执行对话 | workforce task 保留原任务，attach/detach 挂载或取消原频道关联；创建、确认、改派或重开后的挂载/AI 接纳失败返回 partial_success，batch 停止并保留失败步骤回执。 | 已修复部分完成误报。原处理器验证 AI 拒绝后原任务恢复且不重复执行；CLI 验证只写一次、停止后续步骤、读取原任务和服务拒绝。accepted 不表示 AI 已完成。 |
 | 建立和修改计划、启用暂停、读历史、处理问题和取消运行 | workforce schedule 调用原计划及运行接口，支持原 paged/before 和按 scheduleId/runId 读取单次运行；主体凭据、调度和执行历史由宿主持有。 | 已修复宿主目录与启用检查遗漏应用上下文，以及 CLI 取消请求缺少空 JSON。真实计划保存、启用、到点工具查询、历史与对话回读、暂停及取消均通过；重启保留同一计划和两次运行。其他人物仍不能读或取消该运行，已结束运行返回原 409。 |
 | 定义、工具、工作区、订阅和应用选用 | agent definition/tool/workspace/policy/subscription/application 使用原版本、工具目录和资格。employee-options 与 member 使用各自窄读取。workforce agent list/catalog/subscribe/unsubscribe 由宿主连接实际 Runtime。 | 已补窄读取和宿主助手入口。原处理器验证分页、可发现但不可使用项、申请/取消及撤销准入；CLI 保留原字段和拒绝。前轮限额、并发、工具继承与真实邮箱定义选用证据保留。 |
-| 与助手对话、续聊、回读工具和终态、提问审批、取消与恢复 | agent chat 与 workforce session 保留原 sessionId/requestId；等待或回读不重发。toolCalls 和 history 保留原 callId 及工具结果 result，包含正文、错误和元数据；凭据脱敏。轮次完成但没有文字仍成功，工具失败单独保留。Ctrl+C 只结束本地观察。 | 真实模型调用销售助手的只读工具，当前 CLI 与 Workforce 均能回读同一 callId 和结果。无业务权限人物的工具返回 CONNECTOR_FORBIDDEN，原会话仍能续聊。真实运行中取消后得到 aborted，同一会话可继续；第三人读取和取消均拒绝。提问和审批的真实闭环仍未验证。 |
+| 与助手对话、续聊、回读工具和终态、提问审批、取消与恢复 | agent chat 与 workforce session 保留原 sessionId/requestId；等待或回读不重发。toolCalls 和 history 保留原 callId 及工具结果 result，包含正文、错误和元数据；凭据脱敏。轮次完成但没有文字仍成功，工具失败单独保留。Ctrl+C 只结束本地观察。 | 真实模型调用销售助手的只读工具，当前 CLI 与 Workforce 均能回读同一 callId 和结果。无业务权限人物的工具返回 CONNECTOR_FORBIDDEN，原会话仍能续聊。真实运行中取消后得到 aborted，同一会话可继续；第三人读取和取消均拒绝。另次独立测试已验证真实提问、明确允许一次与拒绝，以及他人拒绝、同标识重试和迟到答复；各端待批页面仍未完整验证。 |
 | 受管单次执行与临时文本 | agent run start/show 按原 runId 查询服务的有界结果；ephemeral 使用原纯文本协议，没有持久会话、工具和历史。 | 与当前服务能力对齐。受管回执丢失没有客户端请求键可恢复，当前服务也无受管 runId 取消接口；CLI 如实保留未知，不另造恢复状态或自动重放。 |
-| 回答反馈和语音 | workforce session feedback 与 speech 复用原会话、回答、本人反馈和 speech Remote；语音识别不自动发送。 | 实现对齐；原处理器与 CLI 隔离验证已覆盖撤销、非助手回答、失权、服务未就绪及原音频输入。未下载模型或录制真实音频。 |
+| 回答反馈和语音 | workforce session feedback 与 speech 复用原会话、回答、本人反馈和 speech Remote；语音识别不自动发送。 | 独立测试已完成实际页面与CLI的正负反馈、分类意见、修改撤销、新进程回读及无权会话、非助手回答拒绝；Android原生反馈和前后台恢复已验证。受管服务的已有音频转写及失败后恢复通过。Android录音启动失败，录音中取消和转写草稿不自动发送仍未验证；未下载模型。 |
 | 本人功能组合、应用目录、账号绑定和企业管理 | composition 保存本人的选择；applications 返回实际准入和普通浏览器入口，不生成浏览器会话专用地址。导航选择只核对准入。account/enterprise open 返回或打开原确认页面；平台 security/host 管理已有成员和角色。 | 已修复目录及组合选用误拒。原处理器的查询、保存和重入通过；原宿主重载后，独立 CLI 返回完整目录及邮箱普通打开地址，组合包含邮箱路由。实际门户卡片、独立授权回跳、本人邮箱和切回原账号后的内容清理通过。 |
 | 独立邮箱：账户、文件夹、搜索、原邮件、AI 和草稿 | mail capabilities/app capabilities 分别读取实际服务的当前限额。app search/read 保留原 reference，assist 仅返回建议。平台和应用的 draft 共享 Saved、internetMessageId 和原账号检查；服务的 email_draft_outcome_unknown 保留未知语义。 | 新增完整 Skill 进程经原 MailServer、原客户端和隔离平台验证能力读取、较大转义正文保存、原 409 停止 batch 及权限拒绝。前轮固定 163 邮箱与 DeepSeek 的实测保留其原环境、身份和版本范围；本次未发送邮件。 |
 | 顾客接待：查询、登记、编辑、字段选项、助手订阅和继续原对话 | retail context/customer/options 使用实际对象和字段，conversation 复用原顾客及本人会话；subscribe/unsubscribe 消费原平台个人订阅。 | 已修复独立应用订阅适配缺失，并补取消命令。原应用 HTTP 验证订阅待批、取消、错误应用上下文及撤销准入；CLI 验证未知结果不重放。前轮顾客字段、保存、冲突和关联验证保留。 |
 | 应用管理、市场和应用包开发安装 | application 管理治理；app 查询实际能力及提交候选，完成构建、发布、导入、安装、升级及操作恢复；market 按精确版本核验原包。 | 已补能力和候选读取。定向验证租户及 Host 的原结果与拒绝，未引入安装或发布。既有恢复及制品完整性验证保留。 |
 
 ## 验证与未验证范围
+
+2026-11-01另次受控SystemTest固定了[真实交互与设备余项计划](../../../xrain-workforce/文档/项目/项目_XRAIN_WORKFORCE/推进中/TEST-20261101-真实交互与设备余项.md)中的候选。当前15380加载的Workforce仍为0.3.19，但源码摘要为`1bf8860f6be66b39c09a49c38e340bd07bd4971857aabfb85797699ccdef0e1b`；Runtime沿用下述0.2.5摘要，CLI为`f24df56c6e3cf15a022bf65b7e73ce9bdb645c73609b5a823ce957ee3ee8a2c1`。与前轮旧包分别记证据，不按相同版本号合并结论。
+
+该独立测试已完成真实原生提问、用户明确决定的工具允许一次与拒绝，并核对原actionRef/sessionId/requestId及终态。他人答复返回404，同答复标识重试被识别，迟到的新答复返回409。实际页面、CLI新进程及Android核对了本人反馈保存、修改、撤销和重入；无权会话及非助手消息提交被拒绝，原反馈保持不变。受管语音服务对已有合成音频真实转写成功，且无效音频失败后可以恢复。当前15380也已验证计划发现、启用及恢复原暂停状态，历史未新增。本轮没有重启共享宿主、安装模型或修改产品源码。
+
+Android现有APK的录音启动失败，日志要求`MODIFY_AUDIO_SETTINGS`和`RECORD_AUDIO`，实际APK缺少前者；其余输入保护、原生返回和前后台草稿恢复已验证，最终草稿清空、反馈撤销、账号退出、模拟器及本轮转发清理。Electron启动被自动审批审查阻断，Windows无可用录音输入且没有iOS设备。录音中取消、成功识别进入草稿后不自动发送及各端待批页面仍保留缺口。非秘密证据位于Workforce忽略目录`.agent/tmp/systemtest-remaining-20261101`，详细标识、设备摘要、责任及恢复条件由原测试计划持有。
+
+以下历史开发证据保留其当时版本和环境范围。
 
 2026-11-01 的增量实测复用集中测试平台、铵帮开发租户 `00k01a1551dfeae60vvl` 和应用 `app01a1553cc4ca323zv`。执行人为固定 `test`，拒绝分支使用固定周安博；沿原台账和登录连接核对身份，没有新增账号、补权或自动审批。模型使用现有 DeepSeek 配置，工具为原 `anbang-sales` 的 `service_quotationOptions`，只查询合成的不匹配关键词，没有写业务记录或发送业务通知。
 
@@ -84,7 +92,7 @@ CLI 定向及完整 Skill 消费测试见 [导入](../../tests/data-import.test.
 
 以下保留为未验证，不归并成“全功能真实闭环通过”：
 
-- Workforce 与 Runtime：本次固定身份下的消息回读、真实计划和工具、取消及继续已补证；真实提问审批、反馈、语音和其他设备仍未完整验证，不能扩写为全部功能通过。
+- Workforce 与 Runtime：真实提问审批、页面与CLI反馈、Android反馈、文件转写及当前15380计划修复已由上述独立测试补证；Android录音失败，Electron、iOS、实际录音取消、不自动发送及各端待批页面仍未完整验证，不能扩写为全部功能通过。
 - 邮箱与公共子应用：本轮固定身份和邮箱路径已实测；跨企业、撤权后的实际重入仍未完整实测。其他定义和业务授权保留。
 - XRain 平台：共享结构修改、导入提交、分享写入和应用包安装未执行。按原任务需要在获准隔离数据范围补证，服务允许及拒绝分支的当前证据以源码和定向测试为界。
 
