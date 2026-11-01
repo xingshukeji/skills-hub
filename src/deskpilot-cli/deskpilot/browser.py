@@ -454,6 +454,11 @@ class Chrome:
         stable = number(params.get("stable_ms", params.get("ready_stable_ms", 500 if params.get("wait_until") == "network_idle" else 0)), "stable_ms", minimum=0, maximum=120000) / 1000
         if params.get("wait_until") == "network_idle":
             self._enable_network()
+        selector = params.get("selector", params.get("ready_selector"))
+        desired = params.get("state", "visible")
+        if selector:
+            require(desired in {"visible", "hidden", "attached", "detached", "absent"},
+                    "INVALID_ARGUMENT", "Unsupported selector state; use visible, hidden, attached or detached.")
         deadline, first = time.monotonic() + timeout, None
         state = None
         while True:
@@ -468,11 +473,15 @@ class Chrome:
             condition = True
             if params.get("predicate") is not None:
                 condition = self._predicate(params["predicate"])
-            elif params.get("selector", params.get("ready_selector")):
-                selector = params.get("selector", params.get("ready_selector"))
+            elif selector:
                 found = self._js(QUERY_JS, {"selector": selector, "limit": 100})
-                desired = params.get("state", "visible")
-                condition = found["count"] == 0 if desired == "absent" else not any(item["visible"] for item in found["elements"]) if desired == "hidden" else any(item["visible"] for item in found["elements"])
+                if desired in {"detached", "absent"}:
+                    condition = found["count"] == 0
+                elif desired == "attached":
+                    condition = found["count"] > 0
+                else:
+                    visible = any(item["visible"] for item in found["elements"])
+                    condition = not visible if desired == "hidden" else visible
             elif params.get("expression", params.get("ready_expression")):
                 condition = self._evaluate(params.get("expression", params.get("ready_expression"))) is True
             else:

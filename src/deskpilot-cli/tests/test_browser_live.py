@@ -58,6 +58,19 @@ class BrowserLiveTests(unittest.TestCase):
             self.assertEqual(result["status"], "completed")
             actual = session.execute("chrome.query", {"selector": "#result"})
             self.assertEqual(actual["elements"][0]["text"], value + " | automation")
+            session.execute("chrome.evaluate", {"expression": "const hidden=document.createElement('div');hidden.id='hidden-state';hidden.style.display='none';document.body.append(hidden)"})
+            for state in ("attached", "hidden"):
+                self.assertTrue(session.execute("chrome.wait", {"selector": "#hidden-state", "state": state, "timeout_ms": 150})["matched"])
+            for state in ("visible", "detached"):
+                with self.assertRaises(DeskPilotError) as pending:
+                    session.execute("chrome.wait", {"selector": "#hidden-state", "state": state, "timeout_ms": 150})
+                self.assertEqual(pending.exception.code, "CHROME_WAIT_TIMEOUT")
+            session.execute("chrome.evaluate", {"expression": "document.querySelector('#hidden-state').remove()"})
+            for state in ("detached", "absent", "hidden"):
+                self.assertTrue(session.execute("chrome.wait", {"selector": "#hidden-state", "state": state, "timeout_ms": 150})["matched"])
+            with self.assertRaises(DeskPilotError) as invalid_state:
+                session.execute("chrome.wait", {"selector": "#input", "state": "disappeared", "timeout_ms": 150})
+            self.assertEqual(invalid_state.exception.code, "INVALID_ARGUMENT")
             password = session.execute("chrome.query", {"selector": "#password"})
             self.assertIsNone(password["elements"][0]["value"])
             self.assertTrue(password["elements"][0]["is_password"])
