@@ -51,6 +51,10 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
       assert.equal(hit.headers.authorization, 'Bearer original-session'); assert.equal(hit.headers['x-xrain-application-id'], 'APP');
       return respond(res, { tenantId: 'TEN', userId: 'human', applicationId: 'APP' });
     }
+    if (['/api/cli/v1/workbench/sessions/original/cancel', '/api/cli/v1/task-schedules/plan/runs/original/cancel'].includes(hit.url)) {
+      assert.equal(hit.method, 'POST'); assert.equal(hit.headers.authorization, 'Bearer original-session');
+      assert.deepEqual(hit.json(), {}); return respond(res, { accepted: true }, 202);
+    }
     if (hit.url === '/api/cli/v1/workbench/sessions/original/feedback') {
       assert.equal(hit.headers.authorization, 'Bearer original-session');
       assert.equal(hit.json().messageId, '7'); return respond(res, { saved: true });
@@ -100,6 +104,10 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
     assert.equal(saved.code, 0, saved.stdout);
   }
   const context = await run(['workforce', 'context', '--workforce', service.url]); assert.equal(context.code, 0, context.stdout); assert.equal(context.result.data.applicationId, 'APP');
+  for (const command of [['session', 'cancel', 'original'], ['schedule', 'run', 'cancel', 'plan', 'original']]) {
+    const cancelled = await run(['workforce', ...command, '--workforce', service.url]);
+    assert.equal(cancelled.code, 0, cancelled.stdout); assert.deepEqual(cancelled.result.data, { accepted: true });
+  }
   const feedbackFile = join(f.directory, 'feedback.json'); writeFileSync(feedbackFile, JSON.stringify({ messageId: '7', rating: 'positive', category: null, note: '' }));
   const feedback = await run(['workforce', 'session', 'feedback', 'set', 'original', '--workforce', service.url, '--request-json', feedbackFile]);
   assert.equal(feedback.code, 0, feedback.stdout); assert.equal(feedback.result.data.saved, true);

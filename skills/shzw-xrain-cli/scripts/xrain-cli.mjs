@@ -5944,7 +5944,8 @@ async function workforceCommands(ctx) {
     });
     return 0;
   }
-  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), body;
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name)));
+  let body = operation.method === "POST" ? {} : void 0;
   if (operation.query && args.has("query-json")) {
     const query2 = await readJsonInput(args.value("query-json"), "Workforce query", { stdin: ctx.stdin });
     if (!isObject(query2) || Object.keys(query2).some((key) => !operation.query.includes(key)) || Object.values(query2).some((item) => !["number", "boolean", "string"].includes(typeof item)))

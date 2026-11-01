@@ -9,6 +9,41 @@ function setup(f, url) {
   f.store.saveSession('Demo', url, 'TEN', 'platform-session', Date.now() + 300000);
 }
 
+for (const [command, route, readCommand, readRoute] of [
+  [['session', 'cancel', 'original'], '/workbench/sessions/original/cancel', ['session', 'history', 'original'], '/workbench/sessions/original/history'],
+  [['schedule', 'run', 'cancel', 'plan', 'original'], '/task-schedules/plan/runs/original/cancel', ['schedule', 'run', 'show', 'plan', 'original'], '/task-schedules/plan/runs/original'],
+]) test(`${command.slice(0, -1).join(' ')} reaches JSON-only cancellation and preserves refusals and unknown outcomes`, async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  let status = 202, writes = 0;
+  const host = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
+    if (hit.method === 'GET') { assert.equal(hit.url, '/api/cli/v1' + readRoute); return respond(res, { status: 'Cancelled' }); }
+    assert.equal(hit.url, '/api/cli/v1' + route);
+    if (hit.body.toString() !== '{}') return respond(res, { error: { code: 'request.invalid_json' } }, 400);
+    writes++;
+    if (status === 0) return res.destroy();
+    respond(res, status === 202 ? { accepted: true } : { error: { code: status === 403 ? 'execution.forbidden' : 'execution.finished' } }, status);
+  });
+  setup(f, platform.url);
+  const argv = ['workforce', ...command, '--workforce', host.url];
+  const accepted = await f.run([...argv, '--json']);
+  assert.equal(accepted.code, 0, accepted.stdout); assert.deepEqual(output(accepted).data, { accepted: true });
+  status = 403;
+  assert.equal(output(await f.run([...argv, '--json'])).error.code, 'permission_denied');
+  status = 409;
+  assert.equal(output(await f.run([...argv, '--json'])).error.serverCode, 'execution.finished');
+  status = 0;
+  const batch = join(f.directory, 'cancel-batch.json');
+  writeFileSync(batch, JSON.stringify([argv, argv]));
+  const unknown = await f.run(['batch', batch, '--json']);
+  assert.equal(unknown.code, 1);
+  assert.equal(output(unknown).error.details.results[0].error.code, 'outcome_unknown');
+  assert.equal(writes, 4, 'one cancellation per explicit command; no replay or second batch step');
+  const read = await f.run(['workforce', ...readCommand, '--workforce', host.url, '--json']);
+  assert.equal(read.code, 0, read.stdout); assert.equal(output(read).data.status, 'Cancelled');
+  assert.equal(writes, 4, 'recovery reads the original resource');
+});
+
 test('message execution commands retain the source, native session and explicit approval decision', async t => {
   const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
   const host = await mockServer(t, (hit, res) => {

@@ -21,7 +21,8 @@ export async function workforceCommands(ctx) {
       status: 'requires_browser_interaction', instruction: '在页面确认当前企业和本人身份后操作；绑定、代登录确认及返回原账号均在原页面完成。' });
     return 0;
   }
-  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name))), body;
+  let route = operation.route.replace(/\{([^}]+)\}/g, (_match, name) => segment(args.required(name)));
+  let body = operation.method === 'POST' ? {} : undefined;
   if (operation.query && args.has('query-json')) {
     const query = await readJsonInput(args.value('query-json'), 'Workforce query', { stdin: ctx.stdin });
     if (!isObject(query) || Object.keys(query).some(key => !operation.query.includes(key)) || Object.values(query).some(item => !['number', 'boolean', 'string'].includes(typeof item)))
