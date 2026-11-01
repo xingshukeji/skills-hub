@@ -25,7 +25,7 @@ workforce channel leave <channelId> --request-json <退出.json>
 
 people 返回当前人可见的目录；employee profile 和 agents 读取本人工作资料及既有智能体关系。协作通过原私聊、消息与 Task 进行，不另建员工或替换关系。dm 请求为 `{"otherUserId":"<已有成员>"}`；group 请求为 name、memberIds、invitePermission（members 或 managers）、searchable、approvalRequired，可带稳定 requestId。
 
-消息请求保留稳定 clientMessageId，正文用 text，可带原平台支持的 replyTo、mentions、attachments、richBlocks；不附带任意发送者身份。edit 为 text、expectedRevision；withdraw 为 expectedRevision。消息列表查询为 before、after、limit，搜索为 q、before、limit、category、senderId。退出为 `{}`，群主移交时显式带 successorId。发送必须有用户要求，回执丢失保留原 clientMessageId，先回读，不自动重发。
+消息请求保留稳定 clientMessageId，正文用 text，可带 replyToSeq、mentionUserIds、attachments、richBlocks；replyToSeq是原消息序号，mentionUserIds是结构化提及的实际成员ID。不附带任意发送者身份。edit为text、expectedRevision；withdraw为expectedRevision。消息列表查询为before、after、limit，搜索为q、before、limit、category、senderId。退出为`{}`，群主移交时显式带successorId。发送必须有用户要求，回执丢失保留原clientMessageId，先回读，不自动重发。
 
 ## 群管理、消息与附件
 
