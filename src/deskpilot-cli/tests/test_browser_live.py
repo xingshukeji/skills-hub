@@ -71,6 +71,21 @@ class BrowserLiveTests(unittest.TestCase):
             with self.assertRaises(DeskPilotError) as invalid_state:
                 session.execute("chrome.wait", {"selector": "#input", "state": "disappeared", "timeout_ms": 150})
             self.assertEqual(invalid_state.exception.code, "INVALID_ARGUMENT")
+            session.execute("chrome.evaluate", {"expression": """
+for (let index=0; index<100; index++) {
+  const element=document.createElement('div'); element.className='many-matches'; element.style.display='none'; document.body.append(element);
+}
+const last=document.createElement('div'); last.className='many-matches'; last.id='last-visible-match';
+last.style='width:10px;height:10px'; document.body.append(last);
+"""})
+            with self.subTest(state="visible beyond the first hundred"):
+                self.assertTrue(session.execute("chrome.wait", {"selector": ".many-matches", "state": "visible", "timeout_ms": 500})["matched"])
+            with self.subTest(state="hidden while a later match is visible"):
+                with self.assertRaises(DeskPilotError) as pending:
+                    session.execute("chrome.wait", {"selector": ".many-matches", "state": "hidden", "timeout_ms": 500})
+                self.assertEqual(pending.exception.code, "CHROME_WAIT_TIMEOUT")
+            session.execute("chrome.evaluate", {"expression": "document.querySelector('#last-visible-match').remove()"})
+            self.assertTrue(session.execute("chrome.wait", {"selector": ".many-matches", "state": "hidden", "timeout_ms": 500})["matched"])
             password = session.execute("chrome.query", {"selector": "#password"})
             self.assertIsNone(password["elements"][0]["value"])
             self.assertTrue(password["elements"][0]["is_password"])

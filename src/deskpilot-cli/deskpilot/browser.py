@@ -263,6 +263,17 @@ return {count: elements.length, elements: elements.slice(0,p.limit || 50).map(el
  bounds:{x:r.x,y:r.y,width:r.width,height:r.height},coordinate_space:'css_viewport',
  attributes:Object.fromEntries((p.attributes || []).map(k => [k,sensitive && String(k).toLowerCase()==='value' ? null : el.getAttribute(k)]))};})};
 })"""
+SELECTOR_WAIT_JS = r"""(p => {
+ const elements = document.querySelectorAll(p.selector);
+ if (p.state === 'attached') return elements.length > 0;
+ if (p.state === 'detached' || p.state === 'absent') return elements.length === 0;
+ let visible = false;
+ for (const el of elements) {
+  const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+  if (r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none') { visible = true; break; }
+ }
+ return p.state === 'visible' ? visible : !visible;
+})"""
 STATE_JS = r"""(() => {
  const visible = el => {const r=el.getBoundingClientRect();const s=getComputedStyle(el);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};
  const password=Array.from(document.querySelectorAll('input[type=password]')).some(visible);
@@ -474,14 +485,7 @@ class Chrome:
             if params.get("predicate") is not None:
                 condition = self._predicate(params["predicate"])
             elif selector:
-                found = self._js(QUERY_JS, {"selector": selector, "limit": 100})
-                if desired in {"detached", "absent"}:
-                    condition = found["count"] == 0
-                elif desired == "attached":
-                    condition = found["count"] > 0
-                else:
-                    visible = any(item["visible"] for item in found["elements"])
-                    condition = not visible if desired == "hidden" else visible
+                condition = self._js(SELECTOR_WAIT_JS, {"selector": selector, "state": desired}) is True
             elif params.get("expression", params.get("ready_expression")):
                 condition = self._evaluate(params.get("expression", params.get("ready_expression"))) is True
             else:
