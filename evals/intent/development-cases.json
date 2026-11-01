@@ -1,0 +1,74 @@
+[
+  {
+    "id": "d01",
+    "split": "development",
+    "request": "看看我在 Workforce 还有哪些没完成的任务。",
+    "context": "Workforce 平台、租户、应用和本人已经确定，已有有效登录。"
+  },
+  {
+    "id": "d02",
+    "split": "development",
+    "request": "把刚才那个 Workforce 群昨天的采购需求整理一下，给我原消息位置，别发消息。",
+    "context": "原群、本人权限和当地日期范围已经确定。"
+  },
+  {
+    "id": "d03",
+    "split": "development",
+    "request": "看看当前邮箱最近的客户来信，只总结，不保存草稿也不发信。",
+    "context": "使用 Workforce 独立邮箱应用，应用和本人邮箱账号均已确定。"
+  },
+  {
+    "id": "d04",
+    "split": "development",
+    "request": "查一下同事李四的联系资料。",
+    "context": "当前为 XRain 普通成员，有同租户可见人员目录，无账号管理权限。"
+  },
+  {
+    "id": "d05",
+    "split": "development",
+    "request": "我登录 Workforce 后这个页面一直 403，帮我定位。",
+    "context": "当前身份和目标租户正确，原业务请求返回明确拒绝，未授权增加权限。"
+  },
+  {
+    "id": "d06",
+    "split": "development",
+    "request": "先比较这两种独立应用接入方案，给出取舍，不实施。",
+    "context": "两种方案及业务目标均已提供，本轮只讨论。"
+  },
+  {
+    "id": "d07",
+    "split": "development",
+    "request": "把 Workforce 首页标题从欢迎改成工作台。",
+    "context": "只改本地前端页面文案，已有源码入口，不操作平台数据。"
+  },
+  {
+    "id": "d08",
+    "split": "development",
+    "request": "帮我查一下待办。",
+    "context": "同时连接了飞书和 Workforce，当前没有选中的应用，也无其他上下文。"
+  },
+  {
+    "id": "d09",
+    "split": "development",
+    "request": "刚才批量操作第二步失败了，继续处理。",
+    "context": "XRain 原回执明确第一步已保存 r1，第二步403，第三步没执行，没有新增权限授权。"
+  },
+  {
+    "id": "d10",
+    "split": "development",
+    "request": "刚才交办任务断线了，帮我确认现在怎么样。",
+    "context": "Workforce 原创建请求结果未知，原 taskId、请求ID及本人连接已保留。"
+  },
+  {
+    "id": "d11",
+    "split": "development",
+    "request": "查查我在 Workforce 还有哪些任务。",
+    "context": "平台和本人已确定；员工没有命令、文件或等价任务查询工具。"
+  },
+  {
+    "id": "d12",
+    "split": "development",
+    "request": "列一下我在飞书的未完成任务。",
+    "context": "明确为飞书，已有飞书本人授权。"
+  }
+]

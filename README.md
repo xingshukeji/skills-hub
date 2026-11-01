@@ -48,7 +48,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。 |
 | [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。 |
 | [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。 |
-| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 使用自带 CLI 操作 XRain 与 Workforce。用于查改业务记录、导入导出、人员与权限、聊天消息和附件、Task、计划任务、邮箱与顾客接待、智能体和应用包，也响应 CLI、命令及批量 API 请求。按当前平台、租户、应用和前文识别业务目标，无需用户说出 CLI。登录恢复、403、人员职责变更、业务开发、客户端及发布部署由对应任务技能组织，本技能提供已支持的命令；认证中心身份通过其自身网页管理。 |
+| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | Workforce 独立邮箱：读邮件、查客户来信、起草回复、把回复保存为草稿，使用本技能。也用自带 CLI 办理 XRain/Workforce 通讯录查人、员工部门和联系方式、任务/待办及原提交回查、智能体定义/工具/工作区的查看和管理，以及群聊附件、顾客、记录、元数据、导入导出、权限设置、计划和应用包。原提交超时先回查；目标已知但缺工具或无权时报告限制，不重问目标。无需用户提CLI，同名业务沿已确定的系统处理。业务开发、登录或403、人员职责变更、客户端、发布部署由领域技能组织。认证中心身份使用其自身网页。 |
 <!-- skills:end -->
 
 每次根据自然请求和必要前文选择一个主任务入口，按需读取其中的模式与专题。Workforce 从加载结果的 `resourceBase.path` 读取资源；模式资源位于其 `modes/` 子目录。skill 不增加员工工具权限。
@@ -89,5 +89,7 @@ index 同时生成上方目录与 llms.txt 的完整技能入口；check 核对�
 可选 `npm run verify:workforce -- --provider <真实加载器路径>` 检查独立复制后的加载，这是维护检查，不是 skill 使用依赖。离线场景及历史结果见 [能力复核](evals/workforce/CAPABILITY-AUDIT.md) 和 [首轮报告](evals/workforce/REPORT.md)；实验工具位于 tools/evaluate-skills.mjs、tools/capability-lab.mjs，运行材料放忽略目录 .local-validation。
 
 [任务原始输入](evals/task-scenarios/cases.json)与[分开的判定依据](evals/task-scenarios/rubric.json)用于本次归并后的选择和首次执行核验，包含历史请求摘录、未参与描述编写的请求及合成相邻场景。`prepare-tasks` 可将确定 Git 基线与当前目录配对；`verify-tasks` 只检查输入完整性与回答结构，语义仍需逐项评审。作者走查、协议测试和历史文件读取不能称为独立模型效果或实际激活率。
+
+[CLI 意图 A/B 评估](evals/intent/README.md)比较目录判断与入口校核，并累计模型实际输入、缓存输入和输出 token。它只测意图与下一步，不连接业务系统；开发题、历次失败留出题和最终检验分别保留，结果见[评估报告](evals/intent/REPORT.md)。
 
 真实服务检查 `npm run verify:live -- --help` 仅供明确授权的本机验证，必须先按目标生效账号规则核对配置与固定身份。脚本的历史回环默认值和旧验收不代表当前开发或部署架构；普通 check 不访问真实账号或租户。

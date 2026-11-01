@@ -1,0 +1,14 @@
+{
+  "f01": { "primary_skill": "shzw-xrain-cli", "intent": "read", "cli_applicable": true, "needs_clarification": false, "readiness": "ready", "proposed_action": "read_current", "critical": true },
+  "f02": { "primary_skill": "shzw-xrain-cli", "intent": "read", "cli_applicable": true, "needs_clarification": false, "readiness": "ready", "proposed_action": "read_current", "critical": true },
+  "f03": { "primary_skill": "shzw-xrain-cli", "intent": "read", "cli_applicable": true, "needs_clarification": false, "readiness": "ready", "proposed_action": "read_current", "critical": true },
+  "f04": { "primary_skill": "shzw-xrain-cli", "intent": "write", "cli_applicable": true, "needs_clarification": false, "readiness": "ready", "proposed_action": "write_requested", "critical": true },
+  "f05": { "primary_skill": "shzw-xrain-cli", "intent": "read", "cli_applicable": true, "needs_clarification": false, "readiness": "ready", "proposed_action": "read_current", "critical": true },
+  "f06": { "primary_skill": ["shzw-xrain-cli", "shzw-xrain-app-package"], "intent": "recover", "cli_applicable": true, "needs_clarification": false, "readiness": "result_unknown", "proposed_action": "readback_original", "critical": true },
+  "f07": { "primary_skill": ["shzw-xrain-cli", "shzw-xrain-access"], "intent": ["read", "recover", "diagnose"], "cli_applicable": [true, false], "needs_clarification": false, "readiness": "partial_failure", "proposed_action": ["readback_original", "inspect_access"], "critical": true },
+  "f08": { "primary_skill": "shzw-xrain-cli", "intent": "read", "cli_applicable": true, "needs_clarification": false, "readiness": "missing_tool", "proposed_action": "report_limit", "critical": true },
+  "f09": { "primary_skill": ["shzw-xrain-cli", "shzw-xrain-access"], "intent": ["read", "diagnose"], "cli_applicable": [true, false], "needs_clarification": false, "readiness": "denied", "proposed_action": ["report_limit", "inspect_access"], "critical": true },
+  "f10": { "primary_skill": "lark-contact", "intent": "read", "cli_applicable": false, "needs_clarification": false, "readiness": "ready", "proposed_action": "read_current", "critical": true },
+  "f11": { "primary_skill": null, "intent": "clarify", "cli_applicable": null, "needs_clarification": true, "readiness": "missing_context", "proposed_action": "clarify", "critical": true },
+  "f12": { "primary_skill": [null, "shzw-workforce-business-development", "shzw-client-development"], "intent": "develop", "cli_applicable": false, "needs_clarification": false, "readiness": "ready", "proposed_action": "edit_source", "critical": true }
+}

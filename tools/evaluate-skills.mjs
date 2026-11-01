@@ -41,7 +41,7 @@ async function files(directory) {
   return result.sort();
 }
 
-async function fingerprint(directory) {
+export async function fingerprint(directory) {
   const entries = [];
   for (const path of await files(directory)) entries.push([relative(directory, path).replaceAll('\\', '/'), hash(await readFile(path))]);
   return hash(JSON.stringify(entries));

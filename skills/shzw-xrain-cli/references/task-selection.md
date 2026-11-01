@@ -17,8 +17,8 @@
 | 查邮箱、搜索或读取邮件、请求 AI 建议、保存草稿 | 独立邮箱使用 `mail app/ai/assist`；平台个人邮箱使用 `mail account/folders/search/read/draft` | [子应用](applications.md)与[文件和投递](files-delivery.md)。先区分独立邮箱应用与平台邮箱；建议、草稿保存和发送分别判断 |
 | 查顾客、登记资料、改字段或继续顾客对话 | `retail context/customers/customer/conversation` | [子应用](applications.md)。读取实际对象、字段选项及原顾客引用；保留原会话和并发版本 |
 | 找可用助手、订阅或继续原对话 | `workforce agent/session`，直接 Runtime 使用 `agent directory/chat` | [Workforce](workforce.md)与[智能体](agents.md)。宿主入口沿其实际 Runtime；定义可发现、本人获准使用和工具权限分别核对 |
-| 编辑定义、工具、工作区、订阅策略和应用选用 | `agent definition/tool/workspace/policy/subscription/application` | [智能体](agents.md)。先读当前选项和版本，保留其他选用项；管理员资格不代替个人订阅或业务权限 |
-| 调整成员关系、组织、角色、权限和设置 | `security`、`member`、`host`、`user`、`application` | [管理](management.md)、[设置](settings.md)与[登录](login.md)。身份恢复和职责变更由访问权限技能组织，只修改已授权差额 |
+| 编辑定义、工具、工作区、订阅策略和应用选用 | `agent definition/tool/workspace/policy/subscription/application` | [智能体](agents.md)。受管单次与临时文本见 [Runtime](runtime-runs.md)。先读当前选项和版本，保留其他选用项；管理员资格不代替个人订阅或业务权限 |
+| 调整成员关系、组织、角色、权限和设置 | `security`、`member`、`host`、`user`、`application` | [管理](management.md)、[设置](settings.md)与[登录](login.md)。对象字段和视图操作见 [元数据](metadata.md)。身份恢复和职责变更由访问权限技能组织，只修改已授权差额 |
 | 维护函数和编排、调用应用函数或 HTTP 接口、管理 Routine | `function/orchestration/application function/http/routine` | [编排](workflows.md)。先读取实际输入与执行条件；调试可能产生真实外部效果 |
 | 查应用版本、构建原源码、安装升级或恢复原操作 | `app`、`market` | [安装](installation.md)、[市场](market.md)与[应用维护](application-maintenance.md)。使用精确版本和原操作 ID；包构建不自动授权发布、安装或服务部署 |
 | 上传下载文件、处理语音、提交回答反馈或调整本人功能 | `file`、`workforce speech/session feedback/composition` | [文件和投递](files-delivery.md)与[Workforce](workforce.md)。按原服务能力操作；转写不自动发送，反馈只作用于原回答 |

@@ -1,6 +1,6 @@
 ---
 name: shzw-xrain-cli
-description: 使用自带 CLI 操作 XRain 与 Workforce。用于查改业务记录、导入导出、人员与权限、聊天消息和附件、Task、计划任务、邮箱与顾客接待、智能体和应用包，也响应 CLI、命令及批量 API 请求。按当前平台、租户、应用和前文识别业务目标，无需用户说出 CLI。登录恢复、403、人员职责变更、业务开发、客户端及发布部署由对应任务技能组织，本技能提供已支持的命令；认证中心身份通过其自身网页管理。
+description: Workforce 独立邮箱：读邮件、查客户来信、起草回复、把回复保存为草稿，使用本技能。也用自带 CLI 办理 XRain/Workforce 通讯录查人、员工部门和联系方式、任务/待办及原提交回查、智能体定义/工具/工作区的查看和管理，以及群聊附件、顾客、记录、元数据、导入导出、权限设置、计划和应用包。原提交超时先回查；目标已知但缺工具或无权时报告限制，不重问目标。无需用户提CLI，同名业务沿已确定的系统处理。业务开发、登录或403、人员职责变更、客户端、发布部署由领域技能组织。认证中心身份使用其自身网页。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
@@ -11,43 +11,28 @@ metadata:
 
 # XRain CLI
 
-用户只给业务目标时，按[业务任务与命令选择](references/task-selection.md)找到已有能力，再读命中的领域参考和具体子命令帮助。已有任务技能继续负责业务结果，按需使用本工具。查询、操作已有资源可直接选用已支持的命令；新增业务逻辑、修复权限或部署服务仍由对应任务入口组织。
+先按前文确定系统、应用和业务目标。XRain/Workforce 的同事、待办、邮箱等沿该系统处理，不因通用词改到其他平台；系统未定且上下文不能判断时才澄清。已有任务技能继续负责业务结果，CLI 提供现有资源操作。新增逻辑、访问修复、客户端和服务部署仍由对应任务入口组织。
 
-先确定本 skill 的绝对目录。通过技能工具加载时，使用返回的 `resourceBase.path`；直接读取本文件时，使用实际读取的 `SKILL.md` 所在目录。将下例中的 `<skill目录>` 替换为该真实路径后执行，不把示例占位文本当作路径。依赖已打包，无需 npm 或 .NET：
+## 先判断，再按需读取
+
+只判断意图时，确认系统归属、用户要读/改/恢复什么，以及已知限制；无需认证、注册命令或读取执行细节。缺少命令、文件或等价业务工具时报告具体缺项，技能不授予工具或权限。查询不自动变为写入，未授权动作不执行。
+
+实施时先读[执行前提与恢复边界](references/operation-boundaries.md)，再读命中专题：
+
+- 能力归属及全部专题：[任务选择](references/task-selection.md)。
+- 任务、群聊、附件、计划、反馈与语音：[Workforce](references/workforce.md)。
+- 记录、导入导出及元数据：[命令](references/commands.md)。
+- 邮箱及顾客：[子应用](references/applications.md)；人员和权限：[管理](references/management.md)。
+- 定义及对话：[智能体](references/agents.md)；安装及操作恢复：[应用包](references/installation.md)。
+
+## 调用与结果
+
+用真实 skill 目录：技能工具返回的 `resourceBase.path`，或直接读取的 `SKILL.md` 父目录。将示例占位符换成该绝对路径。脚本已打包，只需 Node.js 22.12+，无需 npm 或 .NET。
 
 ```text
-node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
+node "<skill目录>/scripts/xrain-cli.mjs" <具体子命令> --help
 ```
 
-需要执行 CLI 业务操作时，先运行 `node "<skill目录>/scripts/install-cli.mjs" --json`。使用结果的 `commandPath` 执行后续命令，避免 PATH 中同名旧命令；注册失败时直接用上述 Node 脚本。重复注册会复用现有入口，技能原地更新后入口直接使用新脚本；无需 npm。只查本地帮助或配置无需注册。
+操作前核对实际 server、tenantId、userId、scope，与后续使用相同目标和凭据；身份或目标未变化时复用结果。token 绑定租户，`--tenant` 不换身份，管理权和元数据可见不证明业务权限。
 
-先从当前请求、任务上下文和责任项目配置确定预期平台、租户及执行主体；身份查询和后续操作使用相同目标，优先显式指定预期 `--server` 与命令支持的 `--tenant`，若依赖默认值，先用本地 `auth status --json` 核对解析的服务地址。访问平台业务前用 `auth whoami --json` 按后续操作实际采用的目标和凭据核对服务器认出的身份。对照实际服务地址、tenantId、userId 和作用域；不一致或预期无法确定时先定位并恢复已授权连接，不从活动 profile 名称猜测，也不创建身份或扩大权限。同一任务上下文未变化时复用判断；目标、凭据或登录身份改变后重新核对。只查本地帮助或配置无需连接服务器。
-
-- 连接、401、回调：[配置与认证](references/configuration.md)。
-- 平台账号准备、租户管理员代理用户：[账号与登录](references/login.md)。
-- 数据、权限、应用包、批量：[命令参考](references/commands.md)。
-- 记录集合、共享、历史、Owner 与 XLSX 导出：[记录操作](references/records.md)。
-- 成员、组织、角色、Token、租户内应用与 Host：[管理命令](references/management.md)。
-- 在线对象、字段、部署恢复与视图：[元数据](references/metadata.md)。
-- 编排、Routine、HTTP、时间、变量与回收站：[编排与维护](references/workflows.md)。
-- 文件、投递与本人邮箱：[文件与投递](references/files-delivery.md)。
-- 独立市场下载与发布版本维护：[应用市场](references/market.md)。
-- 主业务对象、单次执行及临时文本：[Runtime 执行](references/runtime-runs.md)。
-- Task、员工协作、应用消息、回答反馈、语音与计划任务：[Workforce](references/workforce.md)。
-- 原邮件 AI 协助、明确保存草稿及顾客接待对话：[子应用](references/applications.md)。
-- 卸载、策略、组件恢复与本地包：[应用维护](references/application-maintenance.md)。
-- 智能体定义、工作区、订阅和应用选用：[智能体命令](references/agents.md)。
-- 平台定义上限、个人偏好和设置职责：[设置管理](references/settings.md)。
-- 应用查询、市场导入、安装升级与操作恢复：[安装](references/installation.md)。
-
-管理操作选 `--auth session`，避免旧 API Token 抢先；应用包命令检查身份也选 `--auth session`，与其实际凭据一致。租户由 token 绑定，`--tenant` 不能换身份；Host 身份的 tenantId 为 null，目标租户由操作参数单独确定。身份查询不证明具体业务权限，检查后会话若被并发替换也不构成强绑定。元数据可见不等于可写。构建直接用 `app build`，不先重复 `app check`；发布未知先查 `app status`。CLI 多命令 `batch` 失败会保留此前命令的写入，不能整批重放；它不是记录集合接口的 `allOrNone` 事务。支持 keyed creation 的服务可在单记录创建时显式提供 `--request-key`；结果未知先用原对象、身份和键执行 `data creation-result`，不自动重放或改键。记录操作按目标服务实际返回判断。
-
-安装用精确 packageId/versionId；`app install` 自带服务端预检，`app preview` 用于提前看影响。保留提交前打印的 operation ID；结果未知先 `app operation show/wait`。只有 `Succeeded` 表示该操作完成；绑定、配置和影响确认由调用者明确提供，CLI 不自动代选。
-
-智能体定义归 Runtime，订阅和应用选用归平台。将服务方提供的 Runtime 入口保存到对应 profile，或在单次命令显式指定 `--runtime`；所选平台凭据会发送到该入口。使用 `auth whoami --agent` 核对平台与 Runtime 实际确认的身份；旧 Runtime 或连接失败时保留平台结果并报告未验证，不把已配置的应用当成已授权。定义新建默认停用，编辑使用明确版本。先查选项和当前事实，不以管理权推断个人订阅，也不自动审批或替换应用选用。写入结果未知先按原 ID 回读；不新建同名定义或自动重放。
-
-Host 设置使用显式 `--scope host` 原生登录及实际 Host 管理权限。定义上限通过同一平台接口读取、比较旧值并保存；个人偏好不能代替 Host 或租户设置。定义文件用 `export/import` 与页面互通，`update --values-json` 接收字段补丁。按当前 Runtime 限额检查 UTF-8 文件和完整保存请求；轻量停用与读取已有定义不受降低后的写入限额阻断。
-
-智能体对话会使用定义的工作区、工具和当前主体的真实权限。按用户要求发送输入，区分接收与本轮完成；提问或审批须由用户明确作答，不自动放行。中断后用原 sessionId 和 requestId 查询或继续等待，不重复提交。
-
-秘密用受保护文件、环境或 stdin 传递；只用获准工具，不修改生成脚本或寻找其他仓库制品。
+明确的401、403或版本冲突按原拒绝/失败处理，不改成结果未知；只有缺少有效回执的超时、断流等才保留未知。未知结果先按原 ID/请求键回查，不换键、不重建、不重放整批；batch 失败保留此前写入。受理、保存、执行完成与业务成功分别判断。审批须由用户明确作答。秘密经受保护文件、环境或 stdin 传递；只用获准工具，不修改生成脚本。
