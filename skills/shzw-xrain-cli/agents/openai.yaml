@@ -1,6 +1,6 @@
 interface:
   display_name: "XRain CLI"
   short_description: "Use XRain and Workforce data, messages, tasks, mail and agents"
-  default_prompt: "使用 $shzw-xrain-cli，按业务目标选择已有命令；未给命令名时先查业务任务参考。从任务和项目配置确定平台、租户、应用与主体，用 whoami 核对后复用有效连接。查询真实字段、选项和子命令帮助，只执行获准动作并核对业务回执；未知结果先查原请求。目标或身份变化时重查，缺少工具或权限时报告具体缺口，不扩权、不输出凭据。"
+  default_prompt: "使用 $shzw-xrain-cli，沿已确定的系统与主体选择现有能力，按需读取命中专题和命令帮助；不确定能力归属时再查任务选择。直接运行随附脚本，需要短命令时再注册。业务请求前按相同目标与凭据核对身份，未变化时复用；只执行获准动作并核对回执，未知结果先查原提交，缺工具或权限时说明限制。"
 policy:
   allow_implicit_invocation: true

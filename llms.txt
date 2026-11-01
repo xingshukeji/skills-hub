@@ -51,7 +51,7 @@ XRain 支持新业务建模，也支持对管理完善的已有系统直接通�
 - [shzw-workspace-maintenance](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-workspace-maintenance/SKILL.md)：维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。
 - [shzw-xrain-access](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-access/SKILL.md)：处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。
 - [shzw-xrain-app-package](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-app-package/SKILL.md)：编写、离线校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用包。用于“做一个应用包”“安装这个包”“升级卡住了”“恢复隐藏组件”。按源码编写、服务端构建或现有 operation 选择分支；安装现有包直接消费原制品。服务镜像部署进入交付入口。
-- [shzw-xrain-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-cli/SKILL.md)：Workforce 独立邮箱：读邮件、查客户来信、起草回复、把回复保存为草稿，使用本技能。也用自带 CLI 办理 XRain/Workforce 通讯录查人、员工部门和联系方式、任务/待办及原提交回查、智能体定义/工具/工作区的查看和管理，以及群聊附件、顾客、记录、元数据、导入导出、权限设置、计划和应用包。原提交超时先回查；目标已知但缺工具或无权时报告限制，不重问目标。无需用户提CLI，同名业务沿已确定的系统处理。业务开发、登录或403、人员职责变更、客户端、发布部署由领域技能组织。认证中心身份使用其自身网页。
+- [shzw-xrain-cli](https://raw.githubusercontent.com/xingshukeji/skills-hub/main/skills/shzw-xrain-cli/SKILL.md)：使用自带CLI操作XRain与Workforce的现有资源：Workforce独立邮箱邮件和回复草稿、Task待办、成员部门与联系方式、群聊附件、业务记录、顾客、计划、智能体定义/工具/工作区及应用包。按用户目标和前文确定系统，目标未定先澄清，无需点名CLI。业务开发、登录或403、人员职责变更、客户端和发布部署由对应技能组织。
 <!-- skills:end -->
 
 ## 常用开发参考
