@@ -3,7 +3,7 @@ import { memberTarget, memberValue } from './member-target.mjs';
 import { writeOnce } from './http.mjs';
 import { commandOutcome } from './runtime-controls.mjs';
 import { applicationUserOperations } from './application-user-operations.mjs';
-import { personalMailDraftUnknownCodes, validatePersonalMailDraftReceipt } from './delivery-operations.mjs';
+import { personalMailDraftUnknownCodes, personalMailDraftDefiniteCodes, validatePersonalMailDraftReceipt } from './delivery-operations.mjs';
 
 export async function applicationUserCommand(ctx) {
   const operation = applicationUserOperations.find(row => row.path === ctx.spec.path);
@@ -33,14 +33,15 @@ export async function applicationUserCommand(ctx) {
     ...Object.fromEntries(['requestId', 'agentId'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
   const command = operation.path === 'retail session command';
   const call = async () => {
-    const result = memberValue(await target.send(operation.method, url.pathname + url.search, { json: body }));
+    const result = memberValue(await target.send(operation.method, url.pathname + url.search, { json: body,
+      ...(operation.timeout === null && !args.has('timeout') ? { timeout: null } : {}) }));
     if (operation.draft) validatePersonalMailDraftReceipt(result, args.value('id'));
     if (command && !commandOutcome(result)) throw new CliError('The Runtime command receipt is invalid.', { code: 'invalid_response' });
     return result;
   };
   const result = operation.method === 'GET' || operation.readOnly ? await call() : await writeOnce(call,
     'The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.', details,
-    operation.draft ? personalMailDraftUnknownCodes : []);
+    operation.draft ? personalMailDraftUnknownCodes : [], operation.draft ? personalMailDraftDefiniteCodes : []);
   if (command && commandOutcome(result) === 'failed') throw new CliError('The Runtime command reported failure.', { code: 'execution_failed', details: { ...details, result } });
   reporter.print(result); return true;
 }

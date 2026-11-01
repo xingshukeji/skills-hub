@@ -78,4 +78,4 @@ auth status --json 只查本地，remoteValidation=not_checked；valid 不证明
 
 doctor --json 的平台 /health/ready 可能无需认证，成功只说明该接口可访问，remoteValidation 仍为 not_checked；市场 /api/exchange/v1/my-published 的成功只证明该接口接受对应市场会话。两者都不证明完整业务权限。无需每次操作前运行整套诊断。
 
-401 查来源/过期及认证方式；authentication_method_not_allowed 不能靠加角色解决。403 查原用户成员和授权；TLS/网络查目标与信任，不关闭校验。HTTP 默认 100 秒，--timeout 为正整数秒，上限一天；原生账号登录也使用此值。浏览器与设备登录的单次 HTTP 请求最多 30 秒，设备轮询还受授权剩余时间约束；浏览器回调另有三分钟等待时间。缺身份或原应用登录失败读[账号与登录](login.md)。
+401 查来源/过期及认证方式；authentication_method_not_allowed 不能靠加角色解决。403 查原用户成员和授权；TLS/网络查目标与信任，不关闭校验。普通 HTTP 默认 100 秒，--timeout 为正整数秒，上限一天；原生账号登录也使用此值。原邮箱的连接检查、读取、草稿和 AI 目录/协助默认由原服务管理执行预算，显式 --timeout 仍生效，见[子应用流程](applications.md)。浏览器与设备登录的单次 HTTP 请求最多 30 秒，设备轮询还受授权剩余时间约束；浏览器回调另有三分钟等待时间。缺身份或原应用登录失败读[账号与登录](login.md)。

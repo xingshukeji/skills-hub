@@ -28,6 +28,8 @@ action 为 summary 或 draft；instructions 可省略，最多 2000 字符。协
 
 保存成功须返回 status=Saved 和非空 internetMessageId；reference 可以为空，若提供则须属于原 accountId。服务以 HTTP 409 和 `email_draft_outcome_unknown` 表示可能已保存，CLI 保留为 `outcome_unknown`，停止 batch。回执丢失、无效或结果未知时，用原账号的 folders、search 和 read 查询草稿，再决定下一步，不自动重复保存。真正的冲突和权限拒绝保留原错误。个人邮箱命令不增加发送、删除、移动或归档动作。
 
+原邮箱读取、草稿、AI 目录与协助默认沿原服务的执行预算等待，不叠加普通 HTTP 的百秒截止。需要主动结束本次等待时，显式传入 `--timeout`；写入回执未知时仍须先核对原草稿。原服务明确返回追加前的连接、TLS、协议或 OAuth 配置失败时，CLI 保留原失败，恢复后由用户决定是否重新保存，不自动重试。AI 协助只生成内容，不保存或发送草稿。
+
 ## 从顾客资料继续原接待
 
 1. 运行 `retail context`，读取本企业的实际 objectType、字段定义、可读/可创建/可编辑字段及初始顾客。不要把别的企业字段写入当前对象。

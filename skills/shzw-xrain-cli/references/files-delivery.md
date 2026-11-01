@@ -62,3 +62,5 @@ mail account delete <id>
 邮箱保存字段为 id、label、emailAddress、displayName、providerType、receiveUserName、receivePassword、sendUserName、sendPassword、enabled；先从 providers 确认可用服务。search 为 folder、text、limit、cursor；分页保留原 nextCursor。read 为 `{"reference":<原搜索结果reference>}`，保留 accountId、mailbox、folder、uidValidity、uid，引用过期不猜新 UID。draft 为 to、subject、textBody，可带 cc、bcc、source；保存草稿不发送。clear-credentials 的 action 由服务决定，省略为 all。个人邮箱不接受 Host、智能体或服务 API Token。
 
 `mail draft` 与独立邮箱的 `mail app draft` 使用相同保存语义：status=Saved 且 internetMessageId 非空才确认成功；reference 允许为空，提供时须属于原账号。`email_draft_outcome_unknown` 即使以 HTTP 409 返回，也保留为 `outcome_unknown` 并停止 batch。用同一账号的 folders、search、read 查找原草稿；不自动再次保存。
+
+account check、folders、search、read 与 draft 默认由原邮箱服务管理执行预算，显式 `--timeout` 仍限制本次等待。连接检查不发送邮件。服务明确返回追加前的连接、TLS、协议或 OAuth 配置失败时，保留其原错误；修复连接或配置后可以再次主动保存，不把这类失败写成追加结果未知。

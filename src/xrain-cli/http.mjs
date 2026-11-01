@@ -27,8 +27,8 @@ export async function requireStreamSuccess(response) {
 
 export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
   url = httpUrl(url);
-  const requestTimeout = AbortSignal.timeout(timeout);
-  const options = { method, redirect: 'error', signal: signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout,
+  const requestTimeout = timeout === null ? undefined : AbortSignal.timeout(timeout);
+  const options = { method, redirect: 'error', signal: signal && requestTimeout ? AbortSignal.any([signal, requestTimeout]) : signal ?? requestTimeout,
     headers: { Accept: 'application/json', ...headers } };
   if (token) options.headers.Authorization = `Bearer ${token}`;
   if (json !== undefined) { options.body = JSON.stringify(json); options.headers['Content-Type'] = 'application/json'; }
@@ -64,12 +64,13 @@ export function requireSuccess(response, hint = '') {
   throw responseError(response, hint);
 }
 
-export async function writeOnce(action, hint, details, unknownServerCodes = []) {
+export async function writeOnce(action, hint, details, unknownServerCodes = [], definiteServerCodes = []) {
   try { return await action(); }
   catch (error) {
     // A native API can use a 4xx for an uncertain write. Its caller declares
     // those exact codes; unrelated conflicts keep their original meaning.
-    if (error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
+    const definite = error instanceof CliError && error.httpStatus >= 400 && definiteServerCodes.includes(error.serverCode);
+    if (!definite && error instanceof CliError && (['network_error', 'timeout', 'invalid_response', 'response_too_large'].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
       error.code = 'outcome_unknown';
       error.hint = hint;
       error.details = { ...error.details, ...details };
@@ -78,13 +79,13 @@ export async function writeOnce(action, hint, details, unknownServerCodes = []) 
   }
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes } = {}) {
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const perform = async () => {
     const stream = raw && ctx.args.has('out');
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(),
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout,
       headers: { ...(stream ? { Accept: '*/*', 'Accept-Encoding': 'identity' } : {}), ...headers }, signal, stream });
     if (raw) return response;
     if (!response.ok) throw responseError(response, '', { credentialSource: source, profile: profile.name });
@@ -103,7 +104,7 @@ export async function apiValue(ctx, method, path, json, { requireTenant = true, 
   const { hint = 'The write outcome is unknown. Inspect the original resource using the same target and identity before another write. Current state alone does not prove this operation succeeded. Do not replay a batch.', ...recovery } = mutation;
   const details = { operation: ctx.spec?.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null,
     credentialSource: source, ...recovery };
-  try { return await writeOnce(perform, hint, details, unknownServerCodes); }
+  try { return await writeOnce(perform, hint, details, unknownServerCodes, definiteServerCodes); }
   catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...details };
     throw error;

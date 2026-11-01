@@ -582,11 +582,11 @@ async function requireStreamSuccess(response) {
 }
 async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
   url = httpUrl(url);
-  const requestTimeout = AbortSignal.timeout(timeout);
+  const requestTimeout = timeout === null ? void 0 : AbortSignal.timeout(timeout);
   const options = {
     method,
     redirect: "error",
-    signal: signal ? AbortSignal.any([signal, requestTimeout]) : requestTimeout,
+    signal: signal && requestTimeout ? AbortSignal.any([signal, requestTimeout]) : signal ?? requestTimeout,
     headers: { Accept: "application/json", ...headers }
   };
   if (token) options.headers.Authorization = `Bearer ${token}`;
@@ -627,11 +627,12 @@ function requireSuccess(response, hint2 = "") {
   if (response.ok) return response;
   throw responseError(response, hint2);
 }
-async function writeOnce(action, hint2, details, unknownServerCodes = []) {
+async function writeOnce(action, hint2, details, unknownServerCodes = [], definiteServerCodes = []) {
   try {
     return await action();
   } catch (error) {
-    if (error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
+    const definite = error instanceof CliError && error.httpStatus >= 400 && definiteServerCodes.includes(error.serverCode);
+    if (!definite && error instanceof CliError && (["network_error", "timeout", "invalid_response", "response_too_large"].includes(error.code) || error.httpStatus === 408 || error.httpStatus >= 500 || unknownServerCodes.includes(error.serverCode))) {
       error.code = "outcome_unknown";
       error.hint = hint2;
       error.details = { ...error.details, ...details };
@@ -639,7 +640,7 @@ async function writeOnce(action, hint2, details, unknownServerCodes = []) {
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
@@ -649,7 +650,7 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
       method,
       token,
       json,
-      timeout: ctx.args.timeout(),
+      timeout,
       headers: { ...stream ? { Accept: "*/*", "Accept-Encoding": "identity" } : {}, ...headers },
       signal,
       stream
@@ -679,7 +680,7 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     ...recovery2
   };
   try {
-    return await writeOnce(perform, hint2, details, unknownServerCodes);
+    return await writeOnce(perform, hint2, details, unknownServerCodes, definiteServerCodes);
   } catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...details };
     throw error;
@@ -3624,6 +3625,13 @@ for (const operation of [...workflowOperations, ...settingsOperations]) {
 
 // src/xrain-cli/delivery-operations.mjs
 var personalMailDraftUnknownCodes = ["email_draft_outcome_unknown"];
+var personalMailDraftDefiniteCodes = [
+  "email_connection_timeout",
+  "email_connection_failed",
+  "email_tls_failed",
+  "email_protocol_invalid",
+  "email_oauth_not_configured"
+];
 function validatePersonalMailDraftReceipt(value, accountId) {
   if (!isObject(value) || value.status !== "Saved" || !nonempty(value.internetMessageId) || value.reference != null && (!isObject(value.reference) || value.reference.accountId !== accountId))
     throw new CliError("The mailbox did not return a matching saved draft receipt.", { code: "invalid_response", details: { result: value } });
@@ -3684,15 +3692,17 @@ var deliveryOperations = [
   define5("mail providers", "GET", personal + "/providers"),
   define5("mail account list", "GET", personal + "/accounts"),
   define5("mail account set", "PUT", personal + "/accounts", { input: "object", secretInput: ["password", "imapPassword", "smtpPassword"] }),
-  define5("mail account check", "POST", personal + "/accounts/{id}/check", { outcome: mailboxCheck }),
+  define5("mail account check", "POST", personal + "/accounts/{id}/check", { outcome: mailboxCheck, readOnly: true, timeout: null }),
   define5("mail account delete", "DELETE", personal + "/accounts/{id}"),
   define5("mail account clear-credentials", "DELETE", personal + "/accounts/{id}/credentials", { query: ["action"] }),
-  define5("mail folders", "GET", personal + "/accounts/{id}/folders"),
-  define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true }),
-  define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true }),
+  define5("mail folders", "GET", personal + "/accounts/{id}/folders", { timeout: null }),
+  define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true, timeout: null }),
+  define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true, timeout: null }),
   define5("mail draft", "POST", personal + "/accounts/{id}/drafts", {
     input: "object",
+    timeout: null,
     unknownServerCodes: personalMailDraftUnknownCodes,
+    definiteServerCodes: personalMailDraftDefiniteCodes,
     validate: (value, { args }) => validatePersonalMailDraftReceipt(value, args.value("id")),
     readback: ["mail", "folders"]
   })
@@ -3904,6 +3914,8 @@ async function managementCommand(ctx) {
     sessionOnly: operation.sessionOnly,
     signal,
     unknownServerCodes: operation.unknownServerCodes,
+    definiteServerCodes: operation.definiteServerCodes,
+    timeout: args.has("timeout") ? args.timeout() : operation.timeout,
     raw: operation.raw,
     validate: (value2) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value2))) && (!operation.validate || operation.validate(value2, { args, body })),
     ...write ? { mutation: mutation2 } : {}
@@ -4041,15 +4053,15 @@ var define7 = (path, method, route, options = {}) => ({ path, method, route: "/a
 var retail = (path, method, route, options) => define7("retail " + path, method, "/applications/retail-assistant" + route, options);
 var mail = (path, method, route, options) => define7("mail " + path, method, "/mail" + route, options);
 var applicationUserOperations = [
-  mail("ai list", "GET", "/ais"),
+  mail("ai list", "GET", "/ais", { timeout: null }),
   mail("ai subscribe", "POST", "/agents/{agent-id}/subscription"),
   mail("app capabilities", "GET", "/capabilities"),
   mail("app accounts", "GET", "/accounts"),
-  mail("app folders", "GET", "/accounts/{id}/folders"),
-  mail("app search", "POST", "/accounts/{id}/messages/search", { input: true, readOnly: true }),
-  mail("app read", "POST", "/accounts/{id}/messages/read", { input: true, readOnly: true }),
-  mail("app draft", "POST", "/accounts/{id}/drafts", { input: true, draft: true }),
-  mail("assist", "POST", "/accounts/{id}/assist", { input: true }),
+  mail("app folders", "GET", "/accounts/{id}/folders", { timeout: null }),
+  mail("app search", "POST", "/accounts/{id}/messages/search", { input: true, readOnly: true, timeout: null }),
+  mail("app read", "POST", "/accounts/{id}/messages/read", { input: true, readOnly: true, timeout: null }),
+  mail("app draft", "POST", "/accounts/{id}/drafts", { input: true, draft: true, timeout: null }),
+  mail("assist", "POST", "/accounts/{id}/assist", { input: true, readOnly: true, timeout: null }),
   retail("context", "GET", "/context"),
   retail("customers", "GET", "/customers", { query: ["search", "order", "cursor", "includeArchived", "archivedOnly"] }),
   retail("customer describe", "GET", "/records/objects/{object-id}/describe"),
@@ -6075,7 +6087,10 @@ async function applicationUserCommand(ctx) {
   };
   const command2 = operation.path === "retail session command";
   const call = async () => {
-    const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, { json: body }));
+    const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, {
+      json: body,
+      ...operation.timeout === null && !args.has("timeout") ? { timeout: null } : {}
+    }));
     if (operation.draft) validatePersonalMailDraftReceipt(result2, args.value("id"));
     if (command2 && !commandOutcome(result2)) throw new CliError("The Runtime command receipt is invalid.", { code: "invalid_response" });
     return result2;
@@ -6084,7 +6099,8 @@ async function applicationUserCommand(ctx) {
     call,
     "The application outcome is unknown. Read the same customer, conversation or mailbox using the same identity before another write. Do not replay this request or batch.",
     details,
-    operation.draft ? personalMailDraftUnknownCodes : []
+    operation.draft ? personalMailDraftUnknownCodes : [],
+    operation.draft ? personalMailDraftDefiniteCodes : []
   );
   if (command2 && commandOutcome(result) === "failed") throw new CliError("The Runtime command reported failure.", { code: "execution_failed", details: { ...details, result } });
   reporter.print(result);

@@ -58,8 +58,11 @@ for (const bundled of [false, true]) {
   const label = bundled ? 'copied Skill' : 'source CLI';
   test(`${label}: both mailbox draft paths preserve explicit unknown outcomes and native refusals`, async t => {
     const f = client(t, bundled), m = await mailbox(t, f);
-    for (const [status, code, expected] of [[409, 'email_draft_outcome_unknown', 'outcome_unknown'],
-      [409, 'email_account_changed', 'conflict'], [403, 'email_identity_required', 'permission_denied']]) {
+    const refusals = [[409, 'email_draft_outcome_unknown', 'outcome_unknown'],
+      [409, 'email_account_changed', 'conflict'], [403, 'email_identity_required', 'permission_denied'],
+      [504, 'email_connection_timeout', 'http_error'], [502, 'email_connection_failed', 'http_error'],
+      [502, 'email_tls_failed', 'http_error'], [502, 'email_protocol_invalid', 'http_error'], [501, 'email_oauth_not_configured', 'http_error']];
+    for (const [status, code, expected] of refusals) {
       m.state.status = status; m.state.body = { errorCode: code };
       for (const command of m.commands) {
         const call = await f.run([...command, '--auth', 'session', '--request-json', m.file, '--json']);
@@ -75,7 +78,7 @@ for (const bundled of [false, true]) {
         assert.ok(!(call.stdout + call.stderr).includes('synthetic-mail-session'));
       }
     }
-    assert.equal(m.state.drafts, 6);
+    assert.equal(m.state.drafts, refusals.length * m.commands.length);
   });
 
   test(`${label}: only a saved draft receipt for the original account succeeds, with optional native reference`, async t => {

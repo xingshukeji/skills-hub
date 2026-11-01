@@ -1,6 +1,8 @@
 import { CliError, booleanOutcome, isObject, nonempty } from './core.mjs';
 
 export const personalMailDraftUnknownCodes = ['email_draft_outcome_unknown'];
+export const personalMailDraftDefiniteCodes = ['email_connection_timeout', 'email_connection_failed',
+  'email_tls_failed', 'email_protocol_invalid', 'email_oauth_not_configured'];
 export function validatePersonalMailDraftReceipt(value, accountId) {
   if (!isObject(value) || value.status !== 'Saved' || !nonempty(value.internetMessageId) ||
       value.reference != null && (!isObject(value.reference) || value.reference.accountId !== accountId))
@@ -61,13 +63,14 @@ export const deliveryOperations = [
   define('mail providers', 'GET', personal + '/providers'),
   define('mail account list', 'GET', personal + '/accounts'),
   define('mail account set', 'PUT', personal + '/accounts', { input: 'object', secretInput: ['password', 'imapPassword', 'smtpPassword'] }),
-  define('mail account check', 'POST', personal + '/accounts/{id}/check', { outcome: mailboxCheck }),
+  define('mail account check', 'POST', personal + '/accounts/{id}/check', { outcome: mailboxCheck, readOnly: true, timeout: null }),
   define('mail account delete', 'DELETE', personal + '/accounts/{id}'),
   define('mail account clear-credentials', 'DELETE', personal + '/accounts/{id}/credentials', { query: ['action'] }),
-  define('mail folders', 'GET', personal + '/accounts/{id}/folders'),
-  define('mail search', 'POST', personal + '/accounts/{id}/messages/search', { input: 'object', readOnly: true }),
-  define('mail read', 'POST', personal + '/accounts/{id}/messages/read', { input: 'object', readOnly: true }),
-  define('mail draft', 'POST', personal + '/accounts/{id}/drafts', { input: 'object', unknownServerCodes: personalMailDraftUnknownCodes,
+  define('mail folders', 'GET', personal + '/accounts/{id}/folders', { timeout: null }),
+  define('mail search', 'POST', personal + '/accounts/{id}/messages/search', { input: 'object', readOnly: true, timeout: null }),
+  define('mail read', 'POST', personal + '/accounts/{id}/messages/read', { input: 'object', readOnly: true, timeout: null }),
+  define('mail draft', 'POST', personal + '/accounts/{id}/drafts', { input: 'object', timeout: null,
+    unknownServerCodes: personalMailDraftUnknownCodes, definiteServerCodes: personalMailDraftDefiniteCodes,
     validate: (value, { args }) => validatePersonalMailDraftReceipt(value, args.value('id')), readback: ['mail', 'folders'] }),
 ];
 for (const operation of deliveryOperations) {
