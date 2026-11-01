@@ -13,7 +13,7 @@ metadata:
 
 用户只给业务目标时，按[业务任务与命令选择](references/task-selection.md)找到已有能力，再读命中的领域参考和具体子命令帮助。已有任务技能继续负责业务结果，按需使用本工具。查询、操作已有资源可直接选用已支持的命令；新增业务逻辑、修复权限或部署服务仍由对应任务入口组织。
 
-从本 skill 目录（Workforce 的 `resourceBase.path`）执行，依赖已打包，无需 npm 或 .NET：
+先确定本 skill 的绝对目录。通过技能工具加载时，使用返回的 `resourceBase.path`；直接读取本文件时，使用实际读取的 `SKILL.md` 所在目录。将下例中的 `<skill目录>` 替换为该真实路径后执行，不把示例占位文本当作路径。依赖已打包，无需 npm 或 .NET：
 
 ```text
 node "<skill目录>/scripts/xrain-cli.mjs" <子命令> --help
