@@ -12,6 +12,22 @@ const output = result => JSON.parse(result.stdout);
 const inline = value => ['--values', JSON.stringify(value)];
 const empty = { aiUserId: '', name: 'Target', enabled: false, instructions: '', provider: '', model: '', agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [] };
 
+test('version 1 tools retain long descriptions, wide schemas and literal reference data', () => {
+  const tool = { name: 'service_lookup', serviceId: 'records', operation: 'lookup', description: '完整业务说明。'.repeat(600),
+    parameters: { type: 'object', properties: Object.fromEntries(Array.from({ length: 180 }, (_, index) => [
+      `field_${index}`, { type: 'string', description: '完整字段说明。'.repeat(16), enum: ['ordinary', '$ref'], default: '$ref' },
+    ])), additionalProperties: false } };
+  assert.ok(tool.description.length > 4000);
+  assert.ok(JSON.stringify(tool.parameters).length > 16000);
+  const file = exportDefinition({ ...empty, assistantTools: [tool] }, []);
+  const read = readDefinitionFile(JSON.parse(JSON.stringify(file)));
+  const { changes, warnings } = definitionFileChanges(read, empty, []);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(changes.assistantTools, [tool]);
+  assert.deepEqual(exportDefinition({ ...empty, ...changes }, []), file);
+  assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, assistantTools: [{ ...tool, description: null }] } }));
+});
+
 async function definitions(t, options = {}) {
   const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true, lose: false, ...options };
   const server = await mockServer(t, (hit, res) => {

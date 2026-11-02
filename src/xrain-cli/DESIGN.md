@@ -4,7 +4,7 @@ Status: Active
 Kind: CurrentDesign
 Scope: skills-hub / xrain-cli 的平台连接、智能体入口、身份诊断与设置管理
 Owner: skills-hub 维护者
-Updated: 2026-11-01
+Updated: 2026-11-02
 Depends On:
 - ../../AGENTS.md
 - ../../skills/shzw-xrain-cli/SKILL.md
@@ -139,6 +139,8 @@ CLI 直接使用当前 Runtime 的单条读取、摘要和限额接口。缺失�
 直接目录选项转成一致的 workspaceChange。未修改目录时提交 keep；直接选择不创建文件夹或登记工作区。更新省略字段时保留目标原值；原生工具的省略、null、空数组分别表示保留、恢复继承、明确不使用。业务工具、模型、对象、侧栏和录入配置由 Runtime 核验。
 
 `export/import` 消费 [Workforce 版本 1 文件合同](../../../xrain-workforce/文档/项目/项目_XRAIN_WORKFORCE/技术设计/DOC-0017-智能体定义与工作区.md#定义与接口)，与更新补丁、Runtime schema 3 文件分别处理。导入新建默认停用；更新指定 ID 时要求明确版本并保留目标启用状态。订阅、应用选用和员工关系不参与定义保存。目录跨环境无法确认时保留目标并提示；工具继承恢复使用当前接口的 null 语义。导入没有强制预览，也不复制目录文件、身份或权限。
+
+工具说明和参数 schema 的完整内容沿 Runtime 当前定义字节预算，CLI 文件导入不另设工具说明字符上限。参数结构、实际目录及调用授权仍由 Runtime 和业务提供者核验。
 
 Workforce 的合成文件样本是格式验证来源；完整 Skill 随附同一字节的样本。两端分别验证转换与嵌套业务配置。CLI 不引入交换格式 SDK 或复制 Runtime 存储目录。
 

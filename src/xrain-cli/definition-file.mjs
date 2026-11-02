@@ -8,7 +8,7 @@ const optionalObject = (v) => v === void 0 || object(v);
 const optionalStrings = (v) => v === void 0 || strings(v);
 const optionalText = (v) => v === void 0 || text(v, 4096);
 function validTool(v) {
-  return object(v) && text(v.name, 160) && text(v.description, 4e3) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters);
+  return object(v) && text(v.name, 160) && text(v.description, Infinity) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters);
 }
 function validQuestion(v) {
   return text(v, 160) || object(v) && text(v.text, 160) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
