@@ -27,7 +27,8 @@ export async function runtimeRuns(ctx, helpers) {
   process.once('SIGINT', interrupt);
   try {
     const value = await helpers.writeOnce(async () => {
-      const result = await helpers.runtimeValue(ctx, 'POST', ephemeral ? '/v1/dsh/ephemeral-runs' : '/xrain/runs', body, ephemeral ? headers : {}, { signal: controller.signal });
+      const result = await helpers.runtimeValue(ctx, 'POST', ephemeral ? '/v1/dsh/ephemeral-runs' : '/xrain/runs', body, ephemeral ? headers : {},
+        { signal: controller.signal, ...(ephemeral && !args.has('timeout') ? { timeout: null } : {}) });
       if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? '') || result.status !== 'accepted'))
         throw new CliError('Runtime returned an invalid run receipt.', { code: 'invalid_response' });
       return result;

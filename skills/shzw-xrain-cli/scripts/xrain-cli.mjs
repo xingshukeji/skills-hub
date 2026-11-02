@@ -5233,7 +5233,14 @@ async function runtimeRuns(ctx, helpers) {
   try {
     const value = await helpers.writeOnce(
       async () => {
-        const result = await helpers.runtimeValue(ctx, "POST", ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs", body, ephemeral ? headers : {}, { signal: controller.signal });
+        const result = await helpers.runtimeValue(
+          ctx,
+          "POST",
+          ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs",
+          body,
+          ephemeral ? headers : {},
+          { signal: controller.signal, ...ephemeral && !args.has("timeout") ? { timeout: null } : {} }
+        );
         if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? "") || result.status !== "accepted"))
           throw new CliError("Runtime returned an invalid run receipt.", { code: "invalid_response" });
         return result;
@@ -5315,14 +5322,14 @@ function runtimeConnection(ctx) {
   runtimeConnections.set(ctx, connection2);
   return connection2;
 }
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal, limit } = {}) {
+async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal, limit, timeout } = {}) {
   const { args } = ctx;
   const { runtime: runtime2, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime2), {
     method,
     token,
     json,
-    timeout: args.timeout(),
+    timeout: timeout === void 0 ? args.timeout() : timeout,
     signal,
     limit,
     headers: { "X-XRain-Authorization": `Bearer ${token}`, ...extraHeaders }

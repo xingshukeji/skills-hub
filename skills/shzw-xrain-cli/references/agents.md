@@ -52,7 +52,7 @@ agent chat pending --session-id <sessionId>
 agent chat respond <actionRef> --values-json <回答.json>
 ```
 
-`--message-file <文件>` 读取原 UTF-8 文本，使用 `-` 从标准输入读取；也可用 `--message` 直接输入。输入大小由各原服务判断，普通对话与单次运行不套用临时文本生成的限制。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；可用 `--request-id` 提供原稳定编号。CLI 原样传递请求与响应编号，不按智能体名称的格式改写或拒绝。
+`--message-file <文件>` 读取原 UTF-8 文本，使用 `-` 从标准输入读取；也可用 `--message` 直接输入。完整输入由各原服务核验类型、资格及原生模型合同，CLI 不另设文字容量准入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；可用 `--request-id` 提供原稳定编号。CLI 原样传递请求与响应编号，不按智能体名称的格式改写或拒绝。
 
 命令等待本次请求自己的 `turn/end`，默认最多 120 秒，可用 `--wait-timeout` 调整。该总预算在本地输入校验后、首次网络操作前开始，覆盖 `start` 的会话创建，以及流连接、输入提交回执和本轮结果跟随，不在各阶段重新计时。单次 HTTP 请求仍受 `--timeout` 约束。已经观察到同一 requestId、输入及本轮结束的完成事件时，可先于迟到的提交回执返回。`completed` 表示原 Runtime 已完成该轮；没有文字回复时保留空 answer，不另判失败。文字答复不证明业务结果正确；`toolCalls` 的每项包含原 callId、状态及 result。result 保留原 tool/result 数据中的正文、错误和元数据，凭据仍脱敏；可从中取得原记录 ID 或具体失败原因。`history` 的工具结果使用相同 result，`hasMore` 表示当前返回并非完整历史。工具失败不改变原轮次的完成状态，轮次失败时原回执保留在 error.details.toolCalls。
 
@@ -87,7 +87,9 @@ agent definition disable <agentId> --expected-revision <读到的版本>
 
 直接选择已有目录使用 `create/update --workspace-path <Runtime机器上的绝对路径> --preset <已有工作方式>`，也可在 JSON 中提供 `workspaceChange: {operation:"direct",path:"...",agentPreset:"..."}`。CLI 同步对应目录字段并交 Runtime 核验，不创建文件夹或登记可选列表。原生工具的 `null` 表示恢复继承，与省略、空数组分别处理。
 
-每次完整保存前读取 Runtime 当次限额，按 UTF-8 字节检查文件、stdin、内联 JSON 和合并后的完整请求。部分字段补丁很小也可能因原定义太大而被拒绝。限额查询失败或未返回有效值时停止完整保存。启停直接向状态接口提交 ID、明确版本和状态；限额降低或暂时无法查询时，仍可停用已有大定义。
+完整保存直接提交当前定义，不先查询或叠加固定容量准入。文件、stdin、内联 JSON 和合并后的完整请求使用相同内容规则；来源身份、字段结构、当前版本和实际权限仍须有效。启停直接提交 ID、明确版本和状态。旧 Runtime 的拒绝保留原含义，不能由 CLI 自动换目标或重发。
+
+临时文本使用 `agent ephemeral generate <agentId> --message-file <UTF-8文件>`，不建立 Session、工具或历史。默认沿本次调用与 Runtime、模型生命周期等待；显式 --timeout 仍限制本次等待，中断或未知回执不自动再生成。
 
 ## 定义文件交换
 

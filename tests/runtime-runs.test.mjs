@@ -6,6 +6,30 @@ import { fixture, mockServer, respond } from './helpers.mjs';
 const output = value => JSON.parse(value.stdout);
 const runId = '55555555-1111-2222-3333-444444444444';
 
+for (const explicit of [false, true]) test(`ephemeral generation ${explicit ? 'honors an explicit caller deadline' : 'continues with its active caller beyond the old default deadline'}`, async t => {
+  const f = fixture(t), deadlines = []; let start, finish;
+  const started = new Promise(resolve => { start = resolve; }), complete = new Promise(resolve => { finish = resolve; });
+  t.mock.method(AbortSignal, 'timeout', milliseconds => {
+    const controller = new AbortController(); deadlines.push({ milliseconds, controller }); return controller.signal;
+  });
+  const service = await mockServer(t, async (hit, res) => {
+    assert.equal(hit.url, '/v1/dsh/ephemeral-runs'); start(); await complete;
+    if (!res.destroyed) respond(res, { answer: '完整生成结果' });
+  });
+  f.profile(service.url, 'tenant', 'synthetic-caller');
+  const pending = f.run(['agent', 'ephemeral', 'generate', 'writer', '--message', '只生成一次', '--runtime', service.url, '--json', ...(explicit ? ['--timeout', '1'] : [])]);
+  await started;
+  for (const timer of deadlines) timer.controller.abort();
+  finish(); const result = await pending;
+  assert.equal(service.hits.length, 1);
+  if (explicit) {
+    assert.equal(result.code, 1); assert.equal(output(result).error.code, 'outcome_unknown');
+    assert.deepEqual(deadlines.map(timer => timer.milliseconds), [1000]);
+  } else {
+    assert.equal(result.code, 0, result.stdout); assert.equal(output(result).data.answer, '完整生成结果'); assert.equal(deadlines.length, 0);
+  }
+});
+
 test('managed runs submit once and query the original owner-bound result without creating a workbench conversation', async t => {
   const f = fixture(t); let failed = false;
   const service = await mockServer(t, (hit, res) => {
