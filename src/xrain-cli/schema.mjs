@@ -139,8 +139,6 @@ for (const [kind, members] of [['user', ['role', 'permission-set']], ['role', ['
   }
 }
 const host = ['server', 'scope', 'profile', 'timeout', ...credentials];
-command('host settings get', [...host, 'setting'], [slot('setting')], 'Read agent-definition-limit from the Host settings API, showing bytes and MiB.');
-command('host settings set', [...host, 'setting', 'mib', 'bytes', 'expected-bytes'], [slot('setting')], 'Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.');
 command('user settings get', [...api, 'setting'], [slot('setting')], 'Read your Workforce send-shortcut or unread-badge preference.');
 command('user settings set', [...api, 'setting', 'value'], [slot('setting')], 'Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).');
 command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('tenant-id'), slot('user-id')], 'Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.');
@@ -263,13 +261,6 @@ export function validateCommand(args) {
     throw new CliError('--scope must be tenant or host; Host connections cannot select --tenant.', { code: 'invalid_arguments' });
   if (spec.path === 'auth login' && args.value('scope') === 'host' && !args.has('native'))
     throw new CliError('Host login requires --native.', { code: 'invalid_arguments' });
-  if (spec.path.startsWith('host settings ')) {
-    if (args.required('setting') !== 'agent-definition-limit') throw new CliError('Supported Host setting: agent-definition-limit.', { code: 'invalid_arguments' });
-    if (spec.path.endsWith(' set')) {
-      exclusive(['mib', 'bytes']);
-      if (!args.has('mib') && !args.has('bytes')) throw new CliError('--mib or --bytes is required.', { code: 'invalid_arguments' });
-    }
-  }
   if (spec.path.startsWith('user settings ')) {
     const setting = args.required('setting');
     const choices = { 'send-shortcut': ['enter', 'ctrlEnter'], 'unread-badge': ['true', 'false'] };

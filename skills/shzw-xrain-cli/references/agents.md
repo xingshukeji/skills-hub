@@ -32,7 +32,7 @@ agent use <agentId> [--application-id <应用ID> | --personal]
 
 `directory` 汇合 Runtime 定义与平台资格，默认使用 profile 配置的应用上下文；`--personal` 单次选择个人上下文，`--mine` 始终仅列本人获批准的订阅。`qualifications` 和 `use` 只读取平台判断，不证明 Runtime 定义已启用或工作区可用，也不执行智能体。个人订阅命令始终以当前人为主体。
 
-`list` 返回不含完整工作要求的摘要，`show` 按 ID 读取单条定义。CLI 直接使用当前 Runtime 接口；缺失接口、鉴权失败、服务故障或无效响应保留原错误。读取和导出已有定义不采用当前写入限额，也不受通用 32 MiB 响应限制。
+`list` 返回不含完整工作要求的摘要，`show` 按 ID 读取单条定义。CLI 直接使用当前 Runtime 接口；缺失接口、鉴权失败、服务故障或无效响应保留原错误。定义输入、合并后完整保存、读取和导出不采用固定字节准入，也不受通用 32 MiB 输入或响应限制。保存不先查询 limits；显式查询的 maxDefinitionBytes 为 null 时，表示目标 Runtime 已取消保存字节门槛。旧版本仍可拒绝请求，CLI 保留原错误且不自动重发。
 
 `employee-options` 读取员工关联可选定义，只需要 Runtime 声明的关联读取权限，不读取完整定义、工具或工作要求。`member` 供定义管理者按已知 userId 核验成员，沿原窄目录门禁，不开放人员搜索。两者均保留原权限拒绝和租户隔离。
 

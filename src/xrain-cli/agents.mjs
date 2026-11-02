@@ -85,18 +85,11 @@ async function definition(ctx, id) {
 }
 async function definitionLimits(ctx) {
   const value = await runtimeValue(ctx, 'GET', definitions + '/limits');
-  if (!isObject(value) || !Number.isSafeInteger(value.maxDefinitionBytes) || value.maxDefinitionBytes <= 0)
+  if (!isObject(value) || !(value.maxDefinitionBytes === null || Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0))
     throw new CliError('Runtime returned an invalid definition write limit.', { code: 'invalid_response' });
   return value;
 }
-function checkDefinitionSize(body, limits) {
-  const bytes = Buffer.byteLength(JSON.stringify(body), 'utf8');
-  if (bytes > limits.maxDefinitionBytes) throw new CliError('The complete UTF-8 save request exceeds the current Runtime limit.', {
-    code: 'definition_too_large', details: { requestBytes: bytes, maxDefinitionBytes: limits.maxDefinitionBytes },
-  });
-}
-async function saveDefinition(ctx, id, body, limits, statusOnly = false) {
-  if (!statusOnly) checkDefinitionSize(body, limits);
+async function saveDefinition(ctx, id, body, statusOnly = false) {
   return writeOnce(async () => {
     const result = await runtimeValue(ctx, 'POST', definitions + (statusOnly ? '/enabled' : ''), body, {}, { limit: Infinity });
     if (!isObject(result) || result.agentId !== id || result.revision !== (body.revision ?? 0) + 1 || result.enabled !== body.enabled)
@@ -112,8 +105,8 @@ function selectDirectory(args, value) {
     throw new CliError('Choose the directory once, using options or JSON.', { code: 'invalid_arguments' });
   value.workspaceChange = { operation: 'direct', path: args.value('workspace-path'), agentPreset: args.required('preset') };
 }
-async function definitionInput(ctx, limits, required = true) {
-  const value = await jsonInput(ctx.args, 'values', true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+async function definitionInput(ctx, required = true) {
+  const value = await jsonInput(ctx.args, 'values', true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
   if (value === undefined && !required) return {};
   if (!isObject(value)) throw new CliError('Supply a JSON object using --values-json, --values or --file.', { code: 'invalid_arguments' });
   validateDefinitionInput(value); return value;
@@ -135,8 +128,7 @@ async function importDefinition(ctx) {
   const { args, reporter } = ctx;
   const id = identifier(args.value('agent-id') ?? `agent-${randomBytes(16).toString('hex')}`, 'Agent ID');
   const expected = args.has('agent-id') ? revision(args) : null;
-  const limits = await definitionLimits(ctx);
-  const value = await readJsonInput(args.required('file'), 'Definition exchange file', { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  const value = await readJsonInput(args.required('file'), 'Definition exchange file', { limit: Infinity, stdin: ctx.stdin, utf8: true });
   let file;
   try { file = readDefinitionFile(value); }
   catch { throw new CliError('Expected a version 1 xrain-workforce-agent-definition exchange file.', { code: 'invalid_definition_file' }); }
@@ -152,7 +144,7 @@ async function importDefinition(ctx) {
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);
   reporter.progress(`Definition ID: ${id}`);
-  reporter.print({ ...await saveDefinition(ctx, id, body, limits), ...(warnings.length ? { warnings } : {}) }); return 0;
+  reporter.print({ ...await saveDefinition(ctx, id, body), ...(warnings.length ? { warnings } : {}) }); return 0;
 }
 
 async function definitionCommands(ctx) {
@@ -165,8 +157,7 @@ async function definitionCommands(ctx) {
   if (action === 'limits') { reporter.print({ ...await definitionLimits(ctx), runtime: runtimeConnection(ctx).runtime }); return 0; }
   if (action === 'import') return importDefinition(ctx);
   if (action === 'create') {
-    const limits = await definitionLimits(ctx);
-    const value = await definitionInput(ctx, limits, false);
+    const value = await definitionInput(ctx, false);
     selectDirectory(args, value);
     if (value.enabled !== undefined && value.enabled !== false) throw new CliError('A new definition must be disabled.', { code: 'invalid_arguments' });
     if (args.has('name') && value.name !== undefined) throw new CliError('Provide the name once, using --name or JSON.', { code: 'invalid_arguments' });
@@ -176,13 +167,13 @@ async function definitionCommands(ctx) {
     workspaceChange(value);
     const body = newDefinition(id, { ...value, name });
     reporter.progress(`Definition ID: ${id}`);
-    reporter.print(await saveDefinition(ctx, id, body, limits)); return 0;
+    reporter.print(await saveDefinition(ctx, id, body)); return 0;
   }
   const id = identifier(args.required('agent-id'), 'Agent ID');
   if (action === 'show') { reporter.print(await definition(ctx, id)); return 0; }
   if (action === 'export') {
     const current = await definition(ctx, id);
-    // Direct and unset directories need no options/limit lookup, even after a limit decrease.
+    // Direct and unset directories need no options lookup.
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, 'GET', definitions + '/options')).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError('Runtime returned invalid workspaces.', { code: 'invalid_response' });
     const file = exportDefinition(current, workspaces), output = resolve(args.required('out'));
@@ -192,17 +183,16 @@ async function definitionCommands(ctx) {
   }
   const expected = revision(args);
   if (action !== 'update') {
-    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === 'enable' }, undefined, true)); return 0;
+    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === 'enable' }, true)); return 0;
   }
-  const limits = await definitionLimits(ctx);
-  const patch = await definitionInput(ctx, limits, !args.has('workspace-path'));
+  const patch = await definitionInput(ctx, !args.has('workspace-path'));
   selectDirectory(args, patch);
   if (!Object.keys(patch).length) throw new CliError('The update has no fields.', { code: 'invalid_arguments' });
   if ((Object.hasOwn(patch, 'workspaceId') || Object.hasOwn(patch, 'agentPreset')) && !patch.workspaceChange)
     throw new CliError('Changing workspace or preset requires an explicit workspaceChange.', { code: 'invalid_arguments' });
   workspaceChange(patch);
   const body = updatedDefinition(await definition(ctx, id), patch, expected);
-  reporter.print(await saveDefinition(ctx, id, body, limits)); return 0;
+  reporter.print(await saveDefinition(ctx, id, body)); return 0;
 }
 
 export async function agentCommands(ctx) {

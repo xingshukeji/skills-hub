@@ -45,7 +45,7 @@ test('version 1 questions and create fields retain complete text, ordering and c
 });
 
 async function definitions(t, options = {}) {
-  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true, lose: false, ...options };
+  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: null, supportsDefinitionStatusUpdate: true, lose: false, ...options };
   const server = await mockServer(t, (hit, res) => {
     if (hit.url === root + '/limits') return state.limitUnavailable
       ? respond(res, { error: 'AGENT_DEFINITION_LIMIT_UNAVAILABLE' }, 503)
@@ -62,7 +62,7 @@ async function definitions(t, options = {}) {
     const body = hit.json(), old = records.get(body.agentId), statusOnly = hit.url.endsWith('/enabled');
     if (body.revision !== (old?.revision ?? null)) return respond(res, { error: 'AGENT_DEFINITION_CONFLICT' }, 409);
     if (statusOnly) assert.deepEqual(Object.keys(body).sort(), ['agentId', 'enabled', 'revision']);
-    else if (hit.body.length > state.maxDefinitionBytes) return respond(res, { error: 'INVALID_AGENT_DEFINITION' }, 413);
+    else if (state.legacyReceiveLimit && hit.body.length > state.legacyReceiveLimit) return respond(res, { error: 'INVALID_AGENT_DEFINITION' }, 413);
     const saved = statusOnly ? { ...old, enabled: body.enabled, revision: old.revision + 1 } : { ...body, revision: (body.revision ?? 0) + 1 };
     if (!statusOnly) {
       if (body.nativeTools === null) delete saved.nativeTools;
@@ -81,7 +81,7 @@ async function definitions(t, options = {}) {
   return { f, records, state, server, run };
 }
 
-test('status remains available when full-save limits decrease or become unavailable and never replays unknown writes', async t => {
+test('status remains independent of retired limit metadata and never replays unknown writes', async t => {
   const { records, state, server, run } = await definitions(t, { maxDefinitionBytes: 100, limitUnavailable: true });
   records.set('large', { ...empty, agentId: 'large', revision: 6, enabled: true, instructions: '字'.repeat(10000) });
   const stopped = output(await run(['disable', 'large', '--expected-revision', '6']));
@@ -97,7 +97,7 @@ test('status remains available when full-save limits decrease or become unavaila
   assert.equal(server.hits.at(-1).url, root + '/items/large');
 });
 
-test('UTF-8 input and complete serialized save boundaries apply to inline, file and stdin while patches preserve other fields', async t => {
+test('complete UTF-8 inline, file and stdin definitions ignore retired byte declarations while patches preserve other fields', async t => {
   const { f, records, state, server, run } = await definitions(t);
   const content = { instructions: '中文\n"\\'.repeat(30), nativeTools: null };
   const body = { ...empty, agentId: 'boundary', revision: null, ...content, name: 'Boundary' };
@@ -105,11 +105,8 @@ test('UTF-8 input and complete serialized save boundaries apply to inline, file 
   const create = output(await run(['create', '--agent-id', 'boundary', '--name', 'Boundary', ...inline(content)]));
   assert.equal(create.ok, true, JSON.stringify(create));
   assert.equal(server.hits.at(-1).body.length, state.maxDefinitionBytes);
-  const requestBytes = server.hits.at(-1).body.length;
-  state.maxDefinitionBytes = requestBytes - 1;
-  const tooLarge = output(await run(['create', '--agent-id', 'boundary', '--name', 'Boundary', ...inline(content)]));
-  assert.equal(tooLarge.error.code, 'definition_too_large'); assert.equal(records.get('boundary').revision, 1);
-  state.maxDefinitionBytes = 4096;
+  state.maxDefinitionBytes = 1;
+  state.limitUnavailable = true;
   const path = join(f.directory, 'patch.json');
   writeFileSync(path, JSON.stringify({ instructions: '新指令' }));
   records.get('boundary').assistantTools = sample.definition.assistantTools;
@@ -118,17 +115,22 @@ test('UTF-8 input and complete serialized save boundaries apply to inline, file 
   assert.equal(output(await run(['update', 'boundary', '--expected-revision', '2', '--values-json', '-'], { stdin: Readable.from(['{"nativeTools":', '[]}']) })).ok, true);
   assert.deepEqual(records.get('boundary').nativeTools, []);
   state.maxDefinitionBytes = 24;
-  for (const args of [inline({ instructions: '字'.repeat(20) }), ['--values-json', '-']]) {
-    const result = output(await run(['update', 'boundary', '--expected-revision', '3', ...args], { stdin: Readable.from([JSON.stringify({ instructions: '字'.repeat(20) })]) }));
-    assert.equal(result.ok, false); assert.match(result.error.code, /input_too_large/);
+  for (const [index, args] of [inline({ instructions: '字'.repeat(20) }), ['--values-json', '-']].entries()) {
+    const result = output(await run(['update', 'boundary', '--expected-revision', String(3 + index), ...args], { stdin: Readable.from([JSON.stringify({ instructions: '字'.repeat(20) })]) }));
+    assert.equal(result.ok, true, JSON.stringify(result));
   }
   const writes = server.hits.filter(hit => hit.method === 'POST').length;
   state.maxDefinitionBytes = 4096;
-  assert.equal(output(await run(['update', 'boundary', '--expected-revision', '3', '--values-json', '-'], { stdin: Readable.from([Buffer.from([0xff])]) })).error.code, 'invalid_arguments');
+  assert.equal(output(await run(['update', 'boundary', '--expected-revision', '5', '--values-json', '-'], { stdin: Readable.from([Buffer.from([0xff])]) })).error.code, 'invalid_arguments');
   assert.equal(server.hits.filter(hit => hit.method === 'POST').length, writes);
+  assert.equal(server.hits.some(hit => hit.url === root + '/limits'), false);
+  state.legacyReceiveLimit = 1;
+  const rejected = output(await run(['update', 'boundary', '--expected-revision', '5', ...inline({ name: 'Must remain unchanged' })]));
+  assert.equal(rejected.error.httpStatus, 413); assert.equal(records.get('boundary').revision, 5);
+  assert.equal(server.hits.filter(hit => hit.method === 'POST').length, writes + 1);
 });
 
-test('files larger than 32 MiB use dynamic write limits; single reads and exports remain available when that limit drops', async t => {
+test('complete files larger than 32 MiB remain readable, exportable and editable without fixed local admission', async t => {
   const { f, records, state, server, run } = await definitions(t, { maxDefinitionBytes: 36 * 1024 * 1024 });
   const path = join(f.directory, 'large.json'), contents = 'x'.repeat(33 * 1024 * 1024);
   writeFileSync(path, JSON.stringify({ instructions: contents }));
@@ -143,8 +145,10 @@ test('files larger than 32 MiB use dynamic write limits; single reads and export
   assert.equal(exported.code, 0, exported.stdout);
   assert.equal(JSON.parse(readFileSync(outputFile, 'utf8')).definition.instructions, contents);
   assert.equal(server.hits.at(-1).url, root + '/items/large');
-  const rejected = output(await run(['update', 'large', '--expected-revision', '1', ...inline({ name: 'Rename' })]));
-  assert.equal(rejected.error.code, 'definition_too_large'); assert.equal(records.get('large').name, 'Large');
+  const updated = output(await run(['update', 'large', '--expected-revision', '1', ...inline({ name: 'Rename' })]));
+  assert.equal(updated.ok, true, JSON.stringify(updated)); assert.equal(records.get('large').name, 'Rename');
+  assert.equal(records.get('large').instructions, contents);
+  assert.equal(server.hits.some(hit => hit.url === root + '/limits'), false);
 });
 
 test('page exchange file import/export preserves identity, revision, enabled state, fields and inheritance without changing usage relations', async t => {
@@ -185,7 +189,7 @@ test('missing current Runtime endpoints retain the original failure without alte
   f.profile(server.url, 'tenant-demo', 'synthetic-token');
   for (const [args, path] of [
     [['list'], '/summaries'], [['show', 'a'], '/items/a'], [['limits'], '/limits'],
-    [['create', '--name', 'Name'], '/limits'], [['enable', 'a', '--expected-revision', '1'], '/enabled'],
+    [['create', '--name', 'Name'], ''], [['enable', 'a', '--expected-revision', '1'], '/enabled'],
   ]) {
     const before = server.hits.length;
     const failed = output(await f.run(['agent', 'definition', ...args, '--runtime', server.url, '--json']));
@@ -194,12 +198,19 @@ test('missing current Runtime endpoints retain the original failure without alte
   }
 });
 
-test('a missing definition limit is an invalid response and never becomes a guessed write budget', async t => {
+test('an explicit definition capability read rejects malformed metadata', async t => {
   const f = fixture(t), server = await mockServer(t, (_hit, res) => respond(res, { supportsDefinitionStatusUpdate: true }));
   f.profile(server.url, 'tenant-demo', 'synthetic-token');
-  const failed = output(await f.run(['agent', 'definition', 'create', '--name', 'Name', '--runtime', server.url, '--json']));
+  const failed = output(await f.run(['agent', 'definition', 'limits', '--runtime', server.url, '--json']));
   assert.equal(failed.error.code, 'invalid_response');
   assert.deepEqual(server.hits.map(hit => [hit.method, hit.url]), [['GET', root + '/limits']]);
+});
+
+test('an explicit definition capability read reports unbounded saving without inventing a numeric default', async t => {
+  const { run, state } = await definitions(t);
+  assert.equal(output(await run(['limits'])).data.maxDefinitionBytes, null);
+  state.maxDefinitionBytes = 1000;
+  assert.equal(output(await run(['limits'])).data.maxDefinitionBytes, 1000);
 });
 
 test('direct directory selection only sends the explicit definition change, and omitted fields remain unchanged', async t => {

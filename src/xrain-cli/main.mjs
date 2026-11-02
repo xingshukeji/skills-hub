@@ -7,7 +7,7 @@ import { authCommands, doctor } from './diagnostics.mjs';
 import { batchCommands } from './batch.mjs';
 import { agentCommands } from './agents.mjs';
 import { commandHelp, validateCommand } from './schema.mjs';
-import { hostSettingsCommands, userSettingsCommands } from './settings.mjs';
+import { userSettingsCommands } from './settings.mjs';
 import { managementCommand } from './management.mjs';
 import { fileCommands } from './files.mjs';
 import { marketCommands } from './market.mjs';
@@ -28,7 +28,7 @@ async function dispatch(ctx) {
     case 'doctor': return doctor(ctx);
     case 'batch': return batchCommands(ctx);
     case 'security': return securityCommands(ctx);
-    case 'host': return args.command(1) === 'settings' ? hostSettingsCommands(ctx) : hostCommands(ctx);
+    case 'host': return hostCommands(ctx);
     case 'user': return userSettingsCommands(ctx);
     case 'data': return dataCommands(ctx);
     case 'file': return fileCommands(ctx);

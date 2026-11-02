@@ -117,8 +117,7 @@ test('discovery, tools and workspace operations use the explicit Runtime and rej
     ['agent', 'subscription', 'decide', 'r', '--decision', 'other', '--json'],
     ['agent', 'definition', 'list', '--json'],
   ]) { const result = await f.run(bad); assert.equal(result.code, 1, bad.join(' ')); }
-  assert.equal(runtime.hits.length + platform.hits.length, before + 3);
-  assert.ok(runtime.hits.slice(before).every(hit => hit.method === 'GET' && hit.url.endsWith('/limits')));
+  assert.equal(runtime.hits.length + platform.hits.length, before);
 });
 
 test('Runtime conflicts and permission failures preserve real error codes without automatic retries', async t => {
@@ -129,7 +128,7 @@ test('Runtime conflicts and permission failures preserve real error codes withou
   f.profile(runtime.url, 'tenant-demo', 'synthetic-token');
   const create = await f.run(['agent', 'definition', 'create', '--agent-id', 'fixed-id', '--name', 'Existing', '--runtime', runtime.url, '--json']);
   assert.equal(output(create).error.code, 'conflict'); assert.equal(output(create).error.serverCode, 'AGENT_DEFINITION_CONFLICT');
-  assert.equal(runtime.hits.length, 2);
+  assert.equal(runtime.hits.length, 1);
   const denied = await f.run(['agent', 'definition', 'list', '--runtime', runtime.url, '--json']);
   assert.equal(output(denied).error.code, 'permission_denied'); assert.equal(output(denied).error.serverCode, 'AGENT_DEFINITIONS_FORBIDDEN');
 });
@@ -146,7 +145,7 @@ test('successful HTTP responses with invalid write receipts do not claim that an
   assert.equal(output(create).error.code, 'outcome_unknown'); assert.equal(output(create).error.details.agentId, 'a');
   const timeout = await f.run(['agent', 'subscribe', 'b', '--json']);
   assert.equal(output(timeout).error.code, 'outcome_unknown'); assert.equal(output(timeout).error.httpStatus, 408);
-  assert.equal(service.hits.length, 4);
+  assert.equal(service.hits.length, 3);
 });
 
 test('batch validates required agent arguments before executing an earlier write', async t => {

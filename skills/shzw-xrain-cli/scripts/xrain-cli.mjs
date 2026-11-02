@@ -927,13 +927,13 @@ async function checkDestination(path) {
     if (error.code !== "ENOENT") throw error;
   }
 }
-async function saveFile(client2, method, path, outputPath, limit = Infinity, json, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false } = {}) {
+async function saveFile(client2, method, path, outputPath, limit = Infinity, json, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
   const output2 = resolve2(outputPath);
   await checkDestination(output2);
   const response = await send(client2, method, path, { json, accept: contentType ?? "*/*" });
-  return saveResponse(client2, response, output2, limit, { contentType, expectedBytes: expectedBytes2, allowEmpty });
+  return saveResponse(client2, response, output2, limit, { contentType, expectedBytes, allowEmpty });
 }
-async function saveResponse(client2, response, outputPath, limit = Infinity, { contentType = mime, expectedBytes: expectedBytes2, allowEmpty = false, verify } = {}) {
+async function saveResponse(client2, response, outputPath, limit = Infinity, { contentType = mime, expectedBytes, allowEmpty = false, verify } = {}) {
   const output2 = resolve2(outputPath);
   const temporary = join2(dirname2(output2), `.${basename(output2)}.${randomBytes3(12).toString("hex")}.part`);
   let file, created = false, size = 0;
@@ -956,7 +956,7 @@ async function saveResponse(client2, response, outputPath, limit = Infinity, { c
         offset += result.bytesWritten;
       }
     }
-    if (!allowEmpty && !size || contentLength !== null && size !== Number(contentLength) || expectedBytes2 !== void 0 && size !== expectedBytes2) throw invalidResponse("The download was incomplete.");
+    if (!allowEmpty && !size || contentLength !== null && size !== Number(contentLength) || expectedBytes !== void 0 && size !== expectedBytes) throw invalidResponse("The download was incomplete.");
     await file.sync();
     await file.close();
     file = void 0;
@@ -4256,8 +4256,6 @@ for (const [kind, members] of [["user", ["role", "permission-set"]], ["role", ["
   }
 }
 var host2 = ["server", "scope", "profile", "timeout", ...credentials];
-command("host settings get", [...host2, "setting"], [slot("setting")], "Read agent-definition-limit from the Host settings API, showing bytes and MiB.");
-command("host settings set", [...host2, "setting", "mib", "bytes", "expected-bytes"], [slot("setting")], "Set agent-definition-limit with --mib or --bytes and an observed old value; no automatic write retry.");
 command("user settings get", [...api2, "setting"], [slot("setting")], "Read your Workforce send-shortcut or unread-badge preference.");
 command("user settings set", [...api2, "setting", "value"], [slot("setting")], "Set your Workforce send-shortcut (enter|ctrlEnter) or unread-badge (true|false).");
 command("host tenant member ensure", [...host2, "tenant-id", "user-id"], [slot("tenant-id"), slot("user-id")], "Reuse the same tenant member unchanged, or add an existing global user as an ordinary member. Does not create a global identity.");
@@ -4416,13 +4414,6 @@ function validateCommand(args) {
     throw new CliError("--scope must be tenant or host; Host connections cannot select --tenant.", { code: "invalid_arguments" });
   if (spec.path === "auth login" && args.value("scope") === "host" && !args.has("native"))
     throw new CliError("Host login requires --native.", { code: "invalid_arguments" });
-  if (spec.path.startsWith("host settings ")) {
-    if (args.required("setting") !== "agent-definition-limit") throw new CliError("Supported Host setting: agent-definition-limit.", { code: "invalid_arguments" });
-    if (spec.path.endsWith(" set")) {
-      exclusive(["mib", "bytes"]);
-      if (!args.has("mib") && !args.has("bytes")) throw new CliError("--mib or --bytes is required.", { code: "invalid_arguments" });
-    }
-  }
   if (spec.path.startsWith("user settings ")) {
     const setting = args.required("setting");
     const choices = { "send-shortcut": ["enter", "ctrlEnter"], "unread-badge": ["true", "false"] };
@@ -5361,19 +5352,11 @@ async function definition(ctx, id) {
 }
 async function definitionLimits(ctx) {
   const value = await runtimeValue(ctx, "GET", definitions + "/limits");
-  if (!isObject(value) || !Number.isSafeInteger(value.maxDefinitionBytes) || value.maxDefinitionBytes <= 0)
+  if (!isObject(value) || !(value.maxDefinitionBytes === null || Number.isSafeInteger(value.maxDefinitionBytes) && value.maxDefinitionBytes > 0))
     throw new CliError("Runtime returned an invalid definition write limit.", { code: "invalid_response" });
   return value;
 }
-function checkDefinitionSize(body, limits) {
-  const bytes = Buffer.byteLength(JSON.stringify(body), "utf8");
-  if (bytes > limits.maxDefinitionBytes) throw new CliError("The complete UTF-8 save request exceeds the current Runtime limit.", {
-    code: "definition_too_large",
-    details: { requestBytes: bytes, maxDefinitionBytes: limits.maxDefinitionBytes }
-  });
-}
-async function saveDefinition(ctx, id, body, limits, statusOnly = false) {
-  if (!statusOnly) checkDefinitionSize(body, limits);
+async function saveDefinition(ctx, id, body, statusOnly = false) {
   return writeOnce(
     async () => {
       const result = await runtimeValue(ctx, "POST", definitions + (statusOnly ? "/enabled" : ""), body, {}, { limit: Infinity });
@@ -5391,8 +5374,8 @@ function selectDirectory(args, value) {
     throw new CliError("Choose the directory once, using options or JSON.", { code: "invalid_arguments" });
   value.workspaceChange = { operation: "direct", path: args.value("workspace-path"), agentPreset: args.required("preset") };
 }
-async function definitionInput(ctx, limits, required = true) {
-  const value = await jsonInput(ctx.args, "values", true, { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+async function definitionInput(ctx, required = true) {
+  const value = await jsonInput(ctx.args, "values", true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
   if (value === void 0 && !required) return {};
   if (!isObject(value)) throw new CliError("Supply a JSON object using --values-json, --values or --file.", { code: "invalid_arguments" });
   validateDefinitionInput(value);
@@ -5434,8 +5417,7 @@ async function importDefinition(ctx) {
   const { args, reporter } = ctx;
   const id = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") ? revision(args) : null;
-  const limits = await definitionLimits(ctx);
-  const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: limits.maxDefinitionBytes, stdin: ctx.stdin, utf8: true });
+  const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: Infinity, stdin: ctx.stdin, utf8: true });
   let file;
   try {
     file = readDefinitionFile(value);
@@ -5453,7 +5435,7 @@ async function importDefinition(ctx) {
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);
   reporter.progress(`Definition ID: ${id}`);
-  reporter.print({ ...await saveDefinition(ctx, id, body, limits), ...warnings.length ? { warnings } : {} });
+  reporter.print({ ...await saveDefinition(ctx, id, body), ...warnings.length ? { warnings } : {} });
   return 0;
 }
 async function definitionCommands(ctx) {
@@ -5481,8 +5463,7 @@ async function definitionCommands(ctx) {
   }
   if (action === "import") return importDefinition(ctx);
   if (action === "create") {
-    const limits2 = await definitionLimits(ctx);
-    const value = await definitionInput(ctx, limits2, false);
+    const value = await definitionInput(ctx, false);
     selectDirectory(args, value);
     if (value.enabled !== void 0 && value.enabled !== false) throw new CliError("A new definition must be disabled.", { code: "invalid_arguments" });
     if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
@@ -5492,7 +5473,7 @@ async function definitionCommands(ctx) {
     workspaceChange(value);
     const body2 = newDefinition(id2, { ...value, name });
     reporter.progress(`Definition ID: ${id2}`);
-    reporter.print(await saveDefinition(ctx, id2, body2, limits2));
+    reporter.print(await saveDefinition(ctx, id2, body2));
     return 0;
   }
   const id = identifier(args.required("agent-id"), "Agent ID");
@@ -5512,18 +5493,17 @@ async function definitionCommands(ctx) {
   }
   const expected = revision(args);
   if (action !== "update") {
-    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === "enable" }, void 0, true));
+    reporter.print(await saveDefinition(ctx, id, { agentId: id, revision: expected, enabled: action === "enable" }, true));
     return 0;
   }
-  const limits = await definitionLimits(ctx);
-  const patch = await definitionInput(ctx, limits, !args.has("workspace-path"));
+  const patch = await definitionInput(ctx, !args.has("workspace-path"));
   selectDirectory(args, patch);
   if (!Object.keys(patch).length) throw new CliError("The update has no fields.", { code: "invalid_arguments" });
   if ((Object.hasOwn(patch, "workspaceId") || Object.hasOwn(patch, "agentPreset")) && !patch.workspaceChange)
     throw new CliError("Changing workspace or preset requires an explicit workspaceChange.", { code: "invalid_arguments" });
   workspaceChange(patch);
   const body = updatedDefinition(await definition(ctx, id), patch, expected);
-  reporter.print(await saveDefinition(ctx, id, body, limits));
+  reporter.print(await saveDefinition(ctx, id, body));
   return 0;
 }
 async function agentCommands(ctx) {
@@ -5606,31 +5586,11 @@ async function agentCommands(ctx) {
 }
 
 // src/xrain-cli/settings.mjs
-var MIB = 1024 * 1024;
-var hostPath = "/api/host/v1/settings/agent-definition-limit";
-var validBytes = (value) => Number.isSafeInteger(value) && value > 0;
-function settingBytes(args) {
-  const raw = args.value("mib") ?? args.value("bytes");
-  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw ?? ""))
-    throw new CliError("Supply a positive numeric size.", { code: "invalid_arguments" });
-  const value = args.has("mib") ? Math.round(Number(raw) * MIB) : Number(raw);
-  if (!validBytes(value) || Number(raw) <= 0)
-    throw new CliError("Size must convert to a positive safe integer number of bytes.", { code: "invalid_arguments" });
-  return value;
-}
-function expectedBytes(args) {
-  if (!args.has("expected-bytes")) return void 0;
-  const raw = args.value("expected-bytes");
-  if (raw === "null") return null;
-  if (!/^\d+$/.test(raw) || !validBytes(Number(raw)))
-    throw new CliError("--expected-bytes must be a positive safe integer or null.", { code: "invalid_arguments" });
-  return Number(raw);
-}
-function connection(ctx, personal2 = false) {
-  const profile = ctx.store.resolve(ctx.args, personal2);
+function connection(ctx) {
+  const profile = ctx.store.resolve(ctx.args, true);
   const { token, source } = ctx.store.credential(ctx.args, profile, { createSecrets: false });
   if (!token) throw new CliError("A matching credential is required.", { code: "authentication_required", hint: "Use auth login and --auth session for this profile." });
-  const target2 = { server: profile.server, profile: profile.name, scope: personal2 ? "user" : "host", ...personal2 ? { tenantId: profile.tenant } : {} };
+  const target2 = { server: profile.server, profile: profile.name, scope: "user", tenantId: profile.tenant };
   return { target: target2, async call(method, path, json) {
     const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
     if (!response.ok) throw responseError(response, "", { ...target2, credentialSource: source });
@@ -5641,67 +5601,13 @@ function connection(ctx, personal2 = false) {
     }
   } };
 }
-function limitValue(value) {
-  if (!isObject(value) || !(value.maxDefinitionBytes === null || validBytes(value.maxDefinitionBytes)) || !validBytes(value.defaultMaxDefinitionBytes))
-    throw new CliError("Settings API returned an invalid definition limit.", { code: "invalid_response" });
-  return {
-    maxDefinitionBytes: value.maxDefinitionBytes,
-    maxDefinitionMiB: value.maxDefinitionBytes === null ? null : value.maxDefinitionBytes / MIB,
-    defaultMaxDefinitionBytes: value.defaultMaxDefinitionBytes,
-    defaultMaxDefinitionMiB: value.defaultMaxDefinitionBytes / MIB
-  };
-}
-async function hostSettingsCommands(ctx) {
-  const setting = ctx.args.required("setting"), settingValue = ctx.args.command(2) === "set" ? settingBytes(ctx.args) : void 0;
-  const expected = expectedBytes(ctx.args);
-  const { target: target2, call } = connection(ctx);
-  const read = async () => limitValue(await call("GET", hostPath));
-  const current = await read();
-  if (settingValue === void 0) {
-    ctx.reporter.print({ ...target2, setting, ...current });
-    return 0;
-  }
-  if (expected !== void 0 && expected !== current.maxDefinitionBytes)
-    throw new CliError("The observed Host setting changed. Review it before saving.", { code: "conflict", details: {
-      ...target2,
-      setting,
-      expectedMaxDefinitionBytes: expected,
-      currentMaxDefinitionBytes: current.maxDefinitionBytes,
-      requestedMaxDefinitionBytes: settingValue
-    } });
-  if (current.maxDefinitionBytes === settingValue) {
-    ctx.reporter.print({ ...target2, setting, changed: false, ...current });
-    return 0;
-  }
-  const body = { maxDefinitionBytes: settingValue, expectedMaxDefinitionBytes: expected === void 0 ? current.maxDefinitionBytes : expected };
-  try {
-    const result = await writeOnce(async () => {
-      const saved = limitValue(await call("PUT", hostPath, body));
-      if (saved.maxDefinitionBytes !== settingValue) throw new CliError("Settings API returned a mismatched save receipt.", { code: "invalid_response" });
-      return saved;
-    }, "The write outcome is unknown. Read the same Host setting; do not repeat the PUT automatically.", { ...target2, setting, request: body });
-    ctx.reporter.print({ ...target2, setting, changed: true, previousMaxDefinitionBytes: current.maxDefinitionBytes, ...result });
-  } catch (error) {
-    if (error.code === "conflict") error.details = { ...error.details, ...target2, setting, request: body };
-    if (error.code === "outcome_unknown") {
-      try {
-        const observed = await read();
-        error.details.readBack = { ...observed, matchesRequested: observed.maxDefinitionBytes === settingValue, provesThisWrite: false };
-      } catch (readError) {
-        error.details.readBack = { status: "unavailable", code: readError.code, httpStatus: readError.httpStatus };
-      }
-    }
-    throw error;
-  }
-  return 0;
-}
 var preferences = {
   "send-shortcut": { key: "sendShortcut", values: ["enter", "ctrlEnter"], defaultValue: "enter" },
   "unread-badge": { key: "showUnreadBadge", values: ["true", "false"], defaultValue: "true" }
 };
 async function userSettingsCommands(ctx) {
   const setting = ctx.args.required("setting"), preference = preferences[setting];
-  const { target: target2, call } = connection(ctx, true), settingApp = "workforce";
+  const { target: target2, call } = connection(ctx), settingApp = "workforce";
   const path = `/api/tenant/v1/settings/${settingApp}/${preference.key}`;
   const validate = (value) => {
     if (!isObject(value) || value.settingApp !== settingApp || value.key !== preference.key || !preference.values.includes(value.value))
@@ -6129,7 +6035,7 @@ async function dispatch(ctx) {
     case "security":
       return securityCommands(ctx);
     case "host":
-      return args.command(1) === "settings" ? hostSettingsCommands(ctx) : hostCommands(ctx);
+      return hostCommands(ctx);
     case "user":
       return userSettingsCommands(ctx);
     case "data":

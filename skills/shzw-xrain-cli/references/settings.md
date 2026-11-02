@@ -2,31 +2,15 @@
 
 先按[配置与认证](configuration.md)选择实际平台、作用域和身份。以下命令省略共同的 `--profile <连接> --auth session --json`；CLI 不使用数据库、环境文件或个人偏好键来代替平台设置接口。
 
-## Host 平台上限
+## 定义保存能力
 
-Host 登录必须显式选择作用域。将已有账号的密码原文通过受保护来源传入 stdin，不在命令参数中填写：
-
-```text
-auth login --profile <Host连接> --server <平台地址> --scope host --native --user <已有Host账号> --password-stdin
-auth whoami --profile <Host连接> --auth session --json
-host settings get agent-definition-limit
-host settings set agent-definition-limit --mib 16
-host settings set agent-definition-limit --bytes 16777216 --expected-bytes <此前读到的字节数或null>
-```
-
-`--mib` 和 `--bytes` 互斥。1 MiB 为 1,048,576 字节，MiB 按页面相同规则四舍五入到整数字节；结果必须为正安全整数。读取结果分别保留平台配置的 `maxDefinitionBytes`、其 MiB 值，以及服务端的默认值。平台配置为 null 时，不推断某个 Runtime 的实际限额。
-
-设置默认先读当前值，将它作为 `expectedMaxDefinitionBytes` 随 PUT 发送。脚本可显式提供此前观察值；`null` 表示平台尚未设置。当前值相同则不写入。旧值冲突保留原请求，不更新比较基线后重试。租户管理员不因此获得 Host 权限；401、403、校验失败与服务故障按原错误报告。
-
-响应丢失、无效或超限时，命令返回 `outcome_unknown`，只回读同一设置一次。`readBack.matchesRequested` 为 true 只说明当前值满足要求；`provesThisWrite` 仍为 false。命令不重复 PUT。正常成功由服务端事务回执确认，不要求预览。
-
-运行中的租户 Runtime 使用自己的连接读取实际值：
+智能体定义的异步导入和保存不再使用固定字节准入，CLI 已移除 host settings get/set agent-definition-limit。不要通过个人偏好或通用设置键恢复该门槛。
 
 ```text
 agent definition limits --profile <租户连接> --auth session --json
 ```
 
-结果包含实际 `maxDefinitionBytes` 与轻量启停能力。没有平台覆盖时，Runtime 可以采用自身启动配置；Host 命令不修改该配置，也不依赖 Runtime 地址。CLI 不提供删除上限或恢复默认命令。
+此命令只在明确查询时读取 Runtime 声明。新版返回 maxDefinitionBytes: null，表示不设定义保存字节门槛，并保留轻量启停能力；旧 Runtime 可能仍返回正数字。创建、更新和导入不依赖该查询。旧服务的 413、权限失败或不可用错误保持原样，不自动重发。完整内容能保存不证明所选模型能消费全部内容。
 
 ## 个人偏好
 
