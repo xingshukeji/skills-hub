@@ -4633,7 +4633,7 @@ function validTool(v) {
   return object(v) && text(v.name, 160) && text(v.description, Infinity) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters);
 }
 function validQuestion(v) {
-  return text(v, 160) || object(v) && text(v.text, 160) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
+  return text(v, Infinity) || object(v) && text(v.text, Infinity) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
 }
 function validAction(v) {
   return object(v) && text(v.businessSourceId, 160) && text(v.objectType, 160) && ["read", "create", "edit"].includes(String(v.action)) && optionalStrings(v.createFields) && optionalObject(v.when) && (!v.when || ["conversation", "object"].every((key) => object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));

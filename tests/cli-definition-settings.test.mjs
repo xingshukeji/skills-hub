@@ -28,6 +28,22 @@ test('version 1 tools retain long descriptions, wide schemas and literal referen
   assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, assistantTools: [{ ...tool, description: null }] } }));
 });
 
+test('version 1 questions and create fields retain complete text, ordering and conditions', () => {
+  const long = '请核对以下事项：' + '当前资料与需求。'.repeat(80) + '保留完整末尾。';
+  const suggestedQuestions = [long, { text: long + '继续核对。', when: { conversation: 'started', object: 'linked', businessSourceId: 'xrain', objectType: 'customer' } }];
+  const businessActions = [{ businessSourceId: 'xrain', objectType: 'customer', action: 'create', createFields: Array.from({ length: 513 }, (_, index) => `Field${index}`) }];
+  const file = exportDefinition({ ...empty, suggestedQuestions, businessActions }, []);
+  const read = readDefinitionFile(JSON.parse(JSON.stringify(file)));
+  const { changes, warnings } = definitionFileChanges(read, empty, []);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(changes.suggestedQuestions, suggestedQuestions);
+  assert.deepEqual(changes.businessActions, businessActions);
+  assert.deepEqual(exportDefinition({ ...empty, ...changes }, []), file);
+  assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, suggestedQuestions: [{ text: long, when: { objectType: 'o'.repeat(161) } }] } }));
+  assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, suggestedQuestions: [long + '\0'] } }));
+  assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, suggestedQuestions: [{ text: null }] } }));
+});
+
 async function definitions(t, options = {}) {
   const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true, lose: false, ...options };
   const server = await mockServer(t, (hit, res) => {
