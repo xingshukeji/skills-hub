@@ -1,5 +1,5 @@
 import { openAsBlob } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { CliError, isObject, readJsonInput, readLimited, registerSecrets, segment } from './core.mjs';
 import { writeOnce } from './http.mjs';
@@ -43,9 +43,11 @@ export async function workforceCommands(ctx) {
     if (args.has('file')) {
       if (Object.keys(body).some(key => !['providerId', 'language'].includes(key))) throw new CliError('With --file, speech JSON may select providerId and language.', { code: 'invalid_arguments' });
       const catalog = value(await send('GET', '/api/cli/v1/workbench/speech'));
-      if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 1)
+      if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError('The speech service returned invalid input capabilities.', { code: 'invalid_response' });
-      body = { ...catalog.selection, ...body, audioBase64: readLimited(resolve(args.required('file')), catalog.maxAudioBytes, 'Audio').toString('base64') };
+      const file = resolve(args.required('file'));
+      const audio = catalog.maxAudioBytes === 0 ? await readFile(file) : readLimited(file, catalog.maxAudioBytes, 'Audio');
+      body = { ...catalog.selection, ...body, audioBase64: audio.toString('base64') };
     }
   }
   const details = { workforce: host, server: profile.server, tenantId: profile.tenant, userId: identity.userId,
@@ -74,7 +76,9 @@ export async function workforceCommands(ctx) {
     upload = { body: blob, headers: { 'X-File-Name': encodeURIComponent(basename(path)), 'Content-Type': 'application/octet-stream', 'Content-Length': String(blob.size) } };
   }
   const call = async () => {
-    const result = value(await send(operation.method, route, upload ?? { json: body }));
+    const options = upload ?? { json: body };
+    if (operation.audio) options.timeout = args.has('timeout') ? args.timeout() : null;
+    const result = value(await send(operation.method, route, options));
     if (command && !commandOutcome(result)) throw new CliError('Workforce returned an invalid command receipt.', { code: 'invalid_response' });
     if (operation.feedback && result?.saved !== true) throw new CliError('Workforce returned an invalid feedback receipt.', { code: 'invalid_response' });
     if (operation.audio && typeof result?.text !== 'string') throw new CliError('The speech service returned an invalid transcription.', { code: 'invalid_response' });

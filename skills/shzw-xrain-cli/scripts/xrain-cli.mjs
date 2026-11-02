@@ -1500,7 +1500,7 @@ import { spawn } from "node:child_process";
 import { join as join3 } from "node:path";
 import { setTimeout as delay2 } from "node:timers/promises";
 
-// node_modules/jose/dist/webapi/lib/buffer_utils.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var strictDecoder = new TextDecoder("utf-8", { fatal: true });
@@ -1542,7 +1542,7 @@ function decodeBase64(encoded, url = false) {
   return bytes;
 }
 
-// node_modules/jose/dist/webapi/util/errors.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/util/errors.js
 var JOSEError = class extends Error {
   static code = "ERR_JOSE_GENERIC";
   code = "ERR_JOSE_GENERIC";
@@ -1614,7 +1614,7 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
   }
 };
 
-// node_modules/jose/dist/webapi/util/base64url.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/util/base64url.js
 var invalid2 = "The input to be decoded is not correctly encoded.";
 function decode(input3) {
   try {
@@ -1624,7 +1624,7 @@ function decode(input3) {
   }
 }
 
-// node_modules/jose/dist/webapi/lib/validate.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/validate.js
 function isObject2(input3) {
   if (typeof input3 != "object" || input3 === null || Object.prototype.toString.call(input3) !== "[object Object]")
     return false;
@@ -1704,7 +1704,7 @@ function validateB64(protectedHeader, extensions) {
   return true;
 }
 
-// node_modules/jose/dist/webapi/lib/key.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key.js
 var tag = (key) => key[Symbol.toStringTag];
 var jwkMatchesOp = (entry, key, usage) => {
   const { alg } = entry;
@@ -1835,7 +1835,7 @@ async function rawKey(key, expected, usage, extractable = false) {
   return key instanceof Uint8Array && (key = await crypto.subtle.importKey("raw", key, expected, extractable, [usage])), checkCryptoKey(key, expected, usage), key;
 }
 
-// node_modules/jose/dist/webapi/lib/key_descriptor.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key_descriptor.js
 function table(entries) {
   const out = { __proto__: null };
   for (const alg in entries)
@@ -1843,7 +1843,7 @@ function table(entries) {
   return out;
 }
 
-// node_modules/jose/dist/webapi/lib/jws_algorithms.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_algorithms.js
 var sig = [["verify"], ["sign"]];
 function hmac(bits) {
   const subtle = { name: "HMAC", hash: `SHA-${bits}` };
@@ -1913,7 +1913,7 @@ function jwsAlgorithm(alg) {
   return entry;
 }
 
-// node_modules/jose/dist/webapi/lib/jws_verify.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_verify.js
 function prepareVerify(options) {
   return [options && validateAlgorithms("algorithms", options.algorithms), options?.crit];
 }
@@ -1965,7 +1965,7 @@ async function verifyCompact(jws, shared, key) {
   return verifySignature({ payload, protected: protectedHeader, signature }, shared, key, encodeCompactUnencodedPayload);
 }
 
-// node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jwt_claims_set.js
 var epoch = (date) => Math.floor(date.getTime() / 1e3);
 var multipliers = {
   s: 1,
@@ -2051,7 +2051,7 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   return payload;
 }
 
-// node_modules/jose/dist/webapi/jwt/verify.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
   const [verified, b64] = await verifyCompact(jwt, prepareVerify(options), key);
   if (!b64)
@@ -2060,7 +2060,7 @@ async function jwtVerify(jwt, key, options) {
   return { ...verified, payload };
 }
 
-// node_modules/jose/dist/webapi/jwks/local.js
+// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/jwks/local.js
 function isUsableJWK(jwk, entry, alg, kid) {
   const { kty, key_ops: keyOps, ext, kid: jwkKid, alg: jwkAlg, use, crv } = jwk;
   return (ext === void 0 || typeof ext == "boolean") && (keyOps === void 0 || Array.isArray(keyOps) && keyOps.every((operation, index) => typeof operation == "string" && keyOps.indexOf(operation) === index) && keyOps.includes("verify")) && entry.kty.includes(kty) && (kid === void 0 || typeof kid == "string" && kid === jwkKid) && (jwkAlg === void 0 ? kty !== "AKP" : alg === jwkAlg) && (use === void 0 || use === "sig") && (!entry.crv || crv === entry.crv);
@@ -5810,7 +5810,7 @@ async function marketCommands(ctx) {
 
 // src/xrain-cli/workforce.mjs
 import { openAsBlob as openAsBlob4 } from "node:fs";
-import { stat as stat4 } from "node:fs/promises";
+import { readFile as readFile2, stat as stat4 } from "node:fs/promises";
 import { basename as basename3, resolve as resolve9 } from "node:path";
 
 // src/xrain-cli/member-target.mjs
@@ -5883,9 +5883,11 @@ async function workforceCommands(ctx) {
     if (args.has("file")) {
       if (Object.keys(body).some((key) => !["providerId", "language"].includes(key))) throw new CliError("With --file, speech JSON may select providerId and language.", { code: "invalid_arguments" });
       const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
-      if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 1)
+      if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
-      body = { ...catalog.selection, ...body, audioBase64: readLimited(resolve9(args.required("file")), catalog.maxAudioBytes, "Audio").toString("base64") };
+      const file = resolve9(args.required("file"));
+      const audio = catalog.maxAudioBytes === 0 ? await readFile2(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
+      body = { ...catalog.selection, ...body, audioBase64: audio.toString("base64") };
     }
   }
   const details = {
@@ -5927,7 +5929,9 @@ async function workforceCommands(ctx) {
     upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
   }
   const call = async () => {
-    const result2 = memberValue(await send2(operation.method, route, upload ?? { json: body }));
+    const options = upload ?? { json: body };
+    if (operation.audio) options.timeout = args.has("timeout") ? args.timeout() : null;
+    const result2 = memberValue(await send2(operation.method, route, options));
     if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
     if (operation.feedback && result2?.saved !== true) throw new CliError("Workforce returned an invalid feedback receipt.", { code: "invalid_response" });
     if (operation.audio && typeof result2?.text !== "string") throw new CliError("The speech service returned an invalid transcription.", { code: "invalid_response" });

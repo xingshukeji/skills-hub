@@ -107,7 +107,7 @@ test('feedback uses the original session and answer and preserves explicit rejec
 
 test('local speech audio retains bytes and uses server input capabilities and explicit native selection', async t => {
   const f = fixture(t), platform = await mockServer(t, (_hit,res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
-  const bytes = Buffer.from('RIFF synthetic audio'), audio = join(f.directory, '本地.wav'); writeFileSync(audio, bytes);
+  let bytes = Buffer.from('RIFF synthetic audio'); const audio = join(f.directory, '本地.wav'); writeFileSync(audio, bytes);
   let maximum = 1000, unavailable = false;
   const host = await mockServer(t, (hit,res) => {
     if (hit.method === 'GET') return respond(res, { selection: { providerId: 'native-model', language: 'auto' }, maxAudioBytes: maximum });
@@ -119,6 +119,27 @@ test('local speech audio retains bytes and uses server input capabilities and ex
   const args = ['workforce', 'speech', 'transcribe', '--workforce', host.url, '--file', audio, '--request-json', input(f, 'selection', { language: 'zh' }), '--json'];
   const result = await f.run(args); assert.equal(result.code, 0, result.stdout); assert.equal(output(result).data.text, '识别文字');
   maximum = 1; assert.equal((await f.run(args)).code, 1); assert.equal(host.hits.length, 3, 'server-owned input limit prevents a transcription call');
-  maximum = 1000; unavailable = true;
-  const rejected = output(await f.run(args)); assert.equal(rejected.error.serverCode, 'speech.not_ready'); assert.equal(host.hits.length, 5);
+  maximum = 0; bytes = Buffer.alloc(5_760_044, 42); writeFileSync(audio, bytes);
+  const unlimited = await f.run(args); assert.equal(unlimited.code, 0, unlimited.stdout);
+  assert.equal(output(unlimited).data.text, '识别文字'); assert.equal(host.hits.length, 5);
+  maximum = 0; unavailable = true;
+  const rejected = output(await f.run(args)); assert.equal(rejected.error.serverCode, 'speech.not_ready'); assert.equal(host.hits.length, 7);
+});
+
+test('speech waits beyond the ordinary request deadline and still observes an explicit caller timeout', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  const ordinary = [], timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, 'timeout', ms => {
+    if (ms !== 100000) return timeout(ms);
+    const controller = new AbortController(); ordinary.push(controller); return controller.signal;
+  });
+  const host = await mockServer(t, async (hit, res) => {
+    assert.equal(hit.url, '/api/cli/v1/workbench/speech/transcribe');
+    ordinary.forEach(controller => controller.abort());
+    await new Promise(resolve => setTimeout(resolve, 150)); respond(res, { text: '完整识别结果' });
+  });
+  login(f, platform.url);
+  const args = ['workforce', 'speech', 'transcribe', '--workforce', host.url, '--request-json', input(f, 'speech', { audioBase64: 'synthetic-native-request' }), '--json'];
+  const result = await f.run(args); assert.equal(result.code, 0, result.stdout); assert.equal(output(result).data.text, '完整识别结果');
+  assert.equal((await f.run([...args, '--timeout', '0.05'])).code, 1);
 });
