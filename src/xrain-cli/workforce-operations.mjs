@@ -68,7 +68,7 @@ export const workforceOperations = [
   ...['list', 'options', 'bootstrap', 'agents', 'models'].map(action => define('schedule ' + action, 'GET', '/task-schedules' + (action === 'list' ? '' : '/' + action))),
   define('schedule create', 'POST', '/task-schedules', { input: 'object' }), define('schedule update', 'PUT', '/task-schedules/{schedule-id}', { input: 'object' }),
   ...['enable', 'pause'].map(action => define('schedule ' + action, 'POST', `/task-schedules/{schedule-id}/${action}`)),
-  define('schedule history', 'GET', '/task-schedules/{schedule-id}/history', { query: ['paged', 'before'] }),
+  define('schedule history', 'GET', '/task-schedules/{schedule-id}/history', { query: ['before'] }),
   define('schedule run show', 'GET', '/task-schedules/{schedule-id}/runs/{run-id}'),
   ...['conversation', 'pending-actions'].map(action => define('schedule run ' + action, 'GET', `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
   ...['respond', 'cancel-action'].map(action => define('schedule run ' + action, 'POST', `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: 'object' })),

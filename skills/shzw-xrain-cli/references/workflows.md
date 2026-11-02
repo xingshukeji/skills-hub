@@ -26,9 +26,11 @@ function update <id> --request-json <函数.json>
 
 `routine` 支持 list、show、create、definition、schedule、owner、enable、pause、run、delete、versions、active-runs、history、schedule-preview、execution-user get/set。除列表、预览和 execution-user 外，先带原 id。create/definition/schedule/owner/execution-user set 带请求文件。
 
-创建字段为 name、orchestrationId、inputJson、ownerId、scheduleType、executeTime、timeZoneId。definition 只改 name、orchestrationId、inputJson；owner 为 `{"ownerId":"<已有成员>"}`；execution-user set 为 `{"userId":"<已有执行成员>"}`。inputJson 是 JSON 字符串；时间和时区按平台解析，先用 schedule-preview 检查。CLI 不代选执行成员。Workforce 计划任务由宿主维护；旧 Workforce Routine 的编辑、启用和运行仍由平台拒绝。
+创建字段为 name、orchestrationId、inputJson、ownerId、scheduleType、executeTime、timeZoneId。definition 只改 name、orchestrationId、inputJson；owner 为 `{"ownerId":"<已有成员>"}`；execution-user set 为 `{"userId":"<已有执行成员>"}`。inputJson 是 JSON 字符串；时间和时区按平台解析，先用 schedule-preview 检查。CLI 不代选执行成员。Workforce 计划任务由宿主维护，平台 Routine 用于普通业务自动化。
 
 routine list 默认使用 page=1、pageSize=20。通过 --page、--page-size 或 --query-json 指定其他分页。
+
+`active-runs` 的 `executionStartedAt` 为空表示排队，非空表示已开始。历史中的 `automation_timeout` 表示执行超时且外部结果可能未知，应先核对原业务结果，不自动重试本次。
 
 ## HTTP 集成
 

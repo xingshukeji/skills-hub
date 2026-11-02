@@ -157,6 +157,6 @@ transcribe 的 --file 读取原始 16 kHz 单声道 PCM WAV；可用选择.json 
 
 `workforce schedule` 支持 list/options/bootstrap/agents/models、create/update、enable/pause、history；update、enable、pause、history 带 schedule-id。create/update 的请求为 name、description、ownerId、assigneeId、agentId、scheduleType、executeTime、timeZoneId，可带 provider、model、reasoningEffort；scheduleType 为 Daily 或 Workday，executeTime 为 HH:mm，timeZoneId 使用平台 IANA 选项。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。
 
-启用时宿主复核并保存同一成员的原凭据，不改执行身份。history 保存原 runId；`workforce schedule run conversation/pending-actions/respond/cancel-action/cancel <scheduleId> <runId>` 沿原运行回读或响应，respond/cancel-action 带 actionRef 和 response。旧平台安排可读历史和 pause，编辑、enable 不会恢复旧执行链。周期安排和员工一次性检查继续由宿主调度与恢复，CLI 不另起调度进程。
+启用时宿主复核并保存同一成员的原凭据，不改执行身份。history 保存原 runId；`workforce schedule run conversation/pending-actions/respond/cancel-action/cancel <scheduleId> <runId>` 沿原运行回读或响应，respond/cancel-action 带 actionRef 和 response。周期安排和员工一次性检查由宿主调度与恢复，CLI 不另起调度进程。
 
-`workforce schedule run show <scheduleId> <runId>` 读取单次原运行；读取到失败运行仍是成功的查询。读取当前宿主保存的新安排历史时，history 可用 `--query-json` 提交 `{"paged":true}`，再把原 nextCursor 放入 `{"paged":true,"before":"<原游标>"}` 读取较早历史。CLI 保留原分页和运行结果，不触发执行。
+`workforce schedule run show <scheduleId> <runId>` 读取单次原运行；读取到失败运行仍是成功的查询。history 默认返回分页结果，把原 nextCursor 放入 `--query-json` 的 `{"before":"<原游标>"}` 可读取较早历史。CLI 保留原分页和运行结果，不触发执行。

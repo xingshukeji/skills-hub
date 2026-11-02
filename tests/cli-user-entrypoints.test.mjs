@@ -138,9 +138,9 @@ test('Workforce assistant discovery, subscription cancellation and older schedul
     ['GET', '/api/cli/v1/workbench/agents'], ['GET', '/api/cli/v1/workbench/agent-catalog'],
     ['POST', '/api/cli/v1/workbench/agents/chosen/subscription'], ['DELETE', '/api/cli/v1/workbench/agents/chosen/subscription'],
   ]);
-  const history = await run(['schedule', 'history', 'original', '--query-json', jsonFile(f, { paged: true, before: 'saved-cursor' })]);
+  const history = await run(['schedule', 'history', 'original', '--query-json', jsonFile(f, { before: 'saved-cursor' })]);
   assert.equal(output(history).data.nextCursor, 'original-cursor');
-  assert.equal(host.hits[4].url, '/api/cli/v1/task-schedules/original/history?paged=true&before=saved-cursor');
+  assert.equal(host.hits[4].url, '/api/cli/v1/task-schedules/original/history?before=saved-cursor');
   const result = await run(['schedule', 'run', 'show', 'original', 'original-run']);
   assert.equal(result.code, 0, 'reading a failed run succeeds as a query'); assert.deepEqual(output(result).data, failedRun);
   denied = true;

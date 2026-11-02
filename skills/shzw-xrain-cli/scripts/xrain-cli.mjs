@@ -4041,7 +4041,7 @@ var workforceOperations = [
   define6("schedule create", "POST", "/task-schedules", { input: "object" }),
   define6("schedule update", "PUT", "/task-schedules/{schedule-id}", { input: "object" }),
   ...["enable", "pause"].map((action) => define6("schedule " + action, "POST", `/task-schedules/{schedule-id}/${action}`)),
-  define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["paged", "before"] }),
+  define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["before"] }),
   define6("schedule run show", "GET", "/task-schedules/{schedule-id}/runs/{run-id}"),
   ...["conversation", "pending-actions"].map((action) => define6("schedule run " + action, "GET", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
   ...["respond", "cancel-action"].map((action) => define6("schedule run " + action, "POST", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: "object" })),
