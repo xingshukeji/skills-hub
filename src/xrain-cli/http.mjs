@@ -6,7 +6,7 @@ export function requestError(error) {
   return new CliError('HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.', { code: 'network_error' });
 }
 
-async function bufferResponse(response, limit) {
+async function bufferResponse(response, limit = Infinity) {
   if (Number(response.headers.get('content-length')) > limit) { await response.body?.cancel(); throw new CliError('HTTP response exceeds the size limit.', { code: 'response_too_large' }); }
   const chunks = []; let size = 0;
   if (response.body) for await (const chunk of response.body) {
@@ -21,11 +21,11 @@ async function bufferResponse(response, limit) {
 
 export async function requireStreamSuccess(response) {
   if (response.ok) return response;
-  try { throw responseError(await bufferResponse(response, 32 * 1024 * 1024)); }
+  try { throw responseError(await bufferResponse(response)); }
   catch (error) { throw requestError(error); }
 }
 
-export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
+export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = Infinity, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = timeout === null ? undefined : AbortSignal.timeout(timeout);
   const options = { method, redirect: 'error', signal: signal && requestTimeout ? AbortSignal.any([signal, requestTimeout]) : signal ?? requestTimeout,

@@ -114,7 +114,7 @@ export function readLimited(path, limit, label = 'File') {
   return data;
 }
 
-export async function readJsonInput(path, label = 'JSON input', { limit = 32 * 1024 * 1024, stdin = process.stdin, utf8 = false } = {}) {
+export async function readJsonInput(path, label = 'JSON input', { limit = Infinity, stdin = process.stdin, utf8 = false } = {}) {
   // Read pipes as a stream so a producer may deliver JSON gradually. A terminal
   // is rejected instead of unexpectedly waiting for interactive input.
   const parse = bytes => {

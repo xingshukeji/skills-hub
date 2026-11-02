@@ -131,7 +131,7 @@ function readLimited(path, limit, label = "File") {
   if (data.length > limit) throw new CliError(`${label} exceeds its size limit.`);
   return data;
 }
-async function readJsonInput(path, label = "JSON input", { limit = 32 * 1024 * 1024, stdin = process.stdin, utf8 = false } = {}) {
+async function readJsonInput(path, label = "JSON input", { limit = Infinity, stdin = process.stdin, utf8 = false } = {}) {
   const parse = (bytes) => {
     if (!utf8) return parseJson(bytes, label);
     let text2;
@@ -544,7 +544,7 @@ function requestError(error) {
   if (["TimeoutError", "AbortError"].includes(error.name)) return new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout to an appropriate number of seconds." });
   return new CliError("HTTP request failed. Check the server URL, connectivity and TLS certificate. Redirects are not followed.", { code: "network_error" });
 }
-async function bufferResponse(response, limit) {
+async function bufferResponse(response, limit = Infinity) {
   if (Number(response.headers.get("content-length")) > limit) {
     await response.body?.cancel();
     throw new CliError("HTTP response exceeds the size limit.", { code: "response_too_large" });
@@ -575,12 +575,12 @@ async function bufferResponse(response, limit) {
 async function requireStreamSuccess(response) {
   if (response.ok) return response;
   try {
-    throw responseError(await bufferResponse(response, 32 * 1024 * 1024));
+    throw responseError(await bufferResponse(response));
   } catch (error) {
     throw requestError(error);
   }
 }
-async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = 32 * 1024 * 1024, stream = false } = {}) {
+async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = Infinity, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = timeout === null ? void 0 : AbortSignal.timeout(timeout);
   const options = {
@@ -700,7 +700,6 @@ import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 var protocol = "xrain-import-jobs-v1";
 var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-var jsonLimit = 32 * 1024 * 1024;
 var idPattern = /^[0-9a-f]{32}$/i;
 var statuses = /* @__PURE__ */ new Set(["checking", "invalid", "ready", "queued", "running", "paused", "completed", "canceled", "expired"]);
 var defaultOptions = { uniqueField: "Id", filePurpose: "sourceImport", blankPolicy: "preserve" };
@@ -764,18 +763,15 @@ async function send(client2, method, path, { json, body, deadline, accept = "app
     throw abortError(client2, error, deadline);
   }
 }
-async function boundedBytes(client2, response, limit, deadline) {
+async function responseBytes(client2, response, deadline) {
   const length = response.headers.get("content-length");
-  if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {
+  if (length !== null && !/^\d+$/.test(length)) {
     await response.body?.cancel();
-    throw invalidResponse("The server response exceeds the supported size or has an invalid length.");
+    throw invalidResponse("The server response has an invalid length.");
   }
   const chunks = [];
-  let size = 0;
   try {
     if (response.body) for await (const chunk of response.body) {
-      size += chunk.length;
-      if (size > limit) throw invalidResponse("The server response exceeds the supported size.");
       chunks.push(chunk);
     }
   } catch (error) {
@@ -785,7 +781,7 @@ async function boundedBytes(client2, response, limit, deadline) {
 }
 async function requireResponse(client2, response, deadline) {
   if (response.ok) return response;
-  const bytes = await boundedBytes(client2, response, jsonLimit, deadline);
+  const bytes = await responseBytes(client2, response, deadline);
   throw responseError({
     ok: false,
     status: response.status,
@@ -796,7 +792,7 @@ async function requireResponse(client2, response, deadline) {
 async function jsonRequest(client2, method, path, options = {}) {
   const response = await send(client2, method, path, options);
   await requireResponse(client2, response, options.deadline);
-  const bytes = await boundedBytes(client2, response, jsonLimit, options.deadline);
+  const bytes = await responseBytes(client2, response, options.deadline);
   try {
     return parseJson(bytes, "Server response");
   } catch {
@@ -4996,12 +4992,9 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
   if (!response.ok) {
     try {
       const reader2 = response.body?.getReader(), chunks = [];
-      let size = 0;
       if (reader2) while (true) {
         const part = await reader2.read();
         if (part.done) break;
-        size += part.value.length;
-        if (size > 1024 * 1024) throw new CliError("Runtime error response exceeds the size limit.", { code: "invalid_response" });
         chunks.push(part.value);
       }
       const text2 = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8");
@@ -5042,7 +5035,6 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
         }
         if (part.done) throw new CliError("Conversation stream ended before the turn completed.", { code: "stream_ended" });
         buffer += decoder2.decode(part.value, { stream: true });
-        if (buffer.length > 32 * 1024 * 1024) throw new CliError("Conversation event exceeds the size limit.", { code: "invalid_response" });
       }
     },
     close() {

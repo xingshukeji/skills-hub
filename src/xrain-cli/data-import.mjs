@@ -9,7 +9,6 @@ import { responseError } from './http.mjs';
 
 const protocol = 'xrain-import-jobs-v1';
 const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const jsonLimit = 32 * 1024 * 1024;
 const idPattern = /^[0-9a-f]{32}$/i;
 const statuses = new Set(['checking', 'invalid', 'ready', 'queued', 'running', 'paused', 'completed', 'canceled', 'expired']);
 const defaultOptions = { uniqueField: 'Id', filePurpose: 'sourceImport', blankPolicy: 'preserve' };
@@ -72,17 +71,15 @@ async function send(client, method, path, { json, body, deadline, accept = 'appl
   catch (error) { throw abortError(client, error, deadline); }
 }
 
-async function boundedBytes(client, response, limit, deadline) {
+async function responseBytes(client, response, deadline) {
   const length = response.headers.get('content-length');
-  if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {
+  if (length !== null && !/^\d+$/.test(length)) {
     await response.body?.cancel();
-    throw invalidResponse('The server response exceeds the supported size or has an invalid length.');
+    throw invalidResponse('The server response has an invalid length.');
   }
-  const chunks = []; let size = 0;
+  const chunks = [];
   try {
     if (response.body) for await (const chunk of response.body) {
-      size += chunk.length;
-      if (size > limit) throw invalidResponse('The server response exceeds the supported size.');
       chunks.push(chunk);
     }
   } catch (error) { throw abortError(client, error, deadline); }
@@ -91,7 +88,7 @@ async function boundedBytes(client, response, limit, deadline) {
 
 async function requireResponse(client, response, deadline) {
   if (response.ok) return response;
-  const bytes = await boundedBytes(client, response, jsonLimit, deadline);
+  const bytes = await responseBytes(client, response, deadline);
   throw responseError({ ok: false, status: response.status, headers: response.headers,
     json: () => parseJson(bytes, 'Server response') }, '', { credentialSource: client.source, profile: client.profile.name });
 }
@@ -99,7 +96,7 @@ async function requireResponse(client, response, deadline) {
 async function jsonRequest(client, method, path, options = {}) {
   const response = await send(client, method, path, options);
   await requireResponse(client, response, options.deadline);
-  const bytes = await boundedBytes(client, response, jsonLimit, options.deadline);
+  const bytes = await responseBytes(client, response, options.deadline);
   try { return parseJson(bytes, 'Server response'); }
   catch { throw invalidResponse('The server returned invalid JSON.'); }
 }

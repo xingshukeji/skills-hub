@@ -104,7 +104,7 @@ for (const bundled of [false, true]) {
     assert.equal(server.hits.length, 4);
   });
 
-  test(`${label}: an oversized creation receipt keeps an unknown outcome and recovers the saved record`, async t => {
+  test(`${label}: a complete large creation receipt preserves the saved record without a fixed response gate`, async t => {
     const f = client(t, bundled), key = 'original-large-receipt';
     let writes = 0, saved;
     const server = await mockServer(t, (hit, res) => {
@@ -114,9 +114,9 @@ for (const bundled of [false, true]) {
     });
     f.profile(server.url, 't', 'synthetic-record-token');
     const created = await f.run(create(key));
-    assert.equal(created.code, 1);
-    assert.equal(JSON.parse(created.stdout).error.code, 'outcome_unknown');
-    assert.equal(JSON.parse(created.stdout).error.details.requestKey, key);
+    assert.equal(created.code, 0, created.stderr);
+    assert.equal(JSON.parse(created.stdout).data.recordId, saved.recordId);
+    assert.equal(JSON.parse(created.stdout).data.values.computed.length, 32 * 1024 * 1024);
     const recovered = await f.run(lookup(key));
     assert.equal(recovered.code, 0, recovered.stdout);
     assert.equal(JSON.parse(recovered.stdout).data.record.recordId, saved.recordId);

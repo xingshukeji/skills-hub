@@ -206,11 +206,9 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
   clearTimeout(connectTimeout);
   if (!response.ok) {
     try {
-      const reader = response.body?.getReader(), chunks = []; let size = 0;
+      const reader = response.body?.getReader(), chunks = [];
       if (reader) while (true) {
         const part = await reader.read(); if (part.done) break;
-        size += part.value.length;
-        if (size > 1024 * 1024) throw new CliError('Runtime error response exceeds the size limit.', { code: 'invalid_response' });
         chunks.push(part.value);
       }
       const text = Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString('utf8');
@@ -240,7 +238,6 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
         try { part = await reader.read(); } catch { throw new CliError(budget.expired() ? 'Waiting for the conversation timed out.' : 'Conversation stream was interrupted.', { code: budget.expired() ? 'turn_timeout' : 'network_error' }); }
         if (part.done) throw new CliError('Conversation stream ended before the turn completed.', { code: 'stream_ended' });
         buffer += decoder.decode(part.value, { stream: true });
-        if (buffer.length > 32 * 1024 * 1024) throw new CliError('Conversation event exceeds the size limit.', { code: 'invalid_response' });
       }
     },
     close() { controller.abort(); },
