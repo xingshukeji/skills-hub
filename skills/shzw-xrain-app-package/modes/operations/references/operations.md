@@ -2,6 +2,8 @@
 
 本文件是 authoring 构建完成后与 operations 消费原包共用的安装合同。安装不要求作者源码、平台私有源码或 .NET SDK；已有 operation 时直接读取原记录和当前 installation 接续，不重新获取或构建原包。
 
+业务应用的前提、开通及原用户核验由[标准流程](../GUIDE.md#标准流程)组织；本页处理其中的包操作。
+
 ## 按交付来源进入
 
 先核对目标平台、租户、packageId、versionId、来源与包内 digest；显示名不作身份。有本地原包时再核对文件 SHA-256。三条路径最终都使用目标租户会话安装和回读：
@@ -18,7 +20,7 @@
 
 ## 准入
 
-这是应用包导入/租户安装，不是 XRain 服务镜像部署；不构建容器、不执行 SQL、不重启服务、不写数据库、不创建租户或账号。先确认目标现有 XRain 实现支持本包使用的 kind 和应用安装 API、迁移已由目标运维完成。支持该接口的目标可用 `GET /api/application/v1/capabilities` 查看当前身份的安装、提交、审查、发布和创建应用能力；旧目标可能未提供。它不证明当前身份可操作特定包，也不证明该包的 kind、协议或业务流程可用，仍须核对实际版本与预检。生产需要目标版本发布准入和相同包的测试证据，不能因路由存在就认定支持。
+本页包操作不构建容器、不执行 SQL、不重启服务、不直接写数据库，也不创建租户或账号。原请求包含租户准备时，先沿标准流程完成该前提，再回到本页。先确认目标现有 XRain 实现支持本包使用的 kind 和应用安装 API、迁移已由目标运维完成。支持该接口的目标可用 `GET /api/application/v1/capabilities` 查看当前身份的安装、提交、审查、发布和创建应用能力；旧目标可能未提供。它不证明当前身份可操作特定包，也不证明该包的 kind、协议或业务流程可用，仍须核对实际版本与预检。生产需要目标版本发布准入和相同包的测试证据，不能因路由存在就认定支持。
 
 目标参数与 `.appkg` 分开：
 
@@ -82,6 +84,8 @@ requestId 使用 20 位 ASCII 字母数字且以 apo 开头；每次新的逻辑
 4. 以适度退避 GET operation（例如 2、5、10 秒，之后最多 30 秒），不自动重复 POST。超出本次等待窗口交付可恢复 operationId；没有后台监控授权时不创建持续任务或声称会自动继续。
 5. Waiting 时展示实际 requiredBindings/requiredConfirmations/conflicts；补齐后核对 sourceRevision 与当前 revision，按授权 resolve。冲突键是 `recordId/unit`；只有删除单元 `$delete` 使用数字选择：2 表示按版本移除，3 表示保留（仅对象、字段、视图、选项集、选项、记录类型）。旧枚举 0/1 不再用于 I/P 属性；不能批量选择或伪造确认 token。`$configuration` 使用 configurationChanges，其他身份或包控冲突需兼容版本或取消。
 6. Succeeded 后 GET installation，核对 tenantId/packageId/installedVersionId=operation.targetVersionId、revision=operation.sourceRevision+1，activeOperationId 为空；按用户授权进行一个最小只读功能检查，并确认后续登录/self 仍可用。只有这些成立才报告安装成功。业务权限集定义、目标主体绑定与实际业务 API 可访问是不同证据；导入 PermissionSetItem 不等于已赋权。
+
+用户目标包含应用可用时，继续标准流程中的应用开通和原用户核验；不在包操作成功处提前结束。
 
 回查历史成功时，当前 revision 可能已因同版本配置维护、隐藏视图恢复或其他安装操作增加；读取后续操作历史，不把旧 Succeeded 改判为失败，也不拿它证明当前目标已完成。当前提交事实、组件有效状态与原用户业务验收分别报告；回执辅助核对见[本地工具](receipt.md)。
 
