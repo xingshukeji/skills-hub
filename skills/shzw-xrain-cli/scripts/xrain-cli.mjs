@@ -608,7 +608,7 @@ function responseError(response, hint2 = "", context = {}) {
   } catch {
     body = void 0;
   }
-  const candidate = body?.errorCode ?? (typeof body?.error === "object" ? body.error?.code : body?.error);
+  const candidate = body?.errorCode ?? (typeof body?.error === "object" ? body.error?.code : body?.error) ?? body?.code;
   const serverCode = typeof candidate === "string" && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : void 0;
   const methodRejected = serverCode?.endsWith("authentication_method_not_allowed");
   const code = methodRejected ? "authentication_method_not_allowed" : response.status === 401 ? "authentication_failed" : response.status === 403 ? "permission_denied" : response.status === 404 ? "not_found" : response.status === 409 ? "conflict" : "http_error";
@@ -640,9 +640,9 @@ async function writeOnce(action, hint2, details, unknownServerCodes = [], defini
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, resolvedCredential, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
-  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
+  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : resolvedCredential ?? ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const perform = async () => {
     const stream = raw && ctx.args.has("out");
@@ -1120,9 +1120,28 @@ async function dataOperations(ctx) {
   }
   if (action === "query-batch") {
     const body = await input(args);
-    if (!Array.isArray(body.queries) || !body.queries.length || body.queries.some((item) => !isObject(item) || typeof item.entityCode !== "string" || !isObject(item.query)))
-      throw new CliError("queries must contain entityCode and query objects.", { code: "invalid_arguments" });
-    await api(ctx, "POST", "/api/data/v1/records:queryBatch", body);
+    if (!Array.isArray(body.queries) || body.queries.length < 1 || body.queries.length > 8 || body.queries.some((item) => !isObject(item) || !nonempty(item.entityCode) || !isObject(item.query)))
+      throw new CliError("queries must contain one to eight entityCode and query objects.", { code: "invalid_arguments" });
+    const profile = ctx.store.resolve(args, true), credential = ctx.store.credential(args, profile);
+    const options = { resolvedProfile: profile, resolvedCredential: credential };
+    let value;
+    try {
+      value = await apiValue(ctx, "POST", "/api/data/v1/records:queryBatch", body, options);
+    } catch (error) {
+      if (!(error instanceof CliError) || ![404, 405].includes(error.httpStatus)) throw error;
+      const response = error.details?.response;
+      const explicitCodes = [response?.errorCode, typeof response?.error === "object" ? response.error?.code : void 0, response?.code];
+      const hasServerCode = error.serverCode || explicitCodes.some((candidate) => typeof candidate === "string" && candidate.trim() || typeof candidate === "number");
+      if (hasServerCode) throw error;
+      const results = await Promise.all(body.queries.map(async ({ entityCode: entityCode2, query: query2 }) => {
+        const result = await apiValue(ctx, "POST", `/api/data/v1/entities/${segment(entityCode2)}/records:query`, query2, options);
+        if (!isObject(result) || !Array.isArray(result.records))
+          throw new CliError("The server returned an invalid query response.", { code: "invalid_response" });
+        return { entityCode: entityCode2, result };
+      }));
+      value = { results };
+    }
+    reporter.print(value);
     return true;
   }
   if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) && !["field-options", "original-values", "history", "owner-transfer", "share", "export-file", "export-capabilities"].includes(action)) return false;
@@ -1500,7 +1519,7 @@ import { spawn } from "node:child_process";
 import { join as join3 } from "node:path";
 import { setTimeout as delay2 } from "node:timers/promises";
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/buffer_utils.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var strictDecoder = new TextDecoder("utf-8", { fatal: true });
@@ -1542,7 +1561,7 @@ function decodeBase64(encoded, url = false) {
   return bytes;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/util/errors.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/util/errors.js
 var JOSEError = class extends Error {
   static code = "ERR_JOSE_GENERIC";
   code = "ERR_JOSE_GENERIC";
@@ -1614,7 +1633,7 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
   }
 };
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/util/base64url.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/util/base64url.js
 var invalid2 = "The input to be decoded is not correctly encoded.";
 function decode(input3) {
   try {
@@ -1624,7 +1643,7 @@ function decode(input3) {
   }
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/validate.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/validate.js
 function isObject2(input3) {
   if (typeof input3 != "object" || input3 === null || Object.prototype.toString.call(input3) !== "[object Object]")
     return false;
@@ -1704,7 +1723,7 @@ function validateB64(protectedHeader, extensions) {
   return true;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key.js
 var tag = (key) => key[Symbol.toStringTag];
 var jwkMatchesOp = (entry, key, usage) => {
   const { alg } = entry;
@@ -1835,7 +1854,7 @@ async function rawKey(key, expected, usage, extractable = false) {
   return key instanceof Uint8Array && (key = await crypto.subtle.importKey("raw", key, expected, extractable, [usage])), checkCryptoKey(key, expected, usage), key;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key_descriptor.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/key_descriptor.js
 function table(entries) {
   const out = { __proto__: null };
   for (const alg in entries)
@@ -1843,7 +1862,7 @@ function table(entries) {
   return out;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_algorithms.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_algorithms.js
 var sig = [["verify"], ["sign"]];
 function hmac(bits) {
   const subtle = { name: "HMAC", hash: `SHA-${bits}` };
@@ -1913,7 +1932,7 @@ function jwsAlgorithm(alg) {
   return entry;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_verify.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_verify.js
 function prepareVerify(options) {
   return [options && validateAlgorithms("algorithms", options.algorithms), options?.crit];
 }
@@ -1965,7 +1984,7 @@ async function verifyCompact(jws, shared, key) {
   return verifySignature({ payload, protected: protectedHeader, signature }, shared, key, encodeCompactUnencodedPayload);
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/lib/jwt_claims_set.js
 var epoch = (date) => Math.floor(date.getTime() / 1e3);
 var multipliers = {
   s: 1,
@@ -2051,7 +2070,7 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   return payload;
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/jwt/verify.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
   const [verified, b64] = await verifyCompact(jwt, prepareVerify(options), key);
   if (!b64)
@@ -2060,7 +2079,7 @@ async function jwtVerify(jwt, key, options) {
   return { ...verified, payload };
 }
 
-// ../../../github.com/skills-hub/node_modules/jose/dist/webapi/jwks/local.js
+// ../../github.com/skills-hub/node_modules/jose/dist/webapi/jwks/local.js
 function isUsableJWK(jwk, entry, alg, kid) {
   const { kty, key_ops: keyOps, ext, kid: jwkKid, alg: jwkAlg, use, crv } = jwk;
   return (ext === void 0 || typeof ext == "boolean") && (keyOps === void 0 || Array.isArray(keyOps) && keyOps.every((operation, index) => typeof operation == "string" && keyOps.indexOf(operation) === index) && keyOps.includes("verify")) && entry.kty.includes(kty) && (kid === void 0 || typeof kid == "string" && kid === jwkKid) && (jwkAlg === void 0 ? kty !== "AKP" : alg === jwkAlg) && (use === void 0 || use === "sig") && (!entry.crv || crv === entry.crv);
@@ -4182,7 +4201,7 @@ var requestInput = ["request-json", "file"];
 var recordTarget = [...api2, "entity", "id"];
 var paging = ["page", "page-size"];
 command("data capabilities", api2, [], "Read server query capabilities.");
-command("data query-batch", [...api2, ...requestInput], [], "Query multiple objects through the native queryBatch endpoint using a queries JSON request.");
+command("data query-batch", [...api2, ...requestInput], [], "Query one to eight objects; use individual reads if the server lacks queryBatch.");
 for (const action of ["export", "count", "distinct", "single", "single-or-default", "first", "first-or-default"])
   command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
 for (const action of ["batch-create", "batch-update", "batch-delete"]) command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], "Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.");

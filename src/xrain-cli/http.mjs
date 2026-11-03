@@ -44,7 +44,7 @@ export async function request(url, { method = 'GET', token, json, body, headers 
 export function responseError(response, hint = '', context = {}) {
   let body;
   try { body = response.json(); } catch { body = undefined; }
-  const candidate = body?.errorCode ?? (typeof body?.error === 'object' ? body.error?.code : body?.error);
+  const candidate = body?.errorCode ?? (typeof body?.error === 'object' ? body.error?.code : body?.error) ?? body?.code;
   const serverCode = typeof candidate === 'string' && /^[a-z0-9_.-]{1,160}$/i.test(candidate) ? candidate : undefined;
   const methodRejected = serverCode?.endsWith('authentication_method_not_allowed');
   const code = methodRejected ? 'authentication_method_not_allowed' : response.status === 401 ? 'authentication_failed' : response.status === 403 ? 'permission_denied' : response.status === 404 ? 'not_found' : response.status === 409 ? 'conflict' : 'http_error';
@@ -79,9 +79,10 @@ export async function writeOnce(action, hint, details, unknownServerCodes = [], 
   }
 }
 
-export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
+export async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, resolvedCredential, mutation, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
-  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' } : ctx.store.credential(ctx.args, profile);
+  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: 'application-session' }
+    : resolvedCredential ?? ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value('auth') === 'session') && !token) throw new CliError('A matching saved session is required.', { code: 'authentication_required', hint: 'Run auth status, then auth login for this profile.' });
   const perform = async () => {
     const stream = raw && ctx.args.has('out');

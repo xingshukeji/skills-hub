@@ -7,6 +7,54 @@ import { fixture, mockServer, respond, zip } from './helpers.mjs';
 const output = value => JSON.parse(value.stdout);
 const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
+test('batch queries retain their response shape and identity when older platforms return 404 or 405', async t => {
+  const f = fixture(t); let mode = '404';
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.method, 'POST');
+    assert.equal(hit.headers.authorization, 'Bearer synthetic-token');
+    if (hit.url === '/api/data/v1/records:queryBatch') {
+      if (mode === '404' || mode === '405') return res.writeHead(Number(mode)).end();
+      if (mode === 'rotate') { f.profile(service.url, 'tenant-one', 'other-token'); return res.writeHead(405).end(); }
+      if (mode === 'item-denied') return res.writeHead(405).end();
+      if (mode === 'denied') return respond(res, { errorCode: 'access.denied' }, 403);
+      if (mode === 'business') return respond(res, { errorCode: 'runtime.entity_not_available' }, 404);
+      if (mode === 'business-code') return respond(res, { code: 'runtime.entity_not_available' }, 404);
+      if (mode === 'business-nested') return respond(res, { error: { code: 'runtime.entity_not_available' } }, 404);
+      if (mode === 'business-unrecognized') return respond(res, { errorCode: '业务错误' }, 404);
+      if (mode === 'business-numeric') return respond(res, { code: 1234 }, 404);
+      if (mode === 'method') return respond(res, { errorCode: 'runtime.method_rejected' }, 405);
+    }
+    const entityCode = decodeURIComponent(hit.url.split('/')[5]);
+    assert.deepEqual(hit.json(), { page: entityCode === 'one' ? 1 : 2 });
+    if (mode === 'item-denied' && entityCode === 'two/part') return respond(res, { errorCode: 'access.denied' }, 403);
+    respond(res, { records: [{ recordId: entityCode }], totalCount: 1 });
+  });
+  f.profile(service.url, 'tenant-one', 'synthetic-token');
+  const file = join(f.directory, 'batch-query.json');
+  writeFileSync(file, JSON.stringify({ queries: [
+    { entityCode: 'one', query: { page: 1 } }, { entityCode: 'two/part', query: { page: 2 } },
+  ] }));
+  const command = ['data', 'query-batch', '--request-json', file, '--json'];
+  for (mode of ['404', '405', 'rotate']) {
+    const result = await f.run(command);
+    assert.equal(result.code, 0, result.stdout);
+    assert.deepEqual(output(result).data.results.map(item => [item.entityCode, item.result.records[0].recordId]),
+      [['one', 'one'], ['two/part', 'two/part']]);
+    f.profile(service.url, 'tenant-one', 'synthetic-token');
+  }
+  for (const [failure, expected] of [['denied', 403], ['business', 404], ['business-code', 404], ['business-nested', 404], ['business-unrecognized', 404], ['business-numeric', 404], ['method', 405]]) {
+    mode = failure; const start = service.hits.length;
+    const result = await f.run(command);
+    assert.equal(result.code, 1, result.stdout);
+    assert.equal(output(result).error.httpStatus, expected);
+    assert.equal(service.hits.length, start + 1);
+  }
+  mode = 'item-denied';
+  const failedRead = await f.run(command);
+  assert.equal(failedRead.code, 1, failedRead.stdout);
+  assert.equal(output(failedRead).error.httpStatus, 403);
+});
+
 test('native collection writes keep allOrNone and expected values in one transaction request', async t => {
   const f = fixture(t), persisted = new Map([['one', 'old'], ['two', 'old']]); let mutations = 0;
   const service = await mockServer(t, (hit, res) => {
