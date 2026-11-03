@@ -8,6 +8,64 @@
   ],
   "cases": [
     {
+      "id": "calibrate-review",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-code-review"],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "恢复已固定的范围、版本及只读授权，复核原判断并主动查找范围内遗漏",
+        "匹配相关业务判例，再沿当前权限、结果和真实消费者验证，区分已撤回、成立和待证"
+      ],
+      "forbiddenBehavior": [
+        "只润色原报告或等待用户指出具体问题",
+        "把历史判例当当前产品事实，或擅自修复产品"
+      ]
+    },
+    {
+      "id": "calibrate-solution",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-solution"],
+      "mode": "challenge",
+      "requiredBehavior": [
+        "继承平时可用与已通知维护窗口的条件，主动使用相关业务判例复核方案",
+        "比较新增协调成本与较轻的操作方式，同时确认真实一致性及恢复边界"
+      ],
+      "forbiddenBehavior": [
+        "将先前复杂方案本身当作不可改变的要求",
+        "把维护窗口等同于允许删除所有必要保护，或修改产品"
+      ]
+    },
+    {
+      "id": "calibrate-case-update",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-skill-evolution"],
+      "mode": "evolution",
+      "requiredBehavior": [
+        "按新确认的范围更正同一业务判例及必要溯源，在技能来源更新并同步完整消费副本",
+        "保留其他适用条件并验证入口，不改无关产品契约"
+      ],
+      "forbiddenBehavior": [
+        "把旧结论继续当作当前有效判断",
+        "附加互相矛盾的新条目、只改消费副本或建立第二份台账"
+      ]
+    },
+    {
+      "id": "calibrate-ambiguous",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": [null],
+      "mode": "clarification",
+      "requiredBehavior": [
+        "说明存在多个可能对象，只询问消除歧义所需的目标"
+      ],
+      "forbiddenBehavior": [
+        "猜测用户要审查的对象，或仅凭校准一词选择并执行某个技能"
+      ]
+    },
+    {
       "id": "t01",
       "source": "historical-excerpt",
       "split": "regression",

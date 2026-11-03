@@ -1,5 +1,29 @@
 [
   {
+    "id": "calibrate-review",
+    "request": "请校准一下。",
+    "project": "all_in_one",
+    "context": "前文是一轮只读审查：讨论了导入结果、权限变化及可能存在的旧兼容逻辑，当前范围和版本已固定；用户尚未授权产品修复。"
+  },
+  {
+    "id": "calibrate-solution",
+    "request": "把刚才的升级方案矫正一下。",
+    "project": "all_in_one",
+    "context": "前文的方案为减少应用升级冲突引入多节点协调和多个操作状态。用户要求平时保持业务可用，允许提前通知的维护窗口，并质疑新机制的接入与维护成本。"
+  },
+  {
+    "id": "calibrate-case-update",
+    "request": "这条校准判例的适用范围有误，请按刚确认的内容更正并沉淀。",
+    "project": "skills-hub",
+    "context": "用户已指出现有技能判例的具体条目，并确认新判断只适用于特定业务范围；产品当前契约无需更改。"
+  },
+  {
+    "id": "calibrate-ambiguous",
+    "request": "请校准一下。",
+    "project": "all_in_one",
+    "context": "前文有互不关联的方案讨论、代码审查和运行测试，用户没有指明要校准的对象。"
+  },
+  {
     "id": "t01",
     "request": "请review最近4天的提交",
     "project": "all_in_one",
