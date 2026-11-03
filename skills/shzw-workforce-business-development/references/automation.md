@@ -101,7 +101,7 @@ eventId 不等于单次投递唯一键，按运行记录与业务标识处理重
 
 Routine 引用编排、固定输入、Owner 和调度；支持 Manual/Daily/Workday。用 schedule-preview 核对 timeZoneId、下一次时刻和工作日，地区语义见[时间上下文](regional-context.md)。
 
-基址 `/api/automation/routines`：列表必须传 page/pageSize；`/{id}` 下有 definition/schedule/enable/pause/runs/history/versions，活动运行在 `/{id}/active-runs`。活动运行的 `executionStartedAt` 为空表示排队，非空表示已开始；历史 `automation_timeout` 的外部结果可能未知，先核对原业务结果，不自动重试本次。读取执行人与调度预览的 DTO 见业务 API；其他写入按当前编辑合同。
+基址 `/api/automation/routines`：列表必须传 page/pageSize；`/{id}` 下有 definition/schedule/enable/pause/runs/history/versions，活动运行在 `/{id}/active-runs`。`executionStartedAt` 非空表示已开始；为空可能是排队，支持新策略的版本也可能在等待重试，应结合 `nextAttemptAt` 和实际响应判断。已确认的新策略对已开始调用的超时或中断按同一运行标识指数退避，最多重试 5 次；明确业务失败不自动重试。重试用尽后才形成失败历史，外部结果仍可能未知且动作可能重复。核对原运行、尝试次数和目标系统结果，不把本规则套用到 Trigger 或普通调试。目标实例可能尚未升级，实际版本与支持字段须单独核实。读取执行人与调度预览的 DTO 见业务 API；其他写入按当前编辑合同。
 
 Owner 是维护者，普通 Routine 由 automationExecutionUserId 指向的活跃成员执行，运行时检查权限；复用适用身份。
 

@@ -30,7 +30,7 @@ function update <id> --request-json <函数.json>
 
 routine list 默认使用 page=1、pageSize=20。通过 --page、--page-size 或 --query-json 指定其他分页。
 
-`active-runs` 的 `executionStartedAt` 为空表示排队，非空表示已开始。历史中的 `automation_timeout` 表示执行超时且外部结果可能未知，应先核对原业务结果，不自动重试本次。
+`active-runs` 的 `executionStartedAt` 非空表示已开始；为空可能是排队，支持新重试策略的版本也可能等待重试，需结合 `nextAttemptAt` 和实际响应判断。已确认的新策略对已开始调用的超时或中断按同一运行标识指数退避，最多重试 5 次；明确业务失败不自动重试。重试用尽后写失败历史，`automation_timeout` 仍可能意味着外部结果未知，先核对原运行、尝试次数及目标系统结果，外部动作可能重复。目标实例可能尚未升级，应核对实际版本；该策略不适用于普通调试或 Trigger。
 
 ## HTTP 集成
 

@@ -1,5 +1,23 @@
 [
   {
+    "id": "calibrate-source-hub",
+    "request": "请校准上一轮的业务判断，尤其要对照已经积累的经验。",
+    "project": "all_in_one",
+    "context": "前文已固定一轮只读代码审查的范围与版本。团队的技能和相关业务使用知识分布在 skills-hub 的多个专业技能中，也有历史聊天与项目文档；目标环境版本尚未核验。"
+  },
+  {
+    "id": "calibrate-testing",
+    "request": "请校准刚才的验收结论。",
+    "project": "all_in_one",
+    "context": "前文是同一次导入修复的功能与性能验证；用户已经接受一次固定负载的性能结果，授权复核已有结论，没有提出新的独立测试或部署。"
+  },
+  {
+    "id": "calibrate-runtime",
+    "request": "请纠偏刚才的连接池故障判断。",
+    "project": "all_in_one",
+    "context": "前文是对指定实例的只读故障定位：有小连接池实验、一次线上硬件描述和尚未测量的实际负载；用户没有授权重启服务或进行容量测试。"
+  },
+  {
     "id": "calibrate-review",
     "request": "请校准一下。",
     "project": "all_in_one",

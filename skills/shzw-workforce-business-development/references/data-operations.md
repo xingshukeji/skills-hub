@@ -65,6 +65,8 @@ expectedValues 仅用于更新；Owner 走[专用转移](organization-and-collab
 
 XRain 已实现面向租户业务对象的 XLSX 模板、预览、整批导入、原批次查询和独立文件导出。目标环境仍须核对对应服务、组件版本和当前主体的接口、对象、字段及记录权限；受保护 User、Host 安全对象和元数据不因此获得普通文件写入能力。应用包的导入安装与业务记录文件导入是不同操作。
 
+需要大文件分块、暂停或继续时，另按[CLI 导入作业](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/commands.md)和目标服务能力核对实际作业协议与客户端版本。作业不是普通整批原子导入：已提交分块不会因后续失败自动回滚；详情受限时保留原作业标识，不能把不可见的进度当成零、完成或失败。协议不匹配时不能通过循环调用旧原子导入绕过。
+
 使用已取得的 `@xrain/record-file` React 组件或其 `createRecordFileClient` 时，按该版本公开类型接入并保留真实主体与租户。独立界面还须实现原批次恢复和跨页面批次认领；不能仅凭发出请求判定提交。不要在业务应用重复实现平台文件解析、匹配和批次框架。
 
 令 `E=/api/data/v1/entities/{entityCode}`。目标提供相应合同后，文件接口如下：

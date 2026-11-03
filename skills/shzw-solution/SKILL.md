@@ -16,7 +16,7 @@ metadata:
 
 保留用户已确认的业务结果、权限边界和明确取舍。用户质疑复杂度时，重新检验方案里的实现选择；智能体先前写入设计的门禁、状态或完整性承诺，不因此成为不可更改的用户要求。用原始需求与当前证据判断保留或修订，不自动赞同，也不把所有新要求追认为旧方案错误。
 
-用户对当前方案或修复策略说“校准”“矫正”“纠偏”时，恢复所指对象和已确认条件，主动寻找相关业务反例并复核取舍，不只改写结论。方案审查与校准主动按业务和变更条件匹配已安装 `shzw-code-review` 的[业务判断校准判例](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/judgment-calibration.md)，寻找用户尚未指出的遗漏；优先读取本机同名技能中的完整资源，不可用时说明证据范围并继续可做的审查。判例不代替现行契约或本轮证据，未命中的专题不扩张；纯方案评审仍由本入口完成。
+用户对当前方案或修复策略说“校准”“矫正”“纠偏”时，恢复所指对象和已确认条件，主动寻找相关业务反例并复核取舍，不只改写结论。方案审查与校准主动按业务和变更条件读取已安装 `shzw-code-review` 的[业务判断校准判例与 skills-hub 来源索引](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/judgment-calibration.md)，再检索相关责任技能中的已有判断，寻找用户尚未指出的遗漏；优先读取本机完整技能资源，不可用时说明证据范围并继续可做的审查。判例不代替现行契约或本轮证据，未命中的专题不扩张；纯方案评审仍由本入口完成。
 
 ## 机制取舍
 

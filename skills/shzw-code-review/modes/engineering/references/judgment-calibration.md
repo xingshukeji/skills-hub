@@ -1,14 +1,35 @@
 # 业务判断校准判例
 
-本页集中保存可复用的真实判断和反例，供代码审查、方案复核及修复验收主动检索；不是用户画像、待办清单或产品契约。各条标明原场景和证据，不能只因名称相似就将历史结论套用到其他项目。下列对话标识可在有权限的 Codex 聊天中追溯；其他环境以当前请求和责任项目事实为准，不因原聊天不可读而阻断审查。
+本页是 skills-hub 中相关业务判断的入口和典型判例，供代码审查、方案复核及修复验收主动检索；不是用户画像、待办清单或产品契约。专业方法和使用知识的唯一编写源是 skills-hub，项目或个人安装的同名技能是消费副本；当前产品目标、实现和运行版本仍由责任项目及实际环境核实。下列聊天只用于追溯当时的决定，不能成为唯一知识来源；其他环境不因聊天不可读而阻断审查。
 
 ## 如何使用和更新
 
-从当前业务动作、身份、数据状态、变更和失败路径匹配判例。先用判例提出可验证的正反例，再沿本次真实入口、消费者和现行规则核对；同时寻找清单以外的遗漏，不等用户指出具体 Bug。对每项区分已确认、已修复、已撤回、不适用和证据不足；已修代码、过期结论或无可达入口不等于当前仍有缺陷。
+从当前业务动作、身份、数据状态、变更和失败路径匹配下方技能来源及判例；再按任务范围检索 skills-hub 其他相关技能的入口、专题与行为案例，不能把索引或最近一次项目聊天当作全部已沉淀判断。优先读取当前环境已安装的完整技能；需要时从目标项目入口定位 skills-hub 唯一来源，或读取下表的来源链接，不假设安装目录旁一定有源码。来源不可用时说明覆盖缺口，并继续可做的检查。
 
-本轮明确要求优先于旧判断；后续确认只替换冲突部分。同一情形的新证据或用户纠正出现时，按现有授权核实来源，在技能源更新本页对应条目的适用条件、结论和出处，并同步完整消费副本；必要时保留被替代的关键判断及时间，避免旧结论重新生效。产品规则同时归责任项目的契约或设计维护；本页不能替代它们。用户明确只讨论或不改文件时保持只读。不要把每次交互都记入本页，也不为判例建立独立任务台账。
+先用相关判断提出可验证的正反例，再沿本次真实入口、消费者和现行规则核对；同时寻找清单以外的遗漏，不等用户指出具体 Bug。对每项区分已确认、已修复、已撤回、不适用和证据不足；已修代码、过期结论或无可达入口不等于当前仍有缺陷。
 
-## 已有判例
+本轮明确要求优先于旧判断；后续确认只替换同一对象与范围内冲突的部分。同一情形的新证据或用户纠正出现时，先追到 skills-hub 对应专业方法或使用知识的所有者，在其来源修正旧判断；本索引和判例只保留必要的关联、适用条件和出处，不并列维护另一套业务规则。再按现有授权同步受影响的完整消费副本；必要时保留被替代的关键判断及时间，避免旧结论重新生效。产品规则同时归责任项目的契约或设计维护；尚未提交、发布或部署的变化分别标记。本页不能替代产品事实。用户明确只讨论或不改文件时保持只读。不要把每次交互都记入本页，也不为判例建立独立任务台账。
+
+## skills-hub 中已沉淀的相关判断
+
+这些是本次追溯到的实际来源和下一步入口，不是封闭目录；按当前任务继续检索相关技能，不因多个链接启动多套完整流程。链接指向 skills-hub 来源，本机安装时可先读相同技能中的相对资源。
+
+| 判断主题 | skills-hub 责任来源 | 已有判断和本次使用 |
+|---|---|---|
+| 已有审查的复核、误报与遗漏 | [审查入口](../../../SKILL.md)、[工程方法](../GUIDE.md)、[反复缺陷](recurring-defects.md)、[工程正反例](behavior-cases.md) | 沿真实入口、消费者与相邻反例分别确认缺陷、证据缺口及必要修复，不凭数量、历史结论或代码形态定性。 |
+| XRain 身份、状态、共享和业务恢复 | [XRain 审查](../../xrain/GUIDE.md)、[Workforce 审查](../../workforce/GUIDE.md)、[平台业务判例](../../workforce/references/behavior-cases.md)、[业务授权](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/authorization.md) | 核对实际用户、租户、字段及记录范围，追保存、读取、失败恢复和替身边界；资源包与运维职责分别判断。 |
+| 页面切换、迟到结果与可见体验 | [前端审查](../../frontend/GUIDE.md)、[前端正反例](../../frontend/references/behavior-cases.md)、[功能回归](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/references/functional-regression.md) | 对可达操作同时核对当前选择、显示与保存对象；截图只能证明可见事实，必要时补操作或状态证据。 |
+| 方案必要性、长锁和维护复杂度 | [方案入口](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-solution/SKILL.md)、[方案质疑](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-solution/modes/challenge/GUIDE.md) | 对齐用户目标后判断新增锁、状态和维护协议是否必要；比较原能力及可行替代，同时保留真实一致性保障。 |
+| 修复回归、性能和资源判断 | [功能回归与性能验证](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/references/functional-regression.md)、[稳定性场景](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/modes/stability/references/scenarios.md)、[性能方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/modes/performance/GUIDE.md) | 先保原功能和合法相邻行为，再比较有效完成量及可比资源；已接受结果、未测负载和生产容量分别判断。 |
+| 锁、连接池和事务资源 | [工程审查维度](review-map.md)、[XRain 数据访问诊断](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/modes/services/references/xrain-dotnet.md)、[AiInfra 性能方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-aiinfra-development/modes/performance/GUIDE.md) | 区分锁冲突、连接耗尽与队列等待，沿实际持有、后续申请和释放路径取证，不以极端样本推定线上频率。 |
+| 个人邮箱、会话身份与所有者 | [个人邮箱](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/personal-email.md)、[CLI 邮箱](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/files-delivery.md)、[平台 PRD 判例](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-prd/references/platform-examples.md) | 区分普通租户会话、代理会话和成员类型；按当前主体与账户范围核验，不凭名称创造真人限制。 |
+| 自动化、旧安排与不同重试边界 | [业务自动化](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/automation.md)、[CLI 编排与 Routine](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/workflows.md)、[平台 PRD 判例](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-prd/references/platform-examples.md) | 分别核对普通 Routine、Trigger 和 Workforce 安排；先确认上线与存量，按目标版本、当前活动状态及终态判断重试和兼容。 |
+| 导入导出、字段授权和应用包消费 | [业务数据操作](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/data-operations.md)、[CLI 导入作业](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/commands.md)、[CLI 文件与导出](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/files-delivery.md)、[应用包技能](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/SKILL.md) | 追原文件、授权、结果、失败与恢复；区分原子导入和可恢复作业、实际发布版本与候选，以及平台、包内容和租户正常配置。 |
+| 方法纠偏和消费副本更新 | [技能诊断与进化](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-skill-evolution/SKILL.md)、[工作空间维护](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workspace-maintenance/SKILL.md) | 先判断原方法、实际执行和环境，修 skills-hub 唯一来源及直接消费者；产品、运行及授权规则仍归各自所有者。 |
+
+## 已还原的典型判例
+
+下表补充当时的具体业务和用户选择，关联的可复用方法先回查上方 skills-hub 来源；这些实例不是全部已沉淀知识，也不替代各责任技能的其他相关案例。
 
 | 业务场景与依据 | 当时的判断及可复用检查 | 不得推广的范围 |
 |---|---|---|

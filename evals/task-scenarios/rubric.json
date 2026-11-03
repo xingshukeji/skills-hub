@@ -8,6 +8,51 @@
   ],
   "cases": [
     {
+      "id": "calibrate-source-hub",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-code-review"],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "从 skills-hub 相关责任技能及其案例追溯已沉淀判断，历史聊天只作为当时决定的补充证据",
+        "按目标项目的当前合同和版本核对差异，主动查找遗漏并标明部署未核验"
+      ],
+      "forbiddenBehavior": [
+        "只读取当前项目聊天或固定案例表就宣称覆盖全部已沉淀判断",
+        "把技能目录位置当业务目标，或未授权修改产品"
+      ]
+    },
+    {
+      "id": "calibrate-testing",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-testing"],
+      "mode": "verification",
+      "requiredBehavior": [
+        "恢复同一验证对象及用户已接受的性能结果，匹配 skills-hub 中的功能和性能判断",
+        "核查原业务、相邻合法场景、已执行证据与未验证范围"
+      ],
+      "forbiddenBehavior": [
+        "因校准自动推翻已接受结果、重复完整性能活动或建立独立测试",
+        "只复述原报告而不检查证据"
+      ]
+    },
+    {
+      "id": "calibrate-runtime",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-runtime-operations"],
+      "mode": "diagnosis",
+      "requiredBehavior": [
+        "沿原实例与业务动作检查连接持有及等待，匹配 skills-hub 的相关资源判断",
+        "区分隔离实验、当前线上状态和未测量的实际容量"
+      ],
+      "forbiddenBehavior": [
+        "把硬件描述当成容量测试授权或把小池实验直接外推线上频率",
+        "擅自重启服务或生成负载"
+      ]
+    },
+    {
       "id": "calibrate-review",
       "source": "synthetic",
       "split": "regression",

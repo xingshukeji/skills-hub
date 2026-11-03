@@ -7,7 +7,7 @@
 
 ## 身份和能力发现
 
-基址 `/api/delivery/v1/email/me` 要求真实租户用户登录态，拒绝 Host、agent 身份和 API Token。工具复用宿主真实用户链路，不能用管理员凭据或输入 userId 替代授权。
+基址 `/api/delivery/v1/email/me` 要求普通租户登录会话，按当前租户和主体限定账户；拒绝 Host、带代理标识的会话和 API Token。成员是 AI User 与会话携带代理标识是不同事实，不能仅凭成员类型认定普通租户会话不可访问。工具复用当前会话及所属账户，不能用管理员凭据或输入 userId 替代授权。
 
 `GET /providers` 返回 `providerType/authenticationMethod/supported/errorCode` 及收发协议；`GET /accounts` 返回当前用户账号和 `enabled/receiveSupported/sendSupported/receiveCredentialConfigured/sendCredentialConfigured` 等状态，不返回密码。账号按用户和租户隔离。
 

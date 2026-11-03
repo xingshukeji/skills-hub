@@ -1,6 +1,6 @@
 ---
 name: shzw-runtime-operations
-description: 启动、恢复、诊断或优化项目服务，包括 CPU、内存、IO、吞吐与延迟，以及 .NET 的 GC、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。
+description: 启动、恢复、诊断或优化项目服务，校准、矫正或纠偏运行故障与性能判断，包括 CPU、内存、IO、吞吐与延迟，以及 .NET 的 GC、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/SKILL.md
@@ -19,6 +19,8 @@ Workforce 当前默认路径是本机统一宿主连接共享测试平台、统�
 若故障落在 XRain 对象、字段、权限或编排资源，先按应用包技能的[资源归属判断](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/SKILL.md#修复先判断资源归属)核对安装版本与定义来源。包缺陷进入原包源码和正常升级路径；租户配置及业务记录按其管理合同修正，不在启动脚本或目标库临时补资源来宣称恢复。
 
 用户明确要求性能或资源优化时，按[性能优化方法](modes/performance/GUIDE.md)从业务负载、成本和预算选择候选，兼顾代码逻辑、维护代价及原功能。业务开发或客户端优化保留原主入口，不因需要指标而转换任务类型或展开故障恢复。
+
+用户对已有故障定位、资源或性能结论说“校准”“矫正”“纠偏”时，沿原实例和业务动作复核证据，并从 [skills-hub 业务判断来源索引](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/judgment-calibration.md) 选读相关已有判断；优先读取已安装技能资源，不将历史样本当成当前负载。没有重启、压测或部署授权时只做授权内调查，来源不可用时说明范围并继续可做的检查。
 
 慢、错误或资源异常需要找因时，按实际影响分步调查；简单的单项检查直接核对相关依据。
 

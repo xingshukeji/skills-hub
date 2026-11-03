@@ -59,7 +59,7 @@ mail account delete <id>
 
 `mail capabilities` 读取当前平台的正文、主题、收件人、地址及搜索限额。限额由邮箱服务持有；CLI 保留原值，不能用另一部署或邮箱应用的旧值代替。读取失败时保留原错误，不退回固定限额。
 
-邮箱保存字段为 id、label、emailAddress、displayName、providerType、receiveUserName、receivePassword、sendUserName、sendPassword、enabled；先从 providers 确认可用服务。search 为 folder、text、limit、cursor；分页保留原 nextCursor。read 为 `{"reference":<原搜索结果reference>}`，保留 accountId、mailbox、folder、uidValidity、uid，引用过期不猜新 UID。draft 为 to、subject、textBody，可带 cc、bcc、source；保存草稿不发送。clear-credentials 的 action 由服务决定，省略为 all。个人邮箱不接受 Host、智能体或服务 API Token。
+邮箱保存字段为 id、label、emailAddress、displayName、providerType、receiveUserName、receivePassword、sendUserName、sendPassword、enabled；先从 providers 确认可用服务。search 为 folder、text、limit、cursor；分页保留原 nextCursor。read 为 `{"reference":<原搜索结果reference>}`，保留 accountId、mailbox、folder、uidValidity、uid，引用过期不猜新 UID。draft 为 to、subject、textBody，可带 cc、bcc、source；保存草稿不发送。clear-credentials 的 action 由服务决定，省略为 all。个人邮箱要求普通租户登录会话，拒绝 Host、带代理标识的会话及 API Token；不能仅凭成员为 AI User 判定其普通会话不可访问，仍须按当前租户和账户所属主体授权。
 
 `mail draft` 与独立邮箱的 `mail app draft` 使用相同保存语义：status=Saved 且 internetMessageId 非空才确认成功；reference 允许为空，提供时须属于原账号。`email_draft_outcome_unknown` 即使以 HTTP 409 返回，也保留为 `outcome_unknown` 并停止 batch。用同一账号的 folders、search、read 查找原草稿；不自动再次保存。
 

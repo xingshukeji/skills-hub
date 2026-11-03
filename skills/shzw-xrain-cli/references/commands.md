@@ -58,7 +58,7 @@ data delete <entity> <id>
 
 ### 完整文件导入
 
-先运行 `data import capabilities`，读取当前对象的匹配字段、编排、分块导入资格、限制及不可用原因。模板由原模板服务生成，下载模板不要求分块作业已启用。提交完整文件检查时才核对 `xrain-import-jobs-v1` 资格；协议不可用时不能改为循环调用旧原子导入。
+先运行 `data import capabilities`，读取当前对象的匹配字段、编排、分块导入资格、限制及不可用原因。模板由原模板服务生成，下载模板不要求分块作业已启用。提交完整文件检查时，核对实际 CLI 版本要求的协议与目标服务能力：旧版本可能要求 `xrain-import-jobs-v1`，采用新合同的版本使用 `xrain-import-jobs-v2`；工作副本中的候选不证明客户端或目标服务已经升级。协议不匹配时不能改为循环调用旧原子导入。
 
 使用相同主体、租户和选项下载模板、检查完整文件。如应用限定导入范围，每条命令都带相同的 `--application <应用ID>`。
 
@@ -79,6 +79,8 @@ data import download --entity <对象> --job <作业ID> --purpose result --out <
 ```
 
 选项文件使用平台 RuntimeImportOptions；省略时使用 Id 匹配、来源导入和保留空值。预检不写业务记录。`confirm` 确认指定修订；分块处理时，后续块失败不会撤销已提交的记录。上传前 stderr 会显示 requestId；响应丢失时使用 `data import list --entity <对象> --request-id <原请求ID>` 查找，不自动换键重传。确认响应丢失时可重发相同作业和修订的确认。
+
+支持受限结果的新合同可能只返回作业标识而不提供详情；保留原 jobId 和 requestId，不将不可见的状态或数量写成零、完成或失败。暂停和结束是否可用以目标合同与当前主体为准；等待超时只表示本地等待结束，不证明服务端作业停止。
 
 暂停后 continue 保留原进度；检查阶段尚无计划时修订为 0。recheck 只检查未提交来源，形成的新修订仍须核对并确认。需要修改来源时先结束作业，再以 `--purpose remaining` 下载未完成资料，编辑后作为新作业检查；其他下载用途为 issues 和 maintenance。下载不覆盖已有文件。等待超时或 Ctrl+C 只结束本地等待；再次查询原作业，只有 pause 或 cancel 会改变服务端状态。
 

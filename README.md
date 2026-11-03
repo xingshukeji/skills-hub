@@ -38,11 +38,11 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-deskpilot-cli](skills/shzw-deskpilot-cli/SKILL.md) | 使用本机 DeskPilot 观察和操作桌面客户端、Android 模拟器与 Chrome 网页，支持原生控件、截图和离线中文 OCR。用于明确要求操作本机界面的任务；已有业务 API 能完成目标时优先使用 API。按当前操作渠道加载对应指南，不决定业务授权、聊天人设或发言策略。 |
 | [shzw-human-documentation](skills/shzw-human-documentation/SKILL.md) | 编写、改写或审阅面向人的中文开发文档、上手指南、教程、教材与课程，包括过浅或重复的教学内容。操作指南核对前提、命令与结果；教学内容按任务、深度和实例组织。AGENTS、正式契约与 Runbook 治理走工作空间维护。 |
 | [shzw-prd](skills/shzw-prd/SKILL.md) | 编写、整理或评审产品需求文档（PRD），把业务场景、角色、功能、字段取值、状态、执行逻辑、组件协作和验收说明给不了解项目的读者。按责任项目查证已确认需求与当前实现，区分目标、现状和未决项；方案方向存在实质分歧时使用方案入口。 |
-| [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复、诊断或优化项目服务，包括 CPU、内存、IO、吞吐与延迟，以及 .NET 的 GC、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。 |
+| [shzw-runtime-operations](skills/shzw-runtime-operations/SKILL.md) | 启动、恢复、诊断或优化项目服务，校准、矫正或纠偏运行故障与性能判断，包括 CPU、内存、IO、吞吐与延迟，以及 .NET 的 GC、线程池、数据库连接与事务异常，以及 Workforce 页面、智能体、工具、旧版本和慢链路。结合前文与实际环境取证并定位原因；明确的登录、403 或人员授权问题走访问权限入口。 |
 | [shzw-skill-evolution](skills/shzw-skill-evolution/SKILL.md) | 根据实际执行与用户纠偏诊断、修正或合并技能，判断技能选错、职责重叠、正文无效、知识或工具失配。用于“skill 没起作用”“为什么还要反复补充”“吸收这次经验”“技能太多合并一下”，以及项目已授权的主动技能改进。单次代码缺陷、环境失败或新需求不自动归因于技能。 |
 | [shzw-solution](skills/shzw-solution/SKILL.md) | 制定、比较、评审或校准、矫正、纠偏技术方案与修复策略，解决目标、职责或验收的实质分歧。普通实现、修复、恢复前文、补查事实和例行选择沿原任务执行，不重新规划。 |
 | [shzw-task-breakdown](skills/shzw-task-breakdown/SKILL.md) | 拆分或审查 XRain、Workforce 上面向人的业务项目任务。用于“按需求拆任务”“分配是不是太细”“哪些要开发、配置或只测试”“梳理依赖”。先确认当前需求，再分别核对基础产品与目标项目成果是否适用、是否被本期采用，按实际差距安排责任。用好坏示例校准判断，不把旧验证实现当作已交付，保留人的主动性。单项代码修复或智能体执行步骤使用对应入口。 |
-| [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
+| [shzw-testing](skills/shzw-testing/SKILL.md) | 为当前改动补齐必要测试，校准、矫正或纠偏已有验收判断，或执行明确要求的独立系统、回归、负载和稳定性验证。用于“测一下这次修复”“校准验收结论”“补测试”“用真实库验证”“独立跑完整回归”“查内存持续增长”。先沿用用户任务类型，再选择断言、环境和测试层；代码资源泄漏审查仍由审查入口负责。 |
 | [shzw-upgrade-dsh](skills/shzw-upgrade-dsh/SKILL.md) | 用户明确要求评估、制定计划或实施 DSH 升级时使用：盘点包、复制源码、插件协议和外部 Runtime，分析上游差异并验证受影响行为。普通 Runtime 故障、客户端修改或发现新版本不自动构成升级请求。 |
 | [shzw-workforce-business-development](skills/shzw-workforce-business-development/SKILL.md) | 使用 XRain 与 Workforce 的既有能力完成业务建模与开发、接入独立应用，或维护公共宿主的组合与裁剪。用于对象字段和 E-R 关系核对、销售接待、资料协作、记录文件导入导出与业务编排、业务页面和智能体工具，以及“像邮箱一样接入应用”“裁掉模块后还有残留”。按真实业务和应用范围选择平台复用、配置、实现与验证；公共宿主修改由 Workforce 责任项目承担。 |
 | [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。 |
