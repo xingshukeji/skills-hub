@@ -1,5 +1,29 @@
 [
   {
+    "id": "calibrate-project-history",
+    "request": "请把这个项目所有会话里我纠正过的判断集中沉淀，冲突按最新的，反常的留给我核对。",
+    "project": "all_in_one",
+    "context": "项目有活动与归档聊天，部分截图文件不可用；已有多个相关技能，用户已授权维护技能来源和选定消费副本。"
+  },
+  {
+    "id": "calibrate-scoped-concurrency",
+    "request": "请校准刚才关于并发的审查结论。",
+    "project": "all_in_one",
+    "context": "较早的项目会话在少数管理员编辑函数的场景不采纳额外版本控制；较晚的明确决定要求普通记录更新在提供旧值时按字段比较，也允许不提供旧值。当前是普通记录接口的只读审查。"
+  },
+  {
+    "id": "calibrate-trigger-failure",
+    "request": "再校准这个触发器失败的缺陷判断。",
+    "project": "all_in_one",
+    "context": "一项插入前业务校验正常拒绝并阻止写入；另一项本应成功的编排执行异常，后续写入也被阻止。用户尚未授权修复。"
+  },
+  {
+    "id": "calibrate-question-versus-decision",
+    "request": "校准异步事件应使用哪个版本，并标出需要我核对的地方。",
+    "project": "all_in_one",
+    "context": "用户曾提出执行时取最新版本的疑问并要求质疑，助手提出冻结版本的反例；目前没有找到用户对此最终确认的记录，而现行设计写了冻结版本。"
+  },
+  {
     "id": "calibrate-source-hub",
     "request": "请校准上一轮的业务判断，尤其要对照已经积累的经验。",
     "project": "all_in_one",

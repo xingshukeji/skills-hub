@@ -8,6 +8,66 @@
   ],
   "cases": [
     {
+      "id": "calibrate-project-history",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-skill-evolution"],
+      "mode": "evolution",
+      "requiredBehavior": [
+        "枚举项目活动和归档会话，核对实际用户决定及必要上下文，按同一对象与范围使用最新明确决定",
+        "将可复用经验写入技能来源并同步已授权副本；对不可读图片和待用户核对的反常判断分别说明"
+      ],
+      "forbiddenBehavior": [
+        "用最近会话或标题抽样冒充整个项目历史，或把助手的建议当成用户确认",
+        "把有争议的历史提案直接写成当前产品契约"
+      ]
+    },
+    {
+      "id": "calibrate-scoped-concurrency",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-code-review"],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "区分少数管理员编辑函数与普通记录接口，恢复较晚的条件更新决定及无旧值合法分支",
+        "按当前源码、合同和真实消费者核对审查结果"
+      ],
+      "forbiddenBehavior": [
+        "把早期不增加管理并发控制推广为业务记录不需要条件更新",
+        "要求所有普通更新必须提供旧值"
+      ]
+    },
+    {
+      "id": "calibrate-trigger-failure",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-code-review"],
+      "mode": "xrain",
+      "requiredBehavior": [
+        "确认正常校验拒绝后阻止写入是预期保护",
+        "继续调查本应成功的编排为何异常，区分根因和正确的阻止后果"
+      ],
+      "forbiddenBehavior": [
+        "把所有被触发器阻止的写入判为缺陷",
+        "因阻止写入是正确行为而排除独立执行异常"
+      ]
+    },
+    {
+      "id": "calibrate-question-versus-decision",
+      "source": "synthetic",
+      "split": "regression",
+      "acceptablePrimary": ["shzw-solution"],
+      "mode": "challenge",
+      "requiredBehavior": [
+        "区分用户提出的问题、助手的反例、现行设计和未找到的最终用户选择",
+        "说明两种执行版本语义及影响，把冲突与最小确认点交给用户核对"
+      ],
+      "forbiddenBehavior": [
+        "把提问或助手建议当成已确认的产品决定",
+        "未经核对自行改写当前产品契约"
+      ]
+    },
+    {
       "id": "calibrate-source-hub",
       "source": "synthetic",
       "split": "regression",
