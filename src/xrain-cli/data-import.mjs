@@ -22,10 +22,7 @@ export async function exportRecordsFile(ctx) {
     const client = makeClient(ctx, controller.signal);
     const body = await readJsonInput(ctx.args.required('request-json', ctx.args.value('file')), 'Export request');
     if (!isObject(body) || !isObject(body.query)) throw invalid('Export request requires a query object.');
-    const capabilities = await jsonRequest(client, 'GET', `${client.root}/exports/capabilities`);
-    if (!Number.isSafeInteger(capabilities?.maximumFileBytes) || capabilities.maximumFileBytes < 1)
-      throw invalidResponse('This server does not advertise a supported export file limit.');
-    const value = await saveFile(client, 'POST', `${client.root}/records:exportFile`, ctx.args.required('out'), capabilities.maximumFileBytes, body);
+    const value = await saveFile(client, 'POST', `${client.root}/records:exportFile`, ctx.args.required('out'), undefined, body);
     ctx.reporter.print({ entityCode: client.entity, ...value });
   } finally { process.removeListener('SIGINT', interrupt); }
 }
@@ -336,8 +333,7 @@ export async function dataImportCommands(ctx) {
     if (action === 'download') {
       const purpose = args.required('purpose'), out = args.required('out');
       if (!['result', 'issues', 'maintenance', 'remaining'].includes(purpose)) throw invalid('--purpose must be result, issues, maintenance or remaining.');
-      const jobs = await capabilities(client, undefined, false);
-      reporter.print({ jobId, purpose, ...await saveFile(client, 'GET', `${path}/file${query({ purpose })}`, out, jobs.limits.maximumFileBytes) });
+      reporter.print({ jobId, purpose, ...await saveFile(client, 'GET', `${path}/file${query({ purpose })}`, out) });
       return 0;
     }
     if (action === 'show' || action === 'wait') {
