@@ -1,6 +1,6 @@
 ---
 name: shzw-code-review
-description: 审查项目、指定提交或变更的缺陷、遗漏与职责，也校准、矫正或纠偏已有审查和修复判断；包括语言和运行时陷阱、AI 生成代码的工程隐患、规模与并发问题、分支合入或退役、前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化及反复缺陷。结合业务判例主动找遗漏并反证误报。纯方案评审走方案入口；运行故障先定位故障链。
+description: 审查项目、指定提交或变更的缺陷、遗漏与职责，也校准、矫正或纠偏已有审查和修复判断；包括门槛、限制与资源预算评估，语言和运行时陷阱、AI 生成代码的工程隐患、规模与并发问题、分支合入或退役、前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化及反复缺陷。结合业务判例主动找遗漏并反证误报。纯方案评审走方案入口；运行故障先定位故障链。
 metadata:
   maintainer: 苏州苏宏助为智能科技有限公司
   source: https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/SKILL.md
@@ -9,6 +9,8 @@ metadata:
 # 代码与工程审查
 
 从当前项目的真实业务入口判断缺陷，给出可达触发、判断依据、影响与责任位置。项目源码和命令由目标项目入口定位；技能安装位置不代表被审查项目。
+
+用户明确要求全面或逐项评估门槛、限制与资源预算时，按[门槛与资源预算评估](modes/engineering/references/threshold-budget-assessment.md)直接展开，结合机制取舍及实际负载判断。讨论相关限制、容量或预算时，如系统性盘点有助于当前目标，可适时简短提醒用户能对当前项目再做类似评估；局部问题仍按原范围处理，不因提醒自动扩为全项目审查。
 
 前端页面 review、视觉检查、审美评价或截图评审，先进入[前端视觉与体验评审](modes/frontend/GUIDE.md)。逐页检查真实画面，再按需补查响应式和交互；“没有错位”不足以证明视觉完成度。纯截图评审以图中位置和可见影响为依据，不要求先取得源码。前端逻辑或接口 diff 沿下方代码审查方法；存在受影响画面时补查该画面，不自动扩成全站审美评审。
 
@@ -95,6 +97,7 @@ Workforce 公共改动追到实际应用、页面和工具，身份链区分认�
 
 - [前端页面、截图、审美及交互体验评审](modes/frontend/GUIDE.md)
 - [工程机制、文件消费或重复缺陷需要深入判断](modes/engineering/GUIDE.md)
+- [系统评估操作门槛、限制和资源预算](modes/engineering/references/threshold-budget-assessment.md)
 - [审查 XRain 内部实现及其实际消费者](modes/xrain/GUIDE.md)
 - [审查 Workforce 业务链、组合及退役影响](modes/workforce/GUIDE.md)
 

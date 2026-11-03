@@ -15,6 +15,7 @@
 - 新增、修改或审计文件消费关系时，读[文件消费职责边界](references/file-consumption.md)，确认消费者使用的是文件承诺的接口。
 - 比较外部方法或选择现成工具时，读[开源方法与适用边界](references/open-source.md)，并核对当前工具版本。
 - 审查资源增长、缓存/队列容量或退出释放时，按[运行稳定性](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/modes/stability/GUIDE.md)选择相关测量与恢复场景。本 skill 负责确认资源所有者、保留关系及失效与释放时机；容量约束需有负载、资源预算或明确契约依据。
+- 系统盘点阻断正常操作的门槛及资源预算时，读[门槛与资源预算评估](references/threshold-budget-assessment.md)，按真实入口归并机制并逐项取舍；普通局部审查不自动扩成系统盘点。
 - 新建或实质修改本 skill 时，用[行为校验案例](references/behavior-cases.md)检查误删、过度保留及越界实施。
 
 ## 建立事实
