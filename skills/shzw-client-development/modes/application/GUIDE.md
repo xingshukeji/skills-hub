@@ -49,7 +49,9 @@ Use one owner per responsibility:
 
 The reusable lifecycle is `discover -> contract -> choose delivery -> build -> verify -> stage -> activate -> recover -> closeout`.
 
-Keep binaries, configuration, credentials, user data, and migrations in separate ownership boundaries. Prepare candidates in temporary state, verify size/digest/provenance and declared health, preserve the current runnable release until activation is safe, and use the contract-selected recovery mode after activation. Never add a fallback origin, compatibility bridge, service, scheduled task, or custom transport-security policy without an explicit owner and requirement.
+Keep binaries, configuration, credentials, user data, and migrations in separate ownership boundaries. Prepare candidates in temporary state and verify the evidence required by their actual owner: product-owned artifacts need their declared size/digest/provenance and health checks; official dependencies retain the official installer or package manager's checks. Do not automatically add a second content-certification or repackaging gate for upstream artifacts. Preserve the current runnable release until activation is safe, and use the contract-selected recovery mode after activation. Never add a fallback origin, compatibility bridge, service, scheduled task, or custom transport-security policy without an explicit owner and requirement.
+
+Use [historical calibration cases](references/calibration-cases.md) when ownership, upstream distribution, version selection or UI responsibility is disputed. The examples supply counterexamples, not another product's requirements.
 
 ## Inputs, Search, And Empty States
 
