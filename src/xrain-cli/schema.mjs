@@ -90,7 +90,7 @@ const requestInput = ['request-json', 'file'];
 const recordTarget = [...api, 'entity', 'id'];
 const paging = ['page', 'page-size'];
 command('data capabilities', api, [], 'Read server query capabilities.');
-command('data query-batch', [...api, ...requestInput], [], 'Query one to eight objects; use individual reads if the server lacks queryBatch.');
+command('data query-batch', [...api, ...requestInput], [], 'Query one to eight objects using the platform batch endpoint.');
 for (const action of ['export', 'count', 'distinct', 'single', 'single-or-default', 'first', 'first-or-default'])
   command(`data ${action}`, [...api, 'entity', ...requestInput], [slot('entity')], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
 for (const action of ['batch-create', 'batch-update', 'batch-delete']) command(`data ${action}`, [...api, 'entity', ...requestInput], [slot('entity')], 'Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.');

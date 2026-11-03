@@ -640,9 +640,9 @@ async function writeOnce(action, hint2, details, unknownServerCodes = [], defini
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, resolvedCredential, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
+async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
-  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : resolvedCredential ?? ctx.store.credential(ctx.args, profile);
+  const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
   const perform = async () => {
     const stream = raw && ctx.args.has("out");
@@ -1122,26 +1122,7 @@ async function dataOperations(ctx) {
     const body = await input(args);
     if (!Array.isArray(body.queries) || body.queries.length < 1 || body.queries.length > 8 || body.queries.some((item) => !isObject(item) || !nonempty(item.entityCode) || !isObject(item.query)))
       throw new CliError("queries must contain one to eight entityCode and query objects.", { code: "invalid_arguments" });
-    const profile = ctx.store.resolve(args, true), credential = ctx.store.credential(args, profile);
-    const options = { resolvedProfile: profile, resolvedCredential: credential };
-    let value;
-    try {
-      value = await apiValue(ctx, "POST", "/api/data/v1/records:queryBatch", body, options);
-    } catch (error) {
-      if (!(error instanceof CliError) || ![404, 405].includes(error.httpStatus)) throw error;
-      const response = error.details?.response;
-      const explicitCodes = [response?.errorCode, typeof response?.error === "object" ? response.error?.code : void 0, response?.code];
-      const hasServerCode = error.serverCode || explicitCodes.some((candidate) => typeof candidate === "string" && candidate.trim() || typeof candidate === "number");
-      if (hasServerCode) throw error;
-      const results = await Promise.all(body.queries.map(async ({ entityCode: entityCode2, query: query2 }) => {
-        const result = await apiValue(ctx, "POST", `/api/data/v1/entities/${segment(entityCode2)}/records:query`, query2, options);
-        if (!isObject(result) || !Array.isArray(result.records))
-          throw new CliError("The server returned an invalid query response.", { code: "invalid_response" });
-        return { entityCode: entityCode2, result };
-      }));
-      value = { results };
-    }
-    reporter.print(value);
+    await api(ctx, "POST", "/api/data/v1/records:queryBatch", body);
     return true;
   }
   if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) && !["field-options", "original-values", "history", "owner-transfer", "share", "export-file", "export-capabilities"].includes(action)) return false;
@@ -4201,7 +4182,7 @@ var requestInput = ["request-json", "file"];
 var recordTarget = [...api2, "entity", "id"];
 var paging = ["page", "page-size"];
 command("data capabilities", api2, [], "Read server query capabilities.");
-command("data query-batch", [...api2, ...requestInput], [], "Query one to eight objects; use individual reads if the server lacks queryBatch.");
+command("data query-batch", [...api2, ...requestInput], [], "Query one to eight objects using the platform batch endpoint.");
 for (const action of ["export", "count", "distinct", "single", "single-or-default", "first", "first-or-default"])
   command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
 for (const action of ["batch-create", "batch-update", "batch-delete"]) command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], "Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.");

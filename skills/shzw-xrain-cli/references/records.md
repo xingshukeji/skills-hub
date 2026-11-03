@@ -21,7 +21,7 @@ data batch-delete <entity> --request-json <集合.json>
 
 这些 `--request-json` 参数接受文件或 `-`，`--file` 是别名。查询文件使用完整查询对象，如 `{"page":1,"pageSize":25,"fields":["name"],"includeTotalCount":true}`；过滤、排序和聚合与 `data query --query-json` 相同。`export` 返回记录 JSON，下载 XLSX 使用下方 `export-file`。
 
-跨对象查询为 `{"queries":[{"entityCode":"<对象>","query":{"page":1,"pageSize":25}}]}`，一次最多 8 项。旧平台不存在批量接口时，CLI 在无业务错误码的 404 或 405 下使用相同身份逐项读取，仍返回按输入顺序排列的 `results`；任何一项失败则整体返回错误。认证、授权及带业务错误码的失败不回退。每个对象保留原权限和查询结果，不跨租户拼接。
+跨对象查询为 `{"queries":[{"entityCode":"<对象>","query":{"page":1,"pageSize":25}}]}`，一次最多 8 项。CLI 调用平台批量查询接口，按输入顺序取得 `results`；接口返回失败时直接报告错误。每个对象保留原权限和查询结果，不跨租户拼接。
 
 集合创建为 `{"records":[{"values":{"name":"<值>"}}],"allOrNone":true}`；更新为 `{"records":[{"recordId":"<ID>","values":{"status":"<新值>"},"expectedValues":{"status":"<原值>"}}],"allOrNone":true}`；删除为 `{"recordIds":["<ID>"],"allOrNone":true}`。
 

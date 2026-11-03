@@ -5,14 +5,15 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fixture, mockServer, respond } from './helpers.mjs';
 
-test('copied CLI uses the same caller and ordered results for old-platform batch fallback', async t => {
+test('copied CLI uses the native batch endpoint and reports 404 and 405 directly', async t => {
   const f = fixture(t), skill = join(f.directory, 'copied-skill');
   cpSync('skills/shzw-xrain-cli', skill, { recursive: true });
-  let mode = 'missing';
+  let mode = 'success';
   const server = await mockServer(t, (hit, res) => {
     assert.equal(hit.headers.authorization, 'Bearer synthetic-token');
     if (hit.url === '/api/data/v1/records:queryBatch') {
-      if (mode === 'missing') return res.writeHead(405, { Allow: 'GET, HEAD' }).end();
+      if (mode === 'success') return respond(res, { results: hit.json().queries.map(item => ({ entityCode: item.entityCode, result: { records: [{ recordId: item.entityCode }] } })) });
+      if (mode === '404' || mode === '405') return res.writeHead(Number(mode)).end();
       return respond(res, { error: { code: 'runtime.entity_not_available' } }, 404);
     }
     const entity = decodeURIComponent(hit.url.split('/')[5]);
@@ -36,6 +37,12 @@ test('copied CLI uses the same caller and ordered results for old-platform batch
   const success = await run();
   assert.equal(success.code, 0, success.stdout);
   assert.deepEqual(JSON.parse(success.stdout).data.results.map(item => item.result.records[0].recordId), ['first', 'second']);
+  assert.equal(server.hits.length, 1);
+  for (mode of ['404', '405']) {
+    const failed = await run();
+    assert.equal(failed.code, 1, failed.stdout);
+    assert.equal(JSON.parse(failed.stdout).error.httpStatus, Number(mode));
+  }
   assert.equal(server.hits.length, 3);
   mode = 'business-error';
   const denied = await run();
