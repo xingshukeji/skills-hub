@@ -32,6 +32,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | Skill | 用途 |
 | --- | --- |
 | [shzw-aiinfra-development](skills/shzw-aiinfra-development/SKILL.md) | 使用或维护 AiInfra.Abp.* / LLM_backend_packages 开发 .NET 后端，处理新项目、公共能力复用、DI、Repository/Manager/AppService 分层、事务、数据访问、CPU/内存/IO 优化、动态代码执行与 provider 边界。代码缺陷审查可按需读取此知识。 |
+| [shzw-autonomous-project-decisions](skills/shzw-autonomous-project-decisions/SKILL.md) | 在向用户提问、请求确认或请用户代为操作前，核对已授权目标、默认政策、现有资源和受支持替代方式；能自主完成的继续执行，确有缺口时说明具体决定或阻断。不替其他用户推定环境和授权。 |
 | [shzw-client-development](skills/shzw-client-development/SKILL.md) | 开发或修复桌面、原生、移动及 Web 客户端，涵盖交互性能、内存与资源生命周期、插件接入、安装、启动器、更新、托管 Runtime 和应用自管能力。按实际产品确认界面、运行和交付所有者；业务页面小改不展开完整客户端交付。 |
 | [shzw-code-review](skills/shzw-code-review/SKILL.md) | 审查项目、指定提交或变更的缺陷、遗漏与职责，也校准、矫正或纠偏已有审查和修复判断；包括语言和运行时陷阱、AI 生成代码的工程隐患、规模与并发问题、分支合入或退役、前端页面 review、截图逐页视觉评审、审美与交互体验、工程简化及反复缺陷。结合业务判例主动找遗漏并反证误报。纯方案评审走方案入口；运行故障先定位故障链。 |
 | [shzw-delivery](skills/shzw-delivery/SKILL.md) | 发布责任项目的公共包，或查询和执行已有流水线、部署及回滚。团队 Nexus 公共包复用台账中的固定发布凭据，无需个人 Nexus 账号或 CI 仓库；真正发布或部署沿用明确制品、目标与授权，构建和 Git 推送不自动授权发布。 |
@@ -55,7 +56,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 
 业务落地先找所属项目已确认的完整主线与差异。`shzw-xrain-access` 处理人员接入、登录和访问权限；`shzw-workforce-business-development` 沿业务结果组织实现。具体业务规则、内部实现与运行合同由责任项目维护；[产品知识与责任项目](skills/shzw-workforce-business-development/references/knowledge-ownership.md)帮助选择公开能力资料。无私有源码的使用者仍可使用完整专题、API 和 SDK 知识，读取知识不启动另一整套任务。
 
-用户明确采纳的[默认处置政策](support/shzw-autonomous-project-decisions/GUIDE.md)与项目路由的[Git 收口动作](support/shzw-git-closeout/GUIDE.md)保留在 `support/`。它们按实际需要完整复制并由入口直接引用，退出普通任务技能选择；政策不会随分发授予账号或外部操作权限。DSH 升级由用户明确提出评估、计划或升级时触发，不从普通开发或发现新版本自动推断。
+[提问前的自主处置](skills/shzw-autonomous-project-decisions/SKILL.md)核对当前用户和项目已采纳的政策；分发技能不会授予账号或外部操作权限。[Git 收口动作](support/shzw-git-closeout/GUIDE.md)保留在 `support/`。DSH 升级由用户明确提出评估、计划或升级时触发，不从普通开发或发现新版本自动推断。
 
 ## 安装与使用
 
