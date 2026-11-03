@@ -93,7 +93,7 @@ createFunctionVersion 不收源码参数，先保存源码/合同再创建版本
 | Before | 在记录提交前同步运行，可用于业务校验；失败回滚本次写入批次 |
 | After | 数据提交后调度，失败保留已经提交的记录；查看运行结果再处理 |
 
-单条/批量共用集合输入：Insert/Update 为 records[]，Delete 为 ids[]；其余字段按模板。每个写入批次触发一次。After 保留事件操作者、上下文和选定版本，Worker 不变为管理员。
+单条/批量共用集合输入：Insert/Update 为 records[]，Delete 为 ids[]；其余字段按模板。每个写入批次触发一次。After 保留事件操作者和上下文，Worker 不变为管理员。用户最新确认：事件登记后到执行前如有新版，期望执行时使用当前版本，版本切换的短暂边界允许新旧任一；截至 2026-11-03 既有实现和设计仍冻结登记时版本，目标实例是否已调整须核实，不能将期望当成已实现。
 
 eventId 不等于单次投递唯一键，按运行记录与业务标识处理重复；不承诺 exactly-once。后续写入按实际变化限制，避免无条件自更新循环。
 
@@ -101,7 +101,7 @@ eventId 不等于单次投递唯一键，按运行记录与业务标识处理重
 
 Routine 引用编排、固定输入、Owner 和调度；支持 Manual/Daily/Workday。用 schedule-preview 核对 timeZoneId、下一次时刻和工作日，地区语义见[时间上下文](regional-context.md)。
 
-基址 `/api/automation/routines`：列表必须传 page/pageSize；`/{id}` 下有 definition/schedule/enable/pause/runs/history/versions，活动运行在 `/{id}/active-runs`。`executionStartedAt` 非空表示已开始；为空可能是排队，支持新策略的版本也可能在等待重试，应结合 `nextAttemptAt` 和实际响应判断。已确认的新策略对已开始调用的超时或中断按同一运行标识指数退避，最多重试 5 次；明确业务失败不自动重试。重试用尽后才形成失败历史，外部结果仍可能未知且动作可能重复。核对原运行、尝试次数和目标系统结果，不把本规则套用到 Trigger 或普通调试。目标实例可能尚未升级，实际版本与支持字段须单独核实。读取执行人与调度预览的 DTO 见业务 API；其他写入按当前编辑合同。
+基址 `/api/automation/routines`：列表必须传 page/pageSize；`/{id}` 下有 definition/schedule/enable/pause/runs/history/versions，活动运行在 `/{id}/active-runs`。`executionStartedAt` 非空表示已开始；为空可能是排队，某些候选版本也可能等待重试，须结合实际响应判断。用户澄清此前所说的指数退避、最多 5 次且仍失败记录失败，指智能体运行中断后的继续，不是普通 Routine、外部调用或整次业务编排重跑。截至 2026-11-03 现有 Routine 候选会在超时或中断后重跑整个编排，这不是用户确认的需求；目标实例是否采用该候选须单独核实。智能体继续按其 Runtime 实际能力判断，不推断已实现或新建一套恢复机制。读取执行人与调度预览的 DTO 见业务 API；其他写入按当前编辑合同。
 
 Owner 是维护者，普通 Routine 由 automationExecutionUserId 指向的活跃成员执行，运行时检查权限；复用适用身份。
 

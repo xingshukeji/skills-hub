@@ -19,9 +19,21 @@
   },
   {
     "id": "calibrate-question-versus-decision",
-    "request": "校准异步事件应使用哪个版本，并标出需要我核对的地方。",
+    "request": "校准这项调度的时区策略，并标出需要我核对的地方。",
     "project": "all_in_one",
-    "context": "用户曾提出执行时取最新版本的疑问并要求质疑，助手提出冻结版本的反例；目前没有找到用户对此最终确认的记录，而现行设计写了冻结版本。"
+    "context": "用户曾询问该调度是否跟随用户时区并要求质疑，助手建议固定 UTC；目前没有找到用户对此最终确认的记录，而现行设计写了固定 UTC。"
+  },
+  {
+    "id": "calibrate-after-trigger-version",
+    "request": "请只读校准刚才对异步 Trigger 执行版本的审查。",
+    "project": "all_in_one",
+    "context": "事件登记后、执行前发布新版本；用户已明确执行时使用当前版本，版本切换的短暂边界允许新旧任一。当前设计和源码仍按登记时冻结的版本执行，本轮只读审查。"
+  },
+  {
+    "id": "calibrate-agent-resumption",
+    "request": "我说的重试是智能体运行中断继续，不是其他的，请纠正。",
+    "project": "all_in_one",
+    "context": "前文曾选择指数退避、最多 5 次，仍失败则记录失败；助手误将它落实成普通 Routine 超时后重跑完整业务编排。用户已授权更正技能来源和选定消费副本，本轮没有授权产品代码修复。"
   },
   {
     "id": "calibrate-source-hub",
