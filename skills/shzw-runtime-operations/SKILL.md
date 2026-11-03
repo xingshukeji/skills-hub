@@ -20,7 +20,7 @@ Workforce 当前默认路径是本机统一宿主连接共享测试平台、统�
 
 用户明确要求性能或资源优化时，按[性能优化方法](modes/performance/GUIDE.md)从业务负载、成本和预算选择候选，兼顾代码逻辑、维护代价及原功能。业务开发或客户端优化保留原主入口，不因需要指标而转换任务类型或展开故障恢复。
 
-讨论资源预算、容量或限制时，如系统性盘点有助于当前目标，可适时简短提醒用户能对当前项目做类似的门槛与资源预算评估。用户明确要求全面或逐项审查时，直接使用已安装的 shzw-code-review 的[评估方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/threshold-budget-assessment.md)；局部故障仍先按原范围定位，不自动扩大审查。
+用户主动讨论当前项目资源预算或操作限制是否合理，或担心持续遇到多类限制，但本轮只要求局部分析时，先完成原问题，再用一句话提醒可以对当前项目做一次全面门槛与资源预算评估。明确要求全面或逐项审查时，直接使用已安装的 shzw-code-review 的[评估方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/threshold-budget-assessment.md)。单点故障、单纯查询参数、无关话题或明确不要建议时不机械提醒；不因提醒自动扩大审查。
 
 用户对已有故障定位、资源或性能结论说“校准”“矫正”“纠偏”时，沿原实例和业务动作复核证据，并从 [skills-hub 业务判断来源索引](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/judgment-calibration.md) 选读相关已有判断；优先读取已安装技能资源，不将历史样本当成当前负载。没有重启、压测或部署授权时只做授权内调查，来源不可用时说明范围并继续可做的检查。
 
