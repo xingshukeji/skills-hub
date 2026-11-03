@@ -124,7 +124,7 @@ async function capabilities(client, options, requireSupported = true, deadline) 
   const jobs = value?.jobs;
   if (!isObject(value) || value.entityCode !== client.entity || !isObject(jobs) || jobs.protocol !== protocol ||
       !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes('chunked') ||
-      !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
+      !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes < 0)
     throw new CliError('This server does not advertise the required import job protocol and file limit.', { code: 'import_jobs_unavailable' });
   if (requireSupported && jobs.supported !== true)
     throw new CliError('Chunked import is unavailable for this object.', { code: 'import_jobs_unavailable', details: { reasons: jobs.unavailableReasons ?? [] } });
@@ -310,9 +310,9 @@ export async function dataImportCommands(ctx) {
       if (extname(input).toLowerCase() !== '.xlsx') throw invalid('--file must be an XLSX file.');
       const jobs = await capabilities(client, options, true, deadline);
       const info = await stat(input);
-      if (!info.isFile() || info.size < 1 || info.size > jobs.limits.maximumFileBytes) throw invalid('The XLSX is empty, not a regular file, or exceeds the server file limit.');
+      if (!info.isFile() || info.size < 1 || jobs.limits.maximumFileBytes > 0 && info.size > jobs.limits.maximumFileBytes) throw invalid('The XLSX is empty, not a regular file, or exceeds the server file limit.');
       const blob = await openAsBlob(input, { type: mime });
-      if (blob.size !== info.size || blob.size > jobs.limits.maximumFileBytes) throw invalid('The XLSX changed or exceeds the server file limit.');
+      if (blob.size !== info.size || jobs.limits.maximumFileBytes > 0 && blob.size > jobs.limits.maximumFileBytes) throw invalid('The XLSX changed or exceeds the server file limit.');
       const form = new FormData();
       form.set('file', blob, 'import.xlsx'); form.set('options', JSON.stringify(options)); form.set('requestId', requestId);
       form.set('coordination', protocol); form.set('commitMode', 'chunked');

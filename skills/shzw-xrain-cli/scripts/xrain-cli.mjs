@@ -818,7 +818,7 @@ function validatedJob(value, entity2, expectedId, expectedRequest) {
 async function capabilities(client2, options, requireSupported = true, deadline) {
   const value = await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`, { deadline });
   const jobs = value?.jobs;
-  if (!isObject(value) || value.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes <= 0)
+  if (!isObject(value) || value.entityCode !== client2.entity || !isObject(jobs) || jobs.protocol !== protocol || !Array.isArray(jobs.commitModes) || !jobs.commitModes.includes("chunked") || !Number.isSafeInteger(jobs.limits?.maximumFileBytes) || jobs.limits.maximumFileBytes < 0)
     throw new CliError("This server does not advertise the required import job protocol and file limit.", { code: "import_jobs_unavailable" });
   if (requireSupported && jobs.supported !== true)
     throw new CliError("Chunked import is unavailable for this object.", { code: "import_jobs_unavailable", details: { reasons: jobs.unavailableReasons ?? [] } });
@@ -1005,9 +1005,9 @@ async function dataImportCommands(ctx) {
       if (extname(input3).toLowerCase() !== ".xlsx") throw invalid("--file must be an XLSX file.");
       const jobs = await capabilities(client2, options, true, deadline);
       const info = await stat(input3);
-      if (!info.isFile() || info.size < 1 || info.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX is empty, not a regular file, or exceeds the server file limit.");
+      if (!info.isFile() || info.size < 1 || jobs.limits.maximumFileBytes > 0 && info.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX is empty, not a regular file, or exceeds the server file limit.");
       const blob = await openAsBlob(input3, { type: mime });
-      if (blob.size !== info.size || blob.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX changed or exceeds the server file limit.");
+      if (blob.size !== info.size || jobs.limits.maximumFileBytes > 0 && blob.size > jobs.limits.maximumFileBytes) throw invalid("The XLSX changed or exceeds the server file limit.");
       const form = new FormData();
       form.set("file", blob, "import.xlsx");
       form.set("options", JSON.stringify(options));
