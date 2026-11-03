@@ -30,7 +30,10 @@ export async function userSettingsCommands(ctx) {
   let result;
   if (ctx.args.command(2) === 'get') {
     try { result = { configured: true, ...validate(await call('GET', path)) }; }
-    catch (error) { if (error.httpStatus !== 404) throw error; result = { configured: false, settingApp, key: preference.key, value: null, defaultValue: preference.defaultValue }; }
+    catch (error) {
+      if (error.httpStatus !== 404 || error.serverCode !== 'platform.tenant_user_setting.not_found') throw error;
+      result = { configured: false, settingApp, key: preference.key, value: null, defaultValue: preference.defaultValue };
+    }
   } else {
     const value = ctx.args.required('value');
     result = await writeOnce(async () => {

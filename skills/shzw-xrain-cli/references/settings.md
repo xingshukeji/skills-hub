@@ -23,7 +23,7 @@ user settings get unread-badge
 user settings set unread-badge --value false
 ```
 
-发送快捷键取 `enter` 或 `ctrlEnter`；未读角标取 `true` 或 `false`。未保存时显示 `configured: false`、`value: null` 和页面默认值。读取和修改只针对当前租户中的本人，不能指定另一人。此接口没有旧值比较合同；命令只保存一项，不宣称并发条件写入或跨设置事务。结果未知先用同一命令回读。
+发送快捷键取 `enter` 或 `ctrlEnter`；未读角标取 `true` 或 `false`。平台明确返回设置不存在时显示 `configured: false`、`value: null` 和页面默认值；接口缺失等其他失败直接报告。读取和修改只针对当前租户中的本人，不能指定另一人。此接口没有旧值比较合同；命令只保存一项，不宣称并发条件写入或跨设置事务。结果未知先用同一命令回读。
 
 ## 其他配置
 

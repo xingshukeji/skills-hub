@@ -16,17 +16,23 @@ test('retired Host definition-size setting commands never reach a server', async
 
 test('personal preferences use USER endpoints and preserve explicit values and unknown writes', async t => {
   const f = fixture(t), values = new Map();
-  let lose = false;
+  let lose = false, missingEndpoint = false;
   const server = await mockServer(t, (hit, res) => {
     const key = hit.url.split('/').at(-1);
     assert.ok(hit.url.startsWith('/api/tenant/v1/settings/workforce/'));
     if (hit.method === 'PUT') { values.set(key, hit.json().value); if (lose) return res.destroy(); }
-    if (!values.has(key)) return respond(res, {}, 404);
+    if (missingEndpoint) return respond(res, {}, 404);
+    if (!values.has(key)) return respond(res, { errorCode: 'platform.tenant_user_setting.not_found' }, 404);
     respond(res, { settingApp: 'workforce', key, value: values.get(key) });
   });
   f.profile(server.url, 'tenant-demo', 'synthetic-user');
   const run = (...args) => f.run(['user', 'settings', ...args, '--json']);
   assert.equal(out(await run('get', 'send-shortcut')).data.configured, false);
+  missingEndpoint = true;
+  const unavailable = await run('get', 'send-shortcut');
+  assert.equal(unavailable.code, 1);
+  assert.equal(out(unavailable).error.httpStatus, 404);
+  missingEndpoint = false;
   const result = out(await run('set', 'send-shortcut', '--value', 'ctrlEnter')).data;
   assert.equal(result.scope, 'user'); assert.equal(result.tenantId, 'tenant-demo'); assert.equal(result.value, 'ctrlEnter');
   assert.equal(out(await run('get', 'send-shortcut')).data.value, 'ctrlEnter');
