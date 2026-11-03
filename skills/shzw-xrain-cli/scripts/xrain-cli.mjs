@@ -1500,7 +1500,7 @@ import { spawn } from "node:child_process";
 import { join as join3 } from "node:path";
 import { setTimeout as delay2 } from "node:timers/promises";
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/buffer_utils.js
+// node_modules/jose/dist/webapi/lib/buffer_utils.js
 var encoder = new TextEncoder();
 var decoder = new TextDecoder();
 var strictDecoder = new TextDecoder("utf-8", { fatal: true });
@@ -1542,7 +1542,7 @@ function decodeBase64(encoded, url = false) {
   return bytes;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/util/errors.js
+// node_modules/jose/dist/webapi/util/errors.js
 var JOSEError = class extends Error {
   static code = "ERR_JOSE_GENERIC";
   code = "ERR_JOSE_GENERIC";
@@ -1614,7 +1614,7 @@ var JWSSignatureVerificationFailed = class extends JOSEError {
   }
 };
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/util/base64url.js
+// node_modules/jose/dist/webapi/util/base64url.js
 var invalid2 = "The input to be decoded is not correctly encoded.";
 function decode(input3) {
   try {
@@ -1624,7 +1624,7 @@ function decode(input3) {
   }
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/validate.js
+// node_modules/jose/dist/webapi/lib/validate.js
 function isObject2(input3) {
   if (typeof input3 != "object" || input3 === null || Object.prototype.toString.call(input3) !== "[object Object]")
     return false;
@@ -1704,7 +1704,7 @@ function validateB64(protectedHeader, extensions) {
   return true;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/key.js
+// node_modules/jose/dist/webapi/lib/key.js
 var tag = (key) => key[Symbol.toStringTag];
 var jwkMatchesOp = (entry, key, usage) => {
   const { alg } = entry;
@@ -1835,7 +1835,7 @@ async function rawKey(key, expected, usage, extractable = false) {
   return key instanceof Uint8Array && (key = await crypto.subtle.importKey("raw", key, expected, extractable, [usage])), checkCryptoKey(key, expected, usage), key;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/key_descriptor.js
+// node_modules/jose/dist/webapi/lib/key_descriptor.js
 function table(entries) {
   const out = { __proto__: null };
   for (const alg in entries)
@@ -1843,7 +1843,7 @@ function table(entries) {
   return out;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_algorithms.js
+// node_modules/jose/dist/webapi/lib/jws_algorithms.js
 var sig = [["verify"], ["sign"]];
 function hmac(bits) {
   const subtle = { name: "HMAC", hash: `SHA-${bits}` };
@@ -1913,7 +1913,7 @@ function jwsAlgorithm(alg) {
   return entry;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/jws_verify.js
+// node_modules/jose/dist/webapi/lib/jws_verify.js
 function prepareVerify(options) {
   return [options && validateAlgorithms("algorithms", options.algorithms), options?.crit];
 }
@@ -1965,7 +1965,7 @@ async function verifyCompact(jws, shared, key) {
   return verifySignature({ payload, protected: protectedHeader, signature }, shared, key, encodeCompactUnencodedPayload);
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+// node_modules/jose/dist/webapi/lib/jwt_claims_set.js
 var epoch = (date) => Math.floor(date.getTime() / 1e3);
 var multipliers = {
   s: 1,
@@ -2051,7 +2051,7 @@ function validateClaimsSet(protectedHeader, encodedPayload, options = {}) {
   return payload;
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/jwt/verify.js
+// node_modules/jose/dist/webapi/jwt/verify.js
 async function jwtVerify(jwt, key, options) {
   const [verified, b64] = await verifyCompact(jwt, prepareVerify(options), key);
   if (!b64)
@@ -2060,7 +2060,7 @@ async function jwtVerify(jwt, key, options) {
   return { ...verified, payload };
 }
 
-// D:/github.com/skills-hub/node_modules/jose/dist/webapi/jwks/local.js
+// node_modules/jose/dist/webapi/jwks/local.js
 function isUsableJWK(jwk, entry, alg, kid) {
   const { kty, key_ops: keyOps, ext, kid: jwkKid, alg: jwkAlg, use, crv } = jwk;
   return (ext === void 0 || typeof ext == "boolean") && (keyOps === void 0 || Array.isArray(keyOps) && keyOps.every((operation, index) => typeof operation == "string" && keyOps.indexOf(operation) === index) && keyOps.includes("verify")) && entry.kty.includes(kty) && (kid === void 0 || typeof kid == "string" && kid === jwkKid) && (jwkAlg === void 0 ? kty !== "AKP" : alg === jwkAlg) && (use === void 0 || use === "sig") && (!entry.crv || crv === entry.crv);
