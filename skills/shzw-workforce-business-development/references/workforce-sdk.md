@@ -27,6 +27,8 @@ npm ls @xrain/workforce-application @xrain/xrain-agent-runtime
 
 组件属性和完整导出由安装包类型持有。宿主装配与工具接线见[业务实现](implementation.md)。
 
+自定义会话侧栏、人工卡片与智能体界面工具的参数和实际支持范围见[业务侧栏与智能体](business-sidebar.md)。该专题按目标制品的公开类型区分已实现协议与待补能力。
+
 ## XRainRuntimeClient
 
 普通服务端请求使用受信会话取得的服务地址和租户令牌；AI 工具使用宿主提供的执行绑定。两种方式都不从页面或工具业务参数接受任意用户身份。
