@@ -16,19 +16,46 @@ const options = { uniqueField: 'product_code__c', filePurpose: 'sourceImport', b
   importBinding: { importSourceKey: 'product:source', orchestrationId: 'rule-1' } };
 const capabilities = { entityCode: entity, orchestrations: [{ id: 'rule-1', versionId: 'v2', import: {
   version: 2, prepareRecord: true, validate: true, phaseScopes: { prepareRecord: 'independentRows', validate: 'independentRows' } } }],
-  jobs: { protocol: 'xrain-import-jobs-v1', supported: true, commitModes: ['chunked'], limits: { maximumFileBytes: 268435456 } } };
+  jobs: { protocol: 'xrain-import-jobs-v2', supported: true, commitModes: ['chunked'], limits: { maximumFileBytes: 268435456 } } };
 function job(status, overrides = {}) {
-  return { jobId, requestId, entityCode: entity, protocol: 'xrain-import-jobs-v1', commitMode: 'chunked',
+  return { jobId, requestId, entityCode: entity, protocol: 'xrain-import-jobs-v2', commitMode: 'chunked',
     status, phase: status, version: 3, planRevision: 2, viewVersion: 'view-1',
     progress: { sourceRows: 3, checkedSourceRows: 3, outputRows: 3, committedOutputRows: 0, remainingOutputRows: 3 },
     summary: { sourceRows: 3, outputRows: 3, created: 3, updated: 0, deleted: 0, unchanged: 0,
       notFoundSkipped: 0, transformSkipped: 0, clearedFields: 0, sourceErrors: 0, outputErrors: 0 }, summaryKind: 'planned', detailsStatus: 'complete',
     canConfirm: status === 'ready', canContinue: status === 'paused', canRecheck: status === 'paused',
     pauseRequested: false, cancelRequested: false, sourceComplete: true, canDownloadRemaining: false,
-    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z', ...overrides };
+    createdAt: '2026-10-30T00:00:00Z', updatedAt: '2026-10-30T00:00:00Z', ...overrides,
+    toJSON() { return { disclosure: 'complete', job: { ...this, toJSON: undefined } }; } };
 }
 const output = result => JSON.parse(result.stdout);
 const baseArgs = ['--entity', entity, '--application', 'app-demo', '--json'];
+
+test('restricted jobs retain their identifiers, accept stop requests and never invent a status', async t => {
+  const f = fixture(t);
+  const restricted = { disclosure: 'restricted', jobId, requestId, entityCode: entity, reason: 'details_unavailable' };
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.startsWith(`${root}/jobs?`)) return respond(res, { items: [restricted], nextCursor: null });
+    return respond(res, restricted, hit.method === 'POST' ? 202 : 200);
+  });
+  f.profile(service.url);
+  for (const action of ['show', 'pause', 'cancel']) {
+    const result = await f.run(['data', 'import', action, ...baseArgs, '--job', jobId]);
+    assert.equal(result.code, 0, result.stdout);
+    assert.equal(output(result).data.disclosure, 'restricted');
+    assert.equal(output(result).data.jobId, jobId);
+    assert.equal(output(result).data.status, undefined);
+    assert.equal(output(result).data.progress, undefined);
+  }
+  const list = await f.run(['data', 'import', 'list', ...baseArgs, '--request-id', requestId]);
+  assert.deepEqual(output(list).data.items, [restricted]);
+  const rows = await f.run(['data', 'import', 'rows', ...baseArgs, '--job', jobId]);
+  assert.equal(output(rows).error.code, 'import_job_details_unavailable');
+  const waited = await f.run(['data', 'import', 'wait', ...baseArgs, '--job', jobId, '--wait-timeout', '1', '--poll-interval', '1']);
+  assert.equal(output(waited).error.code, 'import_wait_timeout');
+  assert.equal(output(waited).error.details.jobId, jobId);
+  assert.ok(service.hits.every(hit => !hit.url.includes('/rows?')));
+});
 
 test('import discovery preserves unavailable capabilities and template download does not require job eligibility', async t => {
   const f = fixture(t);
@@ -96,7 +123,7 @@ test('template, whole-file check and reviewed revision use the documented paths 
   const upload = calls.find(hit => hit.url === `${root}/jobs` && hit.method === 'POST');
   assert.match(upload.headers['content-type'], /^multipart\/form-data; boundary=/);
   for (const fragment of ['whole workbook', 'name="options"', 'product_code__c', 'name="requestId"', requestId,
-    'name="coordination"', 'xrain-import-jobs-v1', 'name="commitMode"', 'chunked']) assert.ok(upload.body.includes(fragment), fragment);
+    'name="coordination"', 'xrain-import-jobs-v2', 'name="commitMode"', 'chunked']) assert.ok(upload.body.includes(fragment), fragment);
   assert.equal(calls.filter(hit => hit.url.endsWith('/confirm')).length, 0);
   const confirmed = await f.run(['data', 'import', 'confirm', ...baseArgs, '--job', jobId, '--plan-revision', '2', '--wait']);
   assert.equal(confirmed.code, 0, confirmed.stdout); assert.match(output(confirmed).data.message, /导入完成/);
@@ -117,7 +144,7 @@ test('lost upload response retains the original request ID and lists only the re
   assert.equal(lost.code, 1); assert.equal(output(lost).error.requestId, requestId);
   assert.match(output(lost).error.hint, /data import list/); assert.match(lost.stderr, new RegExp(requestId));
   const found = await f.run(['data', 'import', 'list', ...baseArgs, '--request-id', requestId]);
-  assert.equal(found.code, 0, found.stdout); assert.equal(output(found).data.items[0].jobId, jobId);
+  assert.equal(found.code, 0, found.stdout); assert.equal(output(found).data.items[0].job.jobId, jobId);
   assert.equal(service.hits.filter(hit => hit.method === 'POST').length, 1);
   assert.equal(new URL(service.hits.at(-1).url, service.url).searchParams.get('requestId'), requestId);
 });

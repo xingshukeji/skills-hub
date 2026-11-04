@@ -772,7 +772,7 @@ test("records independent work locally while waiting for another unpushed parent
   assert.equal(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], later.json.sha);
 });
 
-test("two simultaneous closeouts publish their own files and preserve a third staged file", { timeout: 60000 }, async (t) => {
+test("parallel closeouts preserve a third staged file and revalidate a changed base", { timeout: 60000 }, async (t) => {
   const fixture = createRepository();
   t.after(() => cleanupFixture(fixture));
   write(path.join(fixture.repo, "owned.txt"), "session A\n");
@@ -786,16 +786,133 @@ test("two simultaneous closeouts publish their own files and preserve a third st
     runAsync(fixture.repo, [...common, "--message", "test: session B", "--path", "other.txt"]),
   ]);
 
-  assert.equal(a.status, 0, a.stdout + a.stderr);
-  assert.equal(b.status, 0, b.stdout + b.stderr);
-  assert.notEqual(a.json.sha, b.json.sha);
-  assert.equal(git(fixture.repo, ["show", "--pretty=", "--name-only", a.json.sha]), "owned.txt");
-  assert.equal(git(fixture.repo, ["show", "--pretty=", "--name-only", b.json.sha]), "other.txt");
+  const committed = new Map();
+  for (const [result, file] of [[a, "owned.txt"], [b, "other.txt"]]) {
+    const expected = file === "owned.txt" ? "session A" : "session B";
+    let sha = result.json.sha;
+    if (result.json.code === "commit_base_changed") {
+      if (result.status === 2) {
+        assert.equal(sha, undefined);
+        assert.equal(fs.readFileSync(path.join(fixture.repo, file), "utf8").trim(), expected);
+        const retried = run(fixture.repo, ["--mode", "commit-push", "--message", "test: revalidated session", "--path", file]);
+        assert.equal(retried.status, 0, retried.stdout + retried.stderr);
+        sha = retried.json.sha;
+      } else {
+        assert.equal(result.status, 3, result.stdout + result.stderr);
+        assert.equal(git(fixture.repo, ["show", `${sha}:${file}`]), expected);
+        const resumed = run(fixture.repo, ["--mode", "push-commit", "--commit", sha, "--path", file]);
+        assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+      }
+    } else {
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+    }
+    committed.set(file, sha);
+  }
+  const aSha = committed.get("owned.txt"), bSha = committed.get("other.txt");
+  assert.notEqual(aSha, bSha);
+  assert.equal(git(fixture.repo, ["show", "--pretty=", "--name-only", aSha]), "owned.txt");
+  assert.equal(git(fixture.repo, ["show", "--pretty=", "--name-only", bSha]), "other.txt");
   assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "staged.txt");
   assert.equal(git(fixture.repo, ["show", ":staged.txt"]), "third session staged");
   const remote = git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0];
-  assert.equal(git(fixture.repo, ["merge-base", "--is-ancestor", a.json.sha, remote]), "");
-  assert.equal(git(fixture.repo, ["merge-base", "--is-ancestor", b.json.sha, remote]), "");
+  assert.equal(git(fixture.repo, ["merge-base", "--is-ancestor", aSha, remote]), "");
+  assert.equal(git(fixture.repo, ["merge-base", "--is-ancestor", bSha, remote]), "");
+});
+
+test("does not push when a dependency is committed while the candidate is being captured", { timeout: 60000 }, async (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  write(path.join(fixture.repo, "owned.txt"), "validated feature\n");
+  const marker = path.join(fixture.repo, ".git", "closeout-snapshot-started");
+  const release = path.join(fixture.repo, ".git", "closeout-snapshot-release");
+  const hook = path.join(fixture.repo, ".git", "hooks", "post-index-change");
+  write(hook, [
+    "#!/bin/sh",
+    'case "$GIT_INDEX_FILE" in',
+    "  *shzw-closeout-index-*)",
+    "    touch .git/closeout-snapshot-started",
+    "    while [ ! -f .git/closeout-snapshot-release ]; do sleep 0.1; done",
+    "    ;;",
+    "esac",
+    "",
+  ].join("\n"));
+  fs.chmodSync(hook, 0o755);
+  const pending = runAsync(fixture.repo, ["--mode", "commit-push", "--wait-seconds", "20", "--message", "test: feature", "--path", "owned.txt"]);
+  let peer, setupError;
+  try {
+    const deadline = Date.now() + 15000;
+    while (!fs.existsSync(marker) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(fs.existsSync(marker), "candidate capture did not reach the index hook");
+    write(path.join(fixture.repo, "other.txt"), "changed dependency\n");
+    git(fixture.repo, ["add", "other.txt"]);
+    git(fixture.repo, ["commit", "-m", "test: concurrent dependency"]);
+    peer = git(fixture.repo, ["rev-parse", "HEAD"]);
+    git(fixture.repo, ["push", "origin", "HEAD:refs/heads/main"]);
+  } catch (error) {
+    setupError = error;
+  } finally {
+    write(release, "continue\n");
+  }
+  const result = await pending;
+  if (setupError) throw setupError;
+  assert.equal(result.status, 3, result.stdout + result.stderr);
+  assert.equal(result.json.code, "commit_base_changed");
+  assert.equal(result.json.base, base);
+  assert.equal(result.json.parent, peer);
+  assert.equal(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], peer);
+  assert.equal(git(fixture.repo, ["show", `${result.json.sha}:owned.txt`]), "validated feature");
+  assert.equal(git(fixture.repo, ["show", `${result.json.sha}:other.txt`]), "changed dependency");
+
+  const resumed = run(fixture.repo, ["--mode", "push-commit", "--commit", result.json.sha, "--path", "owned.txt"]);
+  assert.equal(resumed.status, 0, resumed.stdout + resumed.stderr);
+  assert.equal(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], result.json.sha);
+});
+
+test("does not push when a dependency is committed during the remote preflight", { timeout: 60000 }, async (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const base = git(fixture.repo, ["rev-parse", "HEAD"]);
+  write(path.join(fixture.repo, "owned.txt"), "validated feature\n");
+  const marker = path.join(fixture.repo, ".git", "closeout-fetch-started");
+  const release = path.join(fixture.repo, ".git", "closeout-fetch-release");
+  const uploadPack = path.join(fixture.root, "hold-upload-pack.sh");
+  write(uploadPack, [
+    "#!/bin/sh",
+    "touch .git/closeout-fetch-started",
+    "while [ ! -f .git/closeout-fetch-release ]; do sleep 0.1; done",
+    'exec git-upload-pack "$@"',
+    "",
+  ].join("\n"));
+  fs.chmodSync(uploadPack, 0o755);
+  git(fixture.repo, ["config", "remote.origin.uploadpack", `'${uploadPack.replaceAll("\\", "/").replaceAll("'", "'\\''")}'`]);
+  const pending = runAsync(fixture.repo, ["--mode", "commit-push", "--wait-seconds", "20", "--message", "test: feature", "--path", "owned.txt"]);
+  let peer, setupError;
+  try {
+    const deadline = Date.now() + 15000;
+    while (!fs.existsSync(marker) && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(fs.existsSync(marker), "remote preflight did not reach the upload-pack wrapper");
+    write(path.join(fixture.repo, "other.txt"), "changed dependency\n");
+    git(fixture.repo, ["add", "other.txt"]);
+    git(fixture.repo, ["commit", "-m", "test: concurrent dependency"]);
+    peer = git(fixture.repo, ["rev-parse", "HEAD"]);
+    git(fixture.repo, ["push", "origin", "HEAD:refs/heads/main"]);
+  } catch (error) {
+    setupError = error;
+  } finally {
+    write(release, "continue\n");
+  }
+  const result = await pending;
+  if (setupError) throw setupError;
+  assert.equal(result.status, 2, result.stdout + result.stderr);
+  assert.equal(result.json.code, "commit_base_changed");
+  assert.equal(result.json.base, base);
+  assert.equal(result.json.head, peer);
+  assert.equal(result.json.sha, undefined);
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), peer);
+  assert.equal(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], peer);
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "owned.txt"), "utf8").trim(), "validated feature");
+  assert.equal(git(fixture.repo, ["diff", "--name-only", "--", "owned.txt"]), "owned.txt");
 });
 
 test("waits briefly for a busy Git index without deleting its lock", { timeout: 30000 }, async (t) => {

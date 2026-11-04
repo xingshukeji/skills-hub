@@ -686,7 +686,7 @@ function publishCommit(repo, options, sha, changedFiles) {
   }
 }
 
-function verifyCommit(repo, sha, base, expectedTree, changedFiles, ownedPaths, requireExactTree) {
+function verifyCommit(repo, sha, base, expectedTree, changedFiles, requireExactTree) {
   const parents = commitParents(repo, sha);
   const parent = parents[0] || null;
   const actualFiles = commitFiles(repo, sha);
@@ -700,16 +700,14 @@ function verifyCommit(repo, sha, base, expectedTree, changedFiles, ownedPaths, r
   if (requireExactTree && gitText(repo, ["rev-parse", `${sha}^{tree}`]) !== expectedTree) {
     throw new CloseoutError("verified_tree_changed", "The resulting commit differs from the tree that was verified; it was not pushed.", { sha, expectedTree }, 3);
   }
-  if ((!base && parent) || (base && (!parent || !isAncestor(repo, base, parent))) ||
-      !sameList(treeEntries(repo, base, ownedPaths), treeEntries(repo, parent, ownedPaths))) {
-    throw new CloseoutError("commit_base_changed", "A selected path or the history changed during the commit; it was not pushed.", {
+  if (parent !== base) {
+    throw new CloseoutError("commit_base_changed", "The commit base changed during closeout; inspect and revalidate the resulting commit before pushing.", {
       sha, base, parent,
     }, 3);
   }
 }
 
-function commitAndPush(repo, options, ownedPaths, changedFiles) {
-  const base = hasLocalHead(repo) ? gitText(repo, ["rev-parse", "HEAD"]) : null;
+function commitAndPush(repo, options, ownedPaths, changedFiles, base) {
   const expectedTree = snapshotSelectedTree(repo, base, ownedPaths);
   if (options.expectedTree && expectedTree.toLowerCase() !== options.expectedTree.toLowerCase()) {
     throw new CloseoutError("verified_tree_changed", "The selected files or their base changed after verification; no commit was created.", {
@@ -755,7 +753,7 @@ function commitAndPush(repo, options, ownedPaths, changedFiles) {
     throw new CloseoutError("commit_identity_unknown", "A commit may have been created, but its exact SHA could not be determined; push was not attempted.", {}, 3);
   }
   try {
-    verifyCommit(repo, sha, base, expectedTree, changedFiles, ownedPaths, Boolean(options.expectedTree));
+    verifyCommit(repo, sha, base, expectedTree, changedFiles, Boolean(options.expectedTree));
     return publishCommit(repo, options, sha, changedFiles);
   } catch (error) {
     if (error instanceof CloseoutError) {
@@ -831,7 +829,7 @@ function commitVerifiedTree(repo, options, ownedPaths) {
     let verificationError = null;
     try {
       if (commit.status !== 0) throw new CloseoutError("commit_failed_after_ref_change", "Git reported failure after creating a commit; nothing was pushed.", {}, 3);
-      verifyCommit(repo, sha, base, options.expectedTree, changed, ownedPaths, true);
+      verifyCommit(repo, sha, base, options.expectedTree, changed, true);
       if (commitParents(repo, sha)[0] !== base) throw new CloseoutError("commit_base_changed", "The commit has an unexpected parent; nothing was pushed.", {}, 3);
       if ([...workingFileHashes(repo, ownedPaths)].some(([file, hash]) => working.get(file) !== hash)) {
         throw new CloseoutError("working_files_changed", "A working file changed while committing; revalidate before pushing.", {}, 3);
@@ -914,6 +912,7 @@ function main() {
   const repo = fs.realpathSync(path.resolve(options.repo));
   assertCheckout(repo, options);
   assertNoOperationInProgress(repo);
+  const initialBase = options.mode === "commit-push" && hasLocalHead(repo) ? gitText(repo, ["rev-parse", "HEAD"]) : null;
   const allowCandidateMissing = options.mode === "commit-tree" || (options.mode === "snapshot" && Boolean(options.sourceRoot));
   const ownedPaths = [...new Set(options.paths.map((value) => normalizeOwnedPath(repo, value, {
     allowMissing: options.mode === "push-commit" || allowCandidateMissing, checkIgnoredIfMissing: allowCandidateMissing,
@@ -936,6 +935,14 @@ function main() {
   const syncState = assertInitiallySynchronized(repo, options);
   if (syncState.synchronized) {
     return { status: "synchronized_recheck", before: syncState.before, target: syncState.target };
+  }
+  if (options.mode === "commit-push") {
+    const currentBase = hasLocalHead(repo) ? gitText(repo, ["rev-parse", "HEAD"]) : null;
+    if (currentBase !== initialBase) {
+      throw new CloseoutError("commit_base_changed", "The branch changed during closeout preflight; inspect and revalidate before committing.", {
+        base: initialBase, head: currentBase,
+      });
+    }
   }
   if (options.mode === "commit-tree") return commitVerifiedTree(repo, options, ownedPaths);
   const changedFiles = selectedChanges(repo, ownedPaths, options.includeStagedOwned);
@@ -964,7 +971,7 @@ function main() {
     };
   }
 
-  return commitAndPush(repo, options, ownedPaths, changedFiles);
+  return commitAndPush(repo, options, ownedPaths, changedFiles, initialBase);
 }
 
 try {

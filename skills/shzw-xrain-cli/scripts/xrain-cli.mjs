@@ -698,7 +698,7 @@ import { copyFile, link, lstat, open, stat, unlink } from "node:fs/promises";
 import { basename, dirname as dirname2, extname, join as join2, resolve as resolve2 } from "node:path";
 import { performance } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
-var protocol = "xrain-import-jobs-v1";
+var protocol = "xrain-import-jobs-v2";
 var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 var idPattern = /^[0-9a-f]{32}$/i;
 var statuses = /* @__PURE__ */ new Set(["checking", "invalid", "ready", "queued", "running", "paused", "completed", "canceled", "expired"]);
@@ -797,6 +797,15 @@ async function jsonRequest(client2, method, path, options = {}) {
   }
 }
 function validatedJob(value, entity2, expectedId, expectedRequest) {
+  if (!isObject(value)) throw invalidResponse("The server returned an invalid import disclosure.");
+  if (value.disclosure === "restricted") {
+    if (Object.keys(value).some((key) => !["disclosure", "jobId", "requestId", "entityCode", "reason"].includes(key)) || value.entityCode !== entity2 || value.reason !== "details_unavailable" || !idPattern.test(value.jobId ?? "") || !idPattern.test(value.requestId ?? "") || expectedId && value.jobId.toLowerCase() !== expectedId || expectedRequest && value.requestId.toLowerCase() !== expectedRequest)
+      throw invalidResponse("The server returned an invalid or mismatched import disclosure.");
+    return value;
+  }
+  if (value.disclosure !== "complete" || Object.keys(value).some((key) => !["disclosure", "job"].includes(key)))
+    throw invalidResponse("The server returned an invalid import disclosure.");
+  value = value.job;
   const counts = value?.progress && ["sourceRows", "checkedSourceRows", "outputRows", "committedOutputRows", "remainingOutputRows"].map((key) => value.progress[key]);
   const summary = value?.summary && [
     "sourceRows",
@@ -873,12 +882,17 @@ function contextualError(error, entity2, requestId, job, knownJobId) {
   });
 }
 function outputJob(ctx, job) {
+  if (job.disclosure === "restricted") {
+    ctx.reporter.print({ ...job, message: "任务详情暂不可用，任务可能仍在处理；可按原任务编号查询、暂停或结束。" });
+    return 0;
+  }
   const committed = job.progress.committedOutputRows;
   const message2 = job.status === "ready" ? committed ? `已提交 ${committed} 条，剩余资料预检通过，待确认。` : "预检通过，待确认。" : job.status === "completed" ? "导入完成。" : job.status === "paused" ? "导入已暂停，可按允许的操作继续。" : job.status === "canceled" ? "本次导入已结束；已提交的记录保留。" : job.status === "invalid" ? "预检未通过，请查看问题。" : job.status === "expired" ? "预检计划已过期，请查看可用操作。" : job.cancelRequested ? "结束请求已记录，正在等待当前处理结束。" : job.pauseRequested ? "暂停请求已记录，正在等待当前处理结束。" : job.status === "checking" ? "文件正在预检，尚未确认写入。" : "请求已受理；请查看作业状态。";
   ctx.reporter.print({ ...job, message: message2 });
   return 0;
 }
 function waitDecision(job, mode) {
+  if (job.disclosure === "restricted") return "continue";
   if (mode === "pause" && ["paused", "completed"].includes(job.status)) return "success";
   if (mode === "cancel" && ["canceled", "completed"].includes(job.status)) return "success";
   if (mode === "check" && ["ready", "completed"].includes(job.status)) return "success";
@@ -893,8 +907,13 @@ async function waitJob(ctx, client2, initial, mode, deadline) {
     const decision = waitDecision(job, mode);
     if (decision === "success") return job;
     if (decision === "failure") throw new CliError(`Import stopped in state ${job.status}.`, { code: "import_job_stopped", details: { job } });
-    if (job.version !== lastVersion) ctx.reporter.progress(`Import ${job.jobId}: ${job.status}; committed ${job.progress.committedOutputRows}.`);
-    lastVersion = job.version;
+    if (job.disclosure === "restricted") {
+      if (lastVersion !== "restricted") ctx.reporter.progress(`Import ${job.jobId}: details unavailable; waiting for an authorized result.`);
+      lastVersion = "restricted";
+    } else {
+      if (job.version !== lastVersion) ctx.reporter.progress(`Import ${job.jobId}: ${job.status}; committed ${job.progress.committedOutputRows}.`);
+      lastVersion = job.version;
+    }
     const left = deadline - performance.now();
     if (left <= 0) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
     try {
@@ -905,7 +924,8 @@ async function waitJob(ctx, client2, initial, mode, deadline) {
     if (performance.now() >= deadline) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
     try {
       const next = validatedJob(await jsonRequest(client2, "GET", `${client2.root}/imports/jobs/${segment(job.jobId)}`, { deadline }), client2.entity, job.jobId.toLowerCase(), job.requestId.toLowerCase());
-      if (next.version < job.version) throw invalidResponse("The server returned an older import job state.");
+      if (next.disclosure !== "restricted" && job.disclosure !== "restricted" && next.version < job.version)
+        throw invalidResponse("The server returned an older import job state.");
       job = next;
     } catch (error) {
       throw contextualError(error, client2.entity, job.requestId, job);
@@ -1044,6 +1064,7 @@ async function dataImportCommands(ctx) {
       let viewVersion = args.value("view-version");
       if (!viewVersion) {
         job = validatedJob(await jsonRequest(client2, "GET", path), client2.entity, jobId);
+        if (job.disclosure === "restricted") throw new CliError("The import job details are unavailable.", { code: "import_job_details_unavailable", details: { job } });
         viewVersion = job.viewVersion;
       }
       if (!nonempty(viewVersion)) throw new CliError("The job does not yet have a readable view.", { code: "import_job_view_not_ready" });
@@ -1075,7 +1096,7 @@ async function dataImportCommands(ctx) {
     else throw invalid("Unknown import command. Run data import --help.");
     if (action === "confirm" && !body.planRevision) throw invalid("--plan-revision is required.");
     job = validatedJob(await jsonRequest(client2, "POST", `${path}/${action}`, { json: body, deadline }), client2.entity, jobId);
-    if (action === "resume" && !mode) mode = job.status === "checking" || job.status === "ready" ? "check" : "execute";
+    if (action === "resume" && !mode) mode = job.disclosure === "restricted" ? "observe" : job.status === "checking" || job.status === "ready" ? "check" : "execute";
     if (wait2) job = await waitJob(ctx, client2, job, mode, deadline);
     return outputJob(ctx, job);
   } catch (error) {

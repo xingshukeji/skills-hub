@@ -37,6 +37,12 @@ export function apply(ctx) {
   ctx.effect(() => ctx.workforceHttp.register('repair-service', handleRepairHttp, {
     sidebarPlugins: [{
       id: 'repair-order', label: '维修工单', kind: 'repair-order',
+      targetSchemaVersion: 1,
+      targetSchema: { type: 'object', required: ['parameters'], properties: {
+        parameters: { type: 'object', required: ['mode', 'recordId'], properties: {
+          mode: { type: 'string', enum: ['detail'] }, recordId: { type: 'string', minLength: 1 }
+        }, additionalProperties: false }
+      }, additionalProperties: false },
       validateTarget(_context, target) {
         if (!target || Object.keys(target).length === 0) return;
         const input = target.parameters;
@@ -97,16 +103,16 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 
 启用界面能力且生效定义包含侧栏时，Runtime 可在会话轮次动态提供 `ui_` 工具，独立于业务工具和可选原生工具。当前源码在生效定义的 `uiPlugins` 非空时尝试注册；人工界面继承默认侧栏，不代表智能体一定获得这些工具。当前源码提供 `ui_list_plugins`、`ui_load_plugin`、`ui_activate_plugin`、`ui_set_sidebar_visibility`、`ui_open_record`、`ui_get_presentation_status`、`ui_get_view_context`、`ui_execute_action`、`ui_open_related`、`ui_return_to_record` 和 `ui_open_business_application`。具体注册与可用情况取决于目标 Runtime、宿主、配置和本次主体；`agent tool business` 的业务工具目录不能证明界面工具不存在。
 
-智能体先通过 `ui_list_plugins` 读取本轮可用配置和实例，再选择用户所指的业务内容。`ui_load_plugin` 可装入或激活可用侧栏，`ui_activate_plugin` 可切换已打开实例；`ui_open_record` 适用于已接入的低码对象和记录。当前 `ui_load_plugin` 没有自定义 `target` 参数；不能把人工卡片可传 `parameters` 误认为智能体工具已能传递。若业务需要智能体打开具体自定义目标，核对目标制品是否提供该能力；缺口交 Workforce 和 Runtime 的公共协议所有者处理，不新增业务专属平行导航工具。
+智能体先通过 `ui_list_plugins` 读取本轮可用配置和实例，再选择用户所指的业务内容。`ui_load_plugin` 可装入或激活可用侧栏，`ui_activate_plugin` 可切换已打开实例；`ui_open_record` 适用于已接入的低码对象和记录。包含本次目标协议实现的 Workforce 和 Runtime 源码支持 `ui_load_plugin` 的可选 `target`；已发布或已安装的版本须以其目录和工具参数为准。旧版本只支持无目标装入，不可将人工卡片可以传参解释为旧智能体工具也可以传参。
 
 当前 `ui_get_view_context` 和 `ui_execute_action` 仅适用于实际贡献观察或动作能力且具备相应资格的页面，不等于可以读取任意 DOM、未提交草稿或点击所有按钮。展示与保存分开确认：`prepared` 只表示目标已准备；匹配目标的 `displayed` 才表示浏览器确认显示；`blocked`、`failed`、`superseded` 或 `unknown` 不能报告为显示成功。
 
-## 人机共用目标的拟议扩展
+## 人机共用目标协议
 
-以下是公共产品待实施的设计方向，不是当前可调用接口。业务项目不得在未核实目标版本时按此调用，也不应为个别业务另造长期并行导航协议。
+以下合同已在 Workforce 和 Runtime 本次工作源码中实现；是否可在某环境调用取决于两者及业务插件的实际安装版本。注册业务目标时同时检查服务端校验、客户端身份规则和业务服务，不为个别业务另造长期并行导航工具。
 
-- 业务贡献描述支持的 `WorkbenchSidebarTarget` 及 `parameters` 含义；拟议通过目录 `plugins[].targetSchemaVersion: 1` 和 `plugins[].targetSchema` 返回可发现的 JSON Schema。业务目标及参数由各贡献定义，不由公共工作台维护业务枚举；未知合同版本不按版本 1 猜测。
-- 拟议在现有 `ui_load_plugin` 上增加可选 `target`，结构与人工调用 `onOpenSidebar` 的目标相同。不传时保留原有装入语义。以下示例中的 `target` 当前尚不可用于该工具：
+- 服务端业务侧栏贡献声明 `targetSchemaVersion: 1` 和 `targetSchema`；`ui_list_plugins` 在该入口可用时返回两者。schema 描述整个 `WorkbenchSidebarTarget`，包括 `parameters` 的业务含义与必填条件；Host 仍执行贡献的 `validateTarget`，schema 本身不授权。未知版本不按版本 1 猜测；没有 schema 时保留旧无目标装入能力。
+- 人工的 `onOpenSidebar` 与智能体的 `ui_load_plugin` 传相同结构的目标，不传 `target` 时保留原有装入语义。以下业务字段只是示例：
 
 ```json
 {
@@ -116,18 +122,19 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 }
 ```
 
-- `entryId` 选择当前获准配置，`target` 选择业务目标。带目标时按入口和规范化的业务目标决定复用或创建实例。拟议的业务贡献可提供 `resolveTargetIdentity(target)`，从已校验目标生成可比较的 JSON 身份；未提供时按完整规范化目标比较。公共协议不替各业务解释 `parameters.openId` 等自定义字段。相同实例的未保存输入不得静默覆盖；无目标调用保持原有行为。参数描述不授予权限；Host 和业务服务重新核验本人、会话、贡献及业务数据。
-- 拟议的 `resultRef` 包含 `sourceSessionId` 和 `invocationId`，定位同一根会话内实际执行的一次工具调用。Runtime 为允许引用的业务工具向模型提供 `__workbench.resultRef`，并在原生 `assistantServiceResult.resultRef` 提供同一引用给结果卡片。Runtime 扩展现有历史读取合同，提供拟议的 `resolveServiceResult(sessionId, resultRef)`，以该引用定位同次输入和结果；当前公开卡片合同尚未提供此能力。引用不是权限凭据；服务重新核验本人、会话、业务目标和字段权限。不将草稿、完整业务记录或权限快照写入导航状态。
+- `entryId` 选择当前获准配置，`target` 选择业务目标。服务端贡献可实现 `resolveTargetIdentity(target)`，客户端注册选项提供同义函数；两边按同一规则从已校验目标生成可比较的 JSON 身份，决定复用或新建实例。未提供时比较完整目标，通用宿主不会忽略 `parameters.openId` 等业务字段。相同实例的未保存输入不得静默覆盖。Host 重新核验入口资格和目标，业务服务按当前本人、会话、业务对象及字段权限读取。
+- 未保存的只读工具结果可由业务工具定义显式设置 `resultReference: true`。Runtime 在模型可见的真实工具结果中提供 `__workbench.resultRef`，在原生卡片回执的 `assistantServiceResult.resultRef` 提供相同引用；格式为 `{sourceSessionId, invocationId}`，其中 `invocationId` 是 64 位小写十六进制文本。不得由模型或页面自造，也不能把 `cardId` 当工具调用标识。
+- 业务目标若包含该引用，服务端贡献实现 `resolveTargetResultRef(target)` 返回其中的引用。组件向 `POST /api/workbench/sessions/{sessionId}/service-result` 传 `{entryId, target}`，成功时取得 `{resultRef, arguments, result}`。宿主核验当前侧栏入口及目标；Runtime 从所属根会话及其子会话的原生历史定位对应成功调用、原始参数和结果，并由业务应用 `resolveToolResult` 在当前主体与固定业务范围下重新授权。历史中的内容压缩可能保留同一结果的替换事件；应定位原始追加事件并核对调用标识，不能把替换事件当作新调用。业务可拒绝已过期、条件变化、撤权或无法恢复的结果。引用不是权限凭据，失败不得从模型文字或旧草稿猜测结果。
 - `prepared` 表示请求已准备；只有实际组件针对匹配目标返回 `displayed` 后，智能体才能说明已显示。阻挡、失败、被替代及未知分别保留实际结果；显示回执不证明保存成功。
 
-公共实现交付后，由 Workforce 与 Runtime 的公开类型、目录及验收证据确认最终字段和兼容性；技能使用知识随已发布合同更新。
+引用只定位已经发生的调用，不把完整业务数据、草稿或权限快照写入导航状态。业务 `resolveToolResult` 的输入和返回必须由服务端构造，不能接受浏览器或模型指定的身份；返回值只包括重新获权的内容。已保存记录仍优先使用记录标识与业务详情接口。
 
 ## 开发和验证顺序
 
 1. 确认目标项目、公开 SDK 版本、业务服务、当前主体和需要展示的真实业务结果。区分已有记录与未保存输入。
 2. 定义业务侧栏目标字段、校验和读取范围。注册客户端及服务端贡献，并在智能体定义配置可用条件。保持与已有侧栏、工具及应用资格的关系。
 3. 将业务操作暴露为有描述和参数合同的服务工具。人工入口和智能体使用相同业务结果及业务规则；工具结果只返回当前主体获权内容。
-4. 人工从真实卡片传入 `target`。智能体按目标 Runtime 已支持的界面工具选择或打开内容；如缺少同目标传参或页面动作，记录公共能力缺口，不声称已实现。
+4. 人工从真实卡片传入 `target`。智能体先查目录，再按相同的业务目标合同装入内容；目标带临时结果时，分别验证原生引用、当前主体和业务重新授权。
 5. 验证实际业务入口的同一目标、参数、权限和结果；另核对草稿、切换会话、撤权、加载失败及显示回执。保存操作单独核对实际业务结果。若只有源码或组件测试，明确不等于目标运行环境的完整验证。
 
-面向所有业务的自定义目标发现与智能体传参扩展仍需由公共产品实际交付后再使用。本专题记录当前可用接口及缺口，不将拟议工具参数当成已发布合同。
+源码定向验证不能证明公共包已发布或目标应用已更新；交付前核对运行制品和智能体实际定义。
