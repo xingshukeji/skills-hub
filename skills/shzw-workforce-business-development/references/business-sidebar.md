@@ -103,7 +103,7 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 
 启用界面能力且生效定义包含侧栏时，Runtime 可在会话轮次动态提供 `ui_` 工具，独立于业务工具和可选原生工具。当前源码在生效定义的 `uiPlugins` 非空时尝试注册；人工界面继承默认侧栏，不代表智能体一定获得这些工具。当前源码提供 `ui_list_plugins`、`ui_load_plugin`、`ui_activate_plugin`、`ui_set_sidebar_visibility`、`ui_open_record`、`ui_get_presentation_status`、`ui_get_view_context`、`ui_execute_action`、`ui_open_related`、`ui_return_to_record` 和 `ui_open_business_application`。具体注册与可用情况取决于目标 Runtime、宿主、配置和本次主体；`agent tool business` 的业务工具目录不能证明界面工具不存在。
 
-智能体先通过 `ui_list_plugins` 读取本轮可用配置和实例，再选择用户所指的业务内容。`ui_load_plugin` 可装入或激活可用侧栏，`ui_activate_plugin` 可切换已打开实例；`ui_open_record` 适用于已接入的低码对象和记录。包含本次目标协议实现的 Workforce 和 Runtime 源码支持 `ui_load_plugin` 的可选 `target`；已发布或已安装的版本须以其目录和工具参数为准。旧版本只支持无目标装入，不可将人工卡片可以传参解释为旧智能体工具也可以传参。
+智能体先通过 `ui_list_plugins` 读取本轮可用配置和实例，再选择业务内容。`ui_load_plugin` 可装入或激活可用侧栏，`ui_activate_plugin` 可切换实例，也可以按实例标识重新打开目录中 `canReopen: true` 的关闭项；`ui_open_record` 适用于已接入的低码对象和记录。重开前重新核验当前资格和目标，替换未保存草稿时按实际阻挡回执处理。包含本次目标协议实现的 Workforce 和 Runtime 源码支持 `ui_load_plugin` 的可选 `target`；已发布或已安装的版本须以其目录和工具参数为准。旧版本只支持无目标装入，不可将人工卡片可以传参解释为旧智能体工具也可以传参。
 
 当前 `ui_get_view_context` 和 `ui_execute_action` 仅适用于实际贡献观察或动作能力且具备相应资格的页面，不等于可以读取任意 DOM、未提交草稿或点击所有按钮。展示与保存分开确认：`prepared` 只表示目标已准备；匹配目标的 `displayed` 才表示浏览器确认显示；`blocked`、`failed`、`superseded` 或 `unknown` 不能报告为显示成功。
 
@@ -123,6 +123,7 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 ```
 
 - `entryId` 选择当前获准配置，`target` 选择业务目标。服务端贡献可实现 `resolveTargetIdentity(target)`，客户端注册选项提供同义函数；两边按同一规则从已校验目标生成可比较的 JSON 身份，决定复用或新建实例。未提供时比较完整目标，通用宿主不会忽略 `parameters.openId` 等业务字段。相同实例的未保存输入不得静默覆盖。Host 重新核验入口资格和目标，业务服务按当前本人、会话、业务对象及字段权限读取。
+- 需要在同一入口切换内容时，服务端贡献可声明 `instanceMode: 'single'`；默认或 `'multiple'` 保留多实例行为。单实例入口复用同一实例切换目标，不接受新建实例请求；用户和智能体均可重开关闭项。切换仍须核验目标并保护未保存草稿，实际阻挡或显示状态通过回执确认。仅在业务确实需要单实例时启用，不改变目标参数的业务含义。
 - 未保存的只读工具结果可由业务工具定义显式设置 `resultReference: true`。Runtime 在模型可见的真实工具结果中提供 `__workbench.resultRef`，在原生卡片回执的 `assistantServiceResult.resultRef` 提供相同引用；格式为 `{sourceSessionId, invocationId}`，其中 `invocationId` 是 64 位小写十六进制文本。不得由模型或页面自造，也不能把 `cardId` 当工具调用标识。
 - 业务目标若包含该引用，服务端贡献实现 `resolveTargetResultRef(target)` 返回其中的引用。组件向 `POST /api/workbench/sessions/{sessionId}/service-result` 传 `{entryId, target}`，成功时取得 `{resultRef, arguments, result}`。宿主核验当前侧栏入口及目标；Runtime 从所属根会话及其子会话的原生历史定位对应成功调用、原始参数和结果，并由业务应用 `resolveToolResult` 在当前主体与固定业务范围下重新授权。历史中的内容压缩可能保留同一结果的替换事件；应定位原始追加事件并核对调用标识，不能把替换事件当作新调用。业务可拒绝已过期、条件变化、撤权或无法恢复的结果。引用不是权限凭据，失败不得从模型文字或旧草稿猜测结果。
 - `prepared` 表示请求已准备；只有实际组件针对匹配目标返回 `displayed` 后，智能体才能说明已显示。阻挡、失败、被替代及未知分别保留实际结果；显示回执不证明保存成功。
