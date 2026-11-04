@@ -75,7 +75,7 @@ export function apply(ctx) {
 
 `WorkbenchSidebarTarget` 的现有公共结构包括可选的 `viewId`、`objectType`、`objectRef`、`intent`、`listViewName`、`query`、`expanded` 和 `parameters`。其中 `parameters` 是业务侧栏可解释的 JSON 对象；通用记录视图仍按其对象和查询合同传参。业务必须声明并校验参数含义、必填条件和可接受的引用，不能让客户端指定调用主体或越过固定业务范围。
 
-客户端可在 `workforce.workbench.service-results` 贡献工具结果卡片。`WorkbenchServiceResultProps` 提供原生工具 `receipt`、`sessionId`、稳定 `cardId`、`MessageCard` 和可选 `onOpenSidebar`。以维修记录为例，以下片段只演示已取得真实结果后的目标构造和打开调用，不是完整插件：
+客户端可在 `workforce.workbench.service-results` 贡献工具结果卡片。`WorkbenchServiceResultProps` 提供原生工具 `receipt`、`sessionId`、当前渲染的 `cardId`、`MessageCard` 和可选 `onOpenSidebar`。`cardId` 用于当前卡片实例，不是公开保证的工具调用标识；跨历史分页或重建时不得仅凭它恢复业务结果。以维修记录为例，以下片段只演示已取得真实结果后的目标构造和打开调用，不是完整插件：
 
 ```ts
 import type { WorkbenchSidebarTarget, OpenServiceSidebar } from '@xrain/workforce-application/client';
@@ -93,9 +93,9 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 
 ## 智能体如何使用
 
-业务操作使用定义中的 `assistantTools`，由服务提供可执行的参数描述和结果；智能体不能以传参覆盖租户、调用人或固定业务目标。需要读写或计算时，人工页面和工具优先调用同一业务服务。定义和工具接线见[业务实现](implementation.md)与[智能体定义](agent-access.md)。
+业务服务操作可以使用定义中的 `assistantTools`，由服务提供可执行的参数描述和结果；符合条件的 `businessActions` 也可使 Runtime 注册通用业务记录工具。任务上下文可以另有获准的任务工具。智能体不能以传参覆盖租户、调用人或固定业务目标。需要读写或计算时，人工页面和工具优先调用同一业务服务。定义和工具接线见[业务实现](implementation.md)与[智能体定义](agent-access.md)。
 
-启用界面能力且生效定义包含侧栏时，Runtime 可在会话轮次动态提供 `ui_` 工具，独立于业务工具和可选原生工具。当前源码提供 `ui_list_plugins`、`ui_load_plugin`、`ui_activate_plugin`、`ui_set_sidebar_visibility`、`ui_open_record`、`ui_get_presentation_status`、`ui_get_view_context`、`ui_execute_action`、`ui_open_related`、`ui_return_to_record` 和 `ui_open_business_application`。具体注册与可用情况取决于目标 Runtime、宿主、配置和本次主体；`agent tool business` 的业务工具目录不能证明界面工具不存在。
+启用界面能力且生效定义包含侧栏时，Runtime 可在会话轮次动态提供 `ui_` 工具，独立于业务工具和可选原生工具。当前源码在生效定义的 `uiPlugins` 非空时尝试注册；人工界面继承默认侧栏，不代表智能体一定获得这些工具。当前源码提供 `ui_list_plugins`、`ui_load_plugin`、`ui_activate_plugin`、`ui_set_sidebar_visibility`、`ui_open_record`、`ui_get_presentation_status`、`ui_get_view_context`、`ui_execute_action`、`ui_open_related`、`ui_return_to_record` 和 `ui_open_business_application`。具体注册与可用情况取决于目标 Runtime、宿主、配置和本次主体；`agent tool business` 的业务工具目录不能证明界面工具不存在。
 
 智能体先通过 `ui_list_plugins` 读取本轮可用配置和实例，再选择用户所指的业务内容。`ui_load_plugin` 可装入或激活可用侧栏，`ui_activate_plugin` 可切换已打开实例；`ui_open_record` 适用于已接入的低码对象和记录。当前 `ui_load_plugin` 没有自定义 `target` 参数；不能把人工卡片可传 `parameters` 误认为智能体工具已能传递。若业务需要智能体打开具体自定义目标，核对目标制品是否提供该能力；缺口交 Workforce 和 Runtime 的公共协议所有者处理，不新增业务专属平行导航工具。
 
@@ -105,7 +105,7 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 
 以下是公共产品待实施的设计方向，不是当前可调用接口。业务项目不得在未核实目标版本时按此调用，也不应为个别业务另造长期并行导航协议。
 
-- 业务贡献描述支持的 `WorkbenchSidebarTarget` 及 `parameters` 含义；拟议通过目录 `plugins[].targetSchema` 返回可发现的 JSON Schema。业务目标及参数由各贡献定义，不由公共工作台维护业务枚举。
+- 业务贡献描述支持的 `WorkbenchSidebarTarget` 及 `parameters` 含义；拟议通过目录 `plugins[].targetSchemaVersion: 1` 和 `plugins[].targetSchema` 返回可发现的 JSON Schema。业务目标及参数由各贡献定义，不由公共工作台维护业务枚举；未知合同版本不按版本 1 猜测。
 - 拟议在现有 `ui_load_plugin` 上增加可选 `target`，结构与人工调用 `onOpenSidebar` 的目标相同。不传时保留原有装入语义。以下示例中的 `target` 当前尚不可用于该工具：
 
 ```json
@@ -116,8 +116,9 @@ async function openRepairRecord(open: OpenServiceSidebar | undefined, recordId: 
 }
 ```
 
-- `entryId` 选择当前获准配置，`target` 选择业务目标，实例与显示结果继续沿现有会话协议处理。参数描述不授予权限；Host 和业务服务重新核验本人、会话、贡献及业务数据。
-- 人工和智能体使用相同目标语义与业务读取。未保存的计算结果优先引用本人会话中实际工具回执；需要补充读取能力时扩展已有公开合同，不将草稿或完整业务记录写入导航状态。
+- `entryId` 选择当前获准配置，`target` 选择业务目标。带目标时按入口和规范化的业务目标决定复用或创建实例。拟议的业务贡献可提供 `resolveTargetIdentity(target)`，从已校验目标生成可比较的 JSON 身份；未提供时按完整规范化目标比较。公共协议不替各业务解释 `parameters.openId` 等自定义字段。相同实例的未保存输入不得静默覆盖；无目标调用保持原有行为。参数描述不授予权限；Host 和业务服务重新核验本人、会话、贡献及业务数据。
+- 拟议的 `resultRef` 包含 `sourceSessionId` 和 `invocationId`，定位同一根会话内实际执行的一次工具调用。Runtime 为允许引用的业务工具向模型提供 `__workbench.resultRef`，并在原生 `assistantServiceResult.resultRef` 提供同一引用给结果卡片。Runtime 扩展现有历史读取合同，提供拟议的 `resolveServiceResult(sessionId, resultRef)`，以该引用定位同次输入和结果；当前公开卡片合同尚未提供此能力。引用不是权限凭据；服务重新核验本人、会话、业务目标和字段权限。不将草稿、完整业务记录或权限快照写入导航状态。
+- `prepared` 表示请求已准备；只有实际组件针对匹配目标返回 `displayed` 后，智能体才能说明已显示。阻挡、失败、被替代及未知分别保留实际结果；显示回执不证明保存成功。
 
 公共实现交付后，由 Workforce 与 Runtime 的公开类型、目录及验收证据确认最终字段和兼容性；技能使用知识随已发布合同更新。
 
