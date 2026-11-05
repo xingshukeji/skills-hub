@@ -38,6 +38,7 @@ valued.add("asset-id");
 valued.add("expected-published-version");
 valued.add("context-json");
 valued.add("run-id");
+valued.add("entry-id");
 valued.add("save-profile");
 for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id", "emoji", "app-url", "source-id", "object-id", "record-id", "request-seq"]) valued.add(name);
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
@@ -4172,6 +4173,10 @@ command("agent application show", [...api2, "application-id"], [slot("applicatio
 command("agent application set", [...api2, "application-id", "values", "values-json", "file"], [slot("application-id")], "Replace one application’s complete agent selection from JSON; preserve intended bindings and default.");
 command("agent definition list", runtime, [], "List definition summaries without full instructions.");
 command("agent definition show", [...runtime, "agent-id"], [slot("agent-id")], "Read one definition and its revision by exact agent ID.");
+command("agent sidebar catalog", [...api2, "workforce"], [], "Read the installed Workforce sidebar catalog using the current member identity.");
+command("agent sidebar show", [...runtime, "agent-id"], [slot("agent-id")], "Read an agent sidebar configuration and its revision; null means inherited defaults.");
+for (const action of ["set", "add", "update"]) command(`agent sidebar ${action}`, [...runtime, "agent-id", "expected-revision", "values", "values-json", "file", ...action === "update" ? ["entry-id"] : []], [slot("agent-id")], "Change only sidebar configuration using an observed definition revision.");
+command("agent sidebar remove", [...runtime, "agent-id", "expected-revision", "entry-id"], [slot("agent-id")], "Remove exactly one configured sidebar entry using its entry ID and observed revision.");
 command("agent definition options", runtime, [], "Read Runtime models, workspaces and presets available to this caller.");
 command("agent definition employee-options", runtime, [], "Read definition choices for employee associations using the original relation-read permission.");
 command("agent definition member", [...runtime, "user-id"], [slot("user-id")], "Validate one known member through the narrow definition-management directory, without gaining directory search.");
@@ -4492,8 +4497,10 @@ function validateCommand(args) {
       args.integer("expected-revision");
     }
     if (spec.options.includes("values-json")) exclusive(["values", "values-json", "file"]);
-    if (["agent definition update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name)) && !(spec.path === "agent definition update" && args.has("workspace-path"))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (["agent definition update", "agent sidebar set", "agent sidebar add", "agent sidebar update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name)) && !(spec.path === "agent definition update" && args.has("workspace-path"))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
     if (spec.path === "agent definition export") args.required("out");
+    if (["agent sidebar update", "agent sidebar remove"].includes(spec.path)) args.required("entry-id");
+    if (spec.path === "agent sidebar catalog") args.required("workforce");
     if (spec.path === "agent definition import") {
       args.required("file");
       if (args.has("expected-revision") && !args.has("agent-id")) throw new CliError("--expected-revision requires a target --agent-id.", { code: "invalid_arguments" });
@@ -5272,6 +5279,33 @@ async function runtimeRuns(ctx, helpers) {
   }
 }
 
+// src/xrain-cli/member-target.mjs
+function memberValue(response) {
+  requireSuccess(response);
+  if (!response.bytes.length) return null;
+  return response.json();
+}
+async function memberTarget(ctx, option, { applicationRequired = true, sessionOnly = true } = {}) {
+  const { args, store } = ctx, profile = store.resolve(args, true);
+  const host3 = origin(args.required(option)), appId = applicationRequired ? applicationId(profile) : void 0;
+  if (applicationRequired && !appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
+  const token = sessionOnly ? store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) : store.credential(args, profile, { createSecrets: false }).token;
+  if (!token) throw new CliError(sessionOnly ? "A matching saved platform login is required." : "An authorized platform credential is required.", { code: "authentication_required" });
+  const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
+  if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
+    throw new CliError("The platform identity does not match the selected target.", { code: "identity_mismatch" });
+  const headers = { ...appId ? { "X-XRain-Application-Id": appId } : {}, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
+  return {
+    host: host3,
+    profile,
+    appId,
+    identity,
+    token,
+    headers,
+    send: (method, path, options = {}) => request(new URL(path, host3), { method, token, timeout: args.timeout(), ...options, headers: { ...headers, ...options.headers } })
+  };
+}
+
 // src/xrain-cli/agents.mjs
 var definitions = "/v1/dsh/agent-definitions";
 var platformAgents = "/api/xrain/v1/agents";
@@ -5522,12 +5556,60 @@ async function definitionCommands(ctx) {
   reporter.print(await saveDefinition(ctx, id, body));
   return 0;
 }
+async function sidebarCommands(ctx) {
+  const { args, reporter } = ctx, action = args.command(2);
+  if (action === "catalog") {
+    const { send: send2 } = await memberTarget(ctx, "workforce", { applicationRequired: false });
+    const result = memberValue(await send2("GET", "/api/workbench/sidebar-plugins"));
+    if (!isObject(result) || !Array.isArray(result.items)) throw new CliError("Workforce returned an invalid sidebar catalog.", { code: "invalid_response" });
+    reporter.print(result);
+    return 0;
+  }
+  const id = identifier(args.required("agent-id"), "Agent ID");
+  const current = await definition(ctx, id);
+  if (action === "show") {
+    reporter.print({ agentId: id, revision: current.revision, uiPlugins: current.uiPlugins ?? null });
+    return 0;
+  }
+  const expected = revision(args);
+  updatedDefinition(current, {}, expected);
+  const value = action === "remove" ? void 0 : await jsonInput(args, "values", true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
+  let uiPlugins;
+  if (action === "set") {
+    if (value !== null && !Array.isArray(value)) throw new CliError("Supply an array of sidebar entries or null to inherit.", { code: "invalid_arguments" });
+    uiPlugins = value === null ? void 0 : value;
+  } else {
+    if (!Array.isArray(current.uiPlugins)) throw new CliError("The sidebar inherits defaults. Set an explicit configuration before changing one entry.", { code: "invalid_arguments" });
+    uiPlugins = structuredClone(current.uiPlugins);
+    if (action === "add") {
+      if (!isObject(value) || !nonempty(value.pluginId)) throw new CliError("Supply one sidebar entry with pluginId.", { code: "invalid_arguments" });
+      const entry = { ...value, entryId: value.entryId ?? `entry-${randomBytes5(16).toString("hex")}` };
+      if (!nonempty(entry.entryId) || uiPlugins.some((row) => (row.entryId ?? row.pluginId) === entry.entryId))
+        throw new CliError("Sidebar entry ID must be unique.", { code: "invalid_arguments" });
+      uiPlugins.push(entry);
+    } else {
+      const entryId = args.required("entry-id");
+      const matches = uiPlugins.map((row, index) => (row.entryId ?? row.pluginId) === entryId ? index : -1).filter((index) => index >= 0);
+      if (matches.length !== 1) throw new CliError("Sidebar entry was not found or is ambiguous.", { code: "invalid_arguments" });
+      if (action === "remove") uiPlugins.splice(matches[0], 1);
+      else {
+        if (!isObject(value) || Object.hasOwn(value, "entryId") || Object.hasOwn(value, "pluginId"))
+          throw new CliError("Supply changed sidebar fields without changing its identity.", { code: "invalid_arguments" });
+        uiPlugins[matches[0]] = { ...uiPlugins[matches[0]], ...value };
+      }
+    }
+  }
+  const saved = await saveDefinition(ctx, id, updatedDefinition(current, { uiPlugins }, expected));
+  reporter.print({ agentId: id, revision: saved.revision, uiPlugins: saved.uiPlugins ?? null });
+  return 0;
+}
 async function agentCommands(ctx) {
   if (["run", "ephemeral"].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
   if (action === "chat") return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === "definition") return definitionCommands(ctx);
+  if (action === "sidebar") return sidebarCommands(ctx);
   if (action === "directory") {
     if (args.has("mine") && args.has("application-id")) throw new CliError("--mine applies only to the personal directory.", { code: "invalid_arguments" });
     const appId2 = applicationId(runtimeConnection(ctx).profile);
@@ -5829,35 +5911,6 @@ async function marketCommands(ctx) {
 import { openAsBlob as openAsBlob4 } from "node:fs";
 import { readFile as readFile2, stat as stat4 } from "node:fs/promises";
 import { basename as basename3, resolve as resolve9 } from "node:path";
-
-// src/xrain-cli/member-target.mjs
-function memberValue(response) {
-  requireSuccess(response);
-  if (!response.bytes.length) return null;
-  return response.json();
-}
-async function memberTarget(ctx, option, { applicationRequired = true, sessionOnly = true } = {}) {
-  const { args, store } = ctx, profile = store.resolve(args, true);
-  const host3 = origin(args.required(option)), appId = applicationRequired ? applicationId(profile) : void 0;
-  if (applicationRequired && !appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
-  const token = sessionOnly ? store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) : store.credential(args, profile, { createSecrets: false }).token;
-  if (!token) throw new CliError(sessionOnly ? "A matching saved platform login is required." : "An authorized platform credential is required.", { code: "authentication_required" });
-  const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
-  if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
-    throw new CliError("The platform identity does not match the selected target.", { code: "identity_mismatch" });
-  const headers = { ...appId ? { "X-XRain-Application-Id": appId } : {}, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
-  return {
-    host: host3,
-    profile,
-    appId,
-    identity,
-    token,
-    headers,
-    send: (method, path, options = {}) => request(new URL(path, host3), { method, token, timeout: args.timeout(), ...options, headers: { ...headers, ...options.headers } })
-  };
-}
-
-// src/xrain-cli/workforce.mjs
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(

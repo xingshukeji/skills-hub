@@ -85,6 +85,19 @@ agent definition disable <agentId> --expected-revision <读到的版本>
 
 如果写入返回 `outcome_unknown`，用同一 Runtime 和 agentId `show`，对照修改及版本，再决定是否重试。不要仅凭名称新建，也不要自动重放。新建本身不运行模型。
 
+## 侧栏配置
+
+```text
+agent sidebar catalog --workforce <Workforce地址>
+agent sidebar show <agentId>
+agent sidebar set <agentId> --expected-revision <版本> --values-json <侧栏数组.json>
+agent sidebar add <agentId> --expected-revision <版本> --values-json <单个配置.json>
+agent sidebar update <agentId> --entry-id <配置项ID> --expected-revision <版本> --values-json <修改字段.json>
+agent sidebar remove <agentId> --entry-id <配置项ID> --expected-revision <版本>
+```
+
+先查看实际目录及定义，按配置项 ID 操作；相同插件可以有多个独立配置项。`set` 的 JSON 数组表示完整替换，空数组表示不显示侧栏，JSON `null` 表示恢复继承；增删改只调整指定项并保留其余定义。继承状态无法安全推断为固定列表，须先由使用者明确设置完整数组。`add` 可省略 entryId，由 CLI 生成并随结果返回；`update` 不改变 entryId 或 pluginId，按顶层字段替换，修改 `settings` 等对象时须提供该对象要保留的完整内容。版本冲突或写入结果未知时读取原定义，不自动重放。
+
 直接选择已有目录使用 `create/update --workspace-path <Runtime机器上的绝对路径> --preset <已有工作方式>`，也可在 JSON 中提供 `workspaceChange: {operation:"direct",path:"...",agentPreset:"..."}`。CLI 同步对应目录字段并交 Runtime 核验，不创建文件夹或登记可选列表。原生工具的 `null` 表示恢复继承，与省略、空数组分别处理。
 
 完整保存直接提交当前定义，不先查询或叠加固定容量准入。文件、stdin、内联 JSON 和合并后的完整请求使用相同内容规则；来源身份、字段结构、当前版本和实际权限仍须有效。启停直接提交 ID、明确版本和状态。旧 Runtime 的拒绝保留原含义，不能由 CLI 自动换目标或重发。

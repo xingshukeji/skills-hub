@@ -133,3 +133,27 @@ test('standalone application commands import, preview, install and resolve with 
   assert.equal(server.hits.filter(hit => hit.url.endsWith('/install')).length, 1);
   assert.equal(existsSync(join(installed, 'node_modules')), false);
 });
+
+test('standalone skill updates a sidebar entry without repository source', async t => {
+  const f = fixture(t), root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const installed = join(f.directory, 'sidebar management skill');
+  cpSync(join(root, 'skills/shzw-xrain-cli'), installed, { recursive: true });
+  const script = join(installed, 'scripts/xrain-cli.mjs');
+  let definition = { agentId: 'sales', aiUserId: '', revision: 2, enabled: true, name: 'Sales', instructions: 'keep',
+    provider: 'p', model: 'm', agentPreset: 'normal', uiPlugins: [
+      { pluginId: 'guide', entryId: 'guide', availability: 'always' },
+      { pluginId: 'quote', entryId: 'quote', availability: 'always', initiallyLoaded: false },
+    ] };
+  const server = await mockServer(t, (hit, res) => {
+    if (hit.method === 'GET') return respond(res, definition);
+    definition = { ...hit.json(), revision: 3 }; return respond(res, definition);
+  });
+  f.profile(server.url, 'tenant-demo', 'synthetic-token');
+  const result = await execute(script, ['agent', 'sidebar', 'update', 'sales', '--entry-id', 'quote', '--expected-revision', '2',
+    '--values-json', '-', '--runtime', server.url, '--json'], f.directory, f.env, JSON.stringify({ initiallyLoaded: true }));
+  assert.equal(result.code, 0, result.stdout);
+  assert.equal(definition.instructions, 'keep');
+  assert.deepEqual(definition.uiPlugins, [{ pluginId: 'guide', entryId: 'guide', availability: 'always' },
+    { pluginId: 'quote', entryId: 'quote', availability: 'always', initiallyLoaded: true }]);
+  assert.equal(existsSync(join(installed, 'node_modules')), false);
+});

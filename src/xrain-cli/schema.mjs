@@ -67,6 +67,10 @@ command('agent application show', [...api, 'application-id'], [slot('application
 command('agent application set', [...api, 'application-id', 'values', 'values-json', 'file'], [slot('application-id')], 'Replace one application’s complete agent selection from JSON; preserve intended bindings and default.');
 command('agent definition list', runtime, [], 'List definition summaries without full instructions.');
 command('agent definition show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read one definition and its revision by exact agent ID.');
+command('agent sidebar catalog', [...api, 'workforce'], [], 'Read the installed Workforce sidebar catalog using the current member identity.');
+command('agent sidebar show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read an agent sidebar configuration and its revision; null means inherited defaults.');
+for (const action of ['set', 'add', 'update']) command(`agent sidebar ${action}`, [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file', ...(action === 'update' ? ['entry-id'] : [])], [slot('agent-id')], 'Change only sidebar configuration using an observed definition revision.');
+command('agent sidebar remove', [...runtime, 'agent-id', 'expected-revision', 'entry-id'], [slot('agent-id')], 'Remove exactly one configured sidebar entry using its entry ID and observed revision.');
 command('agent definition options', runtime, [], 'Read Runtime models, workspaces and presets available to this caller.');
 command('agent definition employee-options', runtime, [], 'Read definition choices for employee associations using the original relation-read permission.');
 command('agent definition member', [...runtime, 'user-id'], [slot('user-id')], 'Validate one known member through the narrow definition-management directory, without gaining directory search.');
@@ -319,9 +323,11 @@ export function validateCommand(args) {
   if (spec.path.startsWith('agent ')) {
     if (spec.options.includes('expected-revision') && (spec.path !== 'agent definition import' || args.has('agent-id'))) { args.required('expected-revision'); args.integer('expected-revision'); }
     if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
-    if (['agent definition update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
+    if (['agent definition update', 'agent sidebar set', 'agent sidebar add', 'agent sidebar update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
         !['values', 'values-json', 'file'].some(name => args.has(name)) && !(spec.path === 'agent definition update' && args.has('workspace-path'))) throw new CliError('A JSON input is required.', { code: 'invalid_arguments' });
     if (spec.path === 'agent definition export') args.required('out');
+    if (['agent sidebar update', 'agent sidebar remove'].includes(spec.path)) args.required('entry-id');
+    if (spec.path === 'agent sidebar catalog') args.required('workforce');
     if (spec.path === 'agent definition import') {
       args.required('file');
       if (args.has('expected-revision') && !args.has('agent-id')) throw new CliError('--expected-revision requires a target --agent-id.', { code: 'invalid_arguments' });

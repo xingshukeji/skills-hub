@@ -7,6 +7,7 @@ import { apiValue, request, responseError, writeOnce } from './http.mjs';
 import { chatCommands } from './agent-chat.mjs';
 import { runtimeRuns } from './runtime-runs.mjs';
 import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
+import { memberTarget, memberValue } from './member-target.mjs';
 
 export { identifier } from './agent-target.mjs';
 export { writeOnce } from './http.mjs';
@@ -195,12 +196,57 @@ async function definitionCommands(ctx) {
   reporter.print(await saveDefinition(ctx, id, body)); return 0;
 }
 
+async function sidebarCommands(ctx) {
+  const { args, reporter } = ctx, action = args.command(2);
+  if (action === 'catalog') {
+    const { send } = await memberTarget(ctx, 'workforce', { applicationRequired: false });
+    const result = memberValue(await send('GET', '/api/workbench/sidebar-plugins'));
+    if (!isObject(result) || !Array.isArray(result.items)) throw new CliError('Workforce returned an invalid sidebar catalog.', { code: 'invalid_response' });
+    reporter.print(result); return 0;
+  }
+  const id = identifier(args.required('agent-id'), 'Agent ID');
+  const current = await definition(ctx, id);
+  if (action === 'show') { reporter.print({ agentId: id, revision: current.revision, uiPlugins: current.uiPlugins ?? null }); return 0; }
+  const expected = revision(args);
+  // Validate the caller's observed revision before computing a partial update.
+  updatedDefinition(current, {}, expected);
+  const value = action === 'remove' ? undefined : await jsonInput(args, 'values', true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
+  let uiPlugins;
+  if (action === 'set') {
+    if (value !== null && !Array.isArray(value)) throw new CliError('Supply an array of sidebar entries or null to inherit.', { code: 'invalid_arguments' });
+    uiPlugins = value === null ? undefined : value;
+  } else {
+    if (!Array.isArray(current.uiPlugins)) throw new CliError('The sidebar inherits defaults. Set an explicit configuration before changing one entry.', { code: 'invalid_arguments' });
+    uiPlugins = structuredClone(current.uiPlugins);
+    if (action === 'add') {
+      if (!isObject(value) || !nonempty(value.pluginId)) throw new CliError('Supply one sidebar entry with pluginId.', { code: 'invalid_arguments' });
+      const entry = { ...value, entryId: value.entryId ?? `entry-${randomBytes(16).toString('hex')}` };
+      if (!nonempty(entry.entryId) || uiPlugins.some(row => (row.entryId ?? row.pluginId) === entry.entryId))
+        throw new CliError('Sidebar entry ID must be unique.', { code: 'invalid_arguments' });
+      uiPlugins.push(entry);
+    } else {
+      const entryId = args.required('entry-id');
+      const matches = uiPlugins.map((row, index) => (row.entryId ?? row.pluginId) === entryId ? index : -1).filter(index => index >= 0);
+      if (matches.length !== 1) throw new CliError('Sidebar entry was not found or is ambiguous.', { code: 'invalid_arguments' });
+      if (action === 'remove') uiPlugins.splice(matches[0], 1);
+      else {
+        if (!isObject(value) || Object.hasOwn(value, 'entryId') || Object.hasOwn(value, 'pluginId'))
+          throw new CliError('Supply changed sidebar fields without changing its identity.', { code: 'invalid_arguments' });
+        uiPlugins[matches[0]] = { ...uiPlugins[matches[0]], ...value };
+      }
+    }
+  }
+  const saved = await saveDefinition(ctx, id, updatedDefinition(current, { uiPlugins }, expected));
+  reporter.print({ agentId: id, revision: saved.revision, uiPlugins: saved.uiPlugins ?? null }); return 0;
+}
+
 export async function agentCommands(ctx) {
   if (['run', 'ephemeral'].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
   if (action === 'chat') return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === 'definition') return definitionCommands(ctx);
+  if (action === 'sidebar') return sidebarCommands(ctx);
   if (action === 'directory') {
     if (args.has('mine') && args.has('application-id')) throw new CliError('--mine applies only to the personal directory.', { code: 'invalid_arguments' });
     const appId = applicationId(runtimeConnection(ctx).profile);

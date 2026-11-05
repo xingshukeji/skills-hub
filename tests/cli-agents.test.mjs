@@ -7,6 +7,57 @@ import { fixture, mockServer, respond } from './helpers.mjs';
 const output = value => JSON.parse(value.stdout);
 const json = value => ['--values', JSON.stringify(value)];
 
+test('sidebar commands change only the chosen entry at the observed definition revision', async t => {
+  const f = fixture(t), secret = 'synthetic-token';
+  let item = { agentId: 'sales', aiUserId: '', name: 'Sales', revision: 4, enabled: true,
+    instructions: 'keep', provider: 'provider', model: 'model', agentPreset: 'normal',
+    uiPlugins: [{ pluginId: 'assistant-guide', entryId: 'guide', availability: 'always' },
+      { pluginId: 'quote', entryId: 'quote-custom', availability: 'always', initiallyLoaded: false }] };
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.method === 'GET') return respond(res, item);
+    const body = hit.json();
+    if (body.revision !== item.revision) return respond(res, { error: 'CONFLICT' }, 409);
+    item = { ...body, revision: body.revision + 1 }; return respond(res, item);
+  });
+  f.profile(service.url, 'tenant-demo', secret);
+  const run = async args => f.run(['agent', 'sidebar', ...args, '--runtime', service.url, '--json']);
+  assert.equal(output(await run(['show', 'sales'])).data.revision, 4);
+  let result = await run(['remove', 'sales', '--entry-id', 'guide', '--expected-revision', '4']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.deepEqual(item.uiPlugins.map(row => row.entryId), ['quote-custom']);
+  assert.equal(item.instructions, 'keep'); assert.deepEqual(item.workspaceChange, { operation: 'keep' });
+  result = await run(['update', 'sales', '--entry-id', 'quote-custom', '--expected-revision', '5', ...json({ initiallyLoaded: true })]);
+  assert.equal(result.code, 0, result.stdout); assert.equal(item.uiPlugins[0].initiallyLoaded, true);
+  const writes = service.hits.filter(hit => hit.method === 'POST').length;
+  result = await run(['remove', 'sales', '--entry-id', 'quote-custom', '--expected-revision', '4']);
+  assert.equal(output(result).error.code, 'conflict'); assert.equal(service.hits.filter(hit => hit.method === 'POST').length, writes);
+  result = await run(['add', 'sales', '--expected-revision', '6', ...json({ pluginId: 'other', availability: 'always' })]);
+  assert.equal(result.code, 0, result.stdout); assert.match(item.uiPlugins[1].entryId, /^entry-[a-f0-9]{32}$/);
+  result = await run(['set', 'sales', '--expected-revision', '7', ...json(null)]);
+  assert.equal(result.code, 0, result.stdout); assert.equal(item.uiPlugins, undefined);
+  result = await run(['add', 'sales', '--expected-revision', '8', ...json({ pluginId: 'other', availability: 'always' })]);
+  assert.equal(output(result).error.code, 'invalid_arguments');
+  result = await run(['set', 'sales', '--expected-revision', '8', ...json([])]);
+  assert.equal(result.code, 0, result.stdout); assert.deepEqual(item.uiPlugins, []);
+});
+
+test('sidebar catalog uses the original member and installed Workforce contributions', async t => {
+  const f = fixture(t), secret = 'synthetic-session';
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers.authorization, `Bearer ${secret}`);
+    if (hit.url === '/api/service/authen/v1/account/context') return respond(res, { tenantId: 'tenant-demo', userId: 'member-a' });
+    assert.equal(hit.url, '/api/workbench/sidebar-plugins');
+    assert.equal(hit.headers['x-xrain-expected-user-id'], 'member-a');
+    return respond(res, { items: [{ id: 'quote', label: '报价', kind: 'custom' }] });
+  });
+  f.profile(service.url, 'tenant-demo');
+  f.store.saveSession('Demo', service.url, 'tenant-demo', secret, Date.now() + 300000);
+  const result = await f.run(['agent', 'sidebar', 'catalog', '--workforce', service.url, '--auth', 'session', '--json']);
+  assert.equal(result.code, 0, result.stdout);
+  assert.equal(output(result).data.items[0].id, 'quote');
+  assert.ok(!result.stdout.includes(secret));
+});
+
 test('definition lifecycle preserves settings, requires explicit revisions and reports lost write results', async t => {
   const f = fixture(t), secret = 'synthetic-platform-credential', records = new Map();
   let loseResult = false;
