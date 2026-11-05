@@ -14,6 +14,16 @@ class CloseoutError extends Error {
   }
 }
 
+function readPathsFile(file) {
+  let values;
+  try { values = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(fs.readFileSync(file)).replace(/^\uFEFF/, "")); }
+  catch { throw new CloseoutError("invalid_paths_file", "--paths-file must name a readable UTF-8 JSON array of file paths.", {}, 1); }
+  if (!Array.isArray(values) || values.some((value) => typeof value !== "string")) {
+    throw new CloseoutError("invalid_paths_file", "--paths-file must contain only a JSON array of file path strings.", {}, 1);
+  }
+  return values;
+}
+
 function parseArgs(argv) {
   const options = {
     mode: "commit-push",
@@ -84,6 +94,9 @@ function parseArgs(argv) {
       case "--path":
         options.paths.push(value);
         break;
+      case "--paths-file":
+        options.paths.push(...readPathsFile(value));
+        break;
       default:
         throw new CloseoutError("invalid_arguments", `Unknown argument: ${key}.`, {}, 1);
     }
@@ -124,7 +137,7 @@ function parseArgs(argv) {
     throw new CloseoutError("invalid_arguments", "--wait-seconds must be an integer from 0 to 60.", {}, 1);
   }
   if (options.paths.length === 0 && options.mode !== "sync") {
-    throw new CloseoutError("paths_required", "At least one explicit --path is required.");
+    throw new CloseoutError("paths_required", "At least one explicit path is required through --path or --paths-file.");
   }
   if (!options.remote.trim() || !options.branch.trim()) {
     throw new CloseoutError("invalid_target", "Remote and branch must be non-empty.", {}, 1);
@@ -171,6 +184,40 @@ function runGit(repo, args, { allowFailure = false, indexFile, input, extraEnv =
     });
   }
   return result;
+}
+
+// Keep literal path selection below the Windows command-line limit. Read-only
+// queries can be concatenated; add/commit receive the complete NUL list on stdin.
+function runGitWithPaths(repo, args, paths, options = {}) {
+  let batch = [];
+  let length = args.join(" ").length + 256;
+  let stdout = "";
+  let stderr = "";
+  const flush = () => {
+    if (!batch.length) return null;
+    const result = runGit(repo, [...args, "--", ...batch], options);
+    stdout += result.stdout;
+    stderr += result.stderr;
+    batch = [];
+    length = args.join(" ").length + 256;
+    return result;
+  };
+  for (const file of paths) {
+    if (batch.length && length + file.length * 2 + 4 > 16000) {
+      const result = flush();
+      if (result.status !== 0) return { ...result, stdout, stderr };
+    }
+    batch.push(file);
+    length += file.length * 2 + 4;
+  }
+  const last = flush();
+  return { ...(last || { status: 0 }), stdout, stderr };
+}
+
+function runGitPathInput(repo, args, paths, options = {}) {
+  return runGit(repo, [...args, "--pathspec-from-file=-", "--pathspec-file-nul"], {
+    ...options, input: paths.map((file) => file + "\0").join(""),
+  });
 }
 
 function gitText(repo, args) {
@@ -294,9 +341,9 @@ function assertNoOperationInProgress(repo) {
 function selectedChanges(repo, ownedPaths, includeStagedOwned) {
   const diff = ["diff", "--no-renames", "--name-only", "-z"];
   if (includeStagedOwned && hasLocalHead(repo)) diff.push("HEAD");
-  const unstaged = splitNull(runGit(repo, [...diff, "--", ...ownedPaths]).stdout);
+  const unstaged = splitNull(runGitWithPaths(repo, diff, ownedPaths).stdout);
   const staged = includeStagedOwned && !hasLocalHead(repo) ? overlappingStaged(repo, ownedPaths) : [];
-  const untracked = splitNull(runGit(repo, ["ls-files", "--others", "--exclude-standard", "-z", "--", ...ownedPaths]).stdout);
+  const untracked = splitNull(runGitWithPaths(repo, ["ls-files", "--others", "--exclude-standard", "-z"], ownedPaths).stdout);
   return [...new Set([...unstaged, ...staged, ...untracked])].filter((file) => ownedPaths.includes(file)).sort();
 }
 
@@ -405,12 +452,12 @@ function syncPreservingReviewedFiles(repo, options, reviewedPaths) {
   if (!sameList(changed, reviewedPaths)) {
     throw new CloseoutError("sync_review_incomplete", "Review and pass every path changed by the remote as an explicit --path.", { changed, reviewedPaths });
   }
-  const dirty = splitNull(runGit(repo, ["diff", "--no-renames", "--name-only", "-z", "--", ...changed]).stdout).sort();
+  const dirty = splitNull(runGitWithPaths(repo, ["diff", "--no-renames", "--name-only", "-z"], changed).stdout).sort();
   if (!sameList(changed, dirty)) {
     throw new CloseoutError("sync_review_incomplete", "Every remote-changed file must already have a local working change; use ordinary sync for clean paths.", { changed, dirty });
   }
   assertNoOverlappingStaged(repo, changed, false);
-  const flags = splitNull(runGit(repo, ["ls-files", "-v", "-z", "--", ...changed]).stdout);
+  const flags = splitNull(runGitWithPaths(repo, ["ls-files", "-v", "-z"], changed).stdout);
   if (flags.length !== changed.length || flags.some((entry) => !entry.startsWith("H "))) {
     throw new CloseoutError("sync_review_incomplete", "Sparse or assume-unchanged paths require separate review.");
   }
@@ -443,9 +490,9 @@ function syncPreservingReviewedFiles(repo, options, reviewedPaths) {
   let lockOwned = false;
   try {
     fs.writeFileSync(candidate, indexBytes);
-    const targetEntries = runGit(repo, ["ls-tree", "-r", "-z", target, "--", ...changed]).stdout;
+    const targetEntries = runGitWithPaths(repo, ["ls-tree", "-r", "-z", target], changed).stdout;
     runGit(repo, ["update-index", "-z", "--index-info"], { indexFile: candidate, input: targetEntries });
-    if (runGit(repo, ["diff", "--cached", "--quiet", target, "--", ...changed], { indexFile: candidate, allowFailure: true }).status !== 0) {
+    if (runGitWithPaths(repo, ["diff", "--cached", "--quiet", target], changed, { indexFile: candidate, allowFailure: true }).status !== 0) {
       throw new CloseoutError("sync_index_changed", "The prepared index does not match the reviewed remote files.");
     }
     const originalUnrelated = splitNull(runGit(repo, ["ls-files", "--stage", "-z"]).stdout)
@@ -495,7 +542,7 @@ function syncPreservingReviewedFiles(repo, options, reviewedPaths) {
 
 function treeEntries(repo, tree, paths) {
   if (!tree) return [];
-  return splitNull(runGit(repo, ["ls-tree", "-r", "-z", tree, "--", ...paths]).stdout).sort();
+  return splitNull(runGitWithPaths(repo, ["ls-tree", "-r", "-z", tree], paths).stdout).sort();
 }
 
 function sameList(left, right) {
@@ -507,7 +554,7 @@ function snapshotSelectedTree(repo, base, ownedPaths) {
   const indexFile = path.join(directory, "index");
   try {
     runGit(repo, base ? ["read-tree", base] : ["read-tree", "--empty"], { indexFile });
-    runGit(repo, ["add", "--", ...ownedPaths], { indexFile });
+    runGitPathInput(repo, ["add"], ownedPaths, { indexFile });
     return runGit(repo, ["write-tree"], { indexFile }).stdout.trim();
   } finally {
     // These are files owned by this invocation, not a repository index or lock.
@@ -714,14 +761,14 @@ function commitAndPush(repo, options, ownedPaths, changedFiles, base) {
       expectedTree: options.expectedTree, actualTree: expectedTree,
     });
   }
-  const untracked = splitNull(runGit(repo, ["ls-files", "--others", "--exclude-standard", "-z", "--", ...ownedPaths]).stdout)
+  const untracked = splitNull(runGitWithPaths(repo, ["ls-files", "--others", "--exclude-standard", "-z"], ownedPaths).stdout)
     .filter((file) => ownedPaths.includes(file));
   const deadline = Date.now() + options.waitSeconds * 1000;
   assertNoOverlappingStaged(repo, ownedPaths, options.includeStagedOwned);
   if (untracked.length) {
     let add;
     do {
-      add = runGit(repo, ["add", "--intent-to-add", "--", ...untracked], { allowFailure: true });
+      add = runGitPathInput(repo, ["add", "--intent-to-add"], untracked, { allowFailure: true });
     } while (add.status !== 0 && isIndexLockFailure(add) && waitBriefly(deadline));
     if (add.status !== 0) {
       throw new CloseoutError("prepare_new_files_failed", "Git could not prepare the new selected files.", {
@@ -734,7 +781,7 @@ function commitAndPush(repo, options, ownedPaths, changedFiles, base) {
   let sha = null;
   do {
     assertNoOverlappingStaged(repo, ownedPaths, options.includeStagedOwned);
-    commit = runGit(repo, ["-c", "core.abbrev=40", "-c", "color.ui=false", "commit", "--only", "-m", options.message, "--", ...ownedPaths], {
+    commit = runGitPathInput(repo, ["-c", "core.abbrev=40", "-c", "color.ui=false", "commit", "--only", "-m", options.message], ownedPaths, {
       allowFailure: true, extraEnv: { GIT_REFLOG_ACTION: marker, LC_ALL: "C" },
     });
     sha = findCommit(repo, options.branch, marker, commit.stdout);
@@ -789,7 +836,7 @@ function commitVerifiedTree(repo, options, ownedPaths) {
     throw new CloseoutError("commit_scope_mismatch", "The verified tree must change exactly the declared paths.", { changed, ownedPaths });
   }
   assertNoOverlappingStaged(repo, ownedPaths, false);
-  const flags = splitNull(runGit(repo, ["ls-files", "-v", "-z", "--", ...ownedPaths]).stdout);
+  const flags = splitNull(runGitWithPaths(repo, ["ls-files", "-v", "-z"], ownedPaths).stdout);
   if (flags.some((entry) => !entry.startsWith("H ")) || runGit(repo, ["ls-files", "--unmerged", "-z"]).stdout) {
     throw new CloseoutError("operation_in_progress", "Unmerged, sparse, or assume-unchanged paths require separate review.");
   }
@@ -839,11 +886,11 @@ function commitVerifiedTree(repo, options, ownedPaths) {
       throw new CloseoutError("commit_index_recovery_required", "The branch or index changed after commit; the existing index and working files were preserved.", { sha }, 3);
     }
     fs.writeFileSync(preservedIndex, indexBytes);
-    const actualEntries = runGit(repo, ["ls-tree", "-r", "-z", sha, "--", ...ownedPaths]).stdout;
+    const actualEntries = runGitWithPaths(repo, ["ls-tree", "-r", "-z", sha], ownedPaths).stdout;
     const existing = new Set(splitNull(actualEntries).map((entry) => entry.slice(entry.indexOf("\t") + 1)));
     if (actualEntries) runGit(repo, ["update-index", "-z", "--index-info"], { indexFile: preservedIndex, input: actualEntries });
     const deleted = ownedPaths.filter((file) => !existing.has(file));
-    if (deleted.length) runGit(repo, ["update-index", "--force-remove", "--", ...deleted], { indexFile: preservedIndex });
+    if (deleted.length) runGitWithPaths(repo, ["update-index", "--force-remove"], deleted, { indexFile: preservedIndex });
     const unrelated = (indexFile) => splitNull(runGit(repo, ["ls-files", "--stage", "-z"], { indexFile }).stdout)
       .filter((entry) => !ownedPaths.includes(entry.slice(entry.indexOf("\t") + 1))).sort();
     if (!sameList(unrelated(undefined), unrelated(preservedIndex))) {

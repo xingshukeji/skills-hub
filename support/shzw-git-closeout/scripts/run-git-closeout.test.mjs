@@ -1093,3 +1093,63 @@ test("redacts credentials and token query values from Git failures", (t) => {
   assert.doesNotMatch(result.stdout, /secret|dummy-token/);
   assert.match(result.stdout, /\[redacted\]/);
 });
+
+
+test("JSON path lists keep original path and secret checks", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const list = path.join(fixture.root, "paths.json");
+  for (const value of ["not JSON", JSON.stringify({ paths: ["owned.txt"] }), JSON.stringify([42])]) {
+    write(list, value);
+    const result = run(fixture.repo, ["--mode", "snapshot", "--paths-file", list]);
+    assert.equal(result.json.code, "invalid_paths_file");
+    assert.equal(result.status, 1);
+  }
+  fs.writeFileSync(list, Buffer.from([0x5b,0x22,0xff,0x22,0x5d]));
+  assert.equal(run(fixture.repo, ["--mode", "snapshot", "--paths-file", list]).json.code, "invalid_paths_file");
+  write(path.join(fixture.repo, ".env"), "TOKEN=synthetic\n");
+  for (const unsafe of ["../outside.txt", ".", ".env"]) {
+    write(list, JSON.stringify([unsafe]));
+    assert.equal(run(fixture.repo, ["--mode", "snapshot", "--paths-file", list]).json.code, "unsafe_path");
+  }
+  write(path.join(fixture.repo, "owned.txt"), "changed\n");
+  write(list, "\uFEFF" + JSON.stringify(["owned.txt"]));
+  const result = run(fixture.repo, ["--mode", "snapshot", "--paths-file", list, "--path", "owned.txt"]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.deepEqual(result.json.changedFiles, ["owned.txt"]);
+});
+
+test("large literal path lists snapshot and publish complete owned trees while preserving other work", (t) => {
+  const fixture = createRepository();
+  t.after(() => cleanupFixture(fixture));
+  const files = Array.from({ length: 340 }, (_, index) =>
+    "files/segment-" + "x".repeat(62) + "/item-" + index + "-" + "y".repeat(35) + ".txt");
+  assert.ok(files.join(" ").length > 32768);
+  for (const [index, file] of files.entries()) write(path.join(fixture.repo, file), "first " + index + "\n");
+  write(path.join(fixture.repo, "other.txt"), "other task\n");
+  git(fixture.repo, ["add", "other.txt"]);
+  write(path.join(fixture.repo, "unrelated.txt"), "unrelated untracked\n");
+  const list = path.join(fixture.root, "paths.json");
+  write(list, JSON.stringify(files));
+  const snapshot = run(fixture.repo, ["--mode", "snapshot", "--paths-file", list]);
+  assert.equal(snapshot.status, 0, snapshot.stdout);
+  assert.deepEqual(snapshot.json.changedFiles, [...files].sort());
+  const first = run(fixture.repo, ["--mode", "commit-tree", "--paths-file", list,
+    "--expected-base", snapshot.json.base, "--expected-tree", snapshot.json.tree, "--message", "large verified tree"]);
+  assert.equal(first.status, 0, first.stdout);
+  assert.equal(first.json.status, "pushed");
+  assert.deepEqual(first.json.changedFiles, [...files].sort());
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD^{tree}"]), snapshot.json.tree);
+  assert.equal(git(fixture.repo, ["show", ":other.txt"]), "other task");
+  assert.equal(git(fixture.repo, ["show", "HEAD:other.txt"]), "base");
+  for (const [index, file] of files.entries()) write(path.join(fixture.repo, file), "second " + index + "\n");
+  const second = run(fixture.repo, ["--paths-file", list, "--message", "large literal path commit"]);
+  assert.equal(second.status, 0, second.stdout);
+  assert.equal(second.json.status, "pushed");
+  assert.deepEqual(second.json.changedFiles, [...files].sort());
+  assert.equal(git(fixture.repo, ["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"]).split("\n").length, files.length);
+  assert.equal(git(fixture.repo, ["show", ":other.txt"]), "other task");
+  assert.equal(git(fixture.repo, ["show", "HEAD:other.txt"]), "base");
+  assert.equal(fs.readFileSync(path.join(fixture.repo, "unrelated.txt"), "utf8"), "unrelated untracked\n");
+  assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), git(fixture.remote, ["rev-parse", "refs/heads/main"]));
+});
