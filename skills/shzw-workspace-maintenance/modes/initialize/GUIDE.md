@@ -26,13 +26,11 @@ Keep target creation and reference remediation as separate phases. Complete and 
 ```text
 <workspace>/
   AGENTS.md
-  文档/
-    WORKSPACE_STRUCTURE.md
 ```
 
 For work routed through Workforce, new recoverable tasks remain registered in its central TASK_CONTROL; do not create an empty second register. A standalone target may retain its own task register only when its adopted workflow requires one. Preserve existing registered tasks and their owners rather than duplicating them.
 
-When adopting the shared checker, declare only existing target locations in its StructureContract's `document-policy`. If no human task is grounded, set `humanDocumentationRequired` to `false` in that same block; omission preserves the existing required human-entry contract. Existing human pages are still validated. Do not declare a local TaskControl placement when the sole register is central; a declared local file and the selected central owner remain required. A non-Node target without documented npm commands does not need `package.json` for documentation validation.
+When a target declares a StructureContract, put only existing target locations in its `document-policy`. If no human task is grounded, it may set `humanDocumentationRequired` to `false`; existing human pages are still validated. A target without a structure file does not need one to use the shared checker; placement and metadata policies apply only when declared. Do not declare a local TaskControl placement when the sole register is central; a declared local file and the selected central owner remain required. A non-Node target without documented npm commands does not need `package.json` for documentation validation.
 
 When a real project ID and source root are known, add only `文档/项目/项目_<id>/AGENTS.md` and the category directories required by grounded current documents. Create an Archive or activity directory only when a qualifying fact or recovery task exists. Do not create README inside the governed `文档/` tree, TASKS, relationship indexes or placeholder category files.
 
