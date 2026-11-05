@@ -151,6 +151,29 @@ test('complete files larger than 32 MiB remain readable, exportable and editable
   assert.equal(server.hits.some(hit => hit.url === root + '/limits'), false);
 });
 
+test('a missing application-selected definition is created with its fixed ID before importing and enabling', async t => {
+  const { f, records, server, run } = await definitions(t);
+  const path = join(f.directory, 'exchange.json');
+  const portable = structuredClone(sample);
+  portable.definition.workspace = { kind: 'registered', id: 'enterprise' };
+  writeFileSync(path, JSON.stringify(portable));
+  const created = output(await run(['create', '--agent-id', 'sales-agent', '--name', 'Sales']));
+  assert.equal(created.data.agentId, 'sales-agent');
+  assert.equal(created.data.enabled, false);
+  const imported = output(await run(['import', '--agent-id', 'sales-agent', '--expected-revision', String(created.data.revision), '--file', path]));
+  assert.equal(imported.data.agentId, 'sales-agent');
+  assert.equal(imported.data.enabled, false);
+  assert.equal(imported.data.warnings.length, 1);
+  assert.equal(records.get('sales-agent').instructions, sample.definition.instructions);
+  const updated = output(await run(['update', 'sales-agent', '--expected-revision', String(imported.data.revision), '--workspace-path', '/local/workspace', '--preset', 'standard']));
+  assert.equal(updated.data.agentId, 'sales-agent');
+  assert.equal(records.get('sales-agent').workspacePath, '/local/workspace');
+  const enabled = output(await run(['enable', 'sales-agent', '--expected-revision', String(updated.data.revision)]));
+  assert.equal(enabled.data.enabled, true);
+  assert.deepEqual([...records.keys()], ['sales-agent']);
+  assert.ok(server.hits.every(hit => hit.url.startsWith(root)));
+});
+
 test('page exchange file import/export preserves identity, revision, enabled state, fields and inheritance without changing usage relations', async t => {
   const { f, records, server, run } = await definitions(t);
   const path = join(f.directory, 'page.json'); writeFileSync(path, JSON.stringify(sample));

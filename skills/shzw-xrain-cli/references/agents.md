@@ -75,7 +75,7 @@ agent chat respond <actionRef> --values-json <回答.json>
 ```
 
 ```text
-agent definition create --name <名称> --values-json <定义.json>
+agent definition create --agent-id <明确的ID> --name <名称> --values-json <定义.json>
 agent definition update <agentId> --expected-revision <读到的版本> --values-json <修改.json>
 agent definition enable <agentId> --expected-revision <读到的版本>
 agent definition disable <agentId> --expected-revision <读到的版本>
@@ -115,6 +115,8 @@ agent definition import --file <定义文件.json> --agent-id <已有ID> --expec
 文件与页面的 `xrain-workforce-agent-definition`、`version: 1` 格式相同。[完整合成样本](examples/definition-file-v1.json)包含模型、直接目录、继承工具、业务工具、推荐问题、业务操作、侧栏及录入字段；实际目录和业务引用须换成目标环境提供的值。它不是 `update` 的字段补丁，也不是 Runtime schema 3 存储文件。
 
 导出排他创建文件，保留已有文件。导入支持 `--file -`，无需强制预览；不指定 ID 时创建停用定义，提交前输出生成 ID。指定已有 ID 时要求明确版本，保留目标启用状态；不会修改订阅、应用选用或员工关系。文件记录的启用状态不直接应用。
+
+应用已经选定某个固定 ID 而目标 Runtime 缺少该定义时，先用 `agent definition create --agent-id <应用选定的ID> --name <名称>` 创建同 ID 的停用定义并读取 revision；随后用 `agent definition import --file <定义文件.json> --agent-id <同一ID> --expected-revision <实际revision>` 导入。核对并绑定目标工作区、工作方式及业务引用后，再按新读取的 revision 启用。不要用无 ID 导入生成另一个 ID，或将 `--agent-id` 与不存在的版本当作创建入口。管理目录无权读取不能证明定义不存在；用已有管理身份核实同一 Runtime，原业务身份最后验证应用目录。
 
 直接目录在保存时由 Runtime 核验。登记目录只有 ID、路径及工作方式在目标环境匹配时重新绑定，否则保留目标目录并报告警告。文件未提供目录且目标已启用时保留原目录；停用目标可以清除目录。文件中的 `nativeTools: null` 按当前接口恢复工具继承。格式或保存校验失败不覆盖原定义，结果未知仍按原 ID 回读。
 
