@@ -40,6 +40,7 @@
 | 当前问题 | 应进入的已有方法与补充判例 |
 |---|---|
 | 业务概念、关系、字段多建或漏存 | [建模及历史反例](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/modeling.md#从历史纠偏选择建模反例)、[对象自带能力](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/object-foundation.md) |
+| 业务搜索语义、关键词范围与查询条件数量 | [业务查询合同](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/business-api.md)、[功能回归](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-testing/references/functional-regression.md) |
 | 导入覆盖、普通编辑冲突、预检与恢复 | [导入边界](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/data-operations.md#导入与普通更新的校准边界)、[CLI 导入作业](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/commands.md) |
 | 登录失败、跨租户、角色与应用可用 | [身份与准入判例](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-access/modes/authentication/references/calibration-cases.md)、[应用安装和重复执行](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/modes/operations/GUIDE.md) |
 | AI 员工、Task、定时安排与运行历史 | [任务生命周期](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/modes/agents/references/task-lifecycle.md)、[业务自动化](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/automation.md)、[平台审查入口](platform-review.md) |
@@ -57,6 +58,7 @@
 | 2026-09-19 至 20，模型委托 `01a0bbed-7801-75d0-8204-a02edbf85940` 与 Harness 讨论 `01a0be20-f586-7532-9e33-ab616fb83680` 明确消息由工具发表、运行由实际 Runtime 承担 | 沿真实私聊、结构化提及、回复和工具结果追到发表事实；不同 AI 的身份、会话及上下文分别验证 | 最终文本不自动成为 Message；旧 Codex 适配方案不能覆盖后来确定的 Harness 接入，也不因相同姓名合并身份 |
 | 2026-10-05，聊天 `01a10ba6-0b6d-7541-bec0-6a3504fd548c` 由成员选择菜单显示；2026-10-15 至 17，`01a13e85-56f8-7563-979f-47dd0e62f5a1`、`01a147c6-e2f3-7921-9a27-cbcb7dbde2aa` 区分公共能力与铵帮业务 | 从当前组合核对隐藏、裁剪、应用准入及数据权限；通用能力可复用，客户业务源码和交付保持实际边界 | 隐藏不等于撤权；独立业务不等于另造一套 Runtime；一个应用也不必只有一个平台资源包 |
 | 2026-10-28，window10GUI 聊天 `01a181c9-8d3a-7e30-977b-d9ef10d09875` 将新 DeskPilot 源码和完整 Skill 交付移至 skills-hub | 核对实际调用的是旧工具还是新分发、目标操作系统与真实桌面证据；工具通用能力和站点操作知识分别归位 | 新代码有后端不证明各平台均已验收；旧仓退役条件未满足时不能直接删原安装；历史购物或聊天测试授权不自动延续 |
+| 2026-11-05，铵帮车型查询聊天 `01a1a910-1a80-75f0-959d-eab9254319b7`：用户纠正逐词匹配所有字段，要求限制相关字段并优先精确匹配；`01a1a925-c4a8-7860-9497-dc265f92eb9b` 核实了条件膨胀及等价写法漏查 | 遇到该业务搜索或判断条件数量时，先按词义和现行要求核对获权字段、实际组合及平台查询能力，再用匹配与不匹配样例、等价写法和分页结果检查语义及完整性 | 该业务本次的每词字段上限不是平台通用限制；自由文本搜索按其实际目标判断。不能仅靠提高平台上限或拆批就认定结果正确，也不因一种等价写法的测试通过推断线上已生效 |
 | 2026-09-20，ChatGPT 聊天 `6aaf7141-62dc-83ea-86af-655939c1f24f` 虽题为“开源协议比较”，用户讨论的是 Workforce 与独立运行时并提出自研；2026-09-23，`6ab38438-1e00-83ea-931c-69f349dc3ae1` 又明确 Workforce 接入基于 DSH 的外部服务，不自研通用运行时 | 按实际接入对象和后续明确决定核对当前 Workforce 产品契约；保留员工身份、上下文和业务交付等未被替换的需求 | 不从聊天标题判定无关，不把旧自研方案当当前 Workforce 目标，也不把该项目的选择扩大为禁止其他独立项目自研 |
 
 全量回溯只证明所记录时间和可访问来源的覆盖。不能读到的消息、仅恢复未查看的图像、外部附件、未做的真实环境或独立模型检验需分别说明；后来产生的新决定仍需按同一对象与范围更新责任来源。
