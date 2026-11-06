@@ -81,6 +81,39 @@ test('changed source updates the same identity and produces a new exact immutabl
   assert.equal(s.hits.filter(h => h.method === 'PUT').length, 1);
 });
 
+test('update refusal names the target and exact definition changes in JSON and human output without any platform write', async t => {
+  const f = setup(t), remoteContract = structuredClone(contract);
+  remoteContract.input.fields[0].required = false;
+  remoteContract.input.fields[0].example = 'tenant-only';
+  const before = existing({ label: 'Tenant Price', helpText: '租户说明', signature: 'tenant signature', isActive: false,
+    source: sourceText.replace('+ 2', '+ 3'), contractJson: remoteContract });
+  const s = await server(t, f, { source: before });
+  const refusal = await f.runFunction('publish'); assert.equal(refusal.code, 1);
+  const error = JSON.parse(refusal.stdout).error;
+  assert.equal(error.code, 'function_update_required');
+  for (const value of ['tenant-demo', s.url, 'Tenant Price', key, '本次未向平台写入']) assert.ok(error.message.includes(value), value);
+  for (const value of ['--update', '本地项目定义', '目标租户', '创建或复用', '不会自动切换应用选版', '宿主配置', '业务记录', '停用会使已关联应用的当前调用不可用', '旧不可变版本内容不变']) assert.ok(error.hint.includes(value), value);
+  assert.equal(error.details.functionName, 'Tenant Price'); assert.equal(error.details.writePerformed, false);
+  assert.equal(error.details.updateDirection, 'project_to_tenant');
+  assert.deepEqual(error.details.updateImpact, { functionSource: 'replace_definition', version: 'create_or_reuse', activeStateAppliedFromProject: true, applicationSelectionChanged: false, hostConfigurationChanged: false, businessRecordsChanged: false });
+  const diffs = Object.fromEntries(error.details.differences.map(item => [item.field, item]));
+  assert.deepEqual(Object.keys(diffs), ['label', 'helpText', 'signature', 'isActive', 'source', 'contractJson']);
+  assert.equal(diffs.label.current, 'Tenant Price'); assert.equal(diffs.label.project, 'Price');
+  assert.equal(diffs.isActive.current, false); assert.equal(diffs.isActive.project, true);
+  assert.equal(diffs.source.firstDifferingLine, 1); assert.notEqual(diffs.source.current.sha256, diffs.source.project.sha256);
+  assert.equal(diffs.source.project.bytes, Buffer.byteLength(sourceText));
+  assert.deepEqual(diffs.contractJson.changes, [
+    { path: 'contractJson["input"]["fields"][0]["example"]', current: 'tenant-only', projectMissing: true },
+    { path: 'contractJson["input"]["fields"][0]["required"]', current: false, project: true },
+  ]);
+  assert.ok(!refusal.stdout.includes(sourceText), 'source contents are summarized, not dumped');
+  const plain = await f.run(['project', 'function', 'publish', '--project', f.root, '--key', key, '--auth', 'session']);
+  assert.equal(plain.code, 1);
+  for (const value of ['tenant-demo', 'Tenant Price', '本次未向平台写入', '--update', 'firstDifferingLine']) assert.ok(plain.stderr.includes(value), value);
+  assert.deepEqual(s.getSource(), before); assert.deepEqual(s.getVersions(), []);
+  assert.ok(s.hits.every(hit => hit.method === 'GET'), 'both refusal formats must be produced before platform mutation');
+});
+
 test('unknown source creation and racing version receipts stop without replay or selecting a version', async t => {
   for (const options of [{ unknownCreate: true }, { racingSource: 'function(ctx) { return 999; }' }]) {
     const f = setup(t), s = await server(t, f, options);

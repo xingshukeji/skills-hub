@@ -3610,6 +3610,29 @@ var definition = (value) => ({
   source: value.source,
   contractJson: value.contractJson
 });
+var definitionLabels = { label: "函数名称", helpText: "说明", signature: "调用签名", isActive: "启用状态", source: "源码", contractJson: "输入输出合同" };
+var textSummary = (text2) => ({ sha256: sha256(text2), bytes: Buffer.byteLength(text2), lines: text2.split("\n").length });
+function contractDifferences(current, project, path = "contractJson") {
+  if (isDeepStrictEqual(current, project)) return [];
+  if (isObject(current) && isObject(project)) return [.../* @__PURE__ */ new Set([...Object.keys(current), ...Object.keys(project)])].sort().flatMap((key) => contractDifferences(current[key], project[key], `${path}[${JSON.stringify(key)}]`));
+  if (Array.isArray(current) && Array.isArray(project)) return Array.from({ length: Math.max(current.length, project.length) }, (_, index) => contractDifferences(current[index], project[index], `${path}[${index}]`)).flat();
+  return [{
+    path,
+    ...current === void 0 ? { currentMissing: true } : { current },
+    ...project === void 0 ? { projectMissing: true } : { project }
+  }];
+}
+function definitionDifferences(current, project) {
+  return Object.entries(definitionLabels).filter(([field]) => !isDeepStrictEqual(current[field], project[field])).map(([field, label]) => {
+    if (field === "source") {
+      const before = current.source.split("\n"), after = project.source.split("\n");
+      const index = Array.from({ length: Math.max(before.length, after.length) }, (_, i) => i).find((i) => before[i] !== after[i]);
+      return { field, label, current: textSummary(current.source), project: textSummary(project.source), firstDifferingLine: index + 1 };
+    }
+    if (field === "contractJson") return { field, label, changes: contractDifferences(current[field], project[field]) };
+    return { field, label, current: current[field], project: project[field] };
+  });
+}
 function array(value) {
   if (!Array.isArray(value)) throw new CliError("The server returned an invalid function catalog.", { code: "invalid_response" });
   return value;
@@ -3732,11 +3755,30 @@ async function projectFunctionCommands(ctx) {
   try {
     if (!source) source = await mutate("POST", sources, wanted, "create-source", validSource);
     else if (!isDeepStrictEqual(definition(source), wanted)) {
-      if (!args.has("update")) throw new CliError("The existing tenant source differs from this project.", {
-        code: "function_update_required",
-        hint: "Inspect the existing source and preserve intended tenant changes in the project; use --update to publish the reconciled project source.",
-        details: { ...progress, functionId: source.id, currentSourceSha256: sha256(source.source) }
-      });
+      if (!args.has("update")) {
+        const differences = definitionDifferences(definition(source), wanted);
+        throw new CliError(`目标租户 ${JSON.stringify(identity.tenantId)}（${profile.server}）中的函数 ${JSON.stringify(source.label)}（${key}）与本地项目定义不同。差异：${differences.map((item) => item.label).join("、")}。本次未向平台写入；函数来源、版本和应用选版均未修改。`, {
+          code: "function_update_required",
+          hint: "请先核对 differences 中的 current（目标租户现值）和 project（本地项目值），将需要保留的租户修改合入项目。添加 --update 后，本地项目定义将更新目标租户中的同一函数来源（名称、说明、签名、启用状态、源码及输入输出合同），随后创建或复用匹配的不可变版本。启用状态也按项目值更新，停用会使已关联应用的当前调用不可用；旧不可变版本内容不变。不会自动切换应用选版、修改宿主配置或写入业务记录。",
+          details: {
+            ...progress,
+            functionId: source.id,
+            functionName: source.label,
+            currentSourceSha256: sha256(source.source),
+            writePerformed: false,
+            differences,
+            updateDirection: "project_to_tenant",
+            updateImpact: {
+              functionSource: "replace_definition",
+              version: "create_or_reuse",
+              activeStateAppliedFromProject: true,
+              applicationSelectionChanged: false,
+              hostConfigurationChanged: false,
+              businessRecordsChanged: false
+            }
+          }
+        });
+      }
       const { key: _key, ...body } = wanted;
       source = await mutate("PUT", `${sources}/${segment(source.id)}`, body, "update-source", validSource);
     }
@@ -4974,7 +5016,7 @@ command("app init", ["namespace", "label", "dir"], [], "Create source.json witho
 command("project init", ["namespace", "label", "dir"], [], "Create xrain-project.json and ignore rules, preserving existing files and creating no business records.");
 command("project assemble", ["project", "release"], [], "Assemble current explicit project inputs offline into .artifacts/; module scripts use project-locked esbuild.");
 command("project build", [...app2, "project", "release"], [], "Assemble current inputs, build through the platform and retain a new original in .artifacts/appkg/. No import, installation or publication.");
-command("project function publish", [...app2, "project", "key", "release", "update"], [], "Publish one declared tenant function from current project source and create or reuse an immutable version. --update replaces a differing existing source. Does not change application selection.");
+command("project function publish", [...app2, "project", "key", "release", "update"], [], "从项目源码发布租户函数，创建或复用不可变版本。目标定义不同时先报告租户、函数及具体差异，本次不向平台写入；--update 用本地项目定义更新目标租户的同一函数来源，不自动切换应用选版、修改宿主配置或写入业务记录。");
 command("project function test", [...app2, "project", "key", "version-id", "cases"], [], "Test an explicit published version with project JSON cases and business assertions. Does not publish or select a version; ordinary functions retain their SDK effects.");
 command("app check", [...app2, "source"], [], "Build and validate remotely without saving; use build alone when an artifact is needed.");
 command("app build", [...app2, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
