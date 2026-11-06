@@ -1,6 +1,6 @@
 # 智能体命令
 
-显式操作原会话可用 `agent chat cancel <sessionId>` 停止运行，`agent chat cancel-question <actionRef> [--request-id <原响应ID>]` 取消问题。审批仍用 respond 明确允许或拒绝。停止不撤销已经发生的外部效果，也不删除历史；Ctrl+C 和等待超时继续只停止本地观察。回执丢失时保留原 sessionId/actionRef，不自动重发。
+显式操作原会话可用 `agent chat cancel <sessionId>` 停止运行，`agent chat cancel-question <actionRef> [--request-id <原响应ID>]` 取消问题。审批仍用 respond 明确允许或拒绝。停止不撤销已经发生的外部效果，也不删除历史；Ctrl+C 和等待超时继续只停止本地观察。回执丢失时保留原 sessionId/actionRef，不自动重发。定义和工作空间文件一起交付及平台配置管理见[完整发布与配置管理](agent-publication.md)；仅准备已交付目录上的定义时使用本页的 `definition prepare/import`。
 
 会话扩展读取为 `agent chat subagents|commands|models <sessionId>`。执行一个明确的原生斜杠命令使用 `agent chat command <sessionId> --line "/<命令>"`；切换模型使用 `agent chat model <sessionId> --values-json <选择.json>`，文件包含 provider、model 和可选 reasoningEffort。原生所有权、子智能体工作方式、当前定义资格及模型可用性由 Runtime 判断，错误不回退到其他会话或定义。
 

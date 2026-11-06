@@ -735,8 +735,8 @@ function makeClient(ctx, signal) {
   const application = ctx.args.value("application");
   if (application !== void 0 && (application.length > 100 || application !== application.trim() || /[\x00-\x1f\x7f,]/.test(application))) throw invalid("--application is invalid.");
   const entity2 = ctx.args.required("entity");
-  const root2 = `/api/data/v1/entities/${segment(entity2)}`;
-  return { profile, source, token, signal, entity: entity2, root: root2, timeout: ctx.args.timeout(), application };
+  const root3 = `/api/data/v1/entities/${segment(entity2)}`;
+  return { profile, source, token, signal, entity: entity2, root: root3, timeout: ctx.args.timeout(), application };
 }
 function abortError(client2, error, deadline) {
   if (error instanceof CliError) return error;
@@ -1012,7 +1012,7 @@ async function dataImportCommands(ctx) {
   let client2, requestId, job, requestedJobId;
   try {
     client2 = makeClient(ctx, controller.signal);
-    const root2 = `${client2.root}/imports/jobs`;
+    const root3 = `${client2.root}/imports/jobs`;
     const wait2 = action === "wait" || args.has("wait");
     const deadline = wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
     if (action === "capabilities") {
@@ -1040,21 +1040,21 @@ async function dataImportCommands(ctx) {
       form.set("requestId", requestId);
       form.set("coordination", protocol);
       form.set("commitMode", "chunked");
-      job = validatedJob(await jsonRequest(client2, "POST", root2, { body: form, deadline }), client2.entity, void 0, requestId);
+      job = validatedJob(await jsonRequest(client2, "POST", root3, { body: form, deadline }), client2.entity, void 0, requestId);
       if (wait2) job = await waitJob(ctx, client2, job, "check", deadline);
       return outputJob(ctx, job);
     }
     if (action === "list") {
       if (args.has("request-id")) requestId = requireId(args.value("request-id"), "--request-id");
       const filter = { requestId, importSourceKey: args.value("import-source-key"), status: args.value("status"), cursor: args.value("cursor"), pageSize: pageSize(args) };
-      const result = await jsonRequest(client2, "GET", root2 + query(filter));
+      const result = await jsonRequest(client2, "GET", root3 + query(filter));
       if (!isObject(result) || !Array.isArray(result.items) || result.nextCursor != null && !nonempty(result.nextCursor)) throw invalidResponse("The import job list is invalid.");
       for (const item of result.items) validatedJob(item, client2.entity, void 0, requestId);
       reporter.print(result);
       return 0;
     }
     const jobId = requestedJobId = requireId(args.required("job"), "--job");
-    const path = `${root2}/${segment(jobId)}`;
+    const path = `${root3}/${segment(jobId)}`;
     if (action === "download") {
       const purpose = args.required("purpose"), out = args.required("out");
       if (!["result", "issues", "maintenance", "remaining"].includes(purpose)) throw invalid("--purpose must be result, issues, maintenance or remaining.");
@@ -1149,13 +1149,13 @@ async function dataOperations(ctx) {
     return true;
   }
   if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) && !["field-options", "original-values", "history", "owner-transfer", "share", "export-file", "export-capabilities"].includes(action)) return false;
-  const entityCode = args.required("entity"), root2 = `/api/data/v1/entities/${segment(entityCode)}`, records = `${root2}/records`;
+  const entityCode = args.required("entity"), root3 = `/api/data/v1/entities/${segment(entityCode)}`, records = `${root3}/records`;
   if (action === "export-file") {
     await exportRecordsFile(ctx);
     return true;
   }
   if (action === "export-capabilities") {
-    await api(ctx, "GET", `${root2}/exports/capabilities`);
+    await api(ctx, "GET", `${root3}/exports/capabilities`);
     return true;
   }
   if (Object.hasOwn(queryActions, action)) {
@@ -1179,7 +1179,7 @@ async function dataOperations(ctx) {
     return true;
   }
   if (action === "field-options") {
-    await api(ctx, "GET", `${root2}/fields/${segment(args.required("field"))}/options${page(args, true)}`);
+    await api(ctx, "GET", `${root3}/fields/${segment(args.required("field"))}/options${page(args, true)}`);
     return true;
   }
   const recordId = args.required("id"), record = `${records}/${segment(recordId)}`;
@@ -1373,8 +1373,8 @@ async function dataCommands(ctx) {
   if (await dataOperations(ctx)) return 0;
   if (!["query", "get", "create", "creation-result", "update", "delete"].includes(action)) throw new CliError("Use data query, get, create, creation-result, update or delete.");
   const entity2 = args.required("entity", args.operand(2));
-  const root2 = `/api/data/v1/entities/${segment(entity2)}/records`;
-  if (action === "creation-result") return creationResult(ctx, entity2, root2);
+  const root3 = `/api/data/v1/entities/${segment(entity2)}/records`;
+  if (action === "creation-result") return creationResult(ctx, entity2, root3);
   if (action === "query") {
     let query2 = await jsonInput(args, "query");
     if (query2 === void 0) {
@@ -1391,10 +1391,10 @@ async function dataCommands(ctx) {
       });
     }
     if (!isObject(query2)) throw new CliError("Query JSON must be an object.");
-    return api(ctx, "POST", root2 + ":query", query2);
+    return api(ctx, "POST", root3 + ":query", query2);
   }
   const id = action === "create" ? void 0 : args.required("id", args.operand(args.has("entity") ? 2 : 3));
-  const path = id === void 0 ? root2 : root2 + "/" + segment(id);
+  const path = id === void 0 ? root3 : root3 + "/" + segment(id);
   const recovery2 = { mutation: {
     entityCode: entity2,
     ...id !== void 0 ? { recordId: id } : {},
@@ -1486,12 +1486,12 @@ function tenantMemberOutput(value) {
 async function hostCommands(ctx) {
   const { args, reporter } = ctx;
   const tenantId = args.required("tenant-id");
-  const root2 = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
+  const root3 = `/api/service/authen/v1/host/tenants/${segment(tenantId)}/members`;
   const options = { requireTenant: false };
   const userId = args.required("user-id");
   for (let page3 = 1; ; page3++) {
     const query2 = new URLSearchParams({ search: userId, page: String(page3), pageSize: "100" });
-    const value = await apiValue(ctx, "GET", `${root2}?${query2}`, void 0, options);
+    const value = await apiValue(ctx, "GET", `${root3}?${query2}`, void 0, options);
     if (!Array.isArray(value?.items) || !Number.isSafeInteger(value.totalCount) || value.totalCount < 0 || !Number.isSafeInteger(value.pageSize) || value.pageSize < 1)
       throw new CliError("Invalid tenant member page; no member was created.", { code: "invalid_response" });
     const member2 = value.items.find((item) => typeof item?.userId === "string" && equalIgnoreCase(item.userId, userId));
@@ -1502,7 +1502,7 @@ async function hostCommands(ctx) {
     if (page3 * value.pageSize >= value.totalCount) break;
     if (!value.items.length) throw new CliError("Incomplete tenant member page; no member was created.", { code: "invalid_response" });
   }
-  const member = await apiValue(ctx, "POST", root2, { userId, isAdministrator: false }, {
+  const member = await apiValue(ctx, "POST", root3, { userId, isAdministrator: false }, {
     ...options,
     mutation: { targetTenantId: tenantId, userId, readback: ["host", "tenant", "member", "list", tenantId] }
   });
@@ -2326,8 +2326,8 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   signal?.throwIfAborted();
   const expected = new URL(redirectUri);
   let accept, fail, consumed = false, callbackResponse;
-  const callback = new Promise((resolve13, reject) => {
-    accept = resolve13;
+  const callback = new Promise((resolve14, reject) => {
+    accept = resolve14;
     fail = reject;
   });
   callback.catch(() => {
@@ -2356,9 +2356,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve13, reject) => {
+  await new Promise((resolve14, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve13);
+    server.listen(Number(expected.port), expected.hostname, resolve14);
   });
   let closed = false;
   const close = (force = false, reason = new CliError("Login callback closed before completion.", { code: "interrupted" })) => {
@@ -2385,13 +2385,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve13) => {
+  return new Promise((resolve14) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve13(false));
+    child.on("error", () => resolve14(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve13(code === 0));
+    child.on("exit", (code) => resolve14(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -3179,21 +3179,21 @@ async function buildApp(ctx, save2) {
   ctx.reporter.print(!save2 && !ctx.reporter.json ? `Validated ${result.source}; package ${result.packageId}, version ${result.version}.` : result);
   return 0;
 }
-async function published(send2, root2) {
-  const result = requireSuccess(await send2("GET", root2 + "/my-published")).json();
+async function published(send2, root3) {
+  const result = requireSuccess(await send2("GET", root3 + "/my-published")).json();
   if (!Array.isArray(result) || result.some((item) => !item || !validPackageId(item.id))) throw new CliError("The server returned an invalid package list.");
   return result;
 }
 async function publishApp(ctx) {
   const path = resolve3(ctx.args.required("file", ctx.args.operand(2)));
   const source = await artifactSource(path), manifest = await readManifestFile(path);
-  const { send: send2, root: root2 } = client(ctx);
-  const packages = await published(send2, root2);
+  const { send: send2, root: root3 } = client(ctx);
+  const packages = await published(send2, root3);
   const current = packages.find((item) => item.id === manifest.packageId);
   const headers = { "Content-Type": "application/octet-stream" };
   if (nonempty(current?.publishedVersionId)) headers["X-Appkg-Expected-Published-Version"] = current.publishedVersionId;
   try {
-    const result = requireSuccess(await send2("POST", root2 + "/packages:publish", { body: source.body, headers })).json();
+    const result = requireSuccess(await send2("POST", root3 + "/packages:publish", { body: source.body, headers })).json();
     if (result.packageId !== manifest.packageId || result.versionId !== manifest.versionId) throw new CliError("The publish response does not match the local package.");
     ctx.reporter.print({ packageId: result.packageId, versionId: result.versionId, version: result.version, published: true });
   } catch (error) {
@@ -3209,13 +3209,13 @@ async function publishApp(ctx) {
   return 0;
 }
 async function appStatus(ctx) {
-  const { send: send2, root: root2 } = client(ctx);
-  const packages = await published(send2, root2);
+  const { send: send2, root: root3 } = client(ctx);
+  const packages = await published(send2, root3);
   const filter = ctx.args.value("package");
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
   const statuses3 = [];
   for (const item of selected) {
-    const versions2 = requireSuccess(await send2("GET", `${root2}/packages/${encodeURIComponent(item.id)}/versions`)).json();
+    const versions2 = requireSuccess(await send2("GET", `${root3}/packages/${encodeURIComponent(item.id)}/versions`)).json();
     if (!Array.isArray(versions2)) throw new CliError("The server returned an invalid version list.");
     statuses3.push({
       id: item.id,
@@ -3291,8 +3291,8 @@ function fields(value, allowed, label) {
   const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
   if (unknown.length) throw invalid4(`${label} has unknown fields: ${unknown.join(", ")}.`);
 }
-function inside(root2, path) {
-  const rel = relative(root2, path);
+function inside(root3, path) {
+  const rel = relative(root3, path);
   return rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel);
 }
 var semver = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
@@ -3305,8 +3305,8 @@ function projectVersion(base4, release = false) {
   return version;
 }
 var ProjectInputs = class {
-  constructor(root2) {
-    this.root = root2;
+  constructor(root3) {
+    this.root = root3;
     this.files = /* @__PURE__ */ new Map();
   }
   async read(file) {
@@ -3479,7 +3479,7 @@ async function attachSource(inputs, entry, values, kind, tools) {
   }
   return output2;
 }
-function gitState(root2, inputs, release) {
+function gitState(root3, inputs, release) {
   const git = (directory, args, input3) => execFileSync(
     "git",
     ["-C", directory, ...args],
@@ -3487,10 +3487,10 @@ function gitState(root2, inputs, release) {
   );
   let repository, commit, dirty, tracked;
   try {
-    repository = git(root2, ["rev-parse", "--show-toplevel"]).toString().trim();
-    commit = git(root2, ["rev-parse", "HEAD"]).toString().trim();
-    dirty = !!git(root2, ["status", "--porcelain", "--untracked-files=all", "--", "."]).length;
-    tracked = new Map(git(root2, ["ls-tree", "-r", "--full-tree", "-z", commit, "--", "."]).toString().split("\0").filter(Boolean).map((line) => {
+    repository = git(root3, ["rev-parse", "--show-toplevel"]).toString().trim();
+    commit = git(root3, ["rev-parse", "HEAD"]).toString().trim();
+    dirty = !!git(root3, ["status", "--porcelain", "--untracked-files=all", "--", "."]).length;
+    tracked = new Map(git(root3, ["ls-tree", "-r", "--full-tree", "-z", commit, "--", "."]).toString().split("\0").filter(Boolean).map((line) => {
       const tab = line.indexOf("	"), header = line.slice(0, tab).split(" ");
       return [line.slice(tab + 1), header[2]];
     }));
@@ -3501,7 +3501,7 @@ function gitState(root2, inputs, release) {
   const uncommittedInputs = [], toHash = [];
   for (const [file] of inputs.files) {
     if (file.startsWith("node_modules/")) continue;
-    const path = slash(relative(repository, join5(root2, file)));
+    const path = slash(relative(repository, join5(root3, file)));
     if (!tracked.has(path)) uncommittedInputs.push(file);
     else toHash.push({ file, path });
   }
@@ -3524,7 +3524,7 @@ function gitState(root2, inputs, release) {
   return { available: true, commit, dirty: dirty || uncommittedInputs.length > 0, inputsCommitted: !uncommittedInputs.length, uncommittedInputs };
 }
 async function assembleProject(project, { release = false } = {}) {
-  const root2 = await realpath(resolve4(project)), inputs = new ProjectInputs(root2);
+  const root3 = await realpath(resolve4(project)), inputs = new ProjectInputs(root3);
   const descriptor = await inputs.json("xrain-project.json");
   fields(descriptor, ["schemaVersion", "package", "records", "recordGenerators", "tenantFunctions"], "xrain-project.json");
   if (descriptor.schemaVersion !== 1) throw invalid4("Unsupported project schemaVersion; expected 1.");
@@ -3577,10 +3577,10 @@ async function assembleProject(project, { release = false } = {}) {
     tenantFunctions.push(value);
   }
   await inputs.unchanged();
-  const git = gitState(root2, inputs, release);
+  const git = gitState(root3, inputs, release);
   await inputs.unchanged();
   return {
-    root: root2,
+    root: root3,
     source,
     tenantFunctions,
     inputs,
@@ -3826,7 +3826,7 @@ async function initProject(ctx) {
   const namespace = ctx.args.required("namespace"), label = ctx.args.required("label").trim();
   if (!/^[a-z][a-z0-9]{1,15}$/.test(namespace) || namespace.endsWith("\n")) throw new CliError("Namespace must have 2-16 lowercase letters or digits and start with a letter.");
   if (!label.length || label.length > 256) throw new CliError("Label must have 1-256 characters.");
-  const root2 = resolve6(ctx.args.value("dir") ?? namespace), path = join6(root2, "xrain-project.json");
+  const root3 = resolve6(ctx.args.value("dir") ?? namespace), path = join6(root3, "xrain-project.json");
   const descriptor = { schemaVersion: 1, package: {
     packageId: randomId("apg"),
     namespace,
@@ -3835,7 +3835,7 @@ async function initProject(ctx) {
     releaseVersionId: randomId("apv")
   }, records: [], tenantFunctions: [] };
   await writeNew(path, json(descriptor));
-  const ignore = join6(root2, ".gitignore");
+  const ignore = join6(root3, ".gitignore");
   let previous = "";
   try {
     previous = await readFile2(ignore, "utf8");
@@ -3844,7 +3844,7 @@ async function initProject(ctx) {
   }
   const missing = ["/.artifacts/", "/.local/"].filter((line) => !previous.split(/\r?\n/).includes(line));
   if (missing.length) await appendFile(ignore, (previous && !previous.endsWith("\n") ? "\n" : "") + missing.join("\n") + "\n");
-  await mkdir2(join6(root2, "platform/metadata"), { recursive: true });
+  await mkdir2(join6(root3, "platform/metadata"), { recursive: true });
   const readme = `# ${label}
 
 Maintain platform resources in platform/metadata/, functions in platform/functions/, and orchestration versions in platform/orchestrations/.
@@ -3859,16 +3859,16 @@ Module scripts require an exact project esbuild dependency and its package-manag
 .artifacts/ contains ignored outputs and input snapshots; .local/ contains ignored local settings. Build does not import, install, select a function version, publish or deploy.
 `;
   try {
-    await writeNew(join6(root2, "README.md"), readme);
+    await writeNew(join6(root3, "README.md"), readme);
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
   }
-  ctx.reporter.print({ project: root2, descriptor: path, packageId: descriptor.package.packageId });
+  ctx.reporter.print({ project: root3, descriptor: path, packageId: descriptor.package.packageId });
   return 0;
 }
 async function saveAssembly(assembly) {
-  const { root: root2, source, tenantFunctions, inputs } = assembly;
-  const base4 = join6(root2, ".artifacts/appkg");
+  const { root: root3, source, tenantFunctions, inputs } = assembly;
+  const base4 = join6(root3, ".artifacts/appkg");
   await mkdir2(base4, { recursive: true });
   const directory = await mkdtemp3(join6(base4, source.versionId + "-"));
   const sourcePath = join6(directory, "source.json"), sourceBytes = json(source);
@@ -3876,7 +3876,7 @@ async function saveAssembly(assembly) {
   for (const [file, bytes] of inputs.files) await writeNew(join6(directory, "inputs", file), bytes);
   const functions = [];
   for (const [index, definition3] of tenantFunctions.entries()) {
-    const output2 = join6(root2, ".artifacts/functions", basename3(directory), `function-${index + 1}.json`);
+    const output2 = join6(root3, ".artifacts/functions", basename3(directory), `function-${index + 1}.json`);
     await writeNew(output2, json(definition3));
     functions.push({ key: definition3.key, output: output2, sha256: sha256(json(definition3)) });
   }
@@ -4367,8 +4367,8 @@ var settingsOperations = [
   define4("recycle restore", "POST", "/api/service/recycle-bin/v1/resources/{resource}/items/{id}/restore")
 ];
 for (const operation of [...workflowOperations, ...settingsOperations]) {
-  const root2 = operation.path.split(" ")[0];
-  operation.readback = root2 === "http" ? ["http", "interface", "catalog"] : root2 === "routine" ? ["routine", "list"] : root2 === "function" ? ["function", "list"] : root2 === "orchestration" ? ["orchestration", "list"] : root2 === "variable" ? ["variable", "list"] : root2 === "recycle" ? ["recycle", "resources"] : operation.path.split(" ").slice(0, 2).concat("get");
+  const root3 = operation.path.split(" ")[0];
+  operation.readback = root3 === "http" ? ["http", "interface", "catalog"] : root3 === "routine" ? ["routine", "list"] : root3 === "function" ? ["function", "list"] : root3 === "orchestration" ? ["orchestration", "list"] : root3 === "variable" ? ["variable", "list"] : root3 === "recycle" ? ["recycle", "resources"] : operation.path.split(" ").slice(0, 2).concat("get");
 }
 
 // src/xrain-cli/delivery-operations.mjs
@@ -4390,7 +4390,7 @@ var s3 = "/api/service/storage/v1/s3-accounts";
 var email = "/api/delivery/v1/email";
 var feishu = "/api/delivery/v1/feishu";
 var personal = email + "/me";
-var statusOutcome = (value, key, successes, failure) => successes.includes(value?.[key]) ? "succeeded" : value?.[key] === failure ? "failed" : value?.[key] === "Unknown" ? "unknown" : void 0;
+var statusOutcome = (value, key, successes, failure2) => successes.includes(value?.[key]) ? "succeeded" : value?.[key] === failure2 ? "failed" : value?.[key] === "Unknown" ? "unknown" : void 0;
 var authentication = (value) => statusOutcome(value, "status", ["Succeeded"], "Failed");
 var emailSend = (value) => nonempty(value?.messageId) ? statusOutcome(value, "status", ["Queued", "Sending", "Accepted"], "Failed") : void 0;
 var providerSend = (value, id, status) => typeof value?.ignored !== "boolean" ? void 0 : value.ignored ? "succeeded" : nonempty(value[id]) ? statusOutcome(value, status, ["Accepted"], "Rejected") : void 0;
@@ -4455,9 +4455,9 @@ var deliveryOperations = [
   })
 ];
 for (const operation of deliveryOperations) {
-  const root2 = operation.path.split(" ")[0];
-  if (root2 === "storage") operation.host = true;
-  operation.readback ??= root2 === "storage" ? ["storage", "account", "list"] : root2 === "mail" ? ["mail", "account", "list"] : root2 === "sms" ? ["sms", "records"] : [root2, "message", "list"];
+  const root3 = operation.path.split(" ")[0];
+  if (root3 === "storage") operation.host = true;
+  operation.readback ??= root3 === "storage" ? ["storage", "account", "list"] : root3 === "mail" ? ["mail", "account", "list"] : root3 === "sms" ? ["sms", "records"] : [root3, "message", "list"];
 }
 
 // src/xrain-cli/raw-response.mjs
@@ -4567,12 +4567,12 @@ async function rawOutput(ctx, call, context) {
     }
     return result;
   } catch (error) {
-    const failure = controller.signal.aborted ? new CliError("Stopped receiving the response; the external action may have already happened.", {
+    const failure2 = controller.signal.aborted ? new CliError("Stopped receiving the response; the external action may have already happened.", {
       code: "outcome_unknown",
       hint: "Inspect the original operation before another write. Do not replay this debug request or batch."
     }) : requestError(error);
-    failure.details = { ...context, ...result ? { response: result } : {}, ...failure.details };
-    throw failure;
+    failure2.details = { ...context, ...result ? { response: result } : {}, ...failure2.details };
+    throw failure2;
   } finally {
     process.removeListener("SIGINT", interrupt);
     await response?.body?.cancel().catch(() => {
@@ -4916,11 +4916,17 @@ command("agent definition limits", runtime, [], "Read the current Runtime write 
 command("agent definition export", [...runtime, "agent-id", "out"], [slot("agent-id")], "Export one saved definition as a version 1 exchange file; --out must name a new file.");
 command("agent definition import", [...runtime, "agent-id", "expected-revision", "file", "create", "check", "workspace-path", "preset"], [], "Import a version 1 exchange file. --create with --agent-id creates that exact disabled ID; updates require --expected-revision. --workspace-path with --preset explicitly maps the target directory. --check validates readiness on the Runtime without saving.");
 command("agent definition prepare", [...runtime, "application-id", "file", "check", "update", "enable"], [], "Prepare a project definition using the application’s existing selection and the Runtime’s local workspace. Resolves ID, revision and directory automatically. --check previews without saving; --update applies shared changes to an existing definition; --enable activates after preparation.");
+command("agent publish", [...runtime, "application-id", "agent-id", "file", "source", "workspace-path", "preset", "check", "update", "enable"], [], "Publish a version 1 definition and the complete --source workspace to the Runtime. Uses an exact --agent-id or existing application selection. --workspace-path selects the target; --update applies changes; --enable activates after publication; --check previews without writing.");
+command("agent config show", [...runtime, "agent-id"], [slot("agent-id")], "Read the complete saved agent configuration and revision. Platform policy and application bindings use agent policy and agent application.");
+command("agent config update", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file", "workspace-path", "preset"], [slot("agent-id")], "Update agent configuration at its observed revision, preserving omitted fields.");
 command("agent definition create", [...runtime, "agent-id", "name", "values", "values-json", "file", "workspace-path", "preset"], [], "Create a disabled definition. --workspace-path and --preset select an existing Runtime directory.");
 command("agent definition update", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file", "workspace-path", "preset"], [slot("agent-id")], "Apply a JSON patch or select an existing directory using an explicitly observed revision.");
 for (const action of ["enable", "disable"]) command(`agent definition ${action}`, [...runtime, "agent-id", "expected-revision"], [slot("agent-id")], "Change enabled state using an explicitly observed revision; preserve other settings.");
 command("agent tool native", [...runtime, "workspace-id", "workspace-path", "preset"], [], "Read native tools for an existing directory or registered workspace and its preset.");
 command("agent tool business", runtime, [], "Read the business tools available in the current Runtime context.");
+command("agent tool show", [...runtime, "agent-id"], [slot("agent-id")], "Read configured tools, inheritance and available native/business catalogs for an agent.");
+command("agent tool set", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file"], [slot("agent-id")], "Change only nativeTools and/or assistantTools at an observed revision; null nativeTools restores inheritance and [] clears selection.");
+command("agent workspace status", [...runtime, "agent-id", "workspace-path"], [slot("agent-id")], "Inspect a delivered workspace inventory and detect missing or modified files without writing.");
 for (const action of ["browse", "create", "register"]) command(
   `agent workspace ${action}`,
   [...runtime, "values", "values-json", "file"],
@@ -5235,7 +5241,12 @@ function validateCommand(args) {
       args.integer("expected-revision");
     }
     if (spec.options.includes("values-json")) exclusive(["values", "values-json", "file"]);
-    if (["agent definition update", "agent sidebar set", "agent sidebar add", "agent sidebar update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name)) && !(spec.path === "agent definition update" && args.has("workspace-path"))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (["agent definition update", "agent config update", "agent tool set", "agent sidebar set", "agent sidebar add", "agent sidebar update", "agent application set", "agent workspace browse", "agent workspace create", "agent workspace register"].includes(spec.path) && !["values", "values-json", "file"].some((name) => args.has(name)) && !(["agent definition update", "agent config update"].includes(spec.path) && args.has("workspace-path"))) throw new CliError("A JSON input is required.", { code: "invalid_arguments" });
+    if (spec.path === "agent publish") {
+      args.required("file");
+      args.required("source");
+    }
+    if (spec.path === "agent workspace status") args.required("workspace-path");
     if (spec.path === "agent definition export") args.required("out");
     if (spec.path === "agent definition prepare") args.required("file");
     if (["agent sidebar update", "agent sidebar remove"].includes(spec.path)) args.required("entry-id");
@@ -5248,7 +5259,7 @@ function validateCommand(args) {
         if (args.has("expected-revision")) throw new CliError("--create requires an absent ID and cannot be combined with --expected-revision.", { code: "invalid_arguments" });
       }
     }
-    if (spec.path.startsWith("agent definition ") && args.has("workspace-path") !== args.has("preset"))
+    if ((spec.path.startsWith("agent definition ") || spec.path === "agent config update") && args.has("workspace-path") !== args.has("preset"))
       throw new CliError("Select a directory with both --workspace-path and --preset.", { code: "invalid_arguments" });
     if (spec.path === "agent definition create" && !["name", "values", "values-json", "file"].some((name) => args.has(name)))
       throw new CliError("A definition name is required.", { code: "invalid_arguments" });
@@ -5374,8 +5385,8 @@ async function batchCommands(ctx) {
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve9 } from "node:path";
-import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
+import { resolve as resolve10 } from "node:path";
+import { isDeepStrictEqual as isDeepStrictEqual3 } from "node:util";
 
 // src/xrain-cli/definition-file.mjs
 var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -5506,9 +5517,9 @@ async function sessionControl(ctx, helpers, connection2) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
   const sessionId = helpers.identifier(args.required("session-id"), "Session ID");
-  const root2 = `/v1/dsh/sessions/${segment(sessionId)}`;
+  const root3 = `/v1/dsh/sessions/${segment(sessionId)}`;
   if (Object.hasOwn(reads, action)) {
-    const value2 = await helpers.runtimeValue(ctx, "GET", `${root2}/${reads[action]}`);
+    const value2 = await helpers.runtimeValue(ctx, "GET", `${root3}/${reads[action]}`);
     if (!isObject(value2) || action === "commands" && !Array.isArray(value2.items) || action === "subagents" && (!isObject(value2.catalog) || !Array.isArray(value2.summaries)) || action === "models" && !isObject(value2.catalog))
       throw new CliError("Runtime returned an invalid session catalog.", { code: "invalid_response" });
     reporter.print(value2);
@@ -5528,7 +5539,7 @@ async function sessionControl(ctx, helpers, connection2) {
   }
   const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
   const value = await helpers.writeOnce(async () => {
-    const result = await helpers.runtimeValue(ctx, "POST", `${root2}/${suffix}`, body);
+    const result = await helpers.runtimeValue(ctx, "POST", `${root3}/${suffix}`, body);
     if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !commandOutcome(result))
       throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
     return result;
@@ -6053,6 +6064,183 @@ async function memberTarget(ctx, option, { applicationRequired = true, sessionOn
   };
 }
 
+// src/xrain-cli/agent-publication.mjs
+import { lstat as lstat2, readdir, readFile as readFile4, realpath as realpath2 } from "node:fs/promises";
+import { join as join7, resolve as resolve9 } from "node:path";
+import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
+var root = "/v1/dsh/agent-definitions";
+var failure = (message2, code = "invalid_arguments", details) => {
+  throw new CliError(message2, { code, details });
+};
+var compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+async function snapshotWorkspace(source) {
+  const directory = await realpath2(resolve9(source)), files = [], directories = [], names = /* @__PURE__ */ new Set();
+  const visit = async (path, relative2 = "") => {
+    const before = await lstat2(path);
+    if (before.isSymbolicLink()) failure(`Workspace contains a symbolic link: ${relative2}`, "invalid_workspace");
+    if (before.isDirectory()) {
+      if (relative2) directories.push(relative2);
+      for (const name of (await readdir(path)).sort()) {
+        if (/[\\:\x00-\x1f<>"|?*]/.test(name) || /[. ]$/.test(name) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) || name.toLowerCase().startsWith(".xrain-"))
+          failure(`Workspace contains a reserved or nonportable name: ${name}`, "invalid_workspace");
+        const child = relative2 ? `${relative2}/${name}` : name, key = child.toLowerCase();
+        if (names.has(key)) failure(`Workspace contains conflicting paths: ${child}`, "invalid_workspace");
+        names.add(key);
+        await visit(join7(path, name), child);
+      }
+    } else if (before.isFile()) {
+      const bytes = await readFile4(path), after2 = await lstat2(path);
+      if (after2.isSymbolicLink() || before.ino !== after2.ino || before.size !== after2.size || before.mtimeMs !== after2.mtimeMs || before.mode !== after2.mode)
+        failure(`Workspace changed while reading: ${relative2}`, "workspace_changed");
+      files.push({ path: relative2, sha256: sha256(bytes), executable: !!(before.mode & 73), content: bytes.toString("base64") });
+    } else failure(`Workspace contains a special file: ${relative2}`, "invalid_workspace");
+    const after = await lstat2(path);
+    if (before.ino !== after.ino || before.mtimeMs !== after.mtimeMs || before.mode !== after.mode) failure(`Workspace changed while reading: ${relative2}`, "workspace_changed");
+  };
+  if (!(await lstat2(directory)).isDirectory()) failure("The workspace source must be a directory.", "invalid_workspace");
+  await visit(directory);
+  directories.sort();
+  files.sort((a, b) => compare(a.path, b.path));
+  const digest = sha256(JSON.stringify({ directories, files: files.map(({ path, sha256: sha2562, executable }) => ({ path, sha256: sha2562, executable })) }));
+  return { directory, files, directories, digest };
+}
+async function selectedIdentity(ctx, options) {
+  const { args } = ctx, connection2 = runtimeConnection(ctx);
+  if (args.has("agent-id")) return { id: identifier(args.value("agent-id"), "Agent ID") };
+  const app3 = applicationId(connection2.profile) ?? options.applicationId;
+  if (!nonempty(app3)) failure("Specify --agent-id or use an application connection with an existing agent selection.");
+  const select = async () => {
+    const selection = await apiValue(ctx, "GET", "/api/xrain/v1/agents/qualifications?" + new URLSearchParams({ applicationId: app3 }), void 0, { resolvedProfile: connection2.profile });
+    if (!isObject(selection) || selection.applicationId !== app3 || !Array.isArray(selection.items)) failure("XRain returned an invalid application selection.", "invalid_response");
+    const chosen = selection.items.filter((item) => item.selected === true), id = selection.defaultAgentId ?? (chosen.length === 1 ? chosen[0].agentId : void 0);
+    if (!nonempty(id) || !chosen.some((item) => item.agentId === id)) failure("The application has no unique selected agent.", "agent_selection_required");
+    return identifier(id, "Agent ID");
+  };
+  return { id: await select(), select, applicationId: app3 };
+}
+function receipt2(value, request2, check) {
+  if (!isObject(value) || value.agentId !== request2.agentId || value.digest !== request2.digest || !nonempty(value.path) || value.checked !== check || value.files !== request2.files.length || !Array.isArray(value.written) || !Array.isArray(value.removed))
+    failure("Runtime returned an invalid workspace publication receipt.", "invalid_response");
+  return value;
+}
+async function publishAgent(ctx) {
+  const { args, reporter } = ctx, file = await exchangeFile(ctx), snapshot = await snapshotWorkspace(args.required("source"));
+  const options = await runtimeValue(ctx, "GET", root + "/options");
+  if (!isObject(options) || options.supportsWorkspacePublication !== true || options.supportsDefinitionValidation !== true || !Array.isArray(options.workspaces))
+    failure("This Runtime does not support complete agent publication.", "unsupported_runtime");
+  const identity = await selectedIdentity(ctx, options), id = identity.id;
+  let current;
+  try {
+    current = await definition2(ctx, id);
+  } catch (error) {
+    if (!(error instanceof CliError && error.httpStatus === 404 && error.serverCode === "AGENT_DEFINITION_NOT_FOUND")) throw error;
+  }
+  const expected = current?.revision ?? null, reference = file.definition.workspace;
+  const space = reference.kind === "registered" ? options.workspaces.find((item) => item.id === reference.id) : void 0;
+  const path = args.value("workspace-path") ?? (current?.workspaceDirect ? current.workspacePath : void 0) ?? space?.cwd;
+  if (!nonempty(path)) failure("Select the Runtime destination with --workspace-path, or use its configured workspace.", "workspace_unavailable");
+  const preset = args.value("preset") ?? file.definition.agentPreset;
+  if (!nonempty(preset)) failure("A work mode is required in the definition or --preset.");
+  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true) failure("This Runtime cannot restore native tool inheritance.", "unsupported_runtime");
+  const registered = space?.cwd === path && space.agentPresets?.includes(preset);
+  const mapped = { ...file, definition: {
+    ...file.definition,
+    agentPreset: preset,
+    workspace: registered ? { kind: "registered", id: space.id, path } : { kind: "direct", path }
+  } };
+  const { changes } = definitionFileChanges(mapped, current ?? newDefinition(id, {}), options.workspaces);
+  const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => !["workspaceDirect", "workspaceUnavailable", "workspacePath"].includes(key)));
+  if (file.definition.nativeTools === null) patch.nativeTools = null;
+  const body = current ? updatedDefinition(current, patch, expected) : newDefinition(id, patch);
+  const changedFields = current ? Object.keys(patch).filter((key) => !["workspaceChange", "nativeTools"].includes(key) && !isDeepStrictEqual2(body[key], current[key])) : [];
+  if (current && !isDeepStrictEqual2(current.nativeTools, body.nativeTools === null ? void 0 : body.nativeTools)) changedFields.push("nativeTools");
+  const currentPath = current?.workspacePath ?? options.workspaces.find((item) => item.id === current?.workspaceId)?.cwd;
+  if (current && (currentPath !== path || current.agentPreset !== preset || current.workspaceUnavailable)) changedFields.push("workspace");
+  const request2 = { agentId: id, revision: expected, path, files: snapshot.files, directories: snapshot.directories, digest: snapshot.digest };
+  const preview = receipt2(await runtimeValue(ctx, "POST", root + "/workspace-publication/check", request2), request2, true);
+  let validation;
+  if (preview.exists) validation = await validateCandidate(ctx, id, expected, body);
+  if (args.has("check")) {
+    reporter.print({
+      agentId: id,
+      revision: expected,
+      checked: true,
+      definitionValidated: !!validation,
+      changedFields,
+      workspace: preview,
+      ...!validation ? { note: "The target directory will be created by publication; definition readiness is checked after creation." } : {}
+    });
+    return 0;
+  }
+  const workspaceChanged = preview.previousDigest !== snapshot.digest || preview.written.length || preview.removed.length || !preview.exists;
+  if (current && (changedFields.length || workspaceChanged) && !args.has("update")) failure("The target differs from the delivered source. Use --check to review or --update to publish the changes.", "definition_update_required", { agentId: id, revision: expected, changedFields, workspace: preview });
+  if (identity.select && await identity.select() !== id) failure("The application agent selection changed before publication.", "agent_selection_changed");
+  const details = { agentId: id, expectedRevision: expected, runtime: runtimeConnection(ctx).runtime, workspacePath: path, workspaceDigest: snapshot.digest };
+  let workspace, saved = current, stage = "workspace";
+  try {
+    workspace = await writeOnce(
+      async () => receipt2(await runtimeValue(ctx, "POST", root + "/workspace-publication", request2), request2, false),
+      "Workspace publication outcome is unknown. Inspect the original agent and workspace before retrying.",
+      details
+    );
+    stage = "definition-validation";
+    await validateCandidate(ctx, id, expected, body);
+    stage = "definition";
+    if (!current || changedFields.length || workspaceChanged) saved = await saveDefinition(ctx, id, body);
+    stage = "enable";
+    if (args.has("enable") && !saved.enabled) saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true);
+    stage = "verification";
+    const actual = await definition2(ctx, id), status = await runtimeValue(ctx, "POST", root + "/workspace-publication/status", { agentId: id, path });
+    const fields2 = ["name", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+    const definitionMatches = fields2.every((key) => isDeepStrictEqual2(actual[key], key === "nativeTools" && body[key] === null ? void 0 : body[key]));
+    const directoryMatches = registered ? actual.workspaceId === space.id : actual.workspaceDirect === true && actual.workspacePath === workspace.path;
+    if (actual.revision !== saved.revision || actual.enabled !== saved.enabled || !definitionMatches || !directoryMatches || actual.workspaceUnavailable || status.agentId !== id || status.path !== workspace.path || status.digest !== snapshot.digest || !Array.isArray(status.files) || status.files.length !== snapshot.files.length || status.files.some((item) => item.status !== "intact") || !Array.isArray(status.directories) || status.directories.length !== snapshot.directories.length || status.directories.some((item) => item.status !== "intact"))
+      failure("The published definition or workspace changed during verification.", "publication_changed");
+    reporter.print({
+      agentId: id,
+      revision: actual.revision,
+      enabled: actual.enabled,
+      runtime: details.runtime,
+      operation: !current ? "created" : current.revision === actual.revision ? "unchanged" : "updated",
+      workspace: status,
+      ...identity.applicationId ? { applicationId: identity.applicationId } : {}
+    });
+    return 0;
+  } catch (error) {
+    if (error instanceof CliError) error.details = { ...error.details, ...details, stage, workspacePublished: workspace ? true : error.code === "outcome_unknown" ? "unknown" : false, ...saved ? { savedRevision: saved.revision } : {} };
+    throw error;
+  }
+}
+async function publicationStatus(ctx) {
+  const id = identifier(ctx.args.required("agent-id"), "Agent ID");
+  ctx.reporter.print(await runtimeValue(ctx, "POST", root + "/workspace-publication/status", { agentId: id, path: ctx.args.required("workspace-path") }));
+  return 0;
+}
+async function showAgentTools(ctx) {
+  const id = identifier(ctx.args.required("agent-id"), "Agent ID"), current = await definition2(ctx, id);
+  const native = await runtimeValue(ctx, "POST", root + "/tools/native", { ...current.workspaceDirect ? { workspacePath: current.workspacePath } : { workspaceId: current.workspaceId }, agentPreset: current.agentPreset });
+  const business = await runtimeValue(ctx, "POST", root + "/tools/business", {});
+  if (!Array.isArray(native?.items) || !Array.isArray(business?.items)) failure("Runtime returned an invalid tool catalog.", "invalid_response");
+  ctx.reporter.print({
+    agentId: id,
+    revision: current.revision,
+    nativeTools: current.nativeTools ?? null,
+    assistantTools: current.assistantTools ?? [],
+    nativeSelection: current.nativeTools === void 0 ? "inherited" : "explicit",
+    available: { native: native.items, business: business.items }
+  });
+  return 0;
+}
+async function setAgentTools(ctx) {
+  const { args, reporter } = ctx, id = identifier(args.required("agent-id"), "Agent ID");
+  const patch = await jsonInput(args, "values", true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
+  if (!isObject(patch) || !Object.keys(patch).length || Object.keys(patch).some((key) => !["nativeTools", "assistantTools"].includes(key))) failure("Supply nativeTools and/or assistantTools only.");
+  const current = await definition2(ctx, id), body = updatedDefinition(current, patch, args.integer("expected-revision"));
+  const saved = await saveDefinition(ctx, id, body);
+  reporter.print({ agentId: id, revision: saved.revision, nativeTools: saved.nativeTools ?? null, assistantTools: saved.assistantTools ?? [] });
+  return 0;
+}
+
 // src/xrain-cli/agents.mjs
 var definitions = "/v1/dsh/agent-definitions";
 var platformAgents = "/api/xrain/v1/agents";
@@ -6239,7 +6427,7 @@ async function prepareDefinition(ctx) {
   const app3 = applicationId(connection2.profile) ?? options.applicationId;
   if (!nonempty(app3)) throw new CliError("The target application is not configured.", { code: "invalid_application_configuration", hint: "Use the project’s application connection or --application-id." });
   identifier(app3, "Application ID");
-  const selectedIdentity = async () => {
+  const selectedIdentity2 = async () => {
     const selection = await apiValue(ctx, "GET", platformAgents + "/qualifications?" + new URLSearchParams({ applicationId: app3 }), void 0, { resolvedProfile: connection2.profile });
     if (!isObject(selection) || selection.applicationId !== app3 || !Array.isArray(selection.items))
       throw new CliError("XRain returned an invalid application agent selection.", { code: "invalid_response" });
@@ -6249,7 +6437,7 @@ async function prepareDefinition(ctx) {
       throw new CliError("The application has no unambiguous selected agent.", { code: "agent_selection_required", hint: "Have the application owner set its existing selection; preparation does not change platform bindings." });
     return identifier(selectedId, "Agent ID");
   };
-  const id = await selectedIdentity();
+  const id = await selectedIdentity2();
   let current;
   try {
     current = await definition2(ctx, id);
@@ -6274,7 +6462,7 @@ async function prepareDefinition(ctx) {
   workspaceChange(patch);
   const body = current ? updatedDefinition(current, patch, expected) : newDefinition(id, patch);
   const validation = await validateCandidate(ctx, id, expected, body);
-  const changedFields = current ? definitionFields.filter((key) => !isDeepStrictEqual2(current[key], key === "nativeTools" && body[key] === null ? void 0 : body[key])) : [];
+  const changedFields = current ? definitionFields.filter((key) => !isDeepStrictEqual3(current[key], key === "nativeTools" && body[key] === null ? void 0 : body[key])) : [];
   if (current?.workspaceUnavailable && !changedFields.includes("workspaceId")) changedFields.push("workspaceId");
   const context = {
     applicationId: app3,
@@ -6293,7 +6481,7 @@ async function prepareDefinition(ctx) {
       hint: "Use --check to inspect the changes, or --update to apply this project definition at the observed revision.",
       details: { agentId: id, revision: expected, ...context }
     });
-  if ((!current || changedFields.length || args.has("enable") && !current.enabled) && await selectedIdentity() !== id)
+  if ((!current || changedFields.length || args.has("enable") && !current.enabled) && await selectedIdentity2() !== id)
     throw new CliError("The application agent selection changed during preparation.", { code: "agent_selection_changed", details: { agentId: id, ...context } });
   let saved = !current || changedFields.length ? await saveDefinition(ctx, id, body) : current;
   if (args.has("enable") && !saved.enabled) {
@@ -6392,7 +6580,7 @@ async function definitionCommands(ctx) {
     const current = await definition2(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve9(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve10(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
     writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
@@ -6464,6 +6652,8 @@ async function agentCommands(ctx) {
   if (["run", "ephemeral"].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
+  if (action === "publish") return publishAgent(ctx);
+  if (action === "config") return definitionCommands(ctx);
   if (action === "chat") return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === "definition") return definitionCommands(ctx);
   if (action === "sidebar") return sidebarCommands(ctx);
@@ -6475,11 +6665,14 @@ async function agentCommands(ctx) {
     return 0;
   }
   if (action === "tool") {
+    if (sub === "show") return showAgentTools(ctx);
+    if (sub === "set") return setAgentTools(ctx);
     const body2 = sub === "native" ? { ...args.has("workspace-path") ? { workspacePath: args.value("workspace-path") } : { workspaceId: identifier(args.required("workspace-id"), "Workspace ID") }, agentPreset: identifier(args.required("preset"), "Preset") } : {};
     reporter.print(await runtimeValue(ctx, "POST", `${definitions}/tools/${sub}`, body2));
     return 0;
   }
   if (action === "workspace") {
+    if (sub === "status") return publicationStatus(ctx);
     const body2 = await objectInput(args);
     const path2 = sub === "register" ? "/workspaces/register" : `/directories/${sub === "browse" ? "list" : "create"}`;
     const call2 = () => runtimeValue(ctx, "POST", definitions + path2, body2);
@@ -6592,8 +6785,8 @@ async function userSettingsCommands(ctx) {
 // src/xrain-cli/files.mjs
 import { openAsBlob as openAsBlob3 } from "node:fs";
 import { stat as stat4 } from "node:fs/promises";
-import { basename as basename4, resolve as resolve10 } from "node:path";
-var root = "/api/service/files/v1/files";
+import { basename as basename4, resolve as resolve11 } from "node:path";
+var root2 = "/api/service/files/v1/files";
 async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
   const profile = store.resolve(args, true), { token, source } = store.credential(args, profile, { createSecrets: false });
@@ -6612,13 +6805,13 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve10(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
+      const input3 = resolve11(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
       if (!info.isFile()) throw new CliError("Upload requires a regular file.", { code: "invalid_arguments" });
       const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename4(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
       const value2 = await writeOnce(
         async () => {
-          const result = await call("POST", root + "?" + new URLSearchParams({ uploaderId, fileName }), {
+          const result = await call("POST", root2 + "?" + new URLSearchParams({ uploaderId, fileName }), {
             body: blob,
             headers: { "Content-Type": "application/octet-stream", "Content-Length": String(info.size) }
           });
@@ -6632,7 +6825,7 @@ async function fileCommands(ctx) {
       reporter.print(value2);
       return 0;
     }
-    const fileId = args.required("id"), path = `${root}/${segment(fileId)}`;
+    const fileId = args.required("id"), path = `${root2}/${segment(fileId)}`;
     if (action === "preview") {
       reporter.print(await call("GET", path + "/preview"));
       return 0;
@@ -6663,10 +6856,10 @@ async function fileCommands(ctx) {
 
 // src/xrain-cli/market.mjs
 import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync4, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname6, resolve as resolve11 } from "node:path";
+import { dirname as dirname6, resolve as resolve12 } from "node:path";
 import { randomBytes as randomBytes7 } from "node:crypto";
 function newOutput(value) {
-  const path = resolve11(value);
+  const path = resolve12(value);
   if (existsSync4(path)) throw new CliError("Output already exists.", { code: "output_exists" });
   accessSync2(dirname6(path), constants4.W_OK);
   return path;
@@ -6680,7 +6873,7 @@ function save(path, bytes) {
     if (existsSync4(temporary)) unlinkSync3(temporary);
   }
 }
-function receipt2(response) {
+function receipt3(response) {
   requireSuccess(response);
   try {
     return response.json();
@@ -6693,7 +6886,7 @@ async function marketCommands(ctx) {
   if (!args.has("exchange")) throw new CliError("Market commands require an explicit --exchange URL and its independent login.", { code: "invalid_arguments" });
   const action = args.command(1), id = args.required("package");
   if (!validPackageId(id)) throw new CliError("An exact package ID is required.", { code: "invalid_arguments" });
-  const { send: send2, root: root2, profile, source } = appClient(ctx, { allowAnonymous: ["show", "versions", "manifest", "components", "download"].includes(action) }), path = `${root2}/packages/${id}`;
+  const { send: send2, root: root3, profile, source } = appClient(ctx, { allowAnonymous: ["show", "versions", "manifest", "components", "download"].includes(action) }), path = `${root3}/packages/${id}`;
   if (action === "rename" || action === "publication" || action === "unpublish") {
     let body, method = "PUT", suffix = "/publication";
     if (action === "rename") {
@@ -6711,7 +6904,7 @@ async function marketCommands(ctx) {
     }
     const result = await writeOnce(
       async () => {
-        const value = receipt2(await send2(method, path + suffix, { json: body }));
+        const value = receipt3(await send2(method, path + suffix, { json: body }));
         if (value?.id !== id || action === "rename" && value.label !== body.label || action !== "rename" && value.publishedVersionId !== body.versionId)
           throw new CliError("Market returned a mismatched maintenance receipt.", { code: "invalid_response" });
         return value;
@@ -6727,14 +6920,14 @@ async function marketCommands(ctx) {
   const output2 = args.has("out") ? newOutput(args.value("out")) : void 0;
   if (action !== "download") {
     const suffix = action === "show" ? "" : action === "versions" ? "/versions" : `/versions/${versionId}/${action}`;
-    const result = receipt2(await send2("GET", path + suffix));
+    const result = receipt3(await send2("GET", path + suffix));
     if (output2) {
       save(output2, Buffer.from(JSON.stringify(result, null, 2) + "\n"));
       reporter.print({ output: output2, packageId: id, versionId });
     } else reporter.print(result);
     return 0;
   }
-  const metadata = receipt2(await send2("GET", `${path}/versions/${versionId}/manifest`));
+  const metadata = receipt3(await send2("GET", `${path}/versions/${versionId}/manifest`));
   if (metadata?.packageId !== id || metadata?.versionId !== versionId || !/^[a-f0-9]{64}$/i.test(metadata.fileSha256 ?? "") || !nonempty(metadata.digest))
     throw new CliError("Market returned invalid artifact metadata.", { code: "invalid_response" });
   const controller = new AbortController(), interrupt = () => controller.abort();
@@ -6766,8 +6959,8 @@ async function marketCommands(ctx) {
 
 // src/xrain-cli/workforce.mjs
 import { openAsBlob as openAsBlob4 } from "node:fs";
-import { readFile as readFile4, stat as stat5 } from "node:fs/promises";
-import { basename as basename5, resolve as resolve12 } from "node:path";
+import { readFile as readFile5, stat as stat5 } from "node:fs/promises";
+import { basename as basename5, resolve as resolve13 } from "node:path";
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
@@ -6812,8 +7005,8 @@ async function workforceCommands(ctx) {
       const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
       if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
-      const file = resolve12(args.required("file"));
-      const audio = catalog.maxAudioBytes === 0 ? await readFile4(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
+      const file = resolve13(args.required("file"));
+      const audio = catalog.maxAudioBytes === 0 ? await readFile5(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
       body = { ...catalog.selection, ...body, audioBase64: audio.toString("base64") };
     }
   }
@@ -6848,7 +7041,7 @@ async function workforceCommands(ctx) {
   }
   let upload;
   if (operation.upload) {
-    const path = resolve12(args.required("file"));
+    const path = resolve13(args.required("file"));
     const info = await stat5(path);
     if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
     const blob = await openAsBlob4(path);

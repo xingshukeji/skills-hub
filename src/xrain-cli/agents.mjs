@@ -9,6 +9,7 @@ import { chatCommands } from './agent-chat.mjs';
 import { runtimeRuns } from './runtime-runs.mjs';
 import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
 import { memberTarget, memberValue } from './member-target.mjs';
+import { publishAgent, publicationStatus, showAgentTools, setAgentTools } from './agent-publication.mjs';
 
 export { identifier } from './agent-target.mjs';
 export { writeOnce } from './http.mjs';
@@ -79,7 +80,7 @@ export async function runtimeValue(ctx, method, path, json, extraHeaders = {}, {
   try { return response.json(); } catch { throw new CliError('Runtime returned invalid JSON.', { code: 'invalid_response' }); }
 }
 const definitionRead = (ctx, path) => runtimeValue(ctx, 'GET', path, undefined, {}, { limit: Infinity });
-async function definition(ctx, id) {
+export async function definition(ctx, id) {
   const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
   if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
     throw new CliError('Runtime returned an invalid definition.', { code: 'invalid_response' });
@@ -91,7 +92,7 @@ async function definitionLimits(ctx) {
     throw new CliError('Runtime returned an invalid definition write limit.', { code: 'invalid_response' });
   return value;
 }
-async function saveDefinition(ctx, id, body, statusOnly = false) {
+export async function saveDefinition(ctx, id, body, statusOnly = false) {
   return writeOnce(async () => {
     const result = await runtimeValue(ctx, 'POST', definitions + (statusOnly ? '/enabled' : ''), body, {}, { limit: Infinity });
     if (!isObject(result) || result.agentId !== id || result.revision !== (body.revision ?? 0) + 1 || result.enabled !== body.enabled)
@@ -113,11 +114,11 @@ async function definitionInput(ctx, required = true) {
   if (!isObject(value)) throw new CliError('Supply a JSON object using --values-json, --values or --file.', { code: 'invalid_arguments' });
   validateDefinitionInput(value); return value;
 }
-function newDefinition(id, value) {
+export function newDefinition(id, value) {
   return { aiUserId: '', agentId: id, revision: null, enabled: false, instructions: '', provider: '', model: '',
     agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [], ...value };
 }
-function updatedDefinition(current, patch, expected) {
+export function updatedDefinition(current, patch, expected) {
   if (current.revision !== expected) throw new CliError('Definition revision changed. Review the current definition before saving.', {
     code: 'conflict', details: { agentId: current.agentId, expectedRevision: expected, currentRevision: current.revision },
   });
@@ -126,7 +127,7 @@ function updatedDefinition(current, patch, expected) {
     workspaceChange: patch.workspaceChange ?? { operation: 'keep' } };
 }
 
-async function exchangeFile(ctx) {
+export async function exchangeFile(ctx) {
   const value = await readJsonInput(ctx.args.required('file'), 'Definition exchange file', { limit: Infinity, stdin: ctx.stdin, utf8: true });
   try { return readDefinitionFile(value); }
   catch { throw new CliError('Expected a version 1 xrain-workforce-agent-definition exchange file.', { code: 'invalid_definition_file' }); }
@@ -136,7 +137,7 @@ function requireValidation(options) {
     throw new CliError('This Runtime does not support complete definition validation.', { code: 'unsupported_runtime',
       hint: 'Prepare the Runtime from the matching project source or artifact, then check again. No definition was saved.' });
 }
-async function validateCandidate(ctx, id, expected, body) {
+export async function validateCandidate(ctx, id, expected, body) {
   const result = await runtimeValue(ctx, 'POST', definitions + '/validate', body, {}, { limit: Infinity });
   if (!isObject(result) || result.valid !== true || result.agentId !== id || result.revision !== expected)
     throw new CliError('Runtime returned an invalid validation result.', { code: 'invalid_response' });
@@ -330,6 +331,8 @@ export async function agentCommands(ctx) {
   if (['run', 'ephemeral'].includes(ctx.args.command(1))) return runtimeRuns(ctx, { runtimeConnection, runtimeValue, identifier, applicationId, writeOnce });
   const { args, store, reporter, spec } = ctx;
   const action = args.command(1), sub = args.command(2);
+  if (action === 'publish') return publishAgent(ctx);
+  if (action === 'config') return definitionCommands(ctx);
   if (action === 'chat') return chatCommands(ctx, { identifier, applicationId, runtimeConnection, runtimeValue, writeOnce });
   if (action === 'definition') return definitionCommands(ctx);
   if (action === 'sidebar') return sidebarCommands(ctx);
@@ -340,10 +343,13 @@ export async function agentCommands(ctx) {
     reporter.print(await runtimeValue(ctx, 'GET', `/v1/dsh/workbench-agents?mine=${args.has('mine')}`, undefined, headers)); return 0;
   }
   if (action === 'tool') {
+    if (sub === 'show') return showAgentTools(ctx);
+    if (sub === 'set') return setAgentTools(ctx);
     const body = sub === 'native' ? { ...(args.has('workspace-path') ? { workspacePath: args.value('workspace-path') } : { workspaceId: identifier(args.required('workspace-id'), 'Workspace ID') }), agentPreset: identifier(args.required('preset'), 'Preset') } : {};
     reporter.print(await runtimeValue(ctx, 'POST', `${definitions}/tools/${sub}`, body)); return 0;
   }
   if (action === 'workspace') {
+    if (sub === 'status') return publicationStatus(ctx);
     const body = await objectInput(args);
     const path = sub === 'register' ? '/workspaces/register' : `/directories/${sub === 'browse' ? 'list' : 'create'}`;
     const call = () => runtimeValue(ctx, 'POST', definitions + path, body);

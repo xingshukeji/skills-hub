@@ -18,6 +18,7 @@
 | 查顾客、登记资料、改字段或继续顾客对话 | `retail context/customers/customer/conversation` | [子应用](applications.md)。读取实际对象、字段选项及原顾客引用；保留原会话和并发版本 |
 | 找可用助手、订阅或继续原对话 | `workforce agent/session`，直接 Runtime 使用 `agent directory/chat` | [Workforce](workforce.md)与[智能体](agents.md)。宿主入口沿其实际 Runtime；定义可发现、本人获准使用和工具权限分别核对 |
 | 编辑定义、工具、工作区、订阅策略和应用选用 | `agent definition/tool/workspace/policy/subscription/application` | [智能体](agents.md)。受管单次与临时文本见 [Runtime](runtime-runs.md)。先读当前选项和版本，保留其他选用项；管理员资格不代替个人订阅或业务权限 |
+| 完整发布智能体定义与工作空间、查询和修改配置 | `agent publish/config/tool`、`agent workspace status` | [发布与配置](agent-publication.md)。文件交付与定义保存分别确认；保护目标本地修改，保留运行文件、身份和历史 |
 | 调整成员关系、组织、角色、权限和设置 | `security`、`member`、`host`、`user`、`application` | [管理](management.md)、[设置](settings.md)与[登录](login.md)。对象字段和视图操作见 [元数据](metadata.md)。身份恢复和职责变更由访问权限技能组织，只修改已授权差额 |
 | 维护函数和编排、调用应用函数或 HTTP 接口、管理 Routine | `function/orchestration/application function/http/routine` | [编排](workflows.md)。先读取实际输入与执行条件；调试可能产生真实外部效果 |
 | 查应用版本、构建原源码、安装升级或恢复原操作 | `app`、`market` | [安装](installation.md)、[市场](market.md)与[应用维护](application-maintenance.md)。使用精确版本和原操作 ID；包构建不自动授权发布、安装或服务部署 |

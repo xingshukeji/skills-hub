@@ -1,6 +1,6 @@
 ---
 name: shzw-xrain-cli
-description: 使用自带CLI操作XRain与Workforce的现有资源：Workforce独立邮箱邮件和回复草稿、Task待办、成员部门与联系方式、群聊附件、业务记录、顾客、计划、智能体定义/工具/工作区及应用包。按用户目标和前文确定系统，目标未定先澄清，无需点名CLI。业务开发、登录或403、人员职责变更、客户端和发布部署由对应技能组织。
+description: 使用自带CLI操作XRain与Workforce的现有资源：Workforce独立邮箱邮件和回复草稿、Task待办、成员部门与联系方式、群聊附件、业务记录、顾客、计划、智能体定义与工作空间完整发布、配置与工具管理及应用包。按用户目标和前文确定系统，目标未定先澄清，无需点名CLI。业务开发、登录或403、人员职责变更、客户端和服务发布部署由对应技能组织。
 metadata:
   author: 苏州苏宏助为智能科技有限公司
   source: SKILL.md
@@ -21,7 +21,7 @@ metadata:
 
 - Task、群聊、附件和计划：[Workforce](references/workforce.md)。
 - 邮箱和顾客：[子应用](references/applications.md)；记录及导入导出：[命令](references/commands.md)。
-- 定义、工具和工作区：[智能体](references/agents.md)；人员权限：[管理](references/management.md)；应用包：[安装与恢复](references/installation.md)。
+- 智能体定义、工具和工作区：[智能体](references/agents.md)；定义与工作空间完整发布、配置查询和管理：[发布与配置](references/agent-publication.md)；人员权限：[管理](references/management.md)；应用包：[安装与恢复](references/installation.md)。
 - 从项目源码发布函数或运行指定版本用例：[项目函数](references/project-functions.md)。组装、发布版本、应用选用和业务调用分别核验。
 
 能力归属不清时查[任务选择](references/task-selection.md)。首次连接、选择凭据或复杂恢复时查[执行前提](references/operation-boundaries.md)。命令已明确时直接查其帮助。

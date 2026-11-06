@@ -49,7 +49,7 @@ SDK 是供代码使用的开发包，Skill 是供 AI 执行的任务方法，CLI
 | [shzw-workspace-maintenance](skills/shzw-workspace-maintenance/SKILL.md) | 维护项目的 AGENTS、文档职责、工作流、任务恢复规则，或初始化另一工作空间。技能选错、职责重叠、正文无效及合并重写走技能进化入口；普通产品修复留在原任务。 |
 | [shzw-xrain-access](skills/shzw-xrain-access/SKILL.md) | 处理 XRain/Workforce 的统一登录、固定账号恢复、403、应用准入、业务角色和数据范围，以及人员接入、协作与职责变化。按原用户和业务动作定位责任，保留已有身份与无关授权。 |
 | [shzw-xrain-app-package](skills/shzw-xrain-app-package/SKILL.md) | 编写、校验和构建 XRain .appkg，或安装、升级、恢复和卸载已交付应用，涵盖依赖安装及安装后的业务开通。用于“安装这个包”“安装铵帮应用”“租户准备好后安装应用”“升级卡住了”。按制品来源、目标租户和原 operation 接续；安装已有包直接消费原制品。租户准备使用对应管理入口，服务镜像部署进入交付入口。 |
-| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 使用自带CLI操作XRain与Workforce的现有资源：Workforce独立邮箱邮件和回复草稿、Task待办、成员部门与联系方式、群聊附件、业务记录、顾客、计划、智能体定义/工具/工作区及应用包。按用户目标和前文确定系统，目标未定先澄清，无需点名CLI。业务开发、登录或403、人员职责变更、客户端和发布部署由对应技能组织。 |
+| [shzw-xrain-cli](skills/shzw-xrain-cli/SKILL.md) | 使用自带CLI操作XRain与Workforce的现有资源：Workforce独立邮箱邮件和回复草稿、Task待办、成员部门与联系方式、群聊附件、业务记录、顾客、计划、智能体定义与工作空间完整发布、配置与工具管理及应用包。按用户目标和前文确定系统，目标未定先澄清，无需点名CLI。业务开发、登录或403、人员职责变更、客户端和服务发布部署由对应技能组织。 |
 <!-- skills:end -->
 
 每次根据自然请求和必要前文选择一个主任务入口，按需读取其中的模式与专题。Workforce 从加载结果的 `resourceBase.path` 读取资源；模式资源位于其 `modes/` 子目录。skill 不增加员工工具权限。
