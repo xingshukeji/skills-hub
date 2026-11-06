@@ -15,7 +15,7 @@ Depends On:
 
 二开项目用一套固定结构维护平台元数据、平台脚本、智能体、业务服务及各端源码。开发者从当前源码按需构建平台应用包，取得项目内被 Git 忽略的待导入原包；同一来源可形成正式交付候选。项目业务差异归项目，通用初始化和组装逻辑归 skills-hub。XRain 的应用包协议、服务端构建、导入和租户安装由 XRain 持有。Workforce 持有公共宿主和客户端；智能体 Runtime 持有定义、会话及运行工作区。skills-hub 维护 CLI 和业务开发技能，不代替这些产品实现或认证。
 
-CLI `project init/assemble/build` 使用本文的项目描述组装并构建；`app init`、`app build` 和 `app import-file` 保留原单文件及已交付原包工作流。构建不等于导入、安装或发布。
+CLI `project init/assemble/build` 使用本文的项目描述组装并构建；`app init`、`app build` 和 `app import-file` 保留原单文件及已交付原包工作流。构建不等于导入、安装或发布。产品和业务的职责划分见[项目开发与产品职责](project-development-ownership.md)。
 
 ## 统一源码结构
 
