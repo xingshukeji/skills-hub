@@ -3,6 +3,7 @@ import { Store } from './store.mjs';
 import { api } from './http.mjs';
 import { dataCommands, hostCommands, profileCommands, securityCommands } from './commands.mjs';
 import { appCommands } from './app.mjs';
+import { projectCommands } from './project.mjs';
 import { authCommands, doctor } from './diagnostics.mjs';
 import { batchCommands } from './batch.mjs';
 import { agentCommands } from './agents.mjs';
@@ -35,6 +36,7 @@ async function dispatch(ctx) {
     case 'market': return marketCommands(ctx);
     case 'workforce': return workforceCommands(ctx);
     case 'app': return appCommands(ctx);
+    case 'project': return projectCommands(ctx);
     case 'agent': return agentCommands(ctx);
     case 'health': {
       const action = args.command(1) ?? 'ready';

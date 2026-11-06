@@ -125,6 +125,10 @@ host tenant member ensure --tenant-id <租户ID> --user-id <已有全局用户ID
 
 ## 应用包与市场
 
+完整二开项目可先用 `project init --dir <目录> --namespace <命名空间> --label <名称>` 创建项目描述，再用 `project assemble --project <目录>` 离线组装，或用 `project build --project <目录> --profile <平台> --auth session` 从当前源码构建候选。`--release` 使用项目声明的正式版本并要求项目输入已提交；模块编译使用项目声明的精确 esbuild 版本及锁文件，依赖由项目包管理器安装。项目描述、冻结历史脚本、构建输入与交付边界见[二开项目标准](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/project-structure.md)。
+
+返回结果包含本次准确的 `source`、`output`、`metadata` 和单独函数输入路径；默认输出保存在项目忽略的 `.artifacts/`。保存并核对回执，不把上次包当本次结果。构建不会导入、安装、发布或选用函数版本。
+
 ```text
 app init --namespace <小写命名空间> --label <名称> --dir "<目录>"
 app build --source "<source.json>" --output "<新文件.appkg>" --profile <平台>

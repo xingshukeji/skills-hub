@@ -21,9 +21,10 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal"]);
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "wait", "maintain-installed-version", "mine", "all", "agent", "personal", "release"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
 valued.add("line");
+valued.add("project");
 valued.add("field");
 valued.add("share-id");
 valued.add("tree-id");
@@ -581,7 +582,7 @@ async function requireStreamSuccess(response) {
     throw requestError(error);
   }
 }
-async function request(url, { method = "GET", token, json, body, headers = {}, timeout = 1e5, signal, limit = Infinity, stream = false } = {}) {
+async function request(url, { method = "GET", token, json: json2, body, headers = {}, timeout = 1e5, signal, limit = Infinity, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = timeout === null ? void 0 : AbortSignal.timeout(timeout);
   const options = {
@@ -591,8 +592,8 @@ async function request(url, { method = "GET", token, json, body, headers = {}, t
     headers: { Accept: "application/json", ...headers }
   };
   if (token) options.headers.Authorization = `Bearer ${token}`;
-  if (json !== void 0) {
-    options.body = JSON.stringify(json);
+  if (json2 !== void 0) {
+    options.body = JSON.stringify(json2);
     options.headers["Content-Type"] = "application/json";
   } else if (body !== void 0) options.body = body;
   try {
@@ -641,7 +642,7 @@ async function writeOnce(action, hint2, details, unknownServerCodes = [], defini
     throw error;
   }
 }
-async function apiValue(ctx, method, path, json, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
+async function apiValue(ctx, method, path, json2, { requireTenant = true, resolvedProfile, mutation: mutation2, headers, responseHeaders, sessionOnly = false, raw = false, validate, signal, unknownServerCodes, definiteServerCodes, timeout = ctx.args.timeout() } = {}) {
   const profile = resolvedProfile ?? ctx.store.resolve(ctx.args, requireTenant);
   const { token, source } = sessionOnly ? { token: ctx.store.loadSession(profile.name, profile.server, profile.tenant, profile.scope), source: "application-session" } : ctx.store.credential(ctx.args, profile);
   if ((sessionOnly || ctx.args.value("auth") === "session") && !token) throw new CliError("A matching saved session is required.", { code: "authentication_required", hint: "Run auth status, then auth login for this profile." });
@@ -650,7 +651,7 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     const response = await request(new URL(path, profile.server), {
       method,
       token,
-      json,
+      json: json2,
       timeout,
       headers: { ...stream ? { Accept: "*/*", "Accept-Encoding": "identity" } : {}, ...headers },
       signal,
@@ -687,8 +688,8 @@ async function apiValue(ctx, method, path, json, { requireTenant = true, resolve
     throw error;
   }
 }
-async function api(ctx, method, path, json, options) {
-  ctx.reporter.print(await apiValue(ctx, method, path, json, options));
+async function api(ctx, method, path, json2, options) {
+  ctx.reporter.print(await apiValue(ctx, method, path, json2, options));
   return 0;
 }
 
@@ -743,7 +744,7 @@ function abortError(client2, error, deadline) {
     return new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout." });
   return new CliError("HTTP request failed. Check the server URL and connectivity.", { code: "network_error" });
 }
-async function send(client2, method, path, { json, body, deadline, accept = "application/json" } = {}) {
+async function send(client2, method, path, { json: json2, body, deadline, accept = "application/json" } = {}) {
   const remaining2 = deadline === void 0 ? Infinity : deadline - performance.now();
   if (remaining2 <= 0) throw abortError(client2, new Error(), deadline);
   const timeout = Math.max(1, Math.ceil(Math.min(client2.timeout, remaining2)));
@@ -751,9 +752,9 @@ async function send(client2, method, path, { json, body, deadline, accept = "app
   if (client2.token) headers.set("Authorization", `Bearer ${client2.token}`);
   if (client2.application) headers.set("X-XRain-Import-Application", client2.application);
   const request2 = { method, headers, redirect: "error", signal: AbortSignal.any([client2.signal, AbortSignal.timeout(timeout)]) };
-  if (json !== void 0) {
+  if (json2 !== void 0) {
     headers.set("Content-Type", "application/json");
-    request2.body = JSON.stringify(json);
+    request2.body = JSON.stringify(json2);
   } else if (body !== void 0) request2.body = body;
   try {
     return await fetch(new URL(path, client2.profile.server), request2);
@@ -850,9 +851,9 @@ async function importOptions(args, job = false) {
   if (job && Buffer.byteLength(JSON.stringify(value)) > 65536) throw invalid("Import job options must be at most 65536 bytes.");
   return value;
 }
-function query(fields) {
+function query(fields2) {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(fields)) if (value !== void 0 && value !== null && value !== "") params.set(key, String(value));
+  for (const [key, value] of Object.entries(fields2)) if (value !== void 0 && value !== null && value !== "") params.set(key, String(value));
   return params.size ? `?${params}` : "";
 }
 function pageSize(args) {
@@ -941,10 +942,10 @@ async function checkDestination(path) {
     if (error.code !== "ENOENT") throw error;
   }
 }
-async function saveFile(client2, method, path, outputPath, limit = Infinity, json, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
+async function saveFile(client2, method, path, outputPath, limit = Infinity, json2, { contentType = mime, expectedBytes, allowEmpty = false } = {}) {
   const output2 = resolve2(outputPath);
   await checkDestination(output2);
-  const response = await send(client2, method, path, { json, accept: contentType ?? "*/*" });
+  const response = await send(client2, method, path, { json: json2, accept: contentType ?? "*/*" });
   return saveResponse(client2, response, output2, limit, { contentType, expectedBytes, allowEmpty });
 }
 async function saveResponse(client2, response, outputPath, limit = Infinity, { contentType = mime, expectedBytes, allowEmpty = false, verify } = {}) {
@@ -1069,14 +1070,14 @@ async function dataImportCommands(ctx) {
         viewVersion = job.viewVersion;
       }
       if (!nonempty(viewVersion)) throw new CliError("The job does not yet have a readable view.", { code: "import_job_view_not_ready" });
-      const fields = {
+      const fields2 = {
         viewVersion,
         cursor: args.value("cursor"),
         pageSize: pageSize(args),
         sourceRow: args.integer("source-row"),
         ...action === "rows" ? { action: args.value("action"), matchValue: args.value("match-value") } : { code: args.value("code") }
       };
-      const result = await jsonRequest(client2, "GET", `${path}/${action}${query(fields)}`);
+      const result = await jsonRequest(client2, "GET", `${path}/${action}${query(fields2)}`);
       if (!isObject(result) || result.viewVersion !== viewVersion || !Array.isArray(result.items) || !Number.isSafeInteger(result.planRevision) || result.planRevision < 0 || !Number.isSafeInteger(result.totalCount) || result.totalCount < 0 || !["complete", "partial", "unavailable"].includes(result.detailsStatus) || result.nextCursor != null && !nonempty(result.nextCursor))
         throw invalidResponse("The import page is invalid or belongs to another view.");
       reporter.print(result);
@@ -1184,9 +1185,9 @@ async function dataOperations(ctx) {
     return true;
   }
   if (action === "original-values") {
-    const fields = args.required("fields").split(",").map((field) => field.trim()).filter(Boolean);
-    if (!fields.length) throw new CliError("--fields must name at least one field.", { code: "invalid_arguments" });
-    await api(ctx, "POST", `${record}/original-values`, { fields });
+    const fields2 = args.required("fields").split(",").map((field) => field.trim()).filter(Boolean);
+    if (!fields2.length) throw new CliError("--fields must name at least one field.", { code: "invalid_arguments" });
+    await api(ctx, "POST", `${record}/original-values`, { fields: fields2 });
     return true;
   }
   if (action === "owner-transfer") {
@@ -2289,8 +2290,8 @@ var DeviceLogin = class extends OidcLogin {
 async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   const expected = new URL(redirectUri);
   let accept, fail, timer, consumed = false;
-  const callback = new Promise((resolve10, reject) => {
-    accept = resolve10;
+  const callback = new Promise((resolve12, reject) => {
+    accept = resolve12;
     fail = reject;
   });
   callback.catch(() => {
@@ -2319,9 +2320,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, timeout = 18e4) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve10, reject) => {
+  await new Promise((resolve12, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve10);
+    server.listen(Number(expected.port), expected.hostname, resolve12);
   });
   timer = setTimeout(() => {
     fail(new CliError("Browser login timed out. Retry app login."));
@@ -2344,13 +2345,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve10) => {
+  return new Promise((resolve12) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve10(false));
+    child.on("error", () => resolve12(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve10(code === 0));
+    child.on("exit", (code) => resolve12(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -2360,7 +2361,7 @@ function tenantSession(response, scope = "tenant") {
   return { token: data.access_token, tenant: data.tenantId ?? null, scope, expiry: data.expires_at_utc };
 }
 async function exchangeTenant(server, accessToken, requestedTenant) {
-  const send2 = (suffix, json) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json, timeout: 3e4, limit: 1024 * 1024 });
+  const send2 = (suffix, json2) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json: json2, timeout: 3e4, limit: 1024 * 1024 });
   const selectedSession = (response) => {
     const session = tenantSession(response);
     if (!equalIgnoreCase(session.tenant, requestedTenant)) throw new CliError("The server returned a different tenant session.");
@@ -3044,13 +3045,11 @@ function initApp(ctx) {
   ctx.reporter.print(ctx.reporter.json ? { source: path, packageId: source.packageId, versionId: source.versionId, version: source.version } : `Created ${path}`);
   return 0;
 }
-async function buildApp(ctx, save2) {
+async function buildAppArtifact(ctx, { sourcePath, output: output2, save: save2 = true, requireMetadata = false }) {
   if (ctx.args.has("exchange")) throw new CliError("Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.");
-  const sourcePath = resolve3(ctx.args.value("source") ?? "source.json");
   const source = await artifactSource(sourcePath), input3 = parseJson(await source.body.text(), "Source JSON");
   if (!isObject(input3)) throw new CliError("Source JSON must be an object.");
   const parsed = { packageId: input3.packageId, version: input3.version, versionId: input3.versionId };
-  let output2 = save2 && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0;
   if (save2 && !output2 && validPackageId(parsed.packageId) && typeof parsed.version === "string" && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
     output2 = join4(dirname3(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
   if (output2) {
@@ -3059,7 +3058,7 @@ async function buildApp(ctx, save2) {
   }
   const api3 = client(ctx, { allowHost: true }), controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
-  let response, validationDirectory, fileHash;
+  let response, validationDirectory, fileHash, manifestIdentity;
   try {
     const sourceHash = await fileSha256(sourcePath, controller.signal);
     response = await requireStreamSuccess(await api3.send("POST", api3.root + "/packages:build", {
@@ -3071,6 +3070,14 @@ async function buildApp(ctx, save2) {
     if (response.headers.get("x-appkg-source-sha256")?.trim().toLowerCase() !== sourceHash) throw new CliError("Build response source digest does not match the local source.");
     const packageId = response.headers.get("x-appkg-package-id")?.trim(), version = response.headers.get("x-appkg-version")?.trim();
     if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError("Build response package identity is invalid.");
+    const headerVersionId = response.headers.get("x-appkg-version-id")?.trim();
+    const buildMetadata = {
+      packageDigest: response.headers.get("x-appkg-package-digest")?.trim(),
+      builderVersion: response.headers.get("x-appkg-builder-version")?.trim(),
+      builderDigest: response.headers.get("x-appkg-builder-digest")?.trim()
+    };
+    if (requireMetadata && (!validVersionId(headerVersionId) || !/^[a-f0-9]{64}$/.test(buildMetadata.packageDigest ?? "") || !nonempty(buildMetadata.builderVersion) || !/^[a-f0-9]{64}$/.test(buildMetadata.builderDigest ?? "")))
+      throw new CliError("Project builds require the platform build identity, package digest and builder metadata.", { code: "build_metadata_missing" });
     if (!save2) validationDirectory = await mkdtemp(join4(tmpdir(), "xrain-cli-build-"));
     output2 = save2 ? output2 ?? join4(dirname3(sourcePath), `${packageId}-${version}.appkg`) : join4(validationDirectory, "validated.appkg");
     await saveResponse({ profile: api3.profile, source: api3.source, signal: controller.signal }, response, output2, void 0, {
@@ -3079,13 +3086,24 @@ async function buildApp(ctx, save2) {
         fileHash = await fileSha256(temporary, controller.signal);
         if (response.headers.get("x-appkg-file-sha256")?.trim().toLowerCase() !== fileHash) throw new CliError("Build response archive digest is invalid.");
         const manifest = await readManifestFile(temporary, controller.signal);
+        manifestIdentity = manifest;
         if (manifest.packageId !== packageId || manifest.version !== void 0 && manifest.version !== version) throw new CliError("Build response manifest does not match its headers.");
+        if (headerVersionId && manifest.versionId !== headerVersionId || buildMetadata.packageDigest && manifest.digest !== buildMetadata.packageDigest)
+          throw new CliError("Build response manifest version or package digest does not match its headers.");
         if (validPackageId(parsed.packageId) && parsed.packageId !== packageId || typeof parsed.version === "string" && parsed.version !== version || typeof parsed.versionId === "string" && parsed.versionId !== manifest.versionId) throw new CliError("Build response package identity does not match the source.");
       }
     });
-    if (!save2) ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
-    else ctx.reporter.print({ output: output2, sourceSha256: sourceHash, packageSha256: fileHash });
-    return 0;
+    return {
+      output: save2 ? output2 : void 0,
+      source: sourcePath,
+      packageId,
+      version,
+      versionId: manifestIdentity.versionId,
+      sourceSha256: sourceHash,
+      packageSha256: fileHash,
+      ...buildMetadata,
+      ...!save2 ? { validated: true } : {}
+    };
   } finally {
     process.removeListener("SIGINT", interrupt);
     await response?.body?.cancel().catch(() => {
@@ -3096,6 +3114,15 @@ async function buildApp(ctx, save2) {
       await rmdir(validationDirectory);
     }
   }
+}
+async function buildApp(ctx, save2) {
+  const result = await buildAppArtifact(ctx, {
+    sourcePath: resolve3(ctx.args.value("source") ?? "source.json"),
+    output: save2 && ctx.args.has("output") ? resolve3(ctx.args.value("output")) : void 0,
+    save: save2
+  });
+  ctx.reporter.print(!save2 && !ctx.reporter.json ? `Validated ${result.source}; package ${result.packageId}, version ${result.version}.` : result);
+  return 0;
 }
 async function published(send2, root2) {
   const result = requireSuccess(await send2("GET", root2 + "/my-published")).json();
@@ -3186,6 +3213,378 @@ async function appCommands(ctx) {
     }
     default:
       return appManagementCommands(ctx, (options) => client(ctx, options));
+  }
+}
+
+// src/xrain-cli/project.mjs
+import { appendFile, mkdir, mkdtemp as mkdtemp2, readFile as readFile2, writeFile } from "node:fs/promises";
+import { dirname as dirname5, join as join6, resolve as resolve5, basename as basename2 } from "node:path";
+
+// src/xrain-cli/project-source.mjs
+import { readFile, realpath, stat as stat3 } from "node:fs/promises";
+import { existsSync as existsSync3 } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname as dirname4, extname as extname2, isAbsolute, join as join5, relative, resolve as resolve4, sep } from "node:path";
+import { execFileSync } from "node:child_process";
+import { randomBytes as randomBytes5 } from "node:crypto";
+var invalid4 = (message2) => new CliError(message2, { code: "invalid_project" });
+var slash = (path) => path.split(sep).join("/");
+function fields(value, allowed, label) {
+  if (!isObject(value)) throw invalid4(`${label} must be an object.`);
+  const unknown = Object.keys(value).filter((key) => !allowed.includes(key));
+  if (unknown.length) throw invalid4(`${label} has unknown fields: ${unknown.join(", ")}.`);
+}
+function inside(root2, path) {
+  const rel = relative(root2, path);
+  return rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel);
+}
+var semver = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+function projectVersion(base4, release = false) {
+  if (typeof base4 !== "string" || !semver.test(base4) || base4.endsWith("\n") || base4.length > 64)
+    throw invalid4("package.baseVersion must be a platform SemVer of at most 64 characters.");
+  const [core, metadata] = base4.split("+");
+  const version = release ? base4 : `${core}${core.includes("-") ? "." : "-"}dev.r${randomBytes5(8).toString("hex")}${metadata ? "+" + metadata : ""}`;
+  if (version.length > 64) throw invalid4("The candidate version exceeds the platform 64-character limit. Use a shorter baseVersion.");
+  return version;
+}
+var ProjectInputs = class {
+  constructor(root2) {
+    this.root = root2;
+    this.files = /* @__PURE__ */ new Map();
+  }
+  async read(file) {
+    if (!nonempty(file) || isAbsolute(file) || file.includes("\\") || /[\r\n]/.test(file) || file.split("/").some((part) => ["", ".", ".."].includes(part)) || /^(?:\.artifacts|\.local)(?:\/|$)/.test(file)) throw invalid4(`Invalid project input path: ${file}. Use a project-relative source file.`);
+    const path = resolve4(this.root, file);
+    let actual;
+    try {
+      actual = await realpath(path);
+    } catch {
+      throw invalid4(`Project input does not exist: ${file}.`);
+    }
+    if (!inside(this.root, actual)) throw invalid4(`Project input resolves outside the project: ${file}.`);
+    if (!this.files.has(file)) {
+      if (!(await stat3(path)).isFile()) throw invalid4(`Project input is not a file: ${file}.`);
+      this.files.set(file, await readFile(path));
+    }
+    return this.files.get(file);
+  }
+  async json(file) {
+    return parseJson(await this.read(file), file);
+  }
+  async unchanged() {
+    for (const [file, content] of this.files) if (!(await readFile(join5(this.root, file))).equals(content))
+      throw new CliError(`Project input changed during assembly: ${file}. Run the command again.`, { code: "project_changed" });
+  }
+  list() {
+    return [...this.files].map(([file, bytes]) => ({ file, sha256: sha256(bytes), bytes: bytes.length }));
+  }
+};
+async function compiler(inputs) {
+  const pkg = await inputs.json("package.json");
+  const declared = pkg.devDependencies?.esbuild ?? pkg.dependencies?.esbuild;
+  if (!/^\d+\.\d+\.\d+$/.test(declared ?? "")) throw invalid4("Module builds require an exact esbuild version in the project package.json and a package-manager lockfile.");
+  const locks = ["npm-shrinkwrap.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"].filter((file) => existsSync3(join5(inputs.root, file)));
+  if (!locks.length) throw invalid4("Module builds require the project package-manager lockfile; install its locked dependencies first.");
+  for (const file of locks) await inputs.read(file);
+  const require2 = createRequire(join5(inputs.root, "package.json"));
+  let tool;
+  try {
+    tool = require2("esbuild");
+  } catch {
+    throw new CliError("The project esbuild dependency is not installed. Install the project locked dependencies first.", { code: "project_dependency_missing" });
+  }
+  if (tool.version !== declared) throw invalid4(`Installed esbuild ${tool.version} does not match project version ${declared}.`);
+  return tool;
+}
+async function scriptSource(inputs, script, kind, tools) {
+  fields(script, ["mode", "file", "export"], "script");
+  if (!["BizOrchestrationFunction", "BizOrchestrationVersion"].includes(kind)) throw invalid4(`Scripts are not supported for resource kind ${kind}.`);
+  if (script.mode === "frozen") {
+    if (Object.hasOwn(script, "export")) throw invalid4("Frozen source has no module export.");
+    const source = await inputs.json(script.file);
+    if (!nonempty(source)) throw invalid4("Frozen source must be a nonempty JSON string.");
+    return source;
+  }
+  if (script.mode !== "module" || typeof script.export !== "string" || !/^[A-Za-z_$][\w$]*$/.test(script.export))
+    throw invalid4("Module scripts require mode=module, a file and a named export.");
+  await inputs.read(script.file);
+  const tool = tools.compiler ??= await compiler(inputs);
+  const loaders = { ".mjs": "js", ".cjs": "js", ".js": "js", ".jsx": "jsx", ".ts": "ts", ".mts": "ts", ".cts": "ts", ".tsx": "tsx", ".json": "json" };
+  let result;
+  try {
+    result = await tool.build({
+      absWorkingDir: inputs.root,
+      stdin: { contents: `export { ${script.export} as invoke } from ${JSON.stringify("./" + script.file)};`, resolveDir: inputs.root, sourcefile: "xrain-entry.mjs", loader: "js" },
+      bundle: true,
+      write: false,
+      platform: "neutral",
+      mainFields: ["module", "main"],
+      format: "iife",
+      globalName: "__xrain",
+      target: "es2022",
+      charset: "utf8",
+      minify: false,
+      legalComments: "none",
+      metafile: true,
+      logLevel: "silent",
+      // Disable implicit tsconfig transforms. Every program input must be known.
+      tsconfigRaw: {},
+      plugins: [{ name: "project-inputs", setup(build) {
+        build.onLoad({ filter: /.*/, namespace: "file" }, async (args) => {
+          if (!inside(inputs.root, args.path)) throw invalid4("Bundled modules must be inside the project.");
+          const file = slash(relative(inputs.root, args.path)), loader = loaders[extname2(args.path)];
+          if (!loader) throw invalid4(`Unsupported platform module input: ${file}.`);
+          for (let parent = dirname4(args.path); inside(inputs.root, parent); parent = dirname4(parent)) {
+            const manifest = join5(parent, "package.json");
+            if (existsSync3(manifest)) await inputs.read(slash(relative(inputs.root, manifest)));
+            if (parent === inputs.root) break;
+          }
+          return { contents: await inputs.read(file), loader, resolveDir: dirname4(args.path) };
+        });
+      } }]
+    });
+  } catch (error) {
+    const messages = error.errors?.map((item) => item.text).join("; ");
+    throw new CliError(`Cannot compile ${script.file}: ${messages ?? error.message}`, { code: "project_compile_failed" });
+  }
+  if (Object.values(result.metafile.outputs).some((output2) => output2.imports.length))
+    throw invalid4(`Platform source cannot retain runtime module imports: ${script.file}.`);
+  const body = `${result.outputFiles[0].text}
+return __xrain.invoke(ctx);
+`;
+  return kind === "BizOrchestrationFunction" ? `function(ctx) {
+${body}}` : `function execute(ctx) {
+${body}}`;
+}
+async function attachSource(inputs, entry, values, kind, tools) {
+  const output2 = { ...values };
+  for (const [external, internal] of [["script", "source"], ["contract", "contractJson"]]) {
+    if (!Object.hasOwn(entry, external)) continue;
+    if (Object.hasOwn(values, internal)) throw invalid4(`${entry.file ?? entry.definition} embeds ${internal} and also declares ${external}. Keep one source.`);
+    if (external === "script") output2.source = await scriptSource(inputs, entry.script, kind, tools);
+    else {
+      if (kind !== "BizOrchestrationFunction") throw invalid4("Only functions accept contractJson.");
+      output2.contractJson = await inputs.json(entry.contract);
+    }
+  }
+  return output2;
+}
+function gitState(root2, inputs, release) {
+  const git = (directory, args, input3) => execFileSync(
+    "git",
+    ["-C", directory, ...args],
+    { input: input3, stdio: [input3 === void 0 ? "ignore" : "pipe", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 }
+  );
+  let repository, commit, dirty, tracked;
+  try {
+    repository = git(root2, ["rev-parse", "--show-toplevel"]).toString().trim();
+    commit = git(root2, ["rev-parse", "HEAD"]).toString().trim();
+    dirty = !!git(root2, ["status", "--porcelain", "--untracked-files=all", "--", "."]).length;
+    tracked = new Map(git(root2, ["ls-tree", "-r", "--full-tree", "-z", commit, "--", "."]).toString().split("\0").filter(Boolean).map((line) => {
+      const tab = line.indexOf("	"), header = line.slice(0, tab).split(" ");
+      return [line.slice(tab + 1), header[2]];
+    }));
+  } catch {
+    if (release) throw invalid4("Release builds require committed project inputs in a Git checkout.");
+    return { available: false };
+  }
+  const uncommittedInputs = [], toHash = [];
+  for (const [file] of inputs.files) {
+    if (file.startsWith("node_modules/")) continue;
+    const path = slash(relative(repository, join5(root2, file)));
+    if (!tracked.has(path)) uncommittedInputs.push(file);
+    else toHash.push({ file, path });
+  }
+  if (toHash.length) {
+    try {
+      const hashes = git(
+        repository,
+        ["hash-object", "--stdin-paths"],
+        toHash.map((item) => `./${item.path}
+`).join("")
+      ).toString().trim().split("\n");
+      if (hashes.length !== toHash.length) throw Error("unexpected hash count");
+      for (const [index, item] of toHash.entries()) if (hashes[index].trim() !== tracked.get(item.path)) uncommittedInputs.push(item.file);
+    } catch {
+      if (release) throw invalid4("Release inputs could not be compared with their committed Git blobs.");
+      return { available: true, commit, dirty: true, inputsCommitted: false, uncommittedInputs: toHash.map((item) => item.file).concat(uncommittedInputs) };
+    }
+  }
+  if (release && uncommittedInputs.length) throw invalid4(`Release inputs are not committed at ${commit.slice(0, 12)}: ${uncommittedInputs.join(", ")}. Commit the complete inputs before --release.`);
+  return { available: true, commit, dirty: dirty || uncommittedInputs.length > 0, inputsCommitted: !uncommittedInputs.length, uncommittedInputs };
+}
+async function assembleProject(project, { release = false } = {}) {
+  const root2 = await realpath(resolve4(project)), inputs = new ProjectInputs(root2);
+  const descriptor = await inputs.json("xrain-project.json");
+  fields(descriptor, ["schemaVersion", "package", "records", "tenantFunctions"], "xrain-project.json");
+  if (descriptor.schemaVersion !== 1) throw invalid4("Unsupported project schemaVersion; expected 1.");
+  fields(descriptor.package, ["packageId", "namespace", "label", "baseVersion", "releaseVersionId"], "package");
+  const pkg = descriptor.package;
+  if (!validPackageId(pkg.packageId) || !validVersionId(pkg.releaseVersionId)) throw invalid4("packageId and releaseVersionId must use the platform apg/apv identities.");
+  if (typeof pkg.namespace !== "string" || !/^[a-z][a-z0-9]{1,15}$/.test(pkg.namespace) || pkg.namespace.endsWith("\n")) throw invalid4("Namespace must have 2-16 lowercase letters or digits and start with a letter.");
+  if (!nonempty(pkg.label) || pkg.label.length > 256) throw invalid4("Label must have 1-256 characters.");
+  if (!Array.isArray(descriptor.records) || !Array.isArray(descriptor.tenantFunctions ?? [])) throw invalid4("records and tenantFunctions must be arrays.");
+  const source = {
+    packageId: pkg.packageId,
+    namespace: pkg.namespace,
+    label: pkg.label,
+    versionId: release ? pkg.releaseVersionId : randomId("apv"),
+    version: projectVersion(pkg.baseVersion, release),
+    records: []
+  };
+  const files = /* @__PURE__ */ new Set(), ids = /* @__PURE__ */ new Set(), keys = /* @__PURE__ */ new Set(), tenantFunctions = [], tools = {};
+  for (const entry of descriptor.records) {
+    fields(entry, ["file", "script", "contract"], "record entry");
+    if (files.has(entry.file)) throw invalid4(`Resource file is declared twice: ${entry.file}.`);
+    files.add(entry.file);
+    const record = await inputs.json(entry.file);
+    fields(record, ["id", "kind", "values"], entry.file);
+    if (!nonempty(record.id) || !nonempty(record.kind) || !isObject(record.values)) throw invalid4(`Invalid platform resource shape: ${entry.file}.`);
+    if (ids.has(record.id)) throw invalid4(`Duplicate resource ID: ${record.id}.`);
+    ids.add(record.id);
+    source.records.push({ ...record, values: await attachSource(inputs, entry, record.values, record.kind, tools) });
+  }
+  for (const entry of descriptor.tenantFunctions ?? []) {
+    fields(entry, ["definition", "script", "contract"], "tenant function entry");
+    if (files.has(entry.definition)) throw invalid4(`Function definition is declared twice: ${entry.definition}.`);
+    files.add(entry.definition);
+    const definition2 = await inputs.json(entry.definition);
+    fields(definition2, ["key", "label", "helpText", "signature", "isActive", "source", "contractJson"], entry.definition);
+    if (!nonempty(definition2.key) || !nonempty(definition2.label) || definition2.isActive !== void 0 && typeof definition2.isActive !== "boolean")
+      throw invalid4(`Function definition requires key, label and optional boolean isActive: ${entry.definition}.`);
+    if (keys.has(definition2.key)) throw invalid4(`Duplicate tenant function key: ${definition2.key}.`);
+    keys.add(definition2.key);
+    const value = await attachSource(inputs, entry, definition2, "BizOrchestrationFunction", tools);
+    if (!nonempty(value.source)) throw invalid4(`Function source is required: ${entry.definition}.`);
+    tenantFunctions.push(value);
+  }
+  await inputs.unchanged();
+  const git = gitState(root2, inputs, release);
+  await inputs.unchanged();
+  return {
+    root: root2,
+    source,
+    tenantFunctions,
+    inputs,
+    release,
+    git,
+    compiler: tools.compiler ? { name: "esbuild", version: tools.compiler.version, target: "es2022" } : null
+  };
+}
+
+// src/xrain-cli/project.mjs
+var json = (value) => JSON.stringify(value, null, 2) + "\n";
+function receipt(metadata) {
+  const { inputs, git, ...summary } = metadata;
+  const { uncommittedInputs, ...gitSummary } = git;
+  return { ...summary, inputCount: inputs.length, git: {
+    ...gitSummary,
+    ...uncommittedInputs ? { uncommittedInputCount: uncommittedInputs.length } : {}
+  } };
+}
+async function writeNew(path, bytes) {
+  await mkdir(dirname5(path), { recursive: true });
+  await writeFile(path, bytes, { flag: "wx" });
+}
+async function initProject(ctx) {
+  const namespace = ctx.args.required("namespace"), label = ctx.args.required("label").trim();
+  if (!/^[a-z][a-z0-9]{1,15}$/.test(namespace) || namespace.endsWith("\n")) throw new CliError("Namespace must have 2-16 lowercase letters or digits and start with a letter.");
+  if (!label.length || label.length > 256) throw new CliError("Label must have 1-256 characters.");
+  const root2 = resolve5(ctx.args.value("dir") ?? namespace), path = join6(root2, "xrain-project.json");
+  const descriptor = { schemaVersion: 1, package: {
+    packageId: randomId("apg"),
+    namespace,
+    label,
+    baseVersion: "1.0.0",
+    releaseVersionId: randomId("apv")
+  }, records: [], tenantFunctions: [] };
+  await writeNew(path, json(descriptor));
+  const ignore = join6(root2, ".gitignore");
+  let previous = "";
+  try {
+    previous = await readFile2(ignore, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const missing = ["/.artifacts/", "/.local/"].filter((line) => !previous.split(/\r?\n/).includes(line));
+  if (missing.length) await appendFile(ignore, (previous && !previous.endsWith("\n") ? "\n" : "") + missing.join("\n") + "\n");
+  await mkdir(join6(root2, "platform/metadata"), { recursive: true });
+  const readme = `# ${label}
+
+Maintain platform resources in platform/metadata/, functions in platform/functions/, and orchestration versions in platform/orchestrations/.
+Declare every package record and separately delivered tenant function in xrain-project.json. No business resources are generated by init.
+
+Use agents/ for agent definitions and deliverable workspace files, backend/ for business services, clients/web|desktop|android|ios|miniprogram/ for owned clients, and shared/ for shared code. Create these directories only when needed.
+Use data/seeds/ for explicitly delivered initial records, data/samples/ for synthetic examples, and data/import-templates/ for empty templates. Real business data and runtime state stay in their systems.
+
+Run xrain-cli project assemble --project . to assemble offline, or xrain-cli project build --project . --profile NAME to build a new candidate using the platform. Both return exact output paths.
+Module scripts require an exact project esbuild dependency and its package-manager lockfile. Install these with your project package manager; the CLI does not install dependencies.
+
+.artifacts/ contains ignored outputs and input snapshots; .local/ contains ignored local settings. Build does not import, install, select a function version, publish or deploy.
+`;
+  try {
+    await writeNew(join6(root2, "README.md"), readme);
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+  }
+  ctx.reporter.print({ project: root2, descriptor: path, packageId: descriptor.package.packageId });
+  return 0;
+}
+async function saveAssembly(assembly) {
+  const { root: root2, source, tenantFunctions, inputs } = assembly;
+  const base4 = join6(root2, ".artifacts/appkg");
+  await mkdir(base4, { recursive: true });
+  const directory = await mkdtemp2(join6(base4, source.versionId + "-"));
+  const sourcePath = join6(directory, "source.json"), sourceBytes = json(source);
+  await writeNew(sourcePath, sourceBytes);
+  for (const [file, bytes] of inputs.files) await writeNew(join6(directory, "inputs", file), bytes);
+  const functions = [];
+  for (const [index, definition2] of tenantFunctions.entries()) {
+    const output2 = join6(root2, ".artifacts/functions", basename2(directory), `function-${index + 1}.json`);
+    await writeNew(output2, json(definition2));
+    functions.push({ key: definition2.key, output: output2, sha256: sha256(json(definition2)) });
+  }
+  const metadata = {
+    schemaVersion: 1,
+    status: "assembled",
+    mode: assembly.release ? "release" : "candidate",
+    packageId: source.packageId,
+    versionId: source.versionId,
+    version: source.version,
+    source: sourcePath,
+    sourceSha256: sha256(sourceBytes),
+    functions,
+    inputs: inputs.list(),
+    git: assembly.git,
+    compiler: assembly.compiler
+  };
+  const assemblyPath = join6(directory, "assembly.json");
+  await writeNew(assemblyPath, json(metadata));
+  return { directory, metadata, assemblyPath };
+}
+async function projectCommands(ctx) {
+  if (ctx.args.command(1) === "init") return initProject(ctx);
+  const assembly = await assembleProject(ctx.args.value("project") ?? ".", { release: ctx.args.has("release") });
+  const saved = await saveAssembly(assembly);
+  if (ctx.args.command(1) === "assemble") {
+    ctx.reporter.print(receipt({ ...saved.metadata, metadata: saved.assemblyPath }));
+    return 0;
+  }
+  try {
+    const built = await buildAppArtifact(ctx, {
+      sourcePath: saved.metadata.source,
+      output: join6(saved.directory, `${assembly.source.versionId}.appkg`),
+      requireMetadata: true
+    });
+    const metadataPath = join6(saved.directory, "build.json");
+    const result = { ...saved.metadata, ...built, status: "built", metadata: metadataPath };
+    await writeNew(metadataPath, json(result));
+    ctx.reporter.print(receipt(result));
+    return 0;
+  } catch (error) {
+    await writeNew(join6(saved.directory, "failure.json"), json({ status: "failed", code: error.code ?? "build_failed", source: saved.metadata.source }));
+    if (error instanceof CliError) error.details = { ...error.details, assembly: saved.assemblyPath };
+    throw error;
   }
 }
 
@@ -3477,7 +3876,7 @@ var hostOperations = [
 ];
 
 // src/xrain-cli/management.mjs
-import { resolve as resolve5 } from "node:path";
+import { resolve as resolve7 } from "node:path";
 
 // src/xrain-cli/metadata-operations.mjs
 var base2 = "/api/metadata/v1";
@@ -3729,9 +4128,9 @@ for (const operation of deliveryOperations) {
 
 // src/xrain-cli/raw-response.mjs
 import { closeSync as closeSync3, constants as constants3, openSync as openSync3, unlinkSync as unlinkSync2, writeSync, fsyncSync as fsyncSync2, fstatSync as fstatSync2, lstatSync as lstatSync2 } from "node:fs";
-import { resolve as resolve4 } from "node:path";
+import { resolve as resolve6 } from "node:path";
 async function rawOutput(ctx, call, context) {
-  const output2 = ctx.args.has("out") ? resolve4(ctx.args.required("out")) : void 0;
+  const output2 = ctx.args.has("out") ? resolve6(ctx.args.required("out")) : void 0;
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
   let file, saved = false, result, response, created;
@@ -3874,7 +4273,7 @@ async function managementCommand(ctx) {
   if (!operation) return false;
   const { args, reporter } = ctx;
   const profile = ctx.store.resolve(args, !operation.host);
-  const credentialOutput = operation.credentialOutput ? resolve5(args.required("out")) : void 0;
+  const credentialOutput = operation.credentialOutput ? resolve7(args.required("out")) : void 0;
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
     const value2 = args.required(option);
@@ -4280,6 +4679,9 @@ command("host tenant member ensure", [...host2, "tenant-id", "user-id"], [slot("
 command("app login", [...target, "exchange", "device", "no-browser"], [], "Compatibility alias for auth login.");
 command("app logout", ["server", "tenant", "profile", "exchange"], [], "Compatibility alias for auth logout.");
 command("app init", ["namespace", "label", "dir"], [], "Create source.json without overwriting a file.");
+command("project init", ["namespace", "label", "dir"], [], "Create xrain-project.json and ignore rules, preserving existing files and creating no business records.");
+command("project assemble", ["project", "release"], [], "Assemble current explicit project inputs offline into .artifacts/; module scripts use project-locked esbuild.");
+command("project build", [...app2, "project", "release"], [], "Assemble current inputs, build through the platform and retain a new original in .artifacts/appkg/. No import, installation or publication.");
 command("app check", [...app2, "source"], [], "Build and validate remotely without saving; use build alone when an artifact is needed.");
 command("app build", [...app2, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
 command("app publish", [...app2, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
@@ -4581,7 +4983,7 @@ function commandHelp(args) {
   if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
     "auth login authenticates; login/profile set only save settings. Market login uses browser authentication.",
-    "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed."
+    "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed for the CLI; project module compilation uses the project locked esbuild dependency."
   );
   return lines.join("\n") + "\n";
 }
@@ -4628,9 +5030,9 @@ async function batchCommands(ctx) {
 }
 
 // src/xrain-cli/agents.mjs
-import { randomBytes as randomBytes5 } from "node:crypto";
+import { randomBytes as randomBytes6 } from "node:crypto";
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve6 } from "node:path";
+import { resolve as resolve8 } from "node:path";
 
 // src/xrain-cli/definition-file.mjs
 var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -4745,7 +5147,7 @@ function definitionFileChanges(file, draft, workspaces) {
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile as readFile3 } from "node:fs/promises";
 import { performance as performance3 } from "node:perf_hooks";
 
 // src/xrain-cli/runtime-controls.mjs
@@ -4809,7 +5211,7 @@ async function messageInput(args, stdin = process.stdin) {
       const chunks = [];
       for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
       bytes = Buffer.concat(chunks);
-    } else bytes = await readFile(file);
+    } else bytes = await readFile3(file);
     try {
       value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     } catch {
@@ -5373,13 +5775,13 @@ function runtimeConnection(ctx) {
   runtimeConnections.set(ctx, connection2);
   return connection2;
 }
-async function runtimeValue(ctx, method, path, json, extraHeaders = {}, { signal, limit, timeout } = {}) {
+async function runtimeValue(ctx, method, path, json2, extraHeaders = {}, { signal, limit, timeout } = {}) {
   const { args } = ctx;
   const { runtime: runtime2, profile, token, source } = runtimeConnection(ctx);
   const response = await request(new URL(path, runtime2), {
     method,
     token,
-    json,
+    json: json2,
     timeout: timeout === void 0 ? args.timeout() : timeout,
     signal,
     limit,
@@ -5465,7 +5867,7 @@ function updatedDefinition(current, patch, expected) {
 }
 async function importDefinition(ctx) {
   const { args, reporter } = ctx;
-  const id = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
+  const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") ? revision(args) : null;
   const value = await readJsonInput(args.required("file"), "Definition exchange file", { limit: Infinity, stdin: ctx.stdin, utf8: true });
   let file;
@@ -5519,7 +5921,7 @@ async function definitionCommands(ctx) {
     if (args.has("name") && value.name !== void 0) throw new CliError("Provide the name once, using --name or JSON.", { code: "invalid_arguments" });
     const name = args.value("name") ?? value.name;
     if (!nonempty(name)) throw new CliError("A definition name is required.", { code: "invalid_arguments" });
-    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes5(16).toString("hex")}`, "Agent ID");
+    const id2 = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
     workspaceChange(value);
     const body2 = newDefinition(id2, { ...value, name });
     reporter.progress(`Definition ID: ${id2}`);
@@ -5535,7 +5937,7 @@ async function definitionCommands(ctx) {
     const current = await definition(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve6(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve8(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
     writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
@@ -5583,7 +5985,7 @@ async function sidebarCommands(ctx) {
     uiPlugins = structuredClone(current.uiPlugins);
     if (action === "add") {
       if (!isObject(value) || !nonempty(value.pluginId)) throw new CliError("Supply one sidebar entry with pluginId.", { code: "invalid_arguments" });
-      const entry = { ...value, entryId: value.entryId ?? `entry-${randomBytes5(16).toString("hex")}` };
+      const entry = { ...value, entryId: value.entryId ?? `entry-${randomBytes6(16).toString("hex")}` };
       if (!nonempty(entry.entryId) || uiPlugins.some((row) => (row.entryId ?? row.pluginId) === entry.entryId))
         throw new CliError("Sidebar entry ID must be unique.", { code: "invalid_arguments" });
       uiPlugins.push(entry);
@@ -5689,8 +6091,8 @@ function connection(ctx) {
   const { token, source } = ctx.store.credential(ctx.args, profile, { createSecrets: false });
   if (!token) throw new CliError("A matching credential is required.", { code: "authentication_required", hint: "Use auth login and --auth session for this profile." });
   const target2 = { server: profile.server, profile: profile.name, scope: "user", tenantId: profile.tenant };
-  return { target: target2, async call(method, path, json) {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
+  return { target: target2, async call(method, path, json2) {
+    const response = await request(new URL(path, profile.server), { method, token, json: json2, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
     if (!response.ok) throw responseError(response, "", { ...target2, credentialSource: source });
     try {
       return response.json();
@@ -5734,8 +6136,8 @@ async function userSettingsCommands(ctx) {
 
 // src/xrain-cli/files.mjs
 import { openAsBlob as openAsBlob3 } from "node:fs";
-import { stat as stat3 } from "node:fs/promises";
-import { basename as basename2, resolve as resolve7 } from "node:path";
+import { stat as stat4 } from "node:fs/promises";
+import { basename as basename3, resolve as resolve9 } from "node:path";
 var root = "/api/service/files/v1/files";
 async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
@@ -5755,9 +6157,9 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve7(args.required("file")), info = await stat3(input3), uploaderId = args.required("uploader-id");
+      const input3 = resolve9(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
       if (!info.isFile()) throw new CliError("Upload requires a regular file.", { code: "invalid_arguments" });
-      const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename2(input3);
+      const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename3(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
       const value2 = await writeOnce(
         async () => {
@@ -5805,25 +6207,25 @@ async function fileCommands(ctx) {
 }
 
 // src/xrain-cli/market.mjs
-import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync3, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname4, resolve as resolve8 } from "node:path";
-import { randomBytes as randomBytes6 } from "node:crypto";
+import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync4, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { dirname as dirname6, resolve as resolve10 } from "node:path";
+import { randomBytes as randomBytes7 } from "node:crypto";
 function newOutput(value) {
-  const path = resolve8(value);
-  if (existsSync3(path)) throw new CliError("Output already exists.", { code: "output_exists" });
-  accessSync2(dirname4(path), constants4.W_OK);
+  const path = resolve10(value);
+  if (existsSync4(path)) throw new CliError("Output already exists.", { code: "output_exists" });
+  accessSync2(dirname6(path), constants4.W_OK);
   return path;
 }
 function save(path, bytes) {
-  const temporary = path + "." + randomBytes6(8).toString("hex") + ".part";
+  const temporary = path + "." + randomBytes7(8).toString("hex") + ".part";
   try {
     writeFileSync4(temporary, bytes, { flag: "wx" });
     copyFileSync(temporary, path, constants4.COPYFILE_EXCL);
   } finally {
-    if (existsSync3(temporary)) unlinkSync3(temporary);
+    if (existsSync4(temporary)) unlinkSync3(temporary);
   }
 }
-function receipt(response) {
+function receipt2(response) {
   requireSuccess(response);
   try {
     return response.json();
@@ -5854,7 +6256,7 @@ async function marketCommands(ctx) {
     }
     const result = await writeOnce(
       async () => {
-        const value = receipt(await send2(method, path + suffix, { json: body }));
+        const value = receipt2(await send2(method, path + suffix, { json: body }));
         if (value?.id !== id || action === "rename" && value.label !== body.label || action !== "rename" && value.publishedVersionId !== body.versionId)
           throw new CliError("Market returned a mismatched maintenance receipt.", { code: "invalid_response" });
         return value;
@@ -5870,14 +6272,14 @@ async function marketCommands(ctx) {
   const output2 = args.has("out") ? newOutput(args.value("out")) : void 0;
   if (action !== "download") {
     const suffix = action === "show" ? "" : action === "versions" ? "/versions" : `/versions/${versionId}/${action}`;
-    const result = receipt(await send2("GET", path + suffix));
+    const result = receipt2(await send2("GET", path + suffix));
     if (output2) {
       save(output2, Buffer.from(JSON.stringify(result, null, 2) + "\n"));
       reporter.print({ output: output2, packageId: id, versionId });
     } else reporter.print(result);
     return 0;
   }
-  const metadata = receipt(await send2("GET", `${path}/versions/${versionId}/manifest`));
+  const metadata = receipt2(await send2("GET", `${path}/versions/${versionId}/manifest`));
   if (metadata?.packageId !== id || metadata?.versionId !== versionId || !/^[a-f0-9]{64}$/i.test(metadata.fileSha256 ?? "") || !nonempty(metadata.digest))
     throw new CliError("Market returned invalid artifact metadata.", { code: "invalid_response" });
   const controller = new AbortController(), interrupt = () => controller.abort();
@@ -5909,8 +6311,8 @@ async function marketCommands(ctx) {
 
 // src/xrain-cli/workforce.mjs
 import { openAsBlob as openAsBlob4 } from "node:fs";
-import { readFile as readFile2, stat as stat4 } from "node:fs/promises";
-import { basename as basename3, resolve as resolve9 } from "node:path";
+import { readFile as readFile4, stat as stat5 } from "node:fs/promises";
+import { basename as basename4, resolve as resolve11 } from "node:path";
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
@@ -5955,8 +6357,8 @@ async function workforceCommands(ctx) {
       const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
       if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
-      const file = resolve9(args.required("file"));
-      const audio = catalog.maxAudioBytes === 0 ? await readFile2(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
+      const file = resolve11(args.required("file"));
+      const audio = catalog.maxAudioBytes === 0 ? await readFile4(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
       body = { ...catalog.selection, ...body, audioBase64: audio.toString("base64") };
     }
   }
@@ -5991,12 +6393,12 @@ async function workforceCommands(ctx) {
   }
   let upload;
   if (operation.upload) {
-    const path = resolve9(args.required("file"));
-    const info = await stat4(path);
+    const path = resolve11(args.required("file"));
+    const info = await stat5(path);
     if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
     const blob = await openAsBlob4(path);
     if (blob.size !== info.size) throw new CliError("The attachment changed before upload.", { code: "invalid_input" });
-    upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename3(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
+    upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename4(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
   }
   const call = async () => {
     const options = upload ?? { json: body };
@@ -6121,6 +6523,8 @@ async function dispatch(ctx) {
       return workforceCommands(ctx);
     case "app":
       return appCommands(ctx);
+    case "project":
+      return projectCommands(ctx);
     case "agent":
       return agentCommands(ctx);
     case "health": {

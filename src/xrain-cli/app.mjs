@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { CliError, isObject, nonempty, parseJson, randomId } from './core.mjs';
 import { request, requireSuccess, requireStreamSuccess, writeOnce } from './http.mjs';
 import { browserLogin } from './auth.mjs';
-import { artifactSource, fileSha256, readManifestFile, validPackageId } from './archive.mjs';
+import { artifactSource, fileSha256, readManifestFile, validPackageId, validVersionId } from './archive.mjs';
 import { saveResponse } from './data-import.mjs';
 import { appManagementCommands } from './app-management.mjs';
 
@@ -43,13 +43,13 @@ export function initApp(ctx) {
   return 0;
 }
 
-export async function buildApp(ctx, save) {
+// Shared by the legacy single-file command and project builds. Validation and
+// exclusive archive saving stay in this one implementation.
+export async function buildAppArtifact(ctx, { sourcePath, output, save = true, requireMetadata = false }) {
   if (ctx.args.has('exchange')) throw new CliError('Build requires an XRain platform profile; --exchange is only for login, logout, publish or status.');
-  const sourcePath = resolve(ctx.args.value('source') ?? 'source.json');
   const source = await artifactSource(sourcePath), input = parseJson(await source.body.text(), 'Source JSON');
   if (!isObject(input)) throw new CliError('Source JSON must be an object.');
   const parsed = { packageId: input.packageId, version: input.version, versionId: input.versionId };
-  let output = save && ctx.args.has('output') ? resolve(ctx.args.value('output')) : undefined;
   if (save && !output && validPackageId(parsed.packageId) && typeof parsed.version === 'string' && parsed.version.length <= 64 && /^[0-9A-Za-z.+-]+$/.test(parsed.version))
     output = join(dirname(sourcePath), `${parsed.packageId}-${parsed.version}.appkg`);
   if (output) {
@@ -58,7 +58,7 @@ export async function buildApp(ctx, save) {
   }
   const api = client(ctx, { allowHost: true }), controller = new AbortController(), interrupt = () => controller.abort();
   process.once('SIGINT', interrupt);
-  let response, validationDirectory, fileHash;
+  let response, validationDirectory, fileHash, manifestIdentity;
   try {
     const sourceHash = await fileSha256(sourcePath, controller.signal);
     response = await requireStreamSuccess(await api.send('POST', api.root + '/packages:build', { body: source.body,
@@ -66,6 +66,13 @@ export async function buildApp(ctx, save) {
     if (response.headers.get('x-appkg-source-sha256')?.trim().toLowerCase() !== sourceHash) throw new CliError('Build response source digest does not match the local source.');
     const packageId = response.headers.get('x-appkg-package-id')?.trim(), version = response.headers.get('x-appkg-version')?.trim();
     if (!validPackageId(packageId) || !version || version.length > 64 || !/^[0-9A-Za-z.+-]+$/.test(version)) throw new CliError('Build response package identity is invalid.');
+    const headerVersionId = response.headers.get('x-appkg-version-id')?.trim();
+    const buildMetadata = { packageDigest: response.headers.get('x-appkg-package-digest')?.trim(),
+      builderVersion: response.headers.get('x-appkg-builder-version')?.trim(),
+      builderDigest: response.headers.get('x-appkg-builder-digest')?.trim() };
+    if (requireMetadata && (!validVersionId(headerVersionId) || !/^[a-f0-9]{64}$/.test(buildMetadata.packageDigest ?? '') ||
+        !nonempty(buildMetadata.builderVersion) || !/^[a-f0-9]{64}$/.test(buildMetadata.builderDigest ?? '')))
+      throw new CliError('Project builds require the platform build identity, package digest and builder metadata.', { code: 'build_metadata_missing' });
     if (!save) validationDirectory = await mkdtemp(join(tmpdir(), 'xrain-cli-build-'));
     output = save ? output ?? join(dirname(sourcePath), `${packageId}-${version}.appkg`) : join(validationDirectory, 'validated.appkg');
     await saveResponse({ profile: api.profile, source: api.source, signal: controller.signal }, response, output, undefined, { contentType: null,
@@ -73,18 +80,29 @@ export async function buildApp(ctx, save) {
         fileHash = await fileSha256(temporary, controller.signal);
         if (response.headers.get('x-appkg-file-sha256')?.trim().toLowerCase() !== fileHash) throw new CliError('Build response archive digest is invalid.');
         const manifest = await readManifestFile(temporary, controller.signal);
+        manifestIdentity = manifest;
         if (manifest.packageId !== packageId || (manifest.version !== undefined && manifest.version !== version)) throw new CliError('Build response manifest does not match its headers.');
+        if ((headerVersionId && manifest.versionId !== headerVersionId) ||
+            (buildMetadata.packageDigest && manifest.digest !== buildMetadata.packageDigest))
+          throw new CliError('Build response manifest version or package digest does not match its headers.');
         if ((validPackageId(parsed.packageId) && parsed.packageId !== packageId) || (typeof parsed.version === 'string' && parsed.version !== version) ||
             (typeof parsed.versionId === 'string' && parsed.versionId !== manifest.versionId)) throw new CliError('Build response package identity does not match the source.');
       } });
-    if (!save) ctx.reporter.print(ctx.reporter.json ? { source: sourcePath, packageId, version, sourceSha256: sourceHash, packageSha256: fileHash, validated: true } : `Validated ${sourcePath}; package ${packageId}, version ${version}.`);
-    else ctx.reporter.print({ output, sourceSha256: sourceHash, packageSha256: fileHash });
-    return 0;
+    return { output: save ? output : undefined, source: sourcePath, packageId, version,
+      versionId: manifestIdentity.versionId, sourceSha256: sourceHash, packageSha256: fileHash,
+      ...buildMetadata, ...(!save ? { validated: true } : {}) };
   } finally {
     process.removeListener('SIGINT', interrupt);
     await response?.body?.cancel().catch(() => {});
     if (validationDirectory) { await unlink(join(validationDirectory, 'validated.appkg')).catch(() => {}); await rmdir(validationDirectory); }
   }
+}
+
+export async function buildApp(ctx, save) {
+  const result = await buildAppArtifact(ctx, { sourcePath: resolve(ctx.args.value('source') ?? 'source.json'),
+    output: save && ctx.args.has('output') ? resolve(ctx.args.value('output')) : undefined, save });
+  ctx.reporter.print(!save && !ctx.reporter.json ? `Validated ${result.source}; package ${result.packageId}, version ${result.version}.` : result);
+  return 0;
 }
 
 async function published(send, root) {

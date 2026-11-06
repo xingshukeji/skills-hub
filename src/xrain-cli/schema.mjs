@@ -149,6 +149,9 @@ command('host tenant member ensure', [...host, 'tenant-id', 'user-id'], [slot('t
 command('app login', [...target, 'exchange', 'device', 'no-browser'], [], 'Compatibility alias for auth login.');
 command('app logout', ['server', 'tenant', 'profile', 'exchange'], [], 'Compatibility alias for auth logout.');
 command('app init', ['namespace', 'label', 'dir'], [], 'Create source.json without overwriting a file.');
+command('project init', ['namespace', 'label', 'dir'], [], 'Create xrain-project.json and ignore rules, preserving existing files and creating no business records.');
+command('project assemble', ['project', 'release'], [], 'Assemble current explicit project inputs offline into .artifacts/; module scripts use project-locked esbuild.');
+command('project build', [...app, 'project', 'release'], [], 'Assemble current inputs, build through the platform and retain a new original in .artifacts/appkg/. No import, installation or publication.');
 command('app check', [...app, 'source'], [], 'Build and validate remotely without saving; use build alone when an artifact is needed.');
 command('app build', [...app, 'source', 'output'], [], 'Build remotely, validate the returned package, and save it exclusively.');
 command('app publish', [...app, 'exchange', 'file'], [slot('file')], 'Publish an existing application package without automatic retries.');
@@ -404,6 +407,6 @@ export function commandHelp(args) {
   if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
   if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
   lines.push('auth login authenticates; login/profile set only save settings. Market login uses browser authentication.',
-    'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed.');
+    'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed for the CLI; project module compilation uses the project locked esbuild dependency.');
   return lines.join('\n') + '\n';
 }
