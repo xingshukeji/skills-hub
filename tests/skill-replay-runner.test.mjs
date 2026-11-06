@@ -68,6 +68,28 @@ test('test refusal, failing assertions and spawn failure cannot be recorded as s
   assert.equal(f.run(['test']).finish.status, 'succeeded');
 });
 
+test('search finds source text regardless of extension and exposes skipped non-text files', t => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.root, 'input/Program.cs'), 'class PermissionSetItem {}\n');
+  fs.writeFileSync(path.join(f.root, 'input/contract'), 'PermissionSetItem\n');
+  fs.writeFileSync(path.join(f.root, 'input/data.bin'), Buffer.from([0, 1, 2]));
+  fs.writeFileSync(path.join(f.root, 'input/legacy.txt'), Buffer.from([0xff, 0xfe]));
+  const direct = f.run(['search', 'Program.cs', 'PermissionSetItem']);
+  assert.equal(direct.finish.matches.length, 1);
+  assert.equal(direct.finish.matches[0].line, 1);
+  assert.equal(direct.events[1].path, 'Program.cs');
+  assert.deepEqual(direct.finish.skipped, []);
+  const directory = f.run(['search', '.', 'PermissionSetItem']);
+  assert.deepEqual(directory.finish.matches.map(hit => hit.path).sort(), ['Program.cs', 'contract']);
+  assert.deepEqual(directory.finish.skipped.map(item => item.path).sort(), ['data.bin', 'legacy.txt']);
+  assert.equal(directory.events.filter(event => event.phase === 'search-file').length, 5);
+  assert.match(directory.stderr, /Search skipped non-text files/);
+  const binary = f.run(['search', 'data.bin', 'absent']);
+  assert.match(binary.stderr, /data.bin/);
+  assert.equal(binary.events[1].skipped, true);
+  assert.equal(binary.finish.skipped.length, 1);
+});
+
 test('unavailable journal refuses to run rather than silently losing the attempt', t => {
   const f = fixture(t);
   fs.rmSync(path.join(f.root, 'output'), { recursive: true });

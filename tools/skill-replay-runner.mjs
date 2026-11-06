@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { isUtf8 } from 'node:buffer';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 function invalid(message, code = 'INVALID_ARGUMENTS') { return Object.assign(new Error(message), { code }); }
@@ -78,11 +79,17 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       result = { path: requestedPath, files }; output = files.join('\n') + '\n';
     } else if (op === 'search') {
       const regex = new RegExp(pattern, 'i'), file = target(requestedPath);
-      const files = fs.statSync(file).isDirectory() ? walk(file) : [file], matches = [];
-      result = { path: requestedPath, pattern, matches };
+      const files = fs.statSync(file).isDirectory() ? walk(file) : [file], matches = [], skipped = [];
+      result = { path: requestedPath, pattern, matches, skipped };
       for (const file of files) {
-        if (!/\.(md|mjs|json|txt|yaml)$/.test(file)) continue;
-        const bytes = fs.readFileSync(file), lines = bytes.toString().split(/\r?\n/);
+        const bytes = fs.readFileSync(file);
+        if (bytes.includes(0) || !isUtf8(bytes)) {
+          const item = { path: relative(file), reason: 'Not UTF-8 text without NUL bytes' };
+          skipped.push(item);
+          emit({ phase: 'search-file', ...item, sha256: hash(bytes), bytes: bytes.length, matches: [], skipped: true });
+          continue;
+        }
+        const lines = bytes.toString().split(/\r?\n/);
         const hits = lines.flatMap((text, index) => regex.test(text) ? [{ path: relative(file), line: index + 1, text }] : []);
         // Preserve progress even if a later file fails. Scanned bytes are not
         // necessarily content exposed to the model; only returned matches are.
@@ -90,6 +97,7 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
         matches.push(...hits);
       }
       output = JSON.stringify(matches, null, 2) + '\n';
+      if (skipped.length) errorOutput = `Search skipped non-text files: ${JSON.stringify(skipped)}\n`;
     } else {
       const files = walk(target('project/tests')).filter(file => file.endsWith('.test.mjs'));
       if (!files.length) throw invalid('No existing test files.', 'NO_TESTS');
