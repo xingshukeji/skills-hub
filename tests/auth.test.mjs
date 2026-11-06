@@ -127,11 +127,13 @@ test('OIDC rejects mismatched discovery issuer and duplicate state', async t => 
   await assert.rejects(login.complete(callback + '&state=duplicate'), /state is invalid/);
 });
 
-test('loopback listener ignores unrelated paths and closes after timeout', async () => {
-  const listener = await listenForCallback(REDIRECT_URI, 80);
+test('loopback listener ignores unrelated paths and closes on caller cancellation', async () => {
+  const controller = new AbortController();
+  const listener = await listenForCallback(REDIRECT_URI, { signal: controller.signal });
   const response = await fetch('http://127.0.0.1:38749/favicon.ico');
   assert.equal(response.status, 404);
-  await assert.rejects(listener.callback, /timed out/);
+  controller.abort();
+  await assert.rejects(listener.callback, error => error === controller.signal.reason);
   listener.close();
 });
 

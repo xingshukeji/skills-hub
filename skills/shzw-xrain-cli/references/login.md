@@ -56,6 +56,8 @@ auth whoami --profile <成员连接> --auth session --json
 
 ## 原应用登录
 
+浏览器与设备登录不另设30秒网络截止，浏览器回调也不按3分钟结束。需要限制单次HTTP等待时显式提供`--timeout 秒数`；Ctrl+C取消本次登录，保留原连接和已保存登录。设备码仍按认证中心返回的真实到期结束，pending与slow_down继续沿原协议等待；失败或取消不自动重发授权码交换。
+
 中心身份不能用 security user ensure 创建。需要统一认证时使用可用的 shzw-xrain-access 或中心原网页：/admin/local-accounts 与 /admin/users 查重；已有主体“设置本地登录”，确实缺失才创建普通账号并在 /login/activate 激活，保留 MFA。原码失效后的“恢复密码与验证器”会撤销登录、清除验证器，须已有恢复授权。中心管理员网页不依赖 CLI 客户端。
 
 CLI client_id 被拒：读 /api/application/v1/cli-config，按准确 client、回调、scope 核对中心登记；不重置用户密码。auth login 成功后管理命令用 --auth session 排除旧 Token。
