@@ -76,7 +76,8 @@ command('agent definition employee-options', runtime, [], 'Read definition choic
 command('agent definition member', [...runtime, 'user-id'], [slot('user-id')], 'Validate one known member through the narrow definition-management directory, without gaining directory search.');
 command('agent definition limits', runtime, [], 'Read the current Runtime write limit and lightweight status capability.');
 command('agent definition export', [...runtime, 'agent-id', 'out'], [slot('agent-id')], 'Export one saved definition as a version 1 exchange file; --out must name a new file.');
-command('agent definition import', [...runtime, 'agent-id', 'expected-revision', 'file'], [], 'Import a version 1 exchange file. No ID creates a disabled definition; an existing ID requires --expected-revision and retains its enabled state.');
+command('agent definition import', [...runtime, 'agent-id', 'expected-revision', 'file', 'create', 'check', 'workspace-path', 'preset'], [], 'Import a version 1 exchange file. --create with --agent-id creates that exact disabled ID; updates require --expected-revision. --workspace-path with --preset explicitly maps the target directory. --check validates readiness on the Runtime without saving.');
+command('agent definition prepare', [...runtime, 'application-id', 'file', 'check', 'update', 'enable'], [], 'Prepare a project definition using the application’s existing selection and the Runtime’s local workspace. Resolves ID, revision and directory automatically. --check previews without saving; --update applies shared changes to an existing definition; --enable activates after preparation.');
 command('agent definition create', [...runtime, 'agent-id', 'name', 'values', 'values-json', 'file', 'workspace-path', 'preset'], [], 'Create a disabled definition. --workspace-path and --preset select an existing Runtime directory.');
 command('agent definition update', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file', 'workspace-path', 'preset'], [slot('agent-id')], 'Apply a JSON patch or select an existing directory using an explicitly observed revision.');
 for (const action of ['enable', 'disable']) command(`agent definition ${action}`, [...runtime, 'agent-id', 'expected-revision'], [slot('agent-id')], 'Change enabled state using an explicitly observed revision; preserve other settings.');
@@ -324,16 +325,21 @@ export function validateCommand(args) {
       throw new CliError('--purpose must be result, issues, maintenance or remaining.', { code: 'invalid_arguments' });
   }
   if (spec.path.startsWith('agent ')) {
-    if (spec.options.includes('expected-revision') && (spec.path !== 'agent definition import' || args.has('agent-id'))) { args.required('expected-revision'); args.integer('expected-revision'); }
+    if (spec.options.includes('expected-revision') && (spec.path !== 'agent definition import' || args.has('agent-id') && !args.has('create'))) { args.required('expected-revision'); args.integer('expected-revision'); }
     if (spec.options.includes('values-json')) exclusive(['values', 'values-json', 'file']);
     if (['agent definition update', 'agent sidebar set', 'agent sidebar add', 'agent sidebar update', 'agent application set', 'agent workspace browse', 'agent workspace create', 'agent workspace register'].includes(spec.path) &&
         !['values', 'values-json', 'file'].some(name => args.has(name)) && !(spec.path === 'agent definition update' && args.has('workspace-path'))) throw new CliError('A JSON input is required.', { code: 'invalid_arguments' });
     if (spec.path === 'agent definition export') args.required('out');
+    if (spec.path === 'agent definition prepare') args.required('file');
     if (['agent sidebar update', 'agent sidebar remove'].includes(spec.path)) args.required('entry-id');
     if (spec.path === 'agent sidebar catalog') args.required('workforce');
     if (spec.path === 'agent definition import') {
       args.required('file');
       if (args.has('expected-revision') && !args.has('agent-id')) throw new CliError('--expected-revision requires a target --agent-id.', { code: 'invalid_arguments' });
+      if (args.has('create')) {
+        args.required('agent-id');
+        if (args.has('expected-revision')) throw new CliError('--create requires an absent ID and cannot be combined with --expected-revision.', { code: 'invalid_arguments' });
+      }
     }
     if (spec.path.startsWith('agent definition ') && (args.has('workspace-path') !== args.has('preset')))
       throw new CliError('Select a directory with both --workspace-path and --preset.', { code: 'invalid_arguments' });

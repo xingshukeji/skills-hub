@@ -8,7 +8,8 @@ const optionalObject = (v) => v === void 0 || object(v);
 const optionalStrings = (v) => v === void 0 || strings(v);
 const optionalText = (v) => v === void 0 || text(v, 4096);
 function validTool(v) {
-  return object(v) && text(v.name, 160) && text(v.description, Infinity) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters);
+  return object(v) && text(v.name, 160) && text(v.description, Infinity) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters) &&
+    (v.resultReference === undefined || typeof v.resultReference === 'boolean');
 }
 function validQuestion(v) {
   return text(v, Infinity) || object(v) && text(v.text, Infinity) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
@@ -62,7 +63,7 @@ function sameWorkspacePath(left, right) {
   if (windows(left) && windows(right)) return left.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === right.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   return left === right;
 }
-function definitionFileChanges(file, draft, workspaces) {
+function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = true) {
   const v = file.definition, warnings = [];
   const changes = {
     name: v.name,
@@ -76,7 +77,8 @@ function definitionFileChanges(file, draft, workspaces) {
     uiPlugins: v.uiPlugins ?? void 0
   };
   if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
-  else changes.nativeTools = void 0;
+  else if (canRestoreInheritance) changes.nativeTools = void 0;
+  else warnings.push('当前运行环境暂不支持恢复沿用工作模式提供的工具，已保留现有选择。');
   const w = v.workspace;
   if (w.kind === "direct") Object.assign(changes, {
     workspaceId: null,

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { CliError, isObject, jsonInput, nonempty, readJsonInput, segment } from './core.mjs';
 import { definitionFileChanges, exportDefinition, readDefinitionFile } from './definition-file.mjs';
 import { apiValue, request, responseError, writeOnce } from './http.mjs';
@@ -125,26 +126,110 @@ function updatedDefinition(current, patch, expected) {
     workspaceChange: patch.workspaceChange ?? { operation: 'keep' } };
 }
 
+async function exchangeFile(ctx) {
+  const value = await readJsonInput(ctx.args.required('file'), 'Definition exchange file', { limit: Infinity, stdin: ctx.stdin, utf8: true });
+  try { return readDefinitionFile(value); }
+  catch { throw new CliError('Expected a version 1 xrain-workforce-agent-definition exchange file.', { code: 'invalid_definition_file' }); }
+}
+function requireValidation(options) {
+  if (options.supportsDefinitionValidation !== true)
+    throw new CliError('This Runtime does not support complete definition validation.', { code: 'unsupported_runtime',
+      hint: 'Prepare the Runtime from the matching project source or artifact, then check again. No definition was saved.' });
+}
+async function validateCandidate(ctx, id, expected, body) {
+  const result = await runtimeValue(ctx, 'POST', definitions + '/validate', body, {}, { limit: Infinity });
+  if (!isObject(result) || result.valid !== true || result.agentId !== id || result.revision !== expected)
+    throw new CliError('Runtime returned an invalid validation result.', { code: 'invalid_response' });
+  return result;
+}
+
+async function prepareDefinition(ctx) {
+  const { args, reporter } = ctx, file = await exchangeFile(ctx);
+  const connection = runtimeConnection(ctx), options = await runtimeValue(ctx, 'GET', definitions + '/options');
+  if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError('Runtime returned invalid definition options.', { code: 'invalid_response' });
+  requireValidation(options);
+  const app = applicationId(connection.profile) ?? options.applicationId;
+  if (!nonempty(app)) throw new CliError('The target application is not configured.', { code: 'invalid_application_configuration', hint: 'Use the project’s application connection or --application-id.' });
+  identifier(app, 'Application ID');
+  const selectedIdentity = async () => {
+    const selection = await apiValue(ctx, 'GET', platformAgents + '/qualifications?' + new URLSearchParams({ applicationId: app }), undefined, { resolvedProfile: connection.profile });
+    if (!isObject(selection) || selection.applicationId !== app || !Array.isArray(selection.items))
+      throw new CliError('XRain returned an invalid application agent selection.', { code: 'invalid_response' });
+    const selected = selection.items.filter(item => isObject(item) && item.selected === true);
+    const selectedId = selection.defaultAgentId ?? (selected.length === 1 ? selected[0].agentId : undefined);
+    if (!nonempty(selectedId) || !selection.items.some(item => isObject(item) && item.agentId === selectedId))
+      throw new CliError('The application has no unambiguous selected agent.', { code: 'agent_selection_required', hint: 'Have the application owner set its existing selection; preparation does not change platform bindings.' });
+    return identifier(selectedId, 'Agent ID');
+  };
+  const id = await selectedIdentity();
+  let current;
+  try { current = await definition(ctx, id); }
+  catch (error) { if (!(error instanceof CliError && error.httpStatus === 404 && error.serverCode === 'AGENT_DEFINITION_NOT_FOUND')) throw error; }
+  const expected = current?.revision ?? null, draft = current ?? newDefinition(id, {});
+  const reference = file.definition.workspace;
+  const workspace = reference.kind === 'registered' ? options.workspaces.find(item => item.id === reference.id) : undefined;
+  if (!workspace || !nonempty(workspace.cwd) || !Array.isArray(workspace.agentPresets) || !workspace.agentPresets.includes(file.definition.agentPreset))
+    throw new CliError('The project workspace reference cannot be resolved on this Runtime.', { code: 'workspace_unavailable',
+      details: { workspaceId: reference.id, agentPreset: file.definition.agentPreset }, hint: 'Prepare the project’s configured Runtime and workspace. No definition was saved.' });
+  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true)
+    throw new CliError('This Runtime cannot restore the project’s native tool inheritance.', { code: 'unsupported_runtime' });
+  // The source supplies a logical reference; the running host supplies its local directory.
+  const mapped = { ...file, definition: { ...file.definition, workspace: { kind: 'registered', id: workspace.id, path: workspace.cwd } } };
+  const { changes, warnings } = definitionFileChanges(mapped, draft, options.workspaces);
+  const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
+  if (file.definition.nativeTools === null) patch.nativeTools = null;
+  workspaceChange(patch);
+  const body = current ? updatedDefinition(current, patch, expected) : newDefinition(id, patch);
+  const validation = await validateCandidate(ctx, id, expected, body);
+  const changedFields = current ? definitionFields.filter(key => !isDeepStrictEqual(current[key], key === 'nativeTools' && body[key] === null ? undefined : body[key])) : [];
+  if (current?.workspaceUnavailable && !changedFields.includes('workspaceId')) changedFields.push('workspaceId');
+  const context = { applicationId: app, runtime: connection.runtime, workspace: { id: workspace.id, path: workspace.cwd, agentPreset: file.definition.agentPreset }, changedFields,
+    ...(warnings.length ? { warnings } : {}) };
+  if (args.has('check')) { reporter.print({ ...validation, ...context }); return 0; }
+  if (current && changedFields.length && !args.has('update'))
+    throw new CliError('The existing definition differs from the project source.', { code: 'definition_update_required',
+      hint: 'Use --check to inspect the changes, or --update to apply this project definition at the observed revision.', details: { agentId: id, revision: expected, ...context } });
+  if ((!current || changedFields.length || args.has('enable') && !current.enabled) && await selectedIdentity() !== id)
+    throw new CliError('The application agent selection changed during preparation.', { code: 'agent_selection_changed', details: { agentId: id, ...context } });
+  let saved = !current || changedFields.length ? await saveDefinition(ctx, id, body) : current;
+  if (args.has('enable') && !saved.enabled) {
+    try { saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true); }
+    catch (error) {
+      if (error instanceof CliError) error.details = { ...error.details, preparedRevision: saved.revision, agentId: id };
+      throw error;
+    }
+  }
+  reporter.print({ agentId: id, revision: saved.revision, enabled: saved.enabled,
+    operation: !current ? 'created' : changedFields.length ? 'updated' : 'unchanged', ...context }); return 0;
+}
+
 async function importDefinition(ctx) {
   const { args, reporter } = ctx;
   const id = identifier(args.value('agent-id') ?? `agent-${randomBytes(16).toString('hex')}`, 'Agent ID');
-  const expected = args.has('agent-id') ? revision(args) : null;
-  const value = await readJsonInput(args.required('file'), 'Definition exchange file', { limit: Infinity, stdin: ctx.stdin, utf8: true });
-  let file;
-  try { file = readDefinitionFile(value); }
-  catch { throw new CliError('Expected a version 1 xrain-workforce-agent-definition exchange file.', { code: 'invalid_definition_file' }); }
+  const expected = args.has('agent-id') && !args.has('create') ? revision(args) : null;
+  let file = await exchangeFile(ctx);
   const current = expected === null ? newDefinition(id, {}) : await definition(ctx, id);
   // Check the explicit revision before resolving references or sending any mutation.
   if (expected !== null) updatedDefinition(current, {}, expected);
   const options = await runtimeValue(ctx, 'GET', definitions + '/options');
   if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError('Runtime returned invalid definition options.', { code: 'invalid_response' });
-  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces);
+  if (args.has('check')) requireValidation(options);
+  // Environment paths are selected explicitly; a portable reference must never
+  // silently adopt another computer’s directory or replace an existing binding.
+  if (args.has('workspace-path')) file = { ...file, definition: { ...file.definition,
+    workspace: { kind: 'direct', path: args.required('workspace-path') }, agentPreset: args.required('preset') } };
+  const canRestoreInheritance = options.supportsNativeToolInheritanceReset === true;
+  const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, canRestoreInheritance);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
-  if (file.definition.nativeTools === null) patch.nativeTools = null;
+  if (file.definition.nativeTools === null && canRestoreInheritance) patch.nativeTools = null;
   workspaceChange(patch);
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);
   reporter.progress(`Definition ID: ${id}`);
+  if (args.has('check')) {
+    const result = await validateCandidate(ctx, id, expected, body);
+    reporter.print({ ...result, runtime: runtimeConnection(ctx).runtime, ...(warnings.length ? { warnings } : {}) }); return 0;
+  }
   reporter.print({ ...await saveDefinition(ctx, id, body), ...(warnings.length ? { warnings } : {}) }); return 0;
 }
 
@@ -157,6 +242,7 @@ async function definitionCommands(ctx) {
   if (action === 'member') { reporter.print(await runtimeValue(ctx, 'GET', `${definitions}/members/${segment(args.required('user-id'))}`)); return 0; }
   if (action === 'limits') { reporter.print({ ...await definitionLimits(ctx), runtime: runtimeConnection(ctx).runtime }); return 0; }
   if (action === 'import') return importDefinition(ctx);
+  if (action === 'prepare') return prepareDefinition(ctx);
   if (action === 'create') {
     const value = await definitionInput(ctx, false);
     selectDirectory(args, value);

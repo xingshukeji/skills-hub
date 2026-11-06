@@ -144,6 +144,12 @@ agent definition limits 仅在明确查询时读取 Runtime 声明。maxDefiniti
 
 export/import 使用 [Workforce 版本 1 文件合同](../../../xrain-workforce/文档/项目/项目_XRAIN_WORKFORCE/技术设计/DOC-0017-智能体定义与工作区.md#定义与接口)，区别于更新补丁和 Runtime 存储。新建默认停用；更新要求明确版本并保留目标启用状态。目录跨环境无法确认时保留原值并提示。导入不复制目录、身份、订阅、应用选用或员工关系。完整工具说明、schema、推荐问题和有序字段均保留，结构、标识和当前授权继续校验。
 
+`import --create --agent-id <ID>` 原子创建已核对的固定 ID，不先保存空定义；与 `--expected-revision` 互斥，已存在时返回冲突。`--workspace-path <目录> --preset <模式>` 在同一次导入中明确映射目标机器已有目录；省略时沿用交换文件的目录确认和保留语义。`--check` 只调用声明 `supportsDefinitionValidation` 的 Runtime `/validate`，按完整保存请求检查修订、授权、目录、模式、模型配置及当前工具目录，不保存定义、登记目录或创建会话。较旧 Runtime 缺能力时明确返回 `unsupported_runtime`，不尝试保存代替检查。检查通过不预留版本，也不证明模型答复或业务执行成功。
+
+项目常用入口为 `agent definition prepare --file`。CLI 从当前应用资格中的默认或唯一选用解析稳定 ID，从 Runtime 读取当前 revision，并将文件的登记工作区引用映射到目标 Runtime 的实际目录，生成并完整校验请求，不要求成员抄写环境字段。应用上下文优先取所选连接，未配置时取 Runtime options 声明的应用。首次创建保持停用，明确 `--enable` 时在保存回执后启用；已有内容不同需明确 `--update`，内容相同保持版本。保存前重新读取平台选用，变化或版本冲突保留原状态，不创建新身份、改平台选用或自动重放。工作区文件继续由既有交付步骤准备，不引入文件自动合并或新准入机制。
+
+文件中的 `nativeTools: null` 仅在 Runtime 声明恢复继承能力时转成明确重置请求，否则保留目标选择并提示，与页面语义一致。`resultReference` 等业务工具配置保留并按其类型检查，最终由 Runtime 与业务目录核对完整描述；不删字段来适配旧制品。
+
 Workforce 持有交换格式和合成文件样本，完整 Skill 随附同一字节的样本。双方分别验证转换，不引入交换格式 SDK 或复制 Runtime 存储目录。
 
 ### 个人设置与交付

@@ -27,16 +27,17 @@
 <cli> agent definition options --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
 ```
 
-所选 ID 在此 Runtime 确实不存在时，`agent definition import --file ...` 会生成新 ID，不会创建应用原先选中的 ID。先以 `agent definition create --agent-id <应用选用的ID> --name <名称>` 创建该 ID 的停用定义，记录回执中的 revision；再用 `agent definition import --file <交换文件> --agent-id <同一ID> --expected-revision <实际revision>` 导入。按目标 `options` 和项目 Runbook 核对并绑定目标机器已有工作区与工作方式；工作区文件由项目的显式准备入口装配。再次读取 revision，准备完成后用 `agent definition enable <ID> --expected-revision <实际revision>` 启用并回读。命令均使用已核对的管理身份、租户和 `--runtime`；不要更换平台应用绑定或修改销售权限来掩盖本机定义缺失。创建/导入结果未知时按原 ID 回查，不能新建另一 ID 重试。
+项目已提供完整定义及逻辑工作区引用时，优先使用公共 `agent definition prepare --file`：自动从当前应用的既有默认或唯一选用解析 ID，读取目标定义版本，将逻辑引用映射为该 Runtime 的实际工作区，并完整校验生成的本机请求。成员不填写 ID、revision 或路径。应用上下文优先使用所选连接，未配置时使用 Runtime 声明的应用。工作区文件仍按项目既有显式步骤交付；不创建另一身份、不更换平台选用或销售权限。无唯一选用时向该应用所有者报告具体缺项，不按名称认领。
 
 ```text
-<cli> agent definition create --agent-id <实际ID> --name <名称> --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
-<cli> agent definition import --file <交换文件> --agent-id <实际ID> --expected-revision <创建回执的revision> --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
-<cli> agent definition update <实际ID> --workspace-path <目标机器已有目录> --preset <实际工作方式> --expected-revision <导入回执的revision> --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
-<cli> agent definition enable <实际ID> --expected-revision <最新revision> --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
+<cli> agent definition prepare --file <项目定义文件> --check --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
+<cli> agent definition prepare --file <项目定义文件> --enable --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
+<cli> agent definition prepare --file <项目定义文件> --update --profile <管理连接> --runtime <实际Runtime地址> --auth session --json
 ```
 
-仅当目标目录需要变更时执行 `update`；已从交换文件正确绑定时保留现有配置，并使用最新回读的 revision 启用。每一步以实际回执决定下一版本，失败或结果未知先回读。
+首次开通用 `--enable` 在完整校验后创建并启用；已有内容不同时，`--check` 给出差异，明确 `--update` 后才应用项目内容。内容相同不重复保存，已有启用状态和会话保留。需要局部补丁仍用 update；需要任意 ID 或目录的手动维护仍用 import。失败或结果未知先回读原 ID。`--check` 不预留版本、不创建会话，也不证明模型和业务已使用；不支持完整检查的 Runtime 返回 `unsupported_runtime`，不能改用保存来探测。
+
+跨电脑报兼容错误时，先核对同一源码基线、实际安装的公共包及来源摘要，再读取完整交换文件经过 CLI 转换后的 Runtime 字段错误。交换文件、更新补丁和存储文件分别使用原合同；`null` 继承、工具新字段、模型配置、工作方式及本机目录须沿真实生产者与消费者核对。缺少目标报错时可先在不同目录、干净依赖及隔离状态下复现，不把“必须改定义”当成根因，也不让成员逐个手工删字段。原生工具为空可以是明确的业务选择，不能为读取技能自动放开工具。
 
 最后切回原销售身份及原应用，重新查询应用资格和应用目录，并在原页面验证该 ID 可选择；需要工具结果或显示时继续验证实际调用与对应回执。定义导入、管理身份能读或资格 `canUse` 不能替代销售页面及工具验收。该方法适用于项目明确交付定义并授权准备本机 Runtime；普通启动不自动覆盖定义、清空状态或更改共享环境。
 

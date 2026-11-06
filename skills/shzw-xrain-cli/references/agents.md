@@ -62,6 +62,27 @@ agent chat respond <actionRef> --values-json <回答.json>
 
 ## 定义创建与修改
 
+项目交付的完整版本 1 文件优先使用 `prepare` 动态生成本机请求。它从平台当前应用选用读取稳定 ID，从 Runtime 读取已有修订，并把文件的逻辑工作区引用解析为该 Runtime 配置中的实际目录；成员不用填写 ID、版本或本机路径。应用上下文优先使用所选连接，未配置时使用 Runtime 声明的应用。平台没有唯一默认或唯一选用时保留原状态，由应用所有者处理既有选用，不猜测或创建另一身份。
+
+```text
+agent definition prepare --file <项目定义文件> --check
+agent definition prepare --file <项目定义文件> --enable
+agent definition prepare --file <项目定义文件> --update
+```
+
+`--check` 显示解析结果、字段差异及完整校验结果，不保存；首次开通的 `--enable` 在完整校验后创建并启用。重复执行内容不变时保持原版本。已有定义与项目源码不同时，使用 `--update` 明确应用共享内容；该命令自动读取并条件提交当前版本，发生并发冲突不重试。它保留历史会话和文件，不改平台选用、人员权限或订阅，也不代替工作区文件的既有交付步骤。创建成功但启用失败时保留创建版本和具体错误；结果未知先回读解析出的原 ID，不再次新建。
+
+需要手动控制任意 ID 或目录时，完整版本 1 交换文件使用 `import`，不是 `update` 补丁。先按项目入口准备配套 Runtime 和实际工作区；文件中的登记 ID 不证明另一台机器有同一路径。用已观察的版本更新已有定义；目标 ID 确认缺失时可直接原子创建该 ID：
+
+```text
+agent definition import --file <交换文件> --agent-id <实际ID> --create --workspace-path <目标已有目录> --preset <实际工作方式> --check
+agent definition import --file <交换文件> --agent-id <实际ID> --create --workspace-path <目标已有目录> --preset <实际工作方式>
+```
+
+`--check` 由目标 Runtime 检查完整定义的运行准备，成功不保存或启用定义，也不调用模型；失败保留具体字段结果。较旧 Runtime 未声明此能力时返回 `unsupported_runtime`，先按项目运行入口取得同一基线的配套程序，不能据此认定必须改共享定义。`--create` 与 `--expected-revision` 互斥，已有 ID 返回冲突。省略 ID 的普通导入仍生成新 ID，不能满足平台原有选用。
+
+目录和工作方式可在导入中明确映射；已有定义不需变更目录时省略这两个参数，保留当前绑定。文件 `enabled` 只记录导出时的状态，新建保持停用，更新保留目标启用状态。检查不预留版本，保存仍会重新校验。旧 Runtime 不支持恢复原生工具继承时，保留已有选择并提示，不发送其不支持的重置字段。错误或回执未知后先回读原 ID；不自动覆盖或改用新 ID。导入不交付工作区文件，也不修改应用选用、人员权限或会话。
+
 创建可提供 `--agent-id <稳定ID>`；省略时生成 ID 并在提交前写入 stderr。请保留此 ID，不按名称认领另一条定义。`--name` 给出名称，其他配置以 JSON 对象提供。下例的值须取自实际 `options`；工作要求可包含多行：
 
 ```json
@@ -115,8 +136,6 @@ agent definition import --file <定义文件.json> --agent-id <已有ID> --expec
 文件与页面的 `xrain-workforce-agent-definition`、`version: 1` 格式相同。[完整合成样本](examples/definition-file-v1.json)包含模型、直接目录、继承工具、业务工具、推荐问题、业务操作、侧栏及录入字段；实际目录和业务引用须换成目标环境提供的值。它不是 `update` 的字段补丁，也不是 Runtime schema 3 存储文件。
 
 导出排他创建文件，保留已有文件。导入支持 `--file -`，无需强制预览；不指定 ID 时创建停用定义，提交前输出生成 ID。指定已有 ID 时要求明确版本，保留目标启用状态；不会修改订阅、应用选用或员工关系。文件记录的启用状态不直接应用。
-
-应用已经选定某个固定 ID 而目标 Runtime 缺少该定义时，先用 `agent definition create --agent-id <应用选定的ID> --name <名称>` 创建同 ID 的停用定义并读取 revision；随后用 `agent definition import --file <定义文件.json> --agent-id <同一ID> --expected-revision <实际revision>` 导入。核对并绑定目标工作区、工作方式及业务引用后，再按新读取的 revision 启用。不要用无 ID 导入生成另一个 ID，或将 `--agent-id` 与不存在的版本当作创建入口。管理目录无权读取不能证明定义不存在；用已有管理身份核实同一 Runtime，原业务身份最后验证应用目录。
 
 直接目录在保存时由 Runtime 核验。登记目录只有 ID、路径及工作方式在目标环境匹配时重新绑定，否则保留目标目录并报告警告。文件未提供目录且目标已启用时保留原目录；停用目标可以清除目录。文件中的 `nativeTools: null` 按当前接口恢复工具继承。格式或保存校验失败不覆盖原定义，结果未知仍按原 ID 回读。
 

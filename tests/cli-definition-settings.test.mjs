@@ -45,19 +45,27 @@ test('version 1 questions and create fields retain complete text, ordering and c
 });
 
 async function definitions(t, options = {}) {
-  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: null, supportsDefinitionStatusUpdate: true, lose: false, ...options };
+  const f = fixture(t), records = new Map(), state = { maxDefinitionBytes: null, supportsDefinitionStatusUpdate: true, supportsNativeToolInheritanceReset: true, supportsDefinitionValidation: true,
+    applicationId: 'sales-app', selectedAgentId: 'selected-runtime-agent', workspaces: [{ id: 'registered', cwd: '/same', agentPresets: ['standard'] }], lose: false, ...options };
   const server = await mockServer(t, (hit, res) => {
     if (hit.url === root + '/limits') return state.limitUnavailable
       ? respond(res, { error: 'AGENT_DEFINITION_LIMIT_UNAVAILABLE' }, 503)
       : respond(res, { maxDefinitionBytes: state.maxDefinitionBytes, supportsDefinitionStatusUpdate: state.supportsDefinitionStatusUpdate });
-    if (hit.url === root + '/options') return respond(res, { workspaces: [{ id: 'registered', cwd: '/same', agentPresets: ['standard'] }], presets: ['standard'], models: {},
-      maxDefinitionBytes: state.maxDefinitionBytes });
+    if (hit.url.startsWith('/api/xrain/v1/agents/qualifications?')) return respond(res, state.selection ?? { applicationId: state.applicationId,
+      defaultAgentId: state.selectedAgentId, items: state.selectedAgentId ? [{ agentId: state.selectedAgentId, selected: true, canUse: true }] : [] });
+    if (hit.url === root + '/options') return respond(res, { applicationId: state.applicationId, workspaces: state.workspaces, presets: ['standard'], models: {},
+      maxDefinitionBytes: state.maxDefinitionBytes, supportsNativeToolInheritanceReset: state.supportsNativeToolInheritanceReset, supportsDefinitionValidation: state.supportsDefinitionValidation });
     if (hit.url === root + '/summaries') return respond(res, { canManage: true, items: [...records.values()].map(({ agentId, revision, name, enabled }) => ({ agentId, revision, name, enabled })) });
     if (hit.url.startsWith(root + '/items/')) {
       const item = records.get(decodeURIComponent(hit.url.split('/').at(-1)));
       return respond(res, item ?? { error: 'AGENT_DEFINITION_NOT_FOUND' }, item ? 200 : 404);
     }
     if (hit.url === root && hit.method === 'GET') throw new Error('Modern CLI must not download the full list');
+    if (hit.url === root + '/validate' && hit.method === 'POST') {
+      const body = hit.json();
+      if (body.revision !== (records.get(body.agentId)?.revision ?? null)) return respond(res, { error: 'AGENT_DEFINITION_CONFLICT' }, 409);
+      return respond(res, { valid: true, agentId: body.agentId, revision: body.revision });
+    }
     if (hit.method !== 'POST' || ![root, root + '/enabled'].includes(hit.url)) return respond(res, { error: 'NOT_FOUND' }, 404);
     const body = hit.json(), old = records.get(body.agentId), statusOnly = hit.url.endsWith('/enabled');
     if (body.revision !== (old?.revision ?? null)) return respond(res, { error: 'AGENT_DEFINITION_CONFLICT' }, 409);
@@ -259,4 +267,111 @@ test('version 1 file conversions match page semantics for registered, none and u
   const cleared = definitionFileChanges({ ...file, definition: { ...file.definition, workspace: { kind: 'none' } } }, { ...current, enabled: false }, []);
   assert.deepEqual(cleared.changes.workspaceChange, { operation: 'clear' });
   assert.equal(exportDefinition({ ...empty, nativeTools: undefined }, []).definition.nativeTools, null);
+});
+
+test('import checks a complete candidate and atomically creates a stable ID with an explicit target directory', async t => {
+  const { f, records, server, run } = await definitions(t);
+  const file = join(f.directory, 'portable.json');
+  const portable = { ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'enterprise' },
+    reasoningEffort: null, nativeTools: null, suggestedQuestions: null, businessActions: null, uiPlugins: null,
+    assistantTools: sample.definition.assistantTools.map(tool => ({ ...tool, resultReference: true })) } };
+  writeFileSync(file, JSON.stringify(portable));
+  const create = ['import', '--file', file, '--agent-id', 'fixed', '--create', '--workspace-path', 'D:/成员/工作区', '--preset', 'standard'];
+  const checked = output(await run([...create, '--check']));
+  assert.equal(checked.ok, true, JSON.stringify(checked)); assert.equal(checked.data.valid, true);
+  assert.equal(checked.data.agentId, 'fixed'); assert.equal(checked.data.revision, null);
+  assert.equal(records.size, 0);
+  const candidate = server.hits.at(-1).json();
+  assert.equal(server.hits.at(-1).url, root + '/validate');
+  assert.equal(candidate.enabled, false); assert.equal(candidate.nativeTools, null);
+  assert.equal(candidate.workspaceId, null); assert.equal(candidate.reasoningEffort, undefined);
+  assert.equal(candidate.uiPlugins, undefined);
+  assert.deepEqual(candidate.workspaceChange, { operation: 'direct', path: 'D:/成员/工作区', agentPreset: 'standard' });
+  assert.deepEqual(candidate.assistantTools, portable.definition.assistantTools);
+  assert.equal(output(await run(create)).ok, true);
+  const before = structuredClone(records.get('fixed'));
+  assert.equal(output(await run(create)).error.code, 'conflict');
+  assert.deepEqual(records.get('fixed'), before);
+  records.get('fixed').enabled = true;
+  const update = ['import', '--file', file, '--agent-id', 'fixed', '--expected-revision', '1'];
+  assert.equal(output(await run(update)).ok, true);
+  assert.equal(records.get('fixed').enabled, true);
+  assert.equal(records.get('fixed').workspacePath, 'D:/成员/工作区');
+  assert.equal(records.get('fixed').agentPreset, 'standard');
+  const writes = server.hits.filter(hit => hit.method === 'POST').length;
+  assert.equal(output(await run(update)).error.code, 'conflict');
+  assert.equal(server.hits.filter(hit => hit.method === 'POST').length, writes);
+  for (const args of [create.concat('--expected-revision', '2'), ['import', '--file', file, '--create'], create.concat('--preset', 'other')]) {
+    assert.ok(['invalid_arguments', 'invalid_input'].includes(output(await run(args)).error.code));
+  }
+});
+
+test('old Runtime capabilities preserve native choices and do not substitute a save for full validation', async t => {
+  const { f, records, server, run } = await definitions(t, { supportsNativeToolInheritanceReset: false, supportsDefinitionValidation: false });
+  const file = join(f.directory, 'legacy-target.json');
+  writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition, nativeTools: null } }));
+  records.set('old', { ...empty, agentId: 'old', revision: 1, nativeTools: ['read_file'] });
+  const args = ['import', '--file', file, '--agent-id', 'old', '--expected-revision', '1'];
+  assert.equal(output(await run([...args, '--check'])).error.code, 'unsupported_runtime');
+  assert.equal(server.hits.filter(hit => hit.method === 'POST').length, 0);
+  const imported = output(await run(args));
+  assert.equal(imported.ok, true, JSON.stringify(imported)); assert.ok(imported.data.warnings.length);
+  assert.deepEqual(records.get('old').nativeTools, ['read_file']);
+  assert.deepEqual(server.hits.at(-1).json().nativeTools, ['read_file']);
+  const hits = server.hits.length;
+  writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition,
+    assistantTools: sample.definition.assistantTools.map(tool => ({ ...tool, resultReference: 'true' })) } }));
+  assert.equal(output(await run(['import', '--file', file])).error.code, 'invalid_definition_file');
+  assert.equal(server.hits.length, hits);
+});
+
+test('project preparation resolves the selected identity, current revision and local workspace without caller-supplied IDs or paths', async t => {
+  for (const cwd of ['D:/成员甲/项目状态', '/members/b/another-checkout/state']) {
+    const { f, records, server, run } = await definitions(t, { selectedAgentId: 'platform-renamed-agent', workspaces: [{ id: 'project', cwd, agentPresets: ['standard'] }] });
+    const file = join(f.directory, 'project-definition.json');
+    writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'project' }, nativeTools: [] } }));
+    const args = ['prepare', '--file', file];
+    const checked = output(await run([...args, '--check']));
+    assert.equal(checked.ok, true, JSON.stringify(checked)); assert.equal(checked.data.agentId, 'platform-renamed-agent');
+    assert.equal(checked.data.workspace.path, cwd); assert.equal(records.size, 0);
+    const created = output(await run([...args, '--enable']));
+    assert.equal(created.ok, true, JSON.stringify(created));
+    assert.equal(created.data.enabled, true); assert.equal(created.data.revision, 2); assert.equal(created.data.operation, 'created');
+    assert.deepEqual(records.get('platform-renamed-agent').assistantTools, sample.definition.assistantTools);
+    const unchanged = output(await run([...args, '--enable']));
+    assert.equal(unchanged.data.operation, 'unchanged'); assert.equal(unchanged.data.revision, 2);
+    records.get('platform-renamed-agent').instructions = 'Local edit';
+    assert.equal(output(await run(args)).error.code, 'definition_update_required');
+    assert.equal(records.get('platform-renamed-agent').instructions, 'Local edit');
+    const updated = output(await run([...args, '--update']));
+    assert.equal(updated.data.operation, 'updated'); assert.equal(updated.data.revision, 3); assert.equal(updated.data.enabled, true);
+    assert.equal(records.get('platform-renamed-agent').instructions, sample.definition.instructions);
+    assert.ok(server.hits.filter(hit => hit.url.startsWith('/api/')).every(hit => hit.method === 'GET'));
+    assert.equal(server.hits.some(hit => hit.url.includes('/workspaces/register') || hit.url.includes('/directories/create')), false);
+  }
+});
+
+test('dynamic preparation preserves state when selection, workspace or validation capabilities cannot be resolved', async t => {
+  const { f, records, state, server, run } = await definitions(t, { selectedAgentId: null });
+  const file = join(f.directory, 'project-definition.json');
+  writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'registered' } } }));
+  const args = ['prepare', '--file', file];
+  assert.equal(output(await run(args)).error.code, 'agent_selection_required');
+  state.selectedAgentId = 'selected'; state.workspaces = [];
+  assert.equal(output(await run(args)).error.code, 'workspace_unavailable');
+  state.supportsDefinitionValidation = false;
+  assert.equal(output(await run(args)).error.code, 'unsupported_runtime');
+  assert.equal(records.size, 0); assert.equal(server.hits.some(hit => hit.method !== 'GET'), false);
+});
+
+test('a lost dynamic creation receipt retains the resolved identity and never enables or creates again', async t => {
+  const { f, records, state, server, run } = await definitions(t);
+  const file = join(f.directory, 'project-definition.json');
+  writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'registered' }, nativeTools: [] } }));
+  state.lose = true;
+  const failed = output(await run(['prepare', '--file', file, '--enable']));
+  assert.equal(failed.error.code, 'outcome_unknown'); assert.equal(failed.error.details.agentId, state.selectedAgentId);
+  assert.equal(records.size, 1); assert.equal(records.get(state.selectedAgentId).enabled, false);
+  assert.equal(server.hits.filter(hit => hit.url === root && hit.method === 'POST').length, 1);
+  assert.equal(server.hits.some(hit => hit.url === root + '/enabled'), false);
 });
