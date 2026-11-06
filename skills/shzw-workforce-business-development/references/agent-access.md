@@ -17,7 +17,9 @@ Runtime 持有定义的名称、工作要求、模型、工作模式、工作目
 
 已取消定义固定字节准入的 Runtime 版本在 options 和 limits 返回 `maxDefinitionBytes: null`；页面和 CLI 不以限额查询作为保存前提。完整内容仍受实际运行资源和模型上下文能力影响，保存成功不证明模型能消费全部内容。旧 Runtime 可能保留旧限制，按目标版本的真实合同和错误处理，不由本技能推断其配置。
 
-此文件不是 Runtime 存储文件，也不是 CLI 的 `--values-json` 更新请求。使用 CLI 管理定义时先读取目标定义和可用选项，再按实际命令合同构造修改字段；不要把导出文件直接当作完整在线写入。实际版本及权限以目标环境为准。
+此文件不是 Runtime 存储文件，也不是 CLI 的 `--values-json` 更新请求。项目已交付完整定义及逻辑工作区引用，需要在另一台电脑开通或更新时，优先沿已安装 `shzw-xrain-cli` 的[智能体参考](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/agents.md#定义创建与修改)使用 `agent definition prepare --file`。它从平台当前应用选用、目标 Runtime 的版本及实际目录生成完整请求，不要求成员手填 ID、revision 或目录。`--check` 只读完整校验，首次开通用 `--enable`，已有共享内容变化用明确的 `--update`；工作区文件仍按项目既有步骤单独交付。任意 ID 或目录的维护使用 `import`，局部修改使用 `update`，按实际合同读取版本并保留冲突或未知结果。
+
+定义准备通过不证明模型已使用工作区技能。按 CLI 的[员工工作区装配](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/task-selection.md#在产品内员工工作区装配)分别核对发现、实际提示与内容加载、可调用工具和业务回执；`nativeTools: []` 是明确配置，不能为加载技能自行放开工具。
 
 配置业务侧栏时区分 `uiPlugins`、`assistantTools`、`businessActions` 与 `nativeTools`：侧栏定义提供显示资格；`assistantTools` 声明业务服务操作；`businessActions` 控制通用业务记录操作；原生工具控制工作方式下的可选能力。符合条件时 Runtime 可在会话轮次动态提供 `ui_` 界面工具，不能因原生工具为空或业务工具目录未列出界面工具，就断定智能体没有侧栏能力。当前源码要求生效的 `uiPlugins` 非空才尝试注册界面工具；继承默认侧栏可能允许人工显示，但不证明智能体已获得工具。目标运行版本、会话和主体仍须实际核验。侧栏开发、当前可传参数及人工与智能体的接入边界见[业务侧栏与智能体](business-sidebar.md)。
 
