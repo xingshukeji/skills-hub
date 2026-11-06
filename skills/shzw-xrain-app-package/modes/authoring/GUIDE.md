@@ -8,6 +8,8 @@
 
 完整 JSON 源码、项目构建入口、构建凭据和正式制品属于产生该应用的项目；本 skill 只拥有 application/v1 编写规则和共用离线工具。构建在应用项目的任务中完成，输入和输出都必须落到该项目选定的位置，不能把 skill 目录、个人技能安装目录或线上 XRain 当成应用源码或制品仓库。XRain 的统一构建端点临时接收源码并返回 `.appkg`，不保存源码或构建记录；发布和安装记录不承担源码及制品保管。
 
+初始化或规划包含平台资源、函数及其他运行组件的完整二开项目时，参照业务开发技能的[标准源码结构](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/project-structure.md)区分各自源码和交付目标；仅编写或安装现有包时沿用项目入口，无需为此重组项目。
+
 项目已有 `package:build` 薄封装时，优先从项目根调用；它应把完整源码发送给获授权的 XRain 服务端构建端点，并保存返回的原始包和元信息，不得复制 ZIP、digest、kind 或引用校验实现。`package:check` 可继续调用本地离线 validate。没有 API 构建能力时保留 source 和离线检查结果，不调用已退役的独立本地 build 命令。一个项目包含多个应用时按 packageId 显式选择，不能递归扫描目录猜测本次输入。
 
 应用项目用 Git 保存可编辑 JSON 和组装清单。开发构建可使用未提交输入，但必须如实标记；正式交付构建必须固定全部输入的提交，并保存服务返回的原始 source SHA-256、package digest、文件 SHA-256、构建版本与构建程序集摘要。开发输出可以位于已忽略的 `.artifacts/`，正式原包必须连同完整输入快照及上述元信息保存到该项目已有的受管制品或发布入口。没有可取回的正式保存位置时只报告本地候选，不宣称版本已经长期保管。
