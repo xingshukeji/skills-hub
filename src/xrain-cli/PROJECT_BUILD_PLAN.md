@@ -63,7 +63,7 @@ Salesforce 的项目配置可以声明包及版本依赖；默认的包版本创
 | skills-hub 项目初始化、项目描述、源码组装与 CLI | 保留共用工具；复用 XRain 的实际包接口，不在 CLI 复制一套平台安装或 Runtime 语义。 |
 | XRain 包格式、资源引用及安装预检 | 保留在 XRain。需要新增包版本依赖时先由 XRain 明确产品合同、兼容旧包和实际消费者。 |
 | 铵帮 `clients/web/scripts/build-enterprise.mjs`、`verify-enterprise.mjs` | 宿主制品构建中确需复用的部分应由 Workforce 提供入口；铵帮保留自身输入、定义和交付内容。先复用 npm 和构建工具已有的依赖与文件机制，评估重复检查能否删除，不把整份脚本直接搬走。现有 SDK 未提供同等通用构建入口。 |
-| 铵帮 `clients/web/scripts/sidebar-contract.mjs` | 通用协议行为及版本兼容由 Workforce 和 Runtime 测试；铵帮保留业务定义和原用户结果验证。在替代承接就绪前保留现有构建检查。 |
+| 铵帮 `clients/web/scripts/sidebar-contract.mjs` | Workforce 与 Runtime 已有通用结果引用行为测试；铵帮的额外探针用于检查实际安装的版本。业务保留自身定义、接入和原用户结果验证。产品提供可依赖的版本组合并验证真实消费者前，保留此探针；之后评估删减重复模拟。 |
 | 铵帮 `backend/host/host.mjs` | 公共宿主启动、会话和生命周期归 Workforce/Runtime；铵帮保留业务配置与注册。逐项核对公共 SDK 实际入口，不整体迁移或复制宿主。 |
 | 铵帮 `platform/`、`agents/`、`backend/services/sales/` 与业务客户端 | 继续由铵帮维护业务模型、报价函数及输入输出、历史版本、销售工具、定义和页面。不要把报价规则或租户业务数据移入公共项目。 |
 
