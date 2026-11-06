@@ -8,7 +8,7 @@ function connection(ctx) {
   if (!token) throw new CliError('A matching credential is required.', { code: 'authentication_required', hint: 'Use auth login and --auth session for this profile.' });
   const target = { server: profile.server, profile: profile.name, scope: 'user', tenantId: profile.tenant };
   return { target, async call(method, path, json) {
-    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
+    const response = await request(new URL(path, profile.server), { method, token, json, timeout: ctx.args.timeout() });
     if (!response.ok) throw responseError(response, '', { ...target, credentialSource: source });
     try { return response.json(); }
     catch { throw new CliError('Settings API returned invalid JSON.', { code: 'invalid_response', details: target }); }

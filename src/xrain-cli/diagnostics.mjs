@@ -26,7 +26,7 @@ export async function authCommands(ctx) {
     let response;
     try {
       response = await request(new URL('/api/service/authen/v1/account/context', profile.server), {
-        token, timeout: args.timeout(), limit: 1024 * 1024,
+        token, timeout: args.timeout(),
       });
     } catch (error) {
       if (error instanceof CliError) error.details = details;
@@ -63,7 +63,7 @@ export async function authCommands(ctx) {
     let runtimeResponse;
     try {
       runtimeResponse = await request(new URL('/v1/dsh/whoami', runtime), {
-        token, headers: { 'X-XRain-Authorization': `Bearer ${token}` }, timeout: args.timeout(), limit: 1024 * 1024,
+        token, headers: { 'X-XRain-Authorization': `Bearer ${token}` }, timeout: args.timeout(),
       });
     } catch (error) {
       if (error instanceof CliError) error.details = { platformIdentity: identity, agentContext: { ...agentContext, runtime, runtimeIdentity: 'unverified' } };
@@ -97,7 +97,7 @@ export async function doctor(ctx) {
   const credential = market ? { token: store.loadSession(profile.name, profile.server, profile.tenant), source: 'application-session' } : store.credential(args, profile, { createSecrets: false });
   const path = market ? '/api/exchange/v1/my-published' : '/health/ready';
   let response;
-  try { response = await request(new URL(path, profile.server), { token: credential.token, timeout: args.timeout(), limit: 1024 * 1024 }); }
+  try { response = await request(new URL(path, profile.server), { token: credential.token, timeout: args.timeout() }); }
   catch (error) { if (error instanceof CliError) error.details = { authentication: report }; throw error; }
   report.probe = { method: 'GET', path, httpStatus: response.status, scope: market
     ? 'This probe does not certify access to other endpoints or operations.'

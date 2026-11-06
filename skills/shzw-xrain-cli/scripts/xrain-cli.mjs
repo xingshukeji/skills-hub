@@ -2150,12 +2150,12 @@ var OidcLogin = class {
     const { authority, metadataUrl } = this.config;
     httpUrl(authority, "OIDC authority");
     const address = metadataUrl || (authority === "https://localhost:5443/" ? "http://localhost:5080/.well-known/openid-configuration" : new URL(".well-known/openid-configuration", authority.endsWith("/") ? authority : authority + "/").href);
-    const metadata = requireSuccess(await request(address, { timeout: this.timeout, signal: this.signal, limit: 1024 * 1024 })).json();
+    const metadata = requireSuccess(await request(address, { timeout: this.timeout, signal: this.signal })).json();
     this.signal?.throwIfAborted();
     if (metadata.issuer !== authority || !nonempty(metadata.authorization_endpoint) || !nonempty(metadata.token_endpoint) || !nonempty(metadata.jwks_uri))
       throw new CliError("OIDC discovery is invalid.");
     for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri"]) httpUrl(metadata[key], "OIDC endpoint");
-    const jwks = requireSuccess(await request(metadata.jwks_uri, { timeout: this.timeout, signal: this.signal, limit: 1024 * 1024 })).json();
+    const jwks = requireSuccess(await request(metadata.jwks_uri, { timeout: this.timeout, signal: this.signal })).json();
     if (!Array.isArray(jwks.keys) || !jwks.keys.length) throw new CliError("OIDC signing keys are unavailable.");
     this.signal?.throwIfAborted();
     this.metadata = metadata;
@@ -2214,7 +2214,7 @@ var OidcLogin = class {
       code: callback.searchParams.get("code"),
       code_verifier: this.verifier
     }).toString();
-    const tokens = requireSuccess(await request(this.metadata.token_endpoint, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: this.timeout, signal: this.signal, limit: 1024 * 1024 })).json();
+    const tokens = requireSuccess(await request(this.metadata.token_endpoint, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: this.timeout, signal: this.signal })).json();
     for (const key of ["access_token", "id_token", "refresh_token"]) this.reporter?.secret(tokens[key]);
     if (!nonempty(tokens.id_token) || !nonempty(tokens.access_token) || tokens.token_type && !equalIgnoreCase(tokens.token_type, "Bearer"))
       throw new CliError("OIDC login returned invalid tokens.");
@@ -2239,11 +2239,10 @@ var DeviceLogin = class extends OidcLogin {
       body,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       timeout: this.timeout,
-      signal: this.signal,
-      limit: 1024 * 1024
+      signal: this.signal
     }));
     const value = response.json();
-    if (!nonempty(value?.device_code) || !nonempty(value?.user_code) || value.user_code.length > 128 || /[\p{Cc}]/u.test(value.user_code) || !nonempty(value?.verification_uri) || !Number.isSafeInteger(value?.expires_in) || value.expires_in <= 0 || value.interval !== void 0 && (!Number.isSafeInteger(value.interval) || value.interval <= 0))
+    if (!nonempty(value?.device_code) || !nonempty(value?.user_code) || /[\p{Cc}]/u.test(value.user_code) || !nonempty(value?.verification_uri) || !Number.isSafeInteger(value?.expires_in) || value.expires_in <= 0 || value.interval !== void 0 && (!Number.isSafeInteger(value.interval) || value.interval <= 0))
       throw new CliError("The authentication server returned an invalid device request.", { code: "invalid_response" });
     const uri = httpUrl(value.verification_uri, "Device verification URL");
     this.reporter?.secret(value.device_code);
@@ -2286,8 +2285,7 @@ var DeviceLogin = class extends OidcLogin {
           body,
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           timeout: this.timeout,
-          signal,
-          limit: 1024 * 1024
+          signal
         });
         check();
         if (!response.ok) {
@@ -2402,7 +2400,7 @@ function tenantSession(response, scope = "tenant") {
 }
 async function exchangeTenant(server, accessToken, requestedTenant, { timeout = null, signal } = {}) {
   signal?.throwIfAborted();
-  const send2 = (suffix, json2) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json: json2, timeout, signal, limit: 1024 * 1024 });
+  const send2 = (suffix, json2) => request(new URL("/api/service/authen/v1/account/sso" + suffix, server), { method: "POST", token: accessToken, json: json2, timeout, signal });
   const selectedSession = (response) => {
     signal?.throwIfAborted();
     const session = tenantSession(response);
@@ -2447,11 +2445,8 @@ async function nativeLogin(ctx) {
   if (ctx.stdin.isTTY) throw new CliError("Pipe the password into stdin for native login; do not put it in command arguments.", { code: "invalid_arguments" });
   const profile = ctx.store.resolve(ctx.args, false, { allowMissing: true });
   const chunks = [];
-  let size = 0;
   for await (const chunk of ctx.stdin) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += bytes.length;
-    if (size > 4096) throw new CliError("Password input exceeds its size limit.", { code: "invalid_arguments" });
     chunks.push(bytes);
   }
   let password;
@@ -2465,8 +2460,7 @@ async function nativeLogin(ctx) {
   const session = tenantSession(await request(new URL("/api/service/authen/v1/account/login", profile.server), {
     method: "POST",
     json: { userName: ctx.args.required("user"), password, ...profile.scope === "host" ? { scope: "host" } : profile.tenant ? { tenantId: profile.tenant } : {} },
-    timeout: ctx.args.timeout(),
-    limit: 1024 * 1024
+    timeout: ctx.args.timeout()
   }), profile.scope);
   if (nonempty(profile.tenant) && !equalIgnoreCase(session.tenant, profile.tenant))
     throw new CliError("The server returned a different tenant session.");
@@ -2491,8 +2485,7 @@ async function proxyLogin(ctx) {
     method: "POST",
     token,
     json: { userName: args.required("user") },
-    timeout: args.timeout(),
-    limit: 1024 * 1024
+    timeout: args.timeout()
   });
   const session = tenantSession(response);
   reporter.secret(session.token);
@@ -2532,7 +2525,7 @@ async function switchTenant(ctx) {
     throw new CliError("--save-profile must name a separate connection; omit it to switch the current profile.", { code: "invalid_arguments" });
   const token = store.loadSession(profile.name, profile.server, profile.tenant, "tenant");
   if (!token) throw new CliError("A matching saved platform login is required.", { code: "authentication_required" });
-  const call = (method, path) => request(new URL(path, profile.server), { method, token, timeout: args.timeout(), limit: 1024 * 1024 });
+  const call = (method, path) => request(new URL(path, profile.server), { method, token, timeout: args.timeout() });
   const current = requireSuccess(await call("GET", "/api/service/authen/v1/account/context")).json();
   if (!isObject(current) || current.scope !== "tenant" || !nonempty(current.userId) || !equalIgnoreCase(current.tenantId, profile.tenant))
     throw new CliError("The saved login does not match the current tenant context.", { code: "identity_mismatch" });
@@ -2568,7 +2561,7 @@ async function browserLogin(ctx) {
   let callback, listener;
   try {
     signal.throwIfAborted();
-    const config = requireSuccess(await request(new URL(apiRoot + "/cli-config", profile.server), { timeout, signal, limit: 1024 * 1024 })).json();
+    const config = requireSuccess(await request(new URL(apiRoot + "/cli-config", profile.server), { timeout, signal })).json();
     if (!nonempty(config.authority) || !nonempty(config.clientId) || !nonempty(config.scope) || config.redirectUri !== REDIRECT_URI || market && config.scope !== "openid profile")
       throw new CliError("XRain CLI login configuration is invalid.");
     signal.throwIfAborted();
@@ -2589,7 +2582,7 @@ async function browserLogin(ctx) {
     }
     signal.throwIfAborted();
     if (market) {
-      const data = requireSuccess(await request(new URL("/api/session/sso", profile.server), { method: "POST", json: { idToken: login.identityToken }, timeout, signal, limit: 1024 * 1024 })).json();
+      const data = requireSuccess(await request(new URL("/api/session/sso", profile.server), { method: "POST", json: { idToken: login.identityToken }, timeout, signal })).json();
       signal.throwIfAborted();
       if (!Number.isSafeInteger(data.expiresAt)) throw new CliError("The market returned an invalid expiry.");
       ctx.store.saveSession(profile.name, profile.server, "", data.token, data.expiresAt);
@@ -3738,8 +3731,7 @@ async function authCommands(ctx) {
     try {
       response = await request(new URL("/api/service/authen/v1/account/context", profile.server), {
         token,
-        timeout: args.timeout(),
-        limit: 1024 * 1024
+        timeout: args.timeout()
       });
     } catch (error) {
       if (error instanceof CliError) error.details = details;
@@ -3787,8 +3779,7 @@ async function authCommands(ctx) {
       runtimeResponse = await request(new URL("/v1/dsh/whoami", runtime2), {
         token,
         headers: { "X-XRain-Authorization": `Bearer ${token}` },
-        timeout: args.timeout(),
-        limit: 1024 * 1024
+        timeout: args.timeout()
       });
     } catch (error) {
       if (error instanceof CliError) error.details = { platformIdentity: identity, agentContext: { ...agentContext, runtime: runtime2, runtimeIdentity: "unverified" } };
@@ -3831,7 +3822,7 @@ async function doctor(ctx) {
   const path = market ? "/api/exchange/v1/my-published" : "/health/ready";
   let response;
   try {
-    response = await request(new URL(path, profile.server), { token: credential.token, timeout: args.timeout(), limit: 1024 * 1024 });
+    response = await request(new URL(path, profile.server), { token: credential.token, timeout: args.timeout() });
   } catch (error) {
     if (error instanceof CliError) error.details = { authentication: report };
     throw error;
@@ -6333,7 +6324,7 @@ function connection(ctx) {
   if (!token) throw new CliError("A matching credential is required.", { code: "authentication_required", hint: "Use auth login and --auth session for this profile." });
   const target2 = { server: profile.server, profile: profile.name, scope: "user", tenantId: profile.tenant };
   return { target: target2, async call(method, path, json2) {
-    const response = await request(new URL(path, profile.server), { method, token, json: json2, timeout: ctx.args.timeout(), limit: 1024 * 1024 });
+    const response = await request(new URL(path, profile.server), { method, token, json: json2, timeout: ctx.args.timeout() });
     if (!response.ok) throw responseError(response, "", { ...target2, credentialSource: source });
     try {
       return response.json();

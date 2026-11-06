@@ -73,7 +73,7 @@ test('native login requires safe stdin and rejects incompatible modes before mak
   ]) assert.equal((await run(f, [...prefix, ...args, '--json'], 'secret')).code, 1);
   const tty = Readable.from([]); tty.isTTY = true;
   assert.equal((await run(f, [...prefix, '--native', '--user', 'admin', '--password-stdin', '--json'], tty)).code, 1);
-  assert.equal((await run(f, [...prefix, '--native', '--user', 'admin', '--password-stdin', '--json'], Buffer.alloc(4097))).code, 1);
+  assert.equal((await run(f, [...prefix, '--native', '--user', 'admin', '--password-stdin', '--json'], '')).code, 1);
   assert.equal((await run(f, [...prefix, '--native', '--user', 'admin', '--password-stdin', '--json'], Buffer.from([0xff]))).code, 1);
   assert.equal(service.hits.length, 0);
 });
