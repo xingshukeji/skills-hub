@@ -1143,8 +1143,8 @@ async function dataOperations(ctx) {
   }
   if (action === "query-batch") {
     const body = await input(args);
-    if (!Array.isArray(body.queries) || body.queries.length < 1 || body.queries.length > 8 || body.queries.some((item) => !isObject(item) || !nonempty(item.entityCode) || !isObject(item.query)))
-      throw new CliError("queries must contain one to eight entityCode and query objects.", { code: "invalid_arguments" });
+    if (!Array.isArray(body.queries) || body.queries.length < 1 || body.queries.some((item) => !isObject(item) || !nonempty(item.entityCode) || !isObject(item.query)))
+      throw new CliError("queries must contain at least one entityCode and query object.", { code: "invalid_arguments" });
     await api(ctx, "POST", "/api/data/v1/records:queryBatch", body);
     return true;
   }
@@ -4895,7 +4895,7 @@ var requestInput = ["request-json", "file"];
 var recordTarget = [...api2, "entity", "id"];
 var paging = ["page", "page-size"];
 command("data capabilities", api2, [], "Read server query capabilities.");
-command("data query-batch", [...api2, ...requestInput], [], "Query one to eight objects using the platform batch endpoint.");
+command("data query-batch", [...api2, ...requestInput], [], "Query explicit objects in one platform batch request.");
 for (const action of ["export", "count", "distinct", "single", "single-or-default", "first", "first-or-default"])
   command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], `Read ${action} using the native query contract. --request-json supplies the complete query.`);
 for (const action of ["batch-create", "batch-update", "batch-delete"]) command(`data ${action}`, [...api2, "entity", ...requestInput], [slot("entity")], "Use one native collection request with explicit records/recordIds and optional allOrNone. Never loops single-record writes.");

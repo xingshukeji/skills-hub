@@ -21,9 +21,11 @@ test('copied CLI uses the native batch endpoint and reports 404 and 405 directly
   });
   f.profile(server.url, 'tenant-one', 'synthetic-token');
   const input = join(f.directory, 'queries.json');
-  writeFileSync(input, JSON.stringify({ queries: [
+  const queries = [
     { entityCode: 'first', query: { page: 1 } }, { entityCode: 'second', query: { page: 2 } },
-  ] }));
+    ...Array.from({ length: 31 }, (_, i) => ({ entityCode: 'object-' + i, query: { page: 1 } })),
+  ];
+  writeFileSync(input, JSON.stringify({ queries }));
   const run = () => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [join(skill, 'scripts/xrain-cli.mjs'), 'data', 'query-batch', '--request-json', input, '--json'],
       { cwd: f.directory, env: f.env, windowsHide: true });
@@ -36,7 +38,7 @@ test('copied CLI uses the native batch endpoint and reports 404 and 405 directly
 
   const success = await run();
   assert.equal(success.code, 0, success.stdout);
-  assert.deepEqual(JSON.parse(success.stdout).data.results.map(item => item.result.records[0].recordId), ['first', 'second']);
+  assert.deepEqual(JSON.parse(success.stdout).data.results.map(item => item.result.records[0].recordId), queries.map(item => item.entityCode));
   assert.equal(server.hits.length, 1);
   for (mode of ['404', '405']) {
     const failed = await run();

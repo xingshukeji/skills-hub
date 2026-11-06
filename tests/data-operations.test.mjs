@@ -28,14 +28,16 @@ test('batch queries use the platform endpoint and report its errors without indi
   });
   f.profile(service.url, 'tenant-one', 'synthetic-token');
   const file = join(f.directory, 'batch-query.json');
-  writeFileSync(file, JSON.stringify({ queries: [
+  const queries = [
     { entityCode: 'one', query: { page: 1 } }, { entityCode: 'two/part', query: { page: 2 } },
-  ] }));
+    ...Array.from({ length: 15 }, (_, i) => ({ entityCode: 'object-' + i, query: { page: 1, pageSize: i + 1 } })),
+  ];
+  writeFileSync(file, JSON.stringify({ queries }));
   const command = ['data', 'query-batch', '--request-json', file, '--json'];
   const success = await f.run(command);
   assert.equal(success.code, 0, success.stdout);
   assert.deepEqual(output(success).data.results.map(item => [item.entityCode, item.result.records[0].recordId]),
-    [['one', 'one'], ['two/part', 'two/part']]);
+    queries.map(item => [item.entityCode, item.entityCode]));
   assert.equal(service.hits.length, 1);
   for (const [failure, expected] of [['404', 404], ['405', 405], ['expired', 401], ['denied', 403], ['business', 404], ['business-code', 404], ['business-nested', 404], ['business-unrecognized', 404], ['business-numeric', 404], ['method', 405]]) {
     mode = failure; const start = service.hits.length;
@@ -44,6 +46,19 @@ test('batch queries use the platform endpoint and report its errors without indi
     assert.equal(output(result).error.httpStatus, expected);
     assert.equal(service.hits.length, start + 1);
   }
+});
+
+test('batch queries validate the complete nonempty collection before contacting the platform', async t => {
+  const f = fixture(t), service = await mockServer(t, (_hit, res) => respond(res, {}));
+  f.profile(service.url, 'tenant', 'synthetic-token');
+  const file = join(f.directory, 'invalid-batch.json');
+  const valid = Array.from({ length: 33 }, (_, i) => ({ entityCode: 'object-' + i, query: { page: 1 } }));
+  for (const queries of [[], [...valid, null], [...valid, { entityCode: 'last', query: null }]]) {
+    writeFileSync(file, JSON.stringify({ queries }));
+    const result = await f.run(['data', 'query-batch', '--request-json', file, '--json']);
+    assert.equal(result.code, 1); assert.equal(output(result).error.code, 'invalid_arguments');
+  }
+  assert.equal(service.hits.length, 0);
 });
 
 test('native collection writes keep allOrNone and expected values in one transaction request', async t => {

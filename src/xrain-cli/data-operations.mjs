@@ -35,9 +35,9 @@ export async function dataOperations(ctx) {
   if (action === 'capabilities') { await api(ctx, 'GET', '/api/data/v1/query-capabilities'); return true; }
   if (action === 'query-batch') {
     const body = await input(args);
-    if (!Array.isArray(body.queries) || body.queries.length < 1 || body.queries.length > 8 ||
+    if (!Array.isArray(body.queries) || body.queries.length < 1 ||
         body.queries.some(item => !isObject(item) || !nonempty(item.entityCode) || !isObject(item.query)))
-      throw new CliError('queries must contain one to eight entityCode and query objects.', { code: 'invalid_arguments' });
+      throw new CliError('queries must contain at least one entityCode and query object.', { code: 'invalid_arguments' });
     await api(ctx, 'POST', '/api/data/v1/records:queryBatch', body); return true;
   }
   if (!Object.hasOwn(queryActions, action) && !Object.hasOwn(batchActions, action) &&
