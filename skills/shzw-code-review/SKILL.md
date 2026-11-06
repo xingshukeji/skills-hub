@@ -65,6 +65,8 @@ XRain 业务先查对象自带字段、Owner、分享、历史、有效授权和
 
 调查业务闭环、线上缺失资源或提出修复交付建议时，按需读取[业务逻辑承载](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/implementation.md#选择承载业务逻辑的地方)和[项目源码与制品边界](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/project-structure.md)。对照实际项目描述、源码和交付合同区分包资源、独立租户函数及租户配置；线上缺失不证明源码缺失或应现场新建。只读审查保持只读。
 
+审查 XRain 包受管资源的源码或交付完整性时，按[包编写合同](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/modes/authoring/references/authoring.md)和[kind 字段合同](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-app-package/modes/authoring/references/kinds.json)逐项比较实际声明。每种命中的 kind 都核对身份前缀、必填字段及包内引用闭包，记录“声明值 → 合同要求 → 符合、差异或待核依据”；再检查宿主与快照是否引用同一合法资源。字符串相同不能代替格式合法，版本记录也不能代替父定义及其当前版本引用。已有离线校验入口可用时运行并审查诊断；不能运行时完成上述静态对照，不把读过合同记成校验通过。发现已交付身份与合同不符时先报告具体差异并核对原制品、目标协议版本，不自行重建身份；纯租户配置、独立函数开通和无包资源的任务不因此加载包编写资料。
+
 Workforce 公共改动追到实际应用、页面和工具，身份链区分认证主体、租户成员及执行绑定。核对消费者安装的包和锁文件，源码已改不证明当前应用加载了它；元数据、HTTP 返回、SDK 转换和页面保存须接得上。内部审查可追责任源码，业务消费者只靠公开能力也应能完成。界面中的状态和解释须服务用户业务判断，不能把内部职责说明当作产品功能。
 
 ## 3. 反证候选并搜索同类入口
