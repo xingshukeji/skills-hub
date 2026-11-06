@@ -57,11 +57,13 @@ function abortError(client, error, deadline) {
 async function send(client, method, path, { json, body, deadline, accept = 'application/json' } = {}) {
   const remaining = deadline === undefined ? Infinity : deadline - performance.now();
   if (remaining <= 0) throw abortError(client, new Error(), deadline);
-  const timeout = Math.max(1, Math.ceil(Math.min(client.timeout, remaining)));
+  const timeout = Math.min(client.timeout ?? Infinity, remaining);
   const headers = new Headers({ ...client.headers, Accept: accept, 'Accept-Encoding': 'identity' });
   if (client.token) headers.set('Authorization', `Bearer ${client.token}`);
   if (client.application) headers.set('X-XRain-Import-Application', client.application);
-  const request = { method, headers, redirect: 'error', signal: AbortSignal.any([client.signal, AbortSignal.timeout(timeout)]) };
+  const signal = Number.isFinite(timeout)
+    ? AbortSignal.any([client.signal, AbortSignal.timeout(Math.max(1, Math.ceil(timeout)))]) : client.signal;
+  const request = { method, headers, redirect: 'error', signal };
   if (json !== undefined) { headers.set('Content-Type', 'application/json'); request.body = JSON.stringify(json); }
   else if (body !== undefined) request.body = body;
   try { return await fetch(new URL(path, client.profile.server), request); }

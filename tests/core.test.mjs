@@ -9,6 +9,9 @@ test('argument parser preserves operands and handles flags before commands', () 
   const args = new Args(['--no-browser', 'app', 'login', '--profile=MixedCase', '--timeout', '7']);
   assert.equal(args.command(0), 'app'); assert.equal(args.command(1), 'login');
   assert.equal(args.value('profile'), 'MixedCase'); assert.equal(args.timeout(), 7000);
+  assert.equal(new Args([]).timeout(), null);
+  assert.equal(new Args(['--timeout', '86400']).timeout(), 86400000);
+  assert.throws(() => new Args(['--timeout', '86401']).timeout(), /cannot exceed/);
   assert.throws(() => new Args(['--bearer']), /requires a value/);
   assert.throws(() => new Args(['--unknown=x']), /Unknown option/);
   assert.throws(() => new Args(['--check=false']), /does not take/);

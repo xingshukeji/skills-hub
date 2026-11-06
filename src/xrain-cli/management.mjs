@@ -75,7 +75,6 @@ export async function managementCommand(ctx) {
       ...selectors, ...(operation.recoveryHint ? { hint: operation.recoveryHint } : {}), readback: operation.readback ?? ['security', 'directory'] };
   const call = signal => apiValue(ctx, operation.method, route, body, { requireTenant: !operation.host, resolvedProfile: profile, headers, responseHeaders: operation.responseHeaders, sessionOnly: operation.sessionOnly, signal,
     unknownServerCodes: operation.unknownServerCodes, definiteServerCodes: operation.definiteServerCodes,
-    timeout: args.has('timeout') ? args.timeout() : operation.timeout,
     raw: operation.raw, validate: value => (!operation.outcome || ['succeeded', 'failed', 'unknown'].includes(operation.outcome(value))) && (!operation.validate || operation.validate(value, { args, body })),
     ...(write ? { mutation } : {}) });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation };

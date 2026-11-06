@@ -20,7 +20,8 @@ export function appClient(ctx, { allowHost = false, allowAnonymous = false } = {
   return { profile, source: token ? 'application-session' : 'none', root: market ? '/api/exchange/v1' : '/api/application/v1',
     send: (method, path, options = {}) => {
       if (!token && method !== 'GET') throw new CliError('Market maintenance requires a matching login.', { code: 'authentication_required' });
-      return request(new URL(path, profile.server), { ...options, method, token, timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) });
+      const timeout = Math.min(ctx.args.timeout() ?? Infinity, options.timeout ?? Infinity);
+      return request(new URL(path, profile.server), { ...options, method, token, timeout: Number.isFinite(timeout) ? timeout : null });
     } };
 }
 const client = appClient;

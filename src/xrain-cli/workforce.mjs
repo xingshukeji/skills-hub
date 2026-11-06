@@ -77,7 +77,6 @@ export async function workforceCommands(ctx) {
   }
   const call = async () => {
     const options = upload ?? { json: body };
-    if (operation.audio) options.timeout = args.has('timeout') ? args.timeout() : null;
     const result = value(await send(operation.method, route, options));
     if (command && !commandOutcome(result)) throw new CliError('Workforce returned an invalid command receipt.', { code: 'invalid_response' });
     if (operation.feedback && result?.saved !== true) throw new CliError('Workforce returned an invalid feedback receipt.', { code: 'invalid_response' });

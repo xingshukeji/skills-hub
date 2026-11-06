@@ -99,7 +99,8 @@ var Args = class {
     return Number(value);
   }
   timeout() {
-    const seconds = this.integer("timeout", 100);
+    const seconds = this.integer("timeout");
+    if (seconds === void 0) return null;
     if (seconds > 86400) throw new CliError("--timeout cannot exceed 86400 seconds.");
     return seconds * 1e3;
   }
@@ -582,7 +583,7 @@ async function requireStreamSuccess(response) {
     throw requestError(error);
   }
 }
-async function request(url, { method = "GET", token, json: json2, body, headers = {}, timeout = 1e5, signal, limit = Infinity, stream = false } = {}) {
+async function request(url, { method = "GET", token, json: json2, body, headers = {}, timeout = null, signal, limit = Infinity, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = timeout === null ? void 0 : AbortSignal.timeout(timeout);
   const options = {
@@ -747,11 +748,12 @@ function abortError(client2, error, deadline) {
 async function send(client2, method, path, { json: json2, body, deadline, accept = "application/json" } = {}) {
   const remaining2 = deadline === void 0 ? Infinity : deadline - performance.now();
   if (remaining2 <= 0) throw abortError(client2, new Error(), deadline);
-  const timeout = Math.max(1, Math.ceil(Math.min(client2.timeout, remaining2)));
+  const timeout = Math.min(client2.timeout ?? Infinity, remaining2);
   const headers = new Headers({ ...client2.headers, Accept: accept, "Accept-Encoding": "identity" });
   if (client2.token) headers.set("Authorization", `Bearer ${client2.token}`);
   if (client2.application) headers.set("X-XRain-Import-Application", client2.application);
-  const request2 = { method, headers, redirect: "error", signal: AbortSignal.any([client2.signal, AbortSignal.timeout(timeout)]) };
+  const signal = Number.isFinite(timeout) ? AbortSignal.any([client2.signal, AbortSignal.timeout(Math.max(1, Math.ceil(timeout)))]) : client2.signal;
+  const request2 = { method, headers, redirect: "error", signal };
   if (json2 !== void 0) {
     headers.set("Content-Type", "application/json");
     request2.body = JSON.stringify(json2);
@@ -3023,7 +3025,8 @@ function appClient(ctx, { allowHost = false, allowAnonymous = false } = {}) {
     root: market ? "/api/exchange/v1" : "/api/application/v1",
     send: (method, path, options = {}) => {
       if (!token && method !== "GET") throw new CliError("Market maintenance requires a matching login.", { code: "authentication_required" });
-      return request(new URL(path, profile.server), { ...options, method, token, timeout: Math.min(ctx.args.timeout(), options.timeout ?? Infinity) });
+      const timeout = Math.min(ctx.args.timeout() ?? Infinity, options.timeout ?? Infinity);
+      return request(new URL(path, profile.server), { ...options, method, token, timeout: Number.isFinite(timeout) ? timeout : null });
     }
   };
 }
@@ -4168,15 +4171,14 @@ var deliveryOperations = [
   define5("mail providers", "GET", personal + "/providers"),
   define5("mail account list", "GET", personal + "/accounts"),
   define5("mail account set", "PUT", personal + "/accounts", { input: "object", secretInput: ["password", "imapPassword", "smtpPassword"] }),
-  define5("mail account check", "POST", personal + "/accounts/{id}/check", { outcome: mailboxCheck, readOnly: true, timeout: null }),
+  define5("mail account check", "POST", personal + "/accounts/{id}/check", { outcome: mailboxCheck, readOnly: true }),
   define5("mail account delete", "DELETE", personal + "/accounts/{id}"),
   define5("mail account clear-credentials", "DELETE", personal + "/accounts/{id}/credentials", { query: ["action"] }),
-  define5("mail folders", "GET", personal + "/accounts/{id}/folders", { timeout: null }),
-  define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true, timeout: null }),
-  define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true, timeout: null }),
+  define5("mail folders", "GET", personal + "/accounts/{id}/folders"),
+  define5("mail search", "POST", personal + "/accounts/{id}/messages/search", { input: "object", readOnly: true }),
+  define5("mail read", "POST", personal + "/accounts/{id}/messages/read", { input: "object", readOnly: true }),
   define5("mail draft", "POST", personal + "/accounts/{id}/drafts", {
     input: "object",
-    timeout: null,
     unknownServerCodes: personalMailDraftUnknownCodes,
     definiteServerCodes: personalMailDraftDefiniteCodes,
     validate: (value, { args }) => validatePersonalMailDraftReceipt(value, args.value("id")),
@@ -4391,7 +4393,6 @@ async function managementCommand(ctx) {
     signal,
     unknownServerCodes: operation.unknownServerCodes,
     definiteServerCodes: operation.definiteServerCodes,
-    timeout: args.has("timeout") ? args.timeout() : operation.timeout,
     raw: operation.raw,
     validate: (value2) => (!operation.outcome || ["succeeded", "failed", "unknown"].includes(operation.outcome(value2))) && (!operation.validate || operation.validate(value2, { args, body })),
     ...write ? { mutation: mutation2 } : {}
@@ -4529,15 +4530,15 @@ var define7 = (path, method, route, options = {}) => ({ path, method, route: "/a
 var retail = (path, method, route, options) => define7("retail " + path, method, "/applications/retail-assistant" + route, options);
 var mail = (path, method, route, options) => define7("mail " + path, method, "/mail" + route, options);
 var applicationUserOperations = [
-  mail("ai list", "GET", "/ais", { timeout: null }),
+  mail("ai list", "GET", "/ais"),
   mail("ai subscribe", "POST", "/agents/{agent-id}/subscription"),
   mail("app capabilities", "GET", "/capabilities"),
   mail("app accounts", "GET", "/accounts"),
-  mail("app folders", "GET", "/accounts/{id}/folders", { timeout: null }),
-  mail("app search", "POST", "/accounts/{id}/messages/search", { input: true, readOnly: true, timeout: null }),
-  mail("app read", "POST", "/accounts/{id}/messages/read", { input: true, readOnly: true, timeout: null }),
-  mail("app draft", "POST", "/accounts/{id}/drafts", { input: true, draft: true, timeout: null }),
-  mail("assist", "POST", "/accounts/{id}/assist", { input: true, readOnly: true, timeout: null }),
+  mail("app folders", "GET", "/accounts/{id}/folders"),
+  mail("app search", "POST", "/accounts/{id}/messages/search", { input: true, readOnly: true }),
+  mail("app read", "POST", "/accounts/{id}/messages/read", { input: true, readOnly: true }),
+  mail("app draft", "POST", "/accounts/{id}/drafts", { input: true, draft: true }),
+  mail("assist", "POST", "/accounts/{id}/assist", { input: true, readOnly: true }),
   retail("context", "GET", "/context"),
   retail("customers", "GET", "/customers", { query: ["search", "order", "cursor", "includeArchived", "archivedOnly"] }),
   retail("customer describe", "GET", "/records/objects/{object-id}/describe"),
@@ -5037,6 +5038,7 @@ function commandHelp(args) {
     if (exact) lines.push("  Options: " + spec.options.map((name) => "--" + name).join(", "));
   }
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
+  if (!exact || exact.options.includes("timeout")) lines.push("HTTP requests have no default CLI deadline. Use --timeout SECONDS to limit a request explicitly; operation waiting budgets still apply.");
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.");
   if (!exact || exact.options.includes("values-json") || exact.options.includes("query-json") || exact.path === "batch") lines.push("JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .");
   if (exact?.path === "workforce speech transcribe") lines.push("Speech: --file is the original PCM WAV, not a JSON alias. With --file, --request-json may select providerId/language; otherwise it supplies the complete native request.");
@@ -5463,7 +5465,8 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
   const { args } = ctx;
   const { runtime: runtime2, token, profile, source } = runtimeConnection2(ctx);
   const controller = new AbortController();
-  const connectTimeout = setTimeout(() => controller.abort(), args.timeout());
+  const timeout = args.timeout();
+  const connectTimeout = timeout === null ? void 0 : setTimeout(() => controller.abort(), timeout);
   const signal = AbortSignal.any([controller.signal, budget.signal]);
   let response;
   try {
@@ -5728,7 +5731,7 @@ async function runtimeRuns(ctx, helpers) {
           ephemeral ? "/v1/dsh/ephemeral-runs" : "/xrain/runs",
           body,
           ephemeral ? headers : {},
-          { signal: controller.signal, ...ephemeral && !args.has("timeout") ? { timeout: null } : {} }
+          { signal: controller.signal }
         );
         if (!isObject(result) || (ephemeral ? !nonempty(result.answer) : !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.runId ?? "") || result.status !== "accepted"))
           throw new CliError("Runtime returned an invalid run receipt.", { code: "invalid_response" });
@@ -6465,7 +6468,6 @@ async function workforceCommands(ctx) {
   }
   const call = async () => {
     const options = upload ?? { json: body };
-    if (operation.audio) options.timeout = args.has("timeout") ? args.timeout() : null;
     const result2 = memberValue(await send2(operation.method, route, options));
     if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
     if (operation.feedback && result2?.saved !== true) throw new CliError("Workforce returned an invalid feedback receipt.", { code: "invalid_response" });
@@ -6531,10 +6533,7 @@ async function applicationUserCommand(ctx) {
   };
   const command2 = operation.path === "retail session command";
   const call = async () => {
-    const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, {
-      json: body,
-      ...operation.timeout === null && !args.has("timeout") ? { timeout: null } : {}
-    }));
+    const result2 = memberValue(await target2.send(operation.method, url.pathname + url.search, { json: body }));
     if (operation.draft) validatePersonalMailDraftReceipt(result2, args.value("id"));
     if (command2 && !commandOutcome(result2)) throw new CliError("The Runtime command receipt is invalid.", { code: "invalid_response" });
     return result2;

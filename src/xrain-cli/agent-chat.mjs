@@ -193,7 +193,8 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
   const { args } = ctx;
   const { runtime, token, profile, source } = runtimeConnection(ctx);
   const controller = new AbortController();
-  const connectTimeout = setTimeout(() => controller.abort(), args.timeout());
+  const timeout = args.timeout();
+  const connectTimeout = timeout === null ? undefined : setTimeout(() => controller.abort(), timeout);
   const signal = AbortSignal.any([controller.signal, budget.signal]);
   let response;
   try {

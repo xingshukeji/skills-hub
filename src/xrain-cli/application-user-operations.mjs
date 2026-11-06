@@ -2,15 +2,15 @@ const define = (path, method, route, options = {}) => ({ path, method, route: '/
 const retail = (path, method, route, options) => define('retail ' + path, method, '/applications/retail-assistant' + route, options);
 const mail = (path, method, route, options) => define('mail ' + path, method, '/mail' + route, options);
 export const applicationUserOperations = [
-  mail('ai list', 'GET', '/ais', { timeout: null }),
+  mail('ai list', 'GET', '/ais'),
   mail('ai subscribe', 'POST', '/agents/{agent-id}/subscription'),
   mail('app capabilities', 'GET', '/capabilities'),
   mail('app accounts', 'GET', '/accounts'),
-  mail('app folders', 'GET', '/accounts/{id}/folders', { timeout: null }),
-  mail('app search', 'POST', '/accounts/{id}/messages/search', { input: true, readOnly: true, timeout: null }),
-  mail('app read', 'POST', '/accounts/{id}/messages/read', { input: true, readOnly: true, timeout: null }),
-  mail('app draft', 'POST', '/accounts/{id}/drafts', { input: true, draft: true, timeout: null }),
-  mail('assist', 'POST', '/accounts/{id}/assist', { input: true, readOnly: true, timeout: null }),
+  mail('app folders', 'GET', '/accounts/{id}/folders'),
+  mail('app search', 'POST', '/accounts/{id}/messages/search', { input: true, readOnly: true }),
+  mail('app read', 'POST', '/accounts/{id}/messages/read', { input: true, readOnly: true }),
+  mail('app draft', 'POST', '/accounts/{id}/drafts', { input: true, draft: true }),
+  mail('assist', 'POST', '/accounts/{id}/assist', { input: true, readOnly: true }),
   retail('context', 'GET', '/context'),
   retail('customers', 'GET', '/customers', { query: ['search', 'order', 'cursor', 'includeArchived', 'archivedOnly'] }),
   retail('customer describe', 'GET', '/records/objects/{object-id}/describe'),

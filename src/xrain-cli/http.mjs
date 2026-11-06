@@ -25,7 +25,7 @@ export async function requireStreamSuccess(response) {
   catch (error) { throw requestError(error); }
 }
 
-export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = 100000, signal, limit = Infinity, stream = false } = {}) {
+export async function request(url, { method = 'GET', token, json, body, headers = {}, timeout = null, signal, limit = Infinity, stream = false } = {}) {
   url = httpUrl(url);
   const requestTimeout = timeout === null ? undefined : AbortSignal.timeout(timeout);
   const options = { method, redirect: 'error', signal: signal && requestTimeout ? AbortSignal.any([signal, requestTimeout]) : signal ?? requestTimeout,

@@ -399,6 +399,7 @@ export function commandHelp(args) {
     if (exact) lines.push('  Options: ' + spec.options.map(name => '--' + name).join(', '));
   }
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
+  if (!exact || exact.options.includes('timeout')) lines.push('HTTP requests have no default CLI deadline. Use --timeout SECONDS to limit a request explicitly; operation waiting budgets still apply.');
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.');
   if (!exact || exact.options.includes('values-json') || exact.options.includes('query-json') || exact.path === 'batch') lines.push('JSON input: --values/--query/--filter JSON or @FILE; --values-json/--query-json/--filter-json FILE, or - for stdin. Batch input uses --file FILE|- .');
   if (exact?.path === 'workforce speech transcribe') lines.push('Speech: --file is the original PCM WAV, not a JSON alias. With --file, --request-json may select providerId/language; otherwise it supplies the complete native request.');

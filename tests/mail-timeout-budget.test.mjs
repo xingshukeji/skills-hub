@@ -48,11 +48,11 @@ for (const kind of ['native', 'application', 'assistance', 'check']) {
   }
 }
 
-test('ordinary HTTP requests keep their default budget and an unconfirmed failure code cannot prove an unsaved draft', async t => {
+test('explicit HTTP deadlines remain enforced and an unconfirmed failure code cannot prove an unsaved draft', async t => {
   const deadlines = [], ready = deferred(), release = deferred();
   t.mock.method(AbortSignal, 'timeout', () => { const controller = new AbortController(); deadlines.push(controller); return controller.signal; });
   const server = await mockServer(t, async (_hit, response) => { ready.resolve(); await release.promise; respond(response, {}); });
-  const pending = request(server.url);
+  const pending = request(server.url, { timeout: 1000 });
   await ready.promise;
   for (const controller of deadlines) controller.abort(new DOMException('Synthetic deadline', 'TimeoutError'));
   release.resolve();

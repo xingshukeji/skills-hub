@@ -33,8 +33,7 @@ export async function applicationUserCommand(ctx) {
     ...Object.fromEntries(['requestId', 'agentId'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
   const command = operation.path === 'retail session command';
   const call = async () => {
-    const result = memberValue(await target.send(operation.method, url.pathname + url.search, { json: body,
-      ...(operation.timeout === null && !args.has('timeout') ? { timeout: null } : {}) }));
+    const result = memberValue(await target.send(operation.method, url.pathname + url.search, { json: body }));
     if (operation.draft) validatePersonalMailDraftReceipt(result, args.value('id'));
     if (command && !commandOutcome(result)) throw new CliError('The Runtime command receipt is invalid.', { code: 'invalid_response' });
     return result;

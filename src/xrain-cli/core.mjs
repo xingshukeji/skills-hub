@@ -84,7 +84,8 @@ export class Args {
     return Number(value);
   }
   timeout() {
-    const seconds = this.integer('timeout', 100);
+    const seconds = this.integer('timeout');
+    if (seconds === undefined) return null;
     if (seconds > 86400) throw new CliError('--timeout cannot exceed 86400 seconds.');
     return seconds * 1000;
   }
