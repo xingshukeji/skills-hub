@@ -113,6 +113,35 @@ test('module compilation shares one source across package functions, tenant func
   assert.equal(JSON.parse(readFileSync(receipt.functions[0].output)).key, 'tenant.price');
 });
 
+test('explicit record generator reads a fresh captured module graph while preserving function source', async t => {
+  const f = project(t); modules(f);
+  const body = 'function historic(ctx) {\n  return ctx.input;\n}';
+  put(f.root, 'platform/metadata/historic.mjs', `export ${body}\n`);
+  put(f.root, 'platform/metadata/records.mjs', "import { createHash } from 'node:crypto'; import { historic } from './historic.mjs'; export function records({package: pkg, options}) { return [{id: '0ov' + createHash('sha256').update(options.key).digest('hex').slice(0,17), kind:'BizOrchestrationVersion', values:{version:pkg.baseVersion,source:historic.toString()}}]; }");
+  f.descriptor.recordGenerators = [{ file: 'platform/metadata/records.mjs', export: 'records', options: { key: 'stable' } }]; f.save();
+  const first = await assembleProject(f.root);
+  assert.equal(first.source.records[1].values.source, body);
+  assert.equal(first.source.records[1].values.version, '1.2.3');
+  assert.ok(first.inputs.list().some(item => item.file === 'platform/metadata/historic.mjs'));
+  put(f.root, 'platform/metadata/historic.mjs', `export ${body.replace('ctx.input', 'ctx.result')}\n`);
+  const next = await assembleProject(f.root);
+  assert.match(next.source.records[1].values.source, /ctx\.result/);
+  assert.equal(next.source.records[1].id, first.source.records[1].id);
+});
+
+test('record generators reject external imports, unstable results and duplicate resource identities', async t => {
+  for (const code of [
+    "import fs from 'node:fs'; export const records = () => [];",
+    "export const records = () => [{id:String(Math.random()),kind:'BizObject',values:{}}];",
+    "export const records = () => [{id:'0060123456789abcdefg',kind:'BizObject',values:{}}];",
+  ]) await t.test(code.slice(0, 42), async sub => {
+    const f = project(sub); modules(f);
+    put(f.root, 'platform/metadata/records.mjs', code);
+    f.descriptor.recordGenerators = [{ file: 'platform/metadata/records.mjs', export: 'records' }]; f.save();
+    await assert.rejects(assembleProject(f.root));
+  });
+});
+
 test('project validation reports duplicates, unknown fields, conflicting source, missing exports and dependency gaps', async t => {
   for (const mutation of [
     f => { f.descriptor.records.push(f.descriptor.records[0]); },

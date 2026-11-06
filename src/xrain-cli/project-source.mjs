@@ -1,7 +1,9 @@
-import { readFile, realpath, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { CliError, isObject, nonempty, parseJson, randomId, sha256 } from './core.mjs';
@@ -68,6 +70,23 @@ async function compiler(inputs) {
   return tool;
 }
 
+const loaders = { '.mjs': 'js', '.cjs': 'js', '.js': 'js', '.jsx': 'jsx', '.ts': 'ts', '.mts': 'ts', '.cts': 'ts', '.tsx': 'tsx', '.json': 'json' };
+function inputPlugin(inputs) {
+  return { name: 'project-inputs', setup(build) {
+    build.onLoad({ filter: /.*/, namespace: 'file' }, async args => {
+      if (!inside(inputs.root, args.path)) throw invalid('Bundled modules must be inside the project.');
+      const file = slash(relative(inputs.root, args.path)), loader = loaders[extname(args.path)];
+      if (!loader) throw invalid(`Unsupported project module input: ${file}.`);
+      for (let parent = dirname(args.path); inside(inputs.root, parent); parent = dirname(parent)) {
+        const manifest = join(parent, 'package.json');
+        if (existsSync(manifest)) await inputs.read(slash(relative(inputs.root, manifest)));
+        if (parent === inputs.root) break;
+      }
+      return { contents: await inputs.read(file), loader, resolveDir: dirname(args.path) };
+    });
+  } };
+}
+
 async function scriptSource(inputs, script, kind, tools) {
   fields(script, ['mode', 'file', 'export'], 'script');
   if (!['BizOrchestrationFunction', 'BizOrchestrationVersion'].includes(kind)) throw invalid(`Scripts are not supported for resource kind ${kind}.`);
@@ -81,7 +100,6 @@ async function scriptSource(inputs, script, kind, tools) {
     throw invalid('Module scripts require mode=module, a file and a named export.');
   await inputs.read(script.file);
   const tool = tools.compiler ??= await compiler(inputs);
-  const loaders = { '.mjs': 'js', '.cjs': 'js', '.js': 'js', '.jsx': 'jsx', '.ts': 'ts', '.mts': 'ts', '.cts': 'ts', '.tsx': 'tsx', '.json': 'json' };
   let result;
   try {
     result = await tool.build({ absWorkingDir: inputs.root,
@@ -89,21 +107,7 @@ async function scriptSource(inputs, script, kind, tools) {
       bundle: true, write: false, platform: 'neutral', mainFields: ['module', 'main'], format: 'iife', globalName: '__xrain', target: 'es2022',
       charset: 'utf8', minify: false, legalComments: 'none', metafile: true, logLevel: 'silent',
       // Disable implicit tsconfig transforms. Every program input must be known.
-      tsconfigRaw: {}, plugins: [{ name: 'project-inputs', setup(build) {
-        build.onLoad({ filter: /.*/, namespace: 'file' }, async args => {
-          if (!inside(inputs.root, args.path)) throw invalid('Bundled modules must be inside the project.');
-          const file = slash(relative(inputs.root, args.path)), loader = loaders[extname(args.path)];
-          if (!loader) throw invalid(`Unsupported platform module input: ${file}.`);
-          // Package exports/main/type can affect resolution even though esbuild
-          // does not list package.json as a program input in its metafile.
-          for (let parent = dirname(args.path); inside(inputs.root, parent); parent = dirname(parent)) {
-            const manifest = join(parent, 'package.json');
-            if (existsSync(manifest)) await inputs.read(slash(relative(inputs.root, manifest)));
-            if (parent === inputs.root) break;
-          }
-          return { contents: await inputs.read(file), loader, resolveDir: dirname(args.path) };
-        });
-      } }] });
+      tsconfigRaw: {}, plugins: [inputPlugin(inputs)] });
   } catch (error) {
     const messages = error.errors?.map(item => item.text).join('; ');
     throw new CliError(`Cannot compile ${script.file}: ${messages ?? error.message}`, { code: 'project_compile_failed' });
@@ -112,6 +116,53 @@ async function scriptSource(inputs, script, kind, tools) {
     throw invalid(`Platform source cannot retain runtime module imports: ${script.file}.`);
   const body = `${result.outputFiles[0].text}\nreturn __xrain.invoke(ctx);\n`;
   return kind === 'BizOrchestrationFunction' ? `function(ctx) {\n${body}}` : `function execute(ctx) {\n${body}}`;
+}
+
+async function generatedRecords(inputs, generator, pkg, tools) {
+  fields(generator, ['file', 'export', 'options'], 'record generator');
+  if (!nonempty(generator.file) || !/\.(?:mjs|js)$/.test(generator.file) ||
+      typeof generator.export !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(generator.export) ||
+      (generator.options !== undefined && !isObject(generator.options)))
+    throw invalid('Record generators require a JavaScript file, named export and optional options object.');
+  await inputs.read(generator.file);
+  const tool = tools.compiler ??= await compiler(inputs);
+  let result;
+  try {
+    result = await tool.build({ absWorkingDir: inputs.root, entryPoints: [generator.file], bundle: true,
+      platform: 'node', format: 'esm', write: false, metafile: true, logLevel: 'silent', tsconfigRaw: {},
+      plugins: [inputPlugin(inputs)] });
+  } catch (error) {
+    throw new CliError(`Cannot inspect record generator ${generator.file}: ${error.errors?.map(item => item.text).join('; ') ?? error.message}`,
+      { code: 'project_compile_failed' });
+  }
+  const imports = Object.values(result.metafile.inputs).flatMap(input => input.imports);
+  if (imports.some(item => item.kind !== 'import-statement' || (item.external && item.path !== 'node:crypto')) ||
+      /\b(?:import|require)\s*\(/.test(result.outputFiles[0].text) || result.warnings.length)
+    throw invalid('Record generators may use statically imported project modules and node:crypto only.');
+
+  // Execute exact captured files rather than the bundled output. Some existing
+  // resources intentionally preserve Function.toString() as immutable source.
+  // A new directory per invocation also prevents stale Node module-cache reads.
+  const parent = resolve(tmpdir()), snapshot = await mkdtemp(join(parent, 'xrain-project-source-'));
+  if (dirname(snapshot) !== parent || !basename(snapshot).startsWith('xrain-project-source-'))
+    throw invalid('Cannot create an isolated project source snapshot.');
+  try {
+    for (const [file, bytes] of inputs.files) {
+      const target = join(snapshot, file);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, bytes, { flag: 'wx' });
+    }
+    const module = await import(pathToFileURL(join(snapshot, generator.file)).href);
+    if (typeof module[generator.export] !== 'function') throw invalid(`Record generator export not found: ${generator.export}.`);
+    const args = () => ({ package: structuredClone(pkg), options: structuredClone(generator.options ?? {}) });
+    const records = await module[generator.export](args());
+    const repeated = await module[generator.export](args());
+    if (!Array.isArray(records) || JSON.stringify(records) !== JSON.stringify(repeated))
+      throw invalid('Record generator must return the same array for the same input.');
+    return records;
+  } finally {
+    await rm(snapshot, { recursive: true, force: true });
+  }
 }
 
 async function attachSource(inputs, entry, values, kind, tools) {
@@ -176,28 +227,36 @@ function gitState(root, inputs, release) {
 export async function assembleProject(project, { release = false } = {}) {
   const root = await realpath(resolve(project)), inputs = new ProjectInputs(root);
   const descriptor = await inputs.json('xrain-project.json');
-  fields(descriptor, ['schemaVersion', 'package', 'records', 'tenantFunctions'], 'xrain-project.json');
+  fields(descriptor, ['schemaVersion', 'package', 'records', 'recordGenerators', 'tenantFunctions'], 'xrain-project.json');
   if (descriptor.schemaVersion !== 1) throw invalid('Unsupported project schemaVersion; expected 1.');
   fields(descriptor.package, ['packageId', 'namespace', 'label', 'baseVersion', 'releaseVersionId'], 'package');
   const pkg = descriptor.package;
   if (!validPackageId(pkg.packageId) || !validVersionId(pkg.releaseVersionId)) throw invalid('packageId and releaseVersionId must use the platform apg/apv identities.');
   if (typeof pkg.namespace !== 'string' || !/^[a-z][a-z0-9]{1,15}$/.test(pkg.namespace) || pkg.namespace.endsWith('\n')) throw invalid('Namespace must have 2-16 lowercase letters or digits and start with a letter.');
   if (!nonempty(pkg.label) || pkg.label.length > 256) throw invalid('Label must have 1-256 characters.');
-  if (!Array.isArray(descriptor.records) || !Array.isArray(descriptor.tenantFunctions ?? [])) throw invalid('records and tenantFunctions must be arrays.');
+  if (!Array.isArray(descriptor.records) || !Array.isArray(descriptor.recordGenerators ?? []) || !Array.isArray(descriptor.tenantFunctions ?? []))
+    throw invalid('records, recordGenerators and tenantFunctions must be arrays.');
   const source = { packageId: pkg.packageId, namespace: pkg.namespace, label: pkg.label,
     versionId: release ? pkg.releaseVersionId : randomId('apv'), version: projectVersion(pkg.baseVersion, release), records: [] };
   const files = new Set(), ids = new Set(), keys = new Set(), tenantFunctions = [], tools = {};
+  const addRecord = (record, label) => {
+    fields(record, ['id', 'kind', 'values'], label);
+    if (!nonempty(record.id) || !nonempty(record.kind) || !isObject(record.values)) throw invalid(`Invalid platform resource shape: ${label}.`);
+    if (ids.has(record.id)) throw invalid(`Duplicate resource ID: ${record.id}.`);
+    ids.add(record.id);
+    source.records.push(record);
+  };
   for (const entry of descriptor.records) {
     fields(entry, ['file', 'script', 'contract'], 'record entry');
     if (files.has(entry.file)) throw invalid(`Resource file is declared twice: ${entry.file}.`);
     files.add(entry.file);
     const record = await inputs.json(entry.file);
     fields(record, ['id', 'kind', 'values'], entry.file);
-    if (!nonempty(record.id) || !nonempty(record.kind) || !isObject(record.values)) throw invalid(`Invalid platform resource shape: ${entry.file}.`);
-    if (ids.has(record.id)) throw invalid(`Duplicate resource ID: ${record.id}.`);
-    ids.add(record.id);
-    source.records.push({ ...record, values: await attachSource(inputs, entry, record.values, record.kind, tools) });
+    if (!nonempty(record.kind) || !isObject(record.values)) throw invalid(`Invalid platform resource shape: ${entry.file}.`);
+    addRecord({ ...record, values: await attachSource(inputs, entry, record.values, record.kind, tools) }, entry.file);
   }
+  for (const generator of descriptor.recordGenerators ?? [])
+    for (const record of await generatedRecords(inputs, generator, pkg, tools)) addRecord(record, generator.file);
   for (const entry of descriptor.tenantFunctions ?? []) {
     fields(entry, ['definition', 'script', 'contract'], 'tenant function entry');
     if (files.has(entry.definition)) throw invalid(`Function definition is declared twice: ${entry.definition}.`);

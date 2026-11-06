@@ -13,9 +13,7 @@ Depends On:
 
 ## 目标与现状
 
-二开项目用一套固定结构维护平台元数据、平台脚本、智能体、业务服务及各端源码。开发者从当前源码按需构建平台应用包，取得项目内被 Git 忽略的待导入原包；同一来源可形成正式交付候选。项目业务差异归项目，通用初始化和组装逻辑归 skills-hub。
-
-XRain 的应用包协议、服务端构建、导入和租户安装由 XRain 持有。Workforce 持有公共宿主和客户端；智能体 Runtime 持有定义、会话及运行工作区。skills-hub 维护 CLI 和业务开发技能，不代替这些产品实现或认证。
+二开项目用一套固定结构维护平台元数据、平台脚本、智能体、业务服务及各端源码。开发者从当前源码按需构建平台应用包，取得项目内被 Git 忽略的待导入原包；同一来源可形成正式交付候选。项目业务差异归项目，通用初始化和组装逻辑归 skills-hub。XRain 的应用包协议、服务端构建、导入和租户安装由 XRain 持有。Workforce 持有公共宿主和客户端；智能体 Runtime 持有定义、会话及运行工作区。skills-hub 维护 CLI 和业务开发技能，不代替这些产品实现或认证。
 
 CLI `project init/assemble/build` 使用本文的项目描述组装并构建；`app init`、`app build` 和 `app import-file` 保留原单文件及已交付原包工作流。构建不等于导入、安装或发布。
 
@@ -104,6 +102,7 @@ CLI `project init/assemble/build` 使用本文的项目描述组装并构建；`
         "file": "platform/orchestrations/protect/index.mjs", "export": "execute" }
     }
   ],
+  "recordGenerators": [{ "file": "platform/metadata/resources.mjs", "export": "records", "options": {} }],
   "tenantFunctions": [
     {
       "definition": "platform/functions/quotation/definition.json",
@@ -115,7 +114,7 @@ CLI `project init/assemble/build` 使用本文的项目描述组装并构建；`
 }
 ```
 
-`records` 的每项引用一个包资源记录；业务对象、字段、Trigger、权限及明确采用的 `data/seeds/` 记录均以此方式声明。脚本字段可省略；提供时由 `script` 生成记录的 `values.source`，函数合同由 `contract` 写入 `values.contractJson`。这些字段由外部文件提供时，记录文件不再内嵌同一内容。租户函数的 `definition` 使用管理合同的 `key`、`label`、`isActive` 及可选说明和签名；组装结果补入 `source` 和 `contractJson`。它不携带凭据、租户身份或应用选版，也不是包资源记录；目标函数 ID 由实际管理入口返回。需要随包交付的函数使用 `records` 中的包资源条目和同一脚本结构。
+`records` 的每项引用一个包资源记录；业务对象、字段、Trigger、权限及明确采用的 `data/seeds/` 记录均以此方式声明。版本化源码需要生成一组记录时，可在 `recordGenerators` 显式指定项目内 JavaScript 文件和导出函数；函数接收 `{package, options}` 并返回稳定的记录数组，使用静态项目依赖及 `node:crypto`。构建快照原始模块后执行，不重新编译历史函数文本；不得在生成器中读取环境、网络或运行数据。生成器按受信任项目代码执行，静态导入检查不隔离 Node 全局能力。脚本字段可省略；提供时由 `script` 生成记录的 `values.source`，函数合同由 `contract` 写入 `values.contractJson`。这些字段由外部文件提供时，记录文件不再内嵌同一内容。租户函数的 `definition` 使用管理合同的 `key`、`label`、`isActive` 及可选说明和签名；组装结果补入 `source` 和 `contractJson`。它不携带凭据、租户身份或应用选版，也不是包资源记录；目标函数 ID 由实际管理入口返回。需要随包交付的函数使用 `records` 中的包资源条目和同一脚本结构。
 
 `script.mode=module` 将项目锁定的模块依赖编译为目标资源要求的函数源码。`mode=frozen` 从 JSON 字符串文件恢复已交付版本的完整平台源码，不执行模块编译；冻结条目不需要导出名。JSON 字符串保留原换行和源码字符，避免检出时行尾转换改变旧版本。组装器按资源 kind 输出平台函数表达式或 `execute(ctx)` 入口，不把 Node.js、文件系统或 npm 模块作为平台运行依赖。组装器检查项目描述、文件、重复资源 ID 和同一源码的重复声明；未知条目按实际诊断返回，不静默漏掉资源。平台资源语义和目标执行继续由现有平台校验，不复制一套包协议。项目描述本身不进入最终平台包。
 
