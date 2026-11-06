@@ -63,6 +63,8 @@ metadata:
 
 XRain 业务先查对象自带字段、Owner、分享、历史、有效授权和已配置的函数/编排；新增同类表或处理器时，核对是否确有独立业务事实。不能只审新代码内部正确，却漏掉重复造平台能力或绕过现有授权的设计。相关语义按需读[对象基础](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/object-foundation.md)与[授权](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/authorization.md)。
 
+调查业务闭环、线上缺失资源或提出修复交付建议时，按需读取[业务逻辑承载](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/implementation.md#选择承载业务逻辑的地方)和[项目源码与制品边界](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/project-structure.md)。对照实际项目描述、源码和交付合同区分包资源、独立租户函数及租户配置；线上缺失不证明源码缺失或应现场新建。只读审查保持只读。
+
 Workforce 公共改动追到实际应用、页面和工具，身份链区分认证主体、租户成员及执行绑定。核对消费者安装的包和锁文件，源码已改不证明当前应用加载了它；元数据、HTTP 返回、SDK 转换和页面保存须接得上。内部审查可追责任源码，业务消费者只靠公开能力也应能完成。界面中的状态和解释须服务用户业务判断，不能把内部职责说明当作产品功能。
 
 ## 3. 反证候选并搜索同类入口

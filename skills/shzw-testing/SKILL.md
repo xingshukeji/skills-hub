@@ -14,6 +14,8 @@ metadata:
 
 固定原动作、预期结果、当前源码或制品、环境及必要身份用途。用户要求完整范围时，从当前产品入口和功能清单列出应验证的业务动作，再映射已有证据；不能从已运行测试反推范围。产品不支持与支持但未测的动作分别说明。
 
+验证 XRain 业务闭环或调查目标缺失资源时，按需对照[业务逻辑承载](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/implementation.md#选择承载业务逻辑的地方)和[项目源码与制品边界](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-workforce-business-development/references/project-structure.md)，核对实际项目描述、源码、制品及目标生效状态。区分包受管资源、独立交付的租户函数和租户配置；缺少在线资源不能推断源码不存在，也不授权现场建立或部署。
+
 用户对已有测试、性能或修复验收说“校准”“矫正”“纠偏”时，恢复同一验证对象、用户已接受的结果和证据边界；按本技能及 [skills-hub 业务判断来源索引](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/judgment-calibration.md) 选读匹配的已有判断，主动核对原场景、相邻合法动作和未确认影响，不只改写报告。优先读取已安装技能资源；来源不可用时说明范围并继续可做的检查。新改动、失败或具体疑点才追加验证，不因校准自动建立独立测试或重复已接受的性能活动。
 
 ## 2. 选择证据与断言

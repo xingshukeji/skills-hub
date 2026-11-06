@@ -17,7 +17,7 @@ metadata:
 在当前项目实现业务，沿用用户已确认的业务要求、产品契约、身份与接入方式。企业应用按闭源条件使用交付文档、公共包导出、受支持 API 和企业代码；不要求平台源码、内部导入路径或相邻仓库。公共宿主维护按实际责任项目读取源码与测试。示例采用通用业务名称和命名空间。
 
 - 对象、字段和 E-R 关系先按[建模](references/modeling.md)核对材料依据、记录粒度、关系语义与完整字段；绘图工具负责表达。纯方案制定或评审由 `shzw-solution` 组织，按需读取此专题。
-- 初始化、规划或调整 XRain 二开项目时，按[标准源码结构](references/project-structure.md)区分平台资源、函数、智能体、宿主和客户端的源码及交付；沿实际项目保留稳定身份和消费者，不因标准而无授权重构已有项目。
+- 初始化、规划或调整 XRain 二开项目，或调查业务现状、验证功能、判断线上缺失资源及提出修复或交付建议时，按需读[标准源码结构](references/project-structure.md)和[业务逻辑承载](references/implementation.md#选择承载业务逻辑的地方)。沿实际项目描述、源码与交付合同核对逻辑归属及生效路径；区分包受管资源、独立交付的租户函数和租户配置，不因线上缺失就建议现场另写逻辑，也不假定所有函数随包安装。保留稳定身份和消费者，不因标准而无授权重构已有项目。
 - 业务开发先按[业务主线](references/business-mainlines.md)找到本次要完成的工作及前后衔接，复用已确认部分，只处理实际差异。批量或规模会影响结果时，提前核对实际工作量、平台机制和代表性输入；单独技术问题直接进入对应专题。需要优化 CPU、内存、IO 或延迟时，沿本业务动作使用[性能优化方法](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-runtime-operations/modes/performance/GUIDE.md)，定位实际等待与重复工作，再由拥有该事实的组件实现，不把服务内部机制复制到业务应用。
 - 再将业务动作拆成平台已实现、需配置接入、需新增逻辑。复用标准字段、授权、分享、历史、恢复和原系统操作，只建独立业务事实。
 - 查询或操作既有 XRain/Workforce 资源时，若宿主已提供 `shzw-xrain-cli`，按其[业务任务与命令选择](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/task-selection.md)选用现有命令。记录导入导出、消息、Task、计划、邮箱、顾客接待及智能体操作无需用户额外说出 CLI；执行前读取该技能入口，核对目标、身份和命令帮助。CLI 未提供所需能力时，按本专题的实际 HTTP/SDK 合同继续；新增逻辑仍按原业务目标开发，不把原始 API 请求或自写脚本作为默认前提。
@@ -38,7 +38,7 @@ metadata:
 | 问题 | 参考 |
 | --- | --- |
 | 业务落地、长主线复用及跨环节衔接 | [业务主线](references/business-mainlines.md) |
-| XRain 二开项目初始化、源码结构及各类制品交付 | [标准源码结构](references/project-structure.md) |
+| XRain 二开项目源码、业务逻辑归属及各类制品交付或缺失资源调查 | [标准源码结构](references/project-structure.md)、[业务逻辑承载](references/implementation.md#选择承载业务逻辑的地方) |
 | 需求复用与模型 | [对象自带能力](references/object-foundation.md)、[建模](references/modeling.md) |
 | 承载方式与预置资源 | [平台与业务](references/platform.md)、[初始化基础](references/initialized-platform.md) |
 | 接口、数据及文件导入导出 | [业务 API](references/business-api.md)、[批量/统计/文件操作](references/data-operations.md) |
