@@ -25,6 +25,8 @@ var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "na
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
 valued.add("line");
 valued.add("project");
+valued.add("key");
+valued.add("cases");
 valued.add("field");
 valued.add("share-id");
 valued.add("tree-id");
@@ -837,8 +839,8 @@ async function capabilities(client2, options, requireSupported = true, deadline)
     throw new CliError("Chunked import is unavailable for this object.", { code: "import_jobs_unavailable", details: { reasons: jobs.unavailableReasons ?? [] } });
   const orchestrationId = options?.importBinding?.orchestrationId;
   if (requireSupported && orchestrationId) {
-    const definition2 = Array.isArray(value.orchestrations) && value.orchestrations.find((item) => item.id === orchestrationId);
-    const contract = definition2?.import;
+    const definition3 = Array.isArray(value.orchestrations) && value.orchestrations.find((item) => item.id === orchestrationId);
+    const contract = definition3?.import;
     if (!contract || contract.version !== 2 || ["transform", "normalizeIdentity", "prepareRecord", "validate"].some((phase) => !(phase === "transform" && options.filePurpose === "recordMaintenance") && contract[phase] === true && contract.phaseScopes?.[phase] !== "independentRows"))
       throw new CliError("The selected import binding does not advertise independent processing for every enabled stage.", {
         code: "import_binding_unavailable",
@@ -2324,8 +2326,8 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   signal?.throwIfAborted();
   const expected = new URL(redirectUri);
   let accept, fail, consumed = false, callbackResponse;
-  const callback = new Promise((resolve12, reject) => {
-    accept = resolve12;
+  const callback = new Promise((resolve13, reject) => {
+    accept = resolve13;
     fail = reject;
   });
   callback.catch(() => {
@@ -2354,9 +2356,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve12, reject) => {
+  await new Promise((resolve13, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve12);
+    server.listen(Number(expected.port), expected.hostname, resolve13);
   });
   let closed = false;
   const close = (force = false, reason = new CliError("Login callback closed before completion.", { code: "interrupted" })) => {
@@ -2383,13 +2385,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve12) => {
+  return new Promise((resolve13) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve12(false));
+    child.on("error", () => resolve13(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve12(code === 0));
+    child.on("exit", (code) => resolve13(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -3213,14 +3215,14 @@ async function appStatus(ctx) {
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
   const statuses3 = [];
   for (const item of selected) {
-    const versions = requireSuccess(await send2("GET", `${root2}/packages/${encodeURIComponent(item.id)}/versions`)).json();
-    if (!Array.isArray(versions)) throw new CliError("The server returned an invalid version list.");
+    const versions2 = requireSuccess(await send2("GET", `${root2}/packages/${encodeURIComponent(item.id)}/versions`)).json();
+    if (!Array.isArray(versions2)) throw new CliError("The server returned an invalid version list.");
     statuses3.push({
       id: item.id,
       namespace: item.namespace,
       label: item.label,
       publishedVersionId: item.publishedVersionId,
-      versions: versions.filter((v) => ctx.args.has("exchange") || v.publishedAt != null).map((v) => ({ id: v.id, version: v.version, digest: v.digest, publishedAt: v.publishedAt ?? v.createdAt }))
+      versions: versions2.filter((v) => ctx.args.has("exchange") || v.publishedAt != null).map((v) => ({ id: v.id, version: v.version, digest: v.digest, publishedAt: v.publishedAt ?? v.createdAt }))
     });
   }
   ctx.reporter.print(!ctx.reporter.json && statuses3.length === 1 ? statuses3[0] : statuses3);
@@ -3271,7 +3273,7 @@ async function appCommands(ctx) {
 
 // src/xrain-cli/project.mjs
 import { appendFile, mkdir as mkdir2, mkdtemp as mkdtemp3, readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
-import { dirname as dirname5, join as join6, resolve as resolve5, basename as basename3 } from "node:path";
+import { dirname as dirname5, join as join6, resolve as resolve6, basename as basename3 } from "node:path";
 
 // src/xrain-cli/project-source.mjs
 import { mkdir, mkdtemp as mkdtemp2, readFile, realpath, rm, stat as stat3, writeFile } from "node:fs/promises";
@@ -3564,13 +3566,13 @@ async function assembleProject(project, { release = false } = {}) {
     fields(entry, ["definition", "script", "contract"], "tenant function entry");
     if (files.has(entry.definition)) throw invalid4(`Function definition is declared twice: ${entry.definition}.`);
     files.add(entry.definition);
-    const definition2 = await inputs.json(entry.definition);
-    fields(definition2, ["key", "label", "helpText", "signature", "isActive", "source", "contractJson"], entry.definition);
-    if (!nonempty(definition2.key) || !nonempty(definition2.label) || definition2.isActive !== void 0 && typeof definition2.isActive !== "boolean")
+    const definition3 = await inputs.json(entry.definition);
+    fields(definition3, ["key", "label", "helpText", "signature", "isActive", "source", "contractJson"], entry.definition);
+    if (!nonempty(definition3.key) || !nonempty(definition3.label) || definition3.isActive !== void 0 && typeof definition3.isActive !== "boolean")
       throw invalid4(`Function definition requires key, label and optional boolean isActive: ${entry.definition}.`);
-    if (keys.has(definition2.key)) throw invalid4(`Duplicate tenant function key: ${definition2.key}.`);
-    keys.add(definition2.key);
-    const value = await attachSource(inputs, entry, definition2, "BizOrchestrationFunction", tools);
+    if (keys.has(definition3.key)) throw invalid4(`Duplicate tenant function key: ${definition3.key}.`);
+    keys.add(definition3.key);
+    const value = await attachSource(inputs, entry, definition3, "BizOrchestrationFunction", tools);
     if (!nonempty(value.source)) throw invalid4(`Function source is required: ${entry.definition}.`);
     tenantFunctions.push(value);
   }
@@ -3586,6 +3588,182 @@ async function assembleProject(project, { release = false } = {}) {
     git,
     compiler: tools.compiler ? { name: "esbuild", version: tools.compiler.version, target: "es2022" } : null
   };
+}
+
+// src/xrain-cli/project-function.mjs
+import { isDeepStrictEqual } from "node:util";
+import { resolve as resolve5 } from "node:path";
+var sources = "/api/orchestration/v1/functions";
+var versions = (id) => `/api/xrain/v1/functions/${segment(id)}/versions`;
+var canonical = (value) => JSON.stringify(sort(value));
+function sort(value) {
+  if (Array.isArray(value)) return value.map(sort);
+  return isObject(value) ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sort(value[key])])) : value;
+}
+var sameContent = (a, b) => a.source === b.source && canonical(a.contractJson) === canonical(b.contractJson);
+var definition = (value) => ({
+  key: value.key,
+  label: value.label,
+  helpText: value.helpText ?? null,
+  signature: value.signature ?? null,
+  isActive: value.isActive ?? true,
+  source: value.source,
+  contractJson: value.contractJson
+});
+function array(value) {
+  if (!Array.isArray(value)) throw new CliError("The server returned an invalid function catalog.", { code: "invalid_response" });
+  return value;
+}
+async function findSource(call, key, tenantId) {
+  const matches = array(await call("GET", sources)).filter((item) => item.key === key);
+  if (matches.length > 1) throw new CliError("The function key is ambiguous.", { code: "function_ambiguous" });
+  const value = matches[0];
+  if (value && (!nonempty(value.id) || value.isSystem !== false || value.tenantId !== tenantId))
+    throw new CliError("The function is not a source owned by the current tenant.", { code: "function_source_unavailable" });
+  return value;
+}
+function expectedDifferences(actual, expected, path = "$") {
+  if (isObject(expected)) {
+    if (!isObject(actual)) return [{ path, expected, actual: actual ?? null }];
+    return Object.entries(expected).flatMap(([key, value]) => Object.hasOwn(actual, key) ? expectedDifferences(actual[key], value, `${path}.${key}`) : [{ path: `${path}.${key}`, expected: value, missing: true }]);
+  }
+  if (Array.isArray(expected) && Array.isArray(actual) && expected.length === actual.length)
+    return expected.flatMap((value, index) => expectedDifferences(actual[index], value, `${path}[${index}]`));
+  return isDeepStrictEqual(actual, expected) ? [] : [{ path, expected, actual: actual ?? null }];
+}
+function validateCases(suite) {
+  if (!isObject(suite) || suite.schemaVersion !== 1 || Object.keys(suite).some((k) => !["schemaVersion", "cases"].includes(k)) || !Array.isArray(suite.cases) || !suite.cases.length) throw new CliError("Cases require schemaVersion: 1 and a nonempty cases array.", { code: "invalid_cases" });
+  const names = /* @__PURE__ */ new Set();
+  for (const item of suite.cases) {
+    if (!isObject(item) || Object.keys(item).some((k) => !["name", "input", "expected"].includes(k)) || !nonempty(item.name) || names.has(item.name) || !Object.hasOwn(item, "input") || !Object.hasOwn(item, "expected") || isObject(item.expected) && !Object.keys(item.expected).length)
+      throw new CliError("Every case needs a unique name, input and nonempty expected result.", { code: "invalid_cases" });
+    names.add(item.name);
+  }
+  return suite.cases;
+}
+async function projectFunctionCommands(ctx) {
+  const { args, reporter } = ctx;
+  const key = args.required("key"), action = args.command(2);
+  const versionId = action === "test" ? args.required("version-id") : void 0;
+  const project = resolve5(args.value("project") ?? ".");
+  const cases = action === "test" ? validateCases(await readJsonInput(resolve5(project, args.required("cases")), "Function cases")) : void 0;
+  if (cases) registerSecrets(reporter, cases);
+  const assembly = await assembleProject(project, { release: args.has("release") });
+  const declared = assembly.tenantFunctions.filter((item) => item.key === key);
+  if (declared.length !== 1 || !isObject(declared[0].contractJson))
+    throw new CliError("Select one declared tenantFunctions entry with a structured contract using --key.", { code: "project_function_missing" });
+  const wanted = definition(declared[0]);
+  const profile = ctx.store.resolve(args, true);
+  const call = (method, route, body, mutation2, validate) => apiValue(
+    ctx,
+    method,
+    route,
+    body,
+    { resolvedProfile: profile, sessionOnly: true, mutation: mutation2, validate }
+  );
+  const identity = await call("GET", "/api/service/authen/v1/account/context");
+  if (!nonempty(identity?.tenantId) || !nonempty(identity?.userId) || identity.scope !== "tenant" || profile.scope === "host")
+    throw new CliError("A tenant user session is required.", { code: "invalid_identity" });
+  const target2 = { server: profile.server, tenantId: identity.tenantId, userId: identity.userId, key };
+  let source = await findSource(call, key, identity.tenantId);
+  if (action === "test") {
+    if (!source) throw new CliError("The declared function has not been published to this tenant.", { code: "function_source_unavailable" });
+    const version = array(await call("GET", versions(source.id))).find((item) => item.id === versionId);
+    if (!version || version.functionId !== source.id || !nonempty(version.source) || !isObject(version.contractJson))
+      throw new CliError("The version does not belong to the selected project function.", { code: "function_version_unavailable" });
+    const results = [];
+    for (const item of cases) {
+      let actual;
+      try {
+        actual = await call(
+          "POST",
+          `/api/xrain/v1/function-versions/${segment(versionId)}:test`,
+          { input: item.input },
+          {
+            ...target2,
+            functionId: source.id,
+            versionId,
+            case: item.name,
+            hint: "The test outcome is unknown. Ordinary functions may have SDK effects; inspect the original effects before running this case again."
+          }
+        );
+      } catch (error) {
+        error.details = { ...error.details, ...target2, versionId, case: item.name, completedCases: results };
+        throw error;
+      }
+      const differences = expectedDifferences(actual, item.expected);
+      results.push({ name: item.name, passed: !differences.length, ...differences.length ? { differences } : {} });
+    }
+    const failed = results.filter((item) => !item.passed).length;
+    reporter.print({
+      ...target2,
+      functionId: source.id,
+      versionId,
+      matchesProject: sameContent(version, wanted),
+      sourceSha256: sha256(version.source),
+      contractSha256: sha256(canonical(version.contractJson)),
+      total: results.length,
+      passed: results.length - failed,
+      failed,
+      cases: results
+    });
+    return failed ? 1 : 0;
+  }
+  const saved = await saveAssembly(assembly);
+  const output2 = saved.metadata.functions.find((item) => item.key === key);
+  const progress = {
+    ...target2,
+    assembly: saved.assemblyPath,
+    functionInput: output2.output,
+    sourceSha256: sha256(wanted.source),
+    contractSha256: sha256(canonical(wanted.contractJson))
+  };
+  const mutate = async (method, route, body, stage, validate) => {
+    reporter.progress(`Publishing ${key}: ${stage}${source ? ` (${source.id})` : ""}.`);
+    return call(method, route, body, {
+      ...progress,
+      stage,
+      ...source ? { functionId: source.id } : {},
+      readback: ["function", "list"],
+      hint: "Inspect the original function key and its versions on this target before another publish; do not blindly repeat an unknown write."
+    }, validate);
+  };
+  const validSource = (value) => nonempty(value?.id) && value.key === key && value.tenantId === identity.tenantId && value.isSystem === false;
+  try {
+    if (!source) source = await mutate("POST", sources, wanted, "create-source", validSource);
+    else if (!isDeepStrictEqual(definition(source), wanted)) {
+      if (!args.has("update")) throw new CliError("The existing tenant source differs from this project.", {
+        code: "function_update_required",
+        hint: "Inspect the existing source and preserve intended tenant changes in the project; use --update to publish the reconciled project source.",
+        details: { ...progress, functionId: source.id, currentSourceSha256: sha256(source.source) }
+      });
+      const { key: _key, ...body } = wanted;
+      source = await mutate("PUT", `${sources}/${segment(source.id)}`, body, "update-source", validSource);
+    }
+    progress.functionId = source.id;
+    source = await findSource(call, key, identity.tenantId);
+    if (!source || !isDeepStrictEqual(definition(source), wanted))
+      throw new CliError("The current source changed during publication.", { code: "function_source_changed", details: progress });
+    const previous = array(await call("GET", versions(source.id)));
+    let version = previous.find((item) => item.functionId === source.id && nonempty(item.id) && sameContent(item, wanted));
+    const reused = !!version;
+    if (!version) version = await mutate(
+      "POST",
+      versions(source.id),
+      void 0,
+      "create-version",
+      (value) => nonempty(value?.id) && value.functionId === source.id && nonempty(value.source) && isObject(value.contractJson)
+    );
+    if (!sameContent(version, wanted)) throw new CliError(
+      "The created version contains a concurrent source change; it was not selected.",
+      { code: "function_source_changed", details: { ...progress, functionId: source.id, versionId: version.id } }
+    );
+    reporter.print({ ...progress, functionId: source.id, versionId: version.id, reused, selectionChanged: false });
+  } catch (error) {
+    error.details = { ...progress, ...error.details };
+    throw error;
+  }
+  return 0;
 }
 
 // src/xrain-cli/project.mjs
@@ -3606,7 +3784,7 @@ async function initProject(ctx) {
   const namespace = ctx.args.required("namespace"), label = ctx.args.required("label").trim();
   if (!/^[a-z][a-z0-9]{1,15}$/.test(namespace) || namespace.endsWith("\n")) throw new CliError("Namespace must have 2-16 lowercase letters or digits and start with a letter.");
   if (!label.length || label.length > 256) throw new CliError("Label must have 1-256 characters.");
-  const root2 = resolve5(ctx.args.value("dir") ?? namespace), path = join6(root2, "xrain-project.json");
+  const root2 = resolve6(ctx.args.value("dir") ?? namespace), path = join6(root2, "xrain-project.json");
   const descriptor = { schemaVersion: 1, package: {
     packageId: randomId("apg"),
     namespace,
@@ -3655,10 +3833,10 @@ async function saveAssembly(assembly) {
   await writeNew(sourcePath, sourceBytes);
   for (const [file, bytes] of inputs.files) await writeNew(join6(directory, "inputs", file), bytes);
   const functions = [];
-  for (const [index, definition2] of tenantFunctions.entries()) {
+  for (const [index, definition3] of tenantFunctions.entries()) {
     const output2 = join6(root2, ".artifacts/functions", basename3(directory), `function-${index + 1}.json`);
-    await writeNew(output2, json(definition2));
-    functions.push({ key: definition2.key, output: output2, sha256: sha256(json(definition2)) });
+    await writeNew(output2, json(definition3));
+    functions.push({ key: definition3.key, output: output2, sha256: sha256(json(definition3)) });
   }
   const metadata = {
     schemaVersion: 1,
@@ -3679,6 +3857,7 @@ async function saveAssembly(assembly) {
   return { directory, metadata, assemblyPath };
 }
 async function projectCommands(ctx) {
+  if (ctx.args.command(1) === "function") return projectFunctionCommands(ctx);
   if (ctx.args.command(1) === "init") return initProject(ctx);
   const assembly = await assembleProject(ctx.args.value("project") ?? ".", { release: ctx.args.has("release") });
   const saved = await saveAssembly(assembly);
@@ -3990,7 +4169,7 @@ var hostOperations = [
 ];
 
 // src/xrain-cli/management.mjs
-import { resolve as resolve7 } from "node:path";
+import { resolve as resolve8 } from "node:path";
 
 // src/xrain-cli/metadata-operations.mjs
 var base2 = "/api/metadata/v1";
@@ -4241,9 +4420,9 @@ for (const operation of deliveryOperations) {
 
 // src/xrain-cli/raw-response.mjs
 import { closeSync as closeSync3, constants as constants3, openSync as openSync3, unlinkSync as unlinkSync2, writeSync, fsyncSync as fsyncSync2, fstatSync as fstatSync2, lstatSync as lstatSync2 } from "node:fs";
-import { resolve as resolve6 } from "node:path";
+import { resolve as resolve7 } from "node:path";
 async function rawOutput(ctx, call, context) {
-  const output2 = ctx.args.has("out") ? resolve6(ctx.args.required("out")) : void 0;
+  const output2 = ctx.args.has("out") ? resolve7(ctx.args.required("out")) : void 0;
   const controller = new AbortController(), interrupt = () => controller.abort();
   process.once("SIGINT", interrupt);
   let file, saved = false, result, response, created;
@@ -4386,7 +4565,7 @@ async function managementCommand(ctx) {
   if (!operation) return false;
   const { args, reporter } = ctx;
   const profile = ctx.store.resolve(args, !operation.host);
-  const credentialOutput = operation.credentialOutput ? resolve7(args.required("out")) : void 0;
+  const credentialOutput = operation.credentialOutput ? resolve8(args.required("out")) : void 0;
   if (credentialOutput) requireNewCredentialPath(credentialOutput);
   const headers = Object.fromEntries(Object.entries(operation.headers ?? {}).map(([header, option]) => {
     const value2 = args.required(option);
@@ -4795,6 +4974,8 @@ command("app init", ["namespace", "label", "dir"], [], "Create source.json witho
 command("project init", ["namespace", "label", "dir"], [], "Create xrain-project.json and ignore rules, preserving existing files and creating no business records.");
 command("project assemble", ["project", "release"], [], "Assemble current explicit project inputs offline into .artifacts/; module scripts use project-locked esbuild.");
 command("project build", [...app2, "project", "release"], [], "Assemble current inputs, build through the platform and retain a new original in .artifacts/appkg/. No import, installation or publication.");
+command("project function publish", [...app2, "project", "key", "release", "update"], [], "Publish one declared tenant function from current project source and create or reuse an immutable version. --update replaces a differing existing source. Does not change application selection.");
+command("project function test", [...app2, "project", "key", "version-id", "cases"], [], "Test an explicit published version with project JSON cases and business assertions. Does not publish or select a version; ordinary functions retain their SDK effects.");
 command("app check", [...app2, "source"], [], "Build and validate remotely without saving; use build alone when an artifact is needed.");
 command("app build", [...app2, "source", "output"], [], "Build remotely, validate the returned package, and save it exclusively.");
 command("app publish", [...app2, "exchange", "file"], [slot("file")], "Publish an existing application package without automatic retries.");
@@ -5151,8 +5332,8 @@ async function batchCommands(ctx) {
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve8 } from "node:path";
-import { isDeepStrictEqual } from "node:util";
+import { resolve as resolve9 } from "node:path";
+import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 
 // src/xrain-cli/definition-file.mjs
 var object = (v) => !!v && typeof v === "object" && !Array.isArray(v);
@@ -5918,7 +6099,7 @@ async function runtimeValue(ctx, method, path, json2, extraHeaders = {}, { signa
   }
 }
 var definitionRead = (ctx, path) => runtimeValue(ctx, "GET", path, void 0, {}, { limit: Infinity });
-async function definition(ctx, id) {
+async function definition2(ctx, id) {
   const item = await definitionRead(ctx, `${definitions}/items/${segment(id)}`);
   if (!isObject(item) || item.agentId !== id || !Number.isSafeInteger(item.revision) || item.revision < 1)
     throw new CliError("Runtime returned an invalid definition.", { code: "invalid_response" });
@@ -6029,7 +6210,7 @@ async function prepareDefinition(ctx) {
   const id = await selectedIdentity();
   let current;
   try {
-    current = await definition(ctx, id);
+    current = await definition2(ctx, id);
   } catch (error) {
     if (!(error instanceof CliError && error.httpStatus === 404 && error.serverCode === "AGENT_DEFINITION_NOT_FOUND")) throw error;
   }
@@ -6051,7 +6232,7 @@ async function prepareDefinition(ctx) {
   workspaceChange(patch);
   const body = current ? updatedDefinition(current, patch, expected) : newDefinition(id, patch);
   const validation = await validateCandidate(ctx, id, expected, body);
-  const changedFields = current ? definitionFields.filter((key) => !isDeepStrictEqual(current[key], key === "nativeTools" && body[key] === null ? void 0 : body[key])) : [];
+  const changedFields = current ? definitionFields.filter((key) => !isDeepStrictEqual2(current[key], key === "nativeTools" && body[key] === null ? void 0 : body[key])) : [];
   if (current?.workspaceUnavailable && !changedFields.includes("workspaceId")) changedFields.push("workspaceId");
   const context = {
     applicationId: app3,
@@ -6095,7 +6276,7 @@ async function importDefinition(ctx) {
   const id = identifier(args.value("agent-id") ?? `agent-${randomBytes6(16).toString("hex")}`, "Agent ID");
   const expected = args.has("agent-id") && !args.has("create") ? revision(args) : null;
   let file = await exchangeFile(ctx);
-  const current = expected === null ? newDefinition(id, {}) : await definition(ctx, id);
+  const current = expected === null ? newDefinition(id, {}) : await definition2(ctx, id);
   if (expected !== null) updatedDefinition(current, {}, expected);
   const options = await runtimeValue(ctx, "GET", definitions + "/options");
   if (!isObject(options) || !Array.isArray(options.workspaces)) throw new CliError("Runtime returned invalid definition options.", { code: "invalid_response" });
@@ -6162,14 +6343,14 @@ async function definitionCommands(ctx) {
   }
   const id = identifier(args.required("agent-id"), "Agent ID");
   if (action === "show") {
-    reporter.print(await definition(ctx, id));
+    reporter.print(await definition2(ctx, id));
     return 0;
   }
   if (action === "export") {
-    const current = await definition(ctx, id);
+    const current = await definition2(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve8(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve9(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
     writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
@@ -6186,7 +6367,7 @@ async function definitionCommands(ctx) {
   if ((Object.hasOwn(patch, "workspaceId") || Object.hasOwn(patch, "agentPreset")) && !patch.workspaceChange)
     throw new CliError("Changing workspace or preset requires an explicit workspaceChange.", { code: "invalid_arguments" });
   workspaceChange(patch);
-  const body = updatedDefinition(await definition(ctx, id), patch, expected);
+  const body = updatedDefinition(await definition2(ctx, id), patch, expected);
   reporter.print(await saveDefinition(ctx, id, body));
   return 0;
 }
@@ -6200,7 +6381,7 @@ async function sidebarCommands(ctx) {
     return 0;
   }
   const id = identifier(args.required("agent-id"), "Agent ID");
-  const current = await definition(ctx, id);
+  const current = await definition2(ctx, id);
   if (action === "show") {
     reporter.print({ agentId: id, revision: current.revision, uiPlugins: current.uiPlugins ?? null });
     return 0;
@@ -6369,7 +6550,7 @@ async function userSettingsCommands(ctx) {
 // src/xrain-cli/files.mjs
 import { openAsBlob as openAsBlob3 } from "node:fs";
 import { stat as stat4 } from "node:fs/promises";
-import { basename as basename4, resolve as resolve9 } from "node:path";
+import { basename as basename4, resolve as resolve10 } from "node:path";
 var root = "/api/service/files/v1/files";
 async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
@@ -6389,7 +6570,7 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve9(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
+      const input3 = resolve10(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
       if (!info.isFile()) throw new CliError("Upload requires a regular file.", { code: "invalid_arguments" });
       const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename4(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
@@ -6440,10 +6621,10 @@ async function fileCommands(ctx) {
 
 // src/xrain-cli/market.mjs
 import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync4, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname6, resolve as resolve10 } from "node:path";
+import { dirname as dirname6, resolve as resolve11 } from "node:path";
 import { randomBytes as randomBytes7 } from "node:crypto";
 function newOutput(value) {
-  const path = resolve10(value);
+  const path = resolve11(value);
   if (existsSync4(path)) throw new CliError("Output already exists.", { code: "output_exists" });
   accessSync2(dirname6(path), constants4.W_OK);
   return path;
@@ -6544,7 +6725,7 @@ async function marketCommands(ctx) {
 // src/xrain-cli/workforce.mjs
 import { openAsBlob as openAsBlob4 } from "node:fs";
 import { readFile as readFile4, stat as stat5 } from "node:fs/promises";
-import { basename as basename5, resolve as resolve11 } from "node:path";
+import { basename as basename5, resolve as resolve12 } from "node:path";
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
@@ -6589,7 +6770,7 @@ async function workforceCommands(ctx) {
       const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
       if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
-      const file = resolve11(args.required("file"));
+      const file = resolve12(args.required("file"));
       const audio = catalog.maxAudioBytes === 0 ? await readFile4(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
       body = { ...catalog.selection, ...body, audioBase64: audio.toString("base64") };
     }
@@ -6625,7 +6806,7 @@ async function workforceCommands(ctx) {
   }
   let upload;
   if (operation.upload) {
-    const path = resolve11(args.required("file"));
+    const path = resolve12(args.required("file"));
     const info = await stat5(path);
     if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
     const blob = await openAsBlob4(path);

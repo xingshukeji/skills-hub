@@ -23,6 +23,8 @@ const flags = new Set(['help', 'json', 'device', 'no-browser', 'native', 'passwo
 const valued = new Set(('server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value').split(' '));
 valued.add('line');
 valued.add('project');
+valued.add('key');
+valued.add('cases');
 valued.add('field');
 valued.add('share-id');
 valued.add('tree-id');

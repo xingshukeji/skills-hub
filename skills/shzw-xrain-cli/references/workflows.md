@@ -63,3 +63,5 @@ recycle restore <resource> <id>
 time resolve 为 `{"items":[{"key":"due","localDateTime":"2026-11-01T09:00:00","timeZoneId":"Asia/Shanghai"}]}`；有歧义时从 candidates 明确选择 offset 后再解析。day-range 为 `{"date":"2026-11-01","timeZoneId":"Asia/Shanghai"}`。变量写入为 variableKey、value；输出仅返回 HasValue 等元数据。Host 可用原生 tenantId 查询指定租户变量，省略表示 Host；租户身份不能改变令牌绑定。回收站恢复沿服务端冲突与当前权限处理。
 
 time resolve/day-range 接受原生 Host 或租户身份；使用 Host profile 时不补造租户。
+
+项目源码中的租户函数发布及用例测试使用[项目函数入口](project-functions.md)，无需手工拼装函数源码、建版本及逐例请求。

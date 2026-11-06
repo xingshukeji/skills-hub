@@ -153,6 +153,8 @@ command('app init', ['namespace', 'label', 'dir'], [], 'Create source.json witho
 command('project init', ['namespace', 'label', 'dir'], [], 'Create xrain-project.json and ignore rules, preserving existing files and creating no business records.');
 command('project assemble', ['project', 'release'], [], 'Assemble current explicit project inputs offline into .artifacts/; module scripts use project-locked esbuild.');
 command('project build', [...app, 'project', 'release'], [], 'Assemble current inputs, build through the platform and retain a new original in .artifacts/appkg/. No import, installation or publication.');
+command('project function publish', [...app, 'project', 'key', 'release', 'update'], [], 'Publish one declared tenant function from current project source and create or reuse an immutable version. --update replaces a differing existing source. Does not change application selection.');
+command('project function test', [...app, 'project', 'key', 'version-id', 'cases'], [], 'Test an explicit published version with project JSON cases and business assertions. Does not publish or select a version; ordinary functions retain their SDK effects.');
 command('app check', [...app, 'source'], [], 'Build and validate remotely without saving; use build alone when an artifact is needed.');
 command('app build', [...app, 'source', 'output'], [], 'Build remotely, validate the returned package, and save it exclusively.');
 command('app publish', [...app, 'exchange', 'file'], [slot('file')], 'Publish an existing application package without automatic retries.');

@@ -3,6 +3,7 @@ import { dirname, join, resolve, basename } from 'node:path';
 import { CliError, randomId, sha256 } from './core.mjs';
 import { assembleProject } from './project-source.mjs';
 import { buildAppArtifact } from './app.mjs';
+import { projectFunctionCommands } from './project-function.mjs';
 
 const json = value => JSON.stringify(value, null, 2) + '\n';
 function receipt(metadata) {
@@ -62,6 +63,7 @@ export async function saveAssembly(assembly) {
 }
 
 export async function projectCommands(ctx) {
+  if (ctx.args.command(1) === 'function') return projectFunctionCommands(ctx);
   if (ctx.args.command(1) === 'init') return initProject(ctx);
   const assembly = await assembleProject(ctx.args.value('project') ?? '.', { release: ctx.args.has('release') });
   const saved = await saveAssembly(assembly);

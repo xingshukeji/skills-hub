@@ -187,3 +187,5 @@ Workforce 的无参数 POST 命令提交空 JSON 对象，满足原会话取消�
 `auth tenants` 读取平台的本人企业列表，不修改本地选择；Host 数据库浏览消费原受控数据源 API。独立市场公开读取可匿名进行，写入和本人发布历史仍需独立市场登录。账号绑定和企业代登录通过原浏览器页面完成；CLI 仅返回或打开页面及预期身份，不持有代登录凭据，不把页面打开当成操作完成。
 
 用户功能范围及本轮结果由 [功能对齐](ALIGNMENT_TODO.md)持有；参数、完整请求与恢复动作随 [Workforce](../../skills/shzw-xrain-cli/references/workforce.md)和[子应用](../../skills/shzw-xrain-cli/references/applications.md)参考交付。
+
+项目函数通过 `project function publish/test` 复用共用组装与现有函数管理、版本及试算 API。发布按精确 key 保留来源身份，相同源码和合同复用不可变版本，回执核对实际版本内容；不隐式修改应用选版。测试使用版本 ID 和项目 JSON 用例，对象子集、数组长度及逐项和标量类型分别断言，失败返回非零退出码。来源快照、未知写入、并行版本变化和普通函数的 SDK 副作用按[命令合同](../../skills/shzw-xrain-cli/references/project-functions.md)处理。
