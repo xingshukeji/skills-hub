@@ -67,6 +67,11 @@ function createEmptyRepository({ configureIdentity = true } = {}) {
   if (configureIdentity) {
     git(repo, ["config", "user.name", "Git Closeout Test"]);
     git(repo, ["config", "user.email", "git-closeout@example.invalid"]);
+  } else {
+    // An intentionally missing identity must not inherit the maintainer's
+    // global Git account or a guessed operating-system identity.
+    git(repo, ["config", "user.name", ""]);
+    git(repo, ["config", "user.email", ""]);
   }
   git(repo, ["remote", "add", "origin", remote]);
   write(path.join(repo, "owned.txt"), "initial content\n");
