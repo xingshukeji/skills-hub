@@ -76,8 +76,8 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       return fs.statSync(file).isDirectory() ? walk(file) : [file];
     });
   try {
-    const arity = { read: 2, list: 2, search: 3, test: 1 };
-    if (!Object.hasOwn(arity, op)) throw invalid('Use read <path>, list <path>, search <path> <regex>, or test.');
+    const arity = { read: 2, 'read-range': 4, list: 2, search: 3, test: 1 };
+    if (!Object.hasOwn(arity, op)) throw invalid('Use read <path>, read-range <path> <byte-offset> <byte-length>, list <path>, search <path> <regex>, or test.');
     if (args.length !== arity[op] || args.some(value => typeof value !== 'string' || !value.length)) {
       throw invalid(`Invalid arguments for ${op}.`);
     }
@@ -94,6 +94,60 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       output = rendered;
       result.outputBytes = output.length;
       result.outputSHA256 = output === bytes ? result.sha256 : hash(output);
+    } else if (op === 'read-range') {
+      const [offset, length] = args.slice(2).map(value => /^(0|[1-9]\d*)$/.test(value) ? Number(value) : NaN);
+      if (!Number.isSafeInteger(offset) || !Number.isSafeInteger(length) || length < 1 || !Number.isSafeInteger(offset + length)) {
+        throw invalid('Byte offset must be a nonnegative safe integer and byte length a positive safe integer.');
+      }
+      result = { path: requestedPath, requestedOffset: offset, requestedLength: length,
+        bytesRead: 0, outputBytes: 0, outputSHA256: hash(Buffer.alloc(0)) };
+      const descriptor = fs.openSync(target(requestedPath), 'r');
+      try {
+        const size = fs.fstatSync(descriptor).size;
+        result.fileBytes = size;
+        if (offset > size) throw invalid('Byte offset is past end of file.');
+        const readAt = (position, count, kind) => {
+          const bytes = Buffer.allocUnsafe(count); let read = 0;
+          result[kind + 'BytesRead'] = 0;
+          try {
+            while (read < count) {
+              const n = fs.readSync(descriptor, bytes, read, Math.min(65536, count - read), position + read);
+              if (!n) throw invalid('Input changed during bounded read.', 'INPUT_CHANGED');
+              read += n; result.bytesRead += n; result[kind + 'BytesRead'] += n;
+            }
+            return bytes;
+          } finally { result[kind + 'SHA256'] = hash(bytes.subarray(0, read)); }
+        };
+        const probe = readAt(0, Math.min(2, size), 'encodingProbe');
+        const encoding = textEncoding(probe);
+        result.encoding = encoding; result.outputEncoding = 'utf-8';
+        // At most four bytes on either side complete an intersected UTF-8
+        // character or UTF-16 surrogate pair. These extra reads are metered too.
+        const requestedEnd = Math.min(size, offset + length);
+        const windowStart = Math.max(0, offset - 4), windowEnd = Math.min(size, requestedEnd + 4);
+        result.windowOffset = windowStart;
+        const window = readAt(windowStart, windowEnd - windowStart, 'window');
+        let start = offset, end = requestedEnd;
+        if (start !== end && encoding === 'utf-8') {
+          while (start > windowStart && (window[start - windowStart] & 0xc0) === 0x80) start--;
+          while (end < windowEnd && (window[end - windowStart] & 0xc0) === 0x80) end++;
+        } else if (start !== end) {
+          start -= start % 2; end = Math.min(size, end + end % 2);
+          const unit = position => encoding === 'utf-16le'
+            ? window.readUInt16LE(position - windowStart) : window.readUInt16BE(position - windowStart);
+          if (start + 1 < size && unit(start) >= 0xdc00 && unit(start) <= 0xdfff) start = Math.max(0, start - 2);
+          if (end >= 2 && end <= size && unit(end - 2) >= 0xd800 && unit(end - 2) <= 0xdbff) end = Math.min(size, end + 2);
+        }
+        const bytes = window.subarray(start - windowStart, end - windowStart);
+        Object.assign(result, { rangeOffset: start, rangeBytes: bytes.length, rangeSHA256: hash(bytes), hashScope: 'range',
+          nextOffset: end, eof: end === size });
+        const text = new TextDecoder(encoding, { fatal: true, ignoreBOM: start !== 0 || encoding === 'utf-8' }).decode(bytes);
+        if (text.includes('\0')) throw invalid('Requested range contains NUL characters.', 'NON_TEXT_RANGE');
+        output = Buffer.from(text);
+        result.outputBytes = output.length; result.outputSHA256 = hash(output);
+        errorOutput = `Read range: ${JSON.stringify({ encoding, fileBytes: size, rangeOffset: start,
+          rangeBytes: bytes.length, nextOffset: end, eof: result.eof })}\n`;
+      } finally { fs.closeSync(descriptor); }
     } else if (op === 'list') {
       const file = target(requestedPath), files = fs.statSync(file).isDirectory() ? walk(file).map(relative) : [relative(file)];
       result = { path: requestedPath, files }; output = files.join('\n') + '\n';
@@ -168,7 +222,22 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       output = JSON.stringify(matches, null, 2) + '\n';
       if (skipped.length) errorOutput = `Search skipped non-text files: ${JSON.stringify(skipped)}\n`;
     } else {
-      const files = walk(target('project/tests')).filter(file => file.endsWith('.test.mjs'));
+      const files = [];
+      result = { files: [], testDirectories: [], missingTestDirectories: [] };
+      for (const directory of ['project/tests', 'project/test']) {
+        // An absent conventional directory is optional; an existing but
+        // inaccessible or broken directory must remain an operation failure.
+        try { fs.lstatSync(path.join(input, directory)); }
+        catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+          result.missingTestDirectories.push(directory); continue;
+        }
+        const file = target(directory);
+        if (!fs.statSync(file).isDirectory()) throw invalid('Expected a test directory.', 'NOT_A_DIRECTORY');
+        result.testDirectories.push(directory);
+        files.push(...walk(file).filter(file => /\.test\.(?:mjs|cjs|js)$/.test(file)));
+        result.files = files.map(relative);
+      }
       if (!files.length) throw invalid('No existing test files.', 'NO_TESTS');
       // A replay test process owns its test runner; do not inherit the parent
       // runner's private context when this helper itself is under node --test.
@@ -176,7 +245,7 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       delete env.NODE_TEST_CONTEXT;
       const child = spawnSync(nodeExecutable, ['--test', ...files], { cwd: target('project'), encoding: 'utf8', windowsHide: true, env });
       code = child.status ?? 1;
-      result = { files: files.map(relative), code, signal: child.signal ?? null,
+      result = { ...result, code, signal: child.signal ?? null,
         stdout: child.stdout ?? '', stderr: child.stderr ?? '' };
       if (child.error) result.error = { name: child.error.name, code: child.error.code, message: child.error.message };
       output = result.stdout; errorOutput = result.stderr;

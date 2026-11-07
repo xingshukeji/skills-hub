@@ -55,6 +55,85 @@ test('read, list and search retain actual hashes, returned content and per-file 
   assert.equal(f.run(['search', '.', 'absent']).finish.matches.length, 0);
 });
 
+test('bounded source windows cover UTF-8 and BOM UTF-16 without repeated full scans or split characters', t => {
+  const f = fixture(t), directory = path.join(f.root, 'input/project/resources');
+  fs.mkdirSync(directory, { recursive: true });
+  const text = Array.from({ length: 900 }, (_, i) => `rule ${i}: 中文😀 with no missing source\n`).join('');
+  const little = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+  for (const [name, bytes, expected] of [['source.cs', little, text],
+    ['source', Buffer.from(little).swap16(), text], ['source.js', Buffer.from('\ufeff' + text), '\ufeff' + text]]) {
+    fs.writeFileSync(path.join(directory, name), bytes);
+    let offset = 0, rendered = '', total = 0, calls = 0;
+    do {
+      const original = fs.readSync; let measured = 0, result;
+      try {
+        fs.readSync = (fd, ...args) => { const n = original(fd, ...args); measured += n; return n; };
+        result = f.run(['read-range', `project/resources/${name}`, String(offset), '4093']);
+      } finally { fs.readSync = original; }
+      assert.equal(result.code, 0); const receipt = result.finish;
+      assert.equal(receipt.bytesRead, measured); assert.ok(measured <= 4103);
+      assert.equal(receipt.bytesRead, receipt.encodingProbeBytesRead + receipt.windowBytesRead);
+      assert.equal(receipt.hashScope, 'range'); assert.equal(receipt.sha256, undefined);
+      assert.equal(receipt.rangeSHA256, createHash('sha256').update(bytes.subarray(receipt.rangeOffset, receipt.nextOffset)).digest('hex'));
+      assert.equal(receipt.outputBytes, Buffer.byteLength(result.stdout));
+      assert.equal(receipt.outputSHA256, createHash('sha256').update(result.stdout).digest('hex'));
+      assert.ok(receipt.nextOffset > offset); assert.match(result.stderr, /Read range:/);
+      rendered += result.stdout; offset = receipt.nextOffset; total += measured; calls++;
+      if (receipt.eof) break;
+    } while (offset < bytes.length);
+    assert.equal(rendered, expected); assert.equal(offset, bytes.length);
+    assert.ok(total <= bytes.length + calls * 10); assert.ok(calls > 8);
+    const eof = f.run(['read-range', `project/resources/${name}`, String(bytes.length), '10']);
+    assert.equal(eof.code, 0); assert.equal(eof.stdout, ''); assert.equal(eof.finish.eof, true);
+  }
+});
+
+test('bounded ranges complete intersected Unicode characters and do not strip interior BOM characters', t => {
+  const f = fixture(t), little = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('a😀\ufeffb', 'utf16le')]);
+  for (const [name, bytes] of [['le.cs', little], ['be', Buffer.from(little).swap16()]]) {
+    fs.writeFileSync(path.join(f.root, 'input', name), bytes);
+    for (const offset of ['4', '5', '6', '7']) {
+      const result = f.run(['read-range', name, offset, '1']);
+      assert.equal(result.stdout, '😀'); assert.equal(result.finish.rangeOffset, 4); assert.equal(result.finish.nextOffset, 8);
+    }
+    assert.equal(f.run(['read-range', name, '8', '2']).stdout, '\ufeff');
+  }
+  fs.writeFileSync(path.join(f.root, 'input/utf8'), 'a😀b');
+  for (const offset of ['1', '2', '3', '4']) assert.equal(f.run(['read-range', 'utf8', offset, '1']).stdout, '😀');
+});
+
+test('bounded read failures retain partial I/O and hashes without claiming a full-file scan', t => {
+  const f = fixture(t);
+  for (const args of [['read-range', 'missing', '0', '20'], ['read-range', '../outside', '0', '2'],
+    ...[['-1', '2'], ['0', '0'], ['1.5', '2'], ['0', '2e3'], ['9007199254740991', '1'], ['13', '1']]
+      .map(values => ['read-range', 'example.md', ...values])]) assert.equal(f.run(args).code, 1);
+  for (const [name, bytes] of [['nul', Buffer.from([0, 1])], ['bad.cs', Buffer.from([0xff, 0xfe, 0x61])],
+    ['bad-utf8', Buffer.from([0x61, 0xff])], ['bad-pair', Buffer.from([0xfe, 0xff, 0xd8, 0x3d])]]) {
+    fs.writeFileSync(path.join(f.root, 'input', name), bytes);
+    const failed = f.run(['read-range', name, '0', String(bytes.length)]);
+    assert.equal(failed.code, 1); assert.equal(failed.stdout, ''); assert.equal(failed.finish.outputBytes, 0);
+    assert.equal(failed.finish.hashScope, 'range'); assert.equal(failed.finish.sha256, undefined);
+    assert.equal(failed.finish.rangeSHA256, createHash('sha256').update(bytes).digest('hex'));
+  }
+  const original = fs.readSync; let readCalls = 0, failed;
+  try {
+    fs.readSync = (fd, buffer, offset, length, position) => {
+      if (++readCalls === 3) throw Object.assign(new Error('range read failed'), { code: 'EIO' });
+      return original(fd, buffer, offset, Math.min(length, 3), position);
+    };
+    failed = f.run(['read-range', 'example.md', '0', '12']);
+  } finally { fs.readSync = original; }
+  assert.equal(failed.code, 1); assert.equal(failed.finish.error.code, 'EIO');
+  assert.equal(failed.finish.bytesRead, 5); assert.equal(failed.finish.windowBytesRead, 3);
+  assert.equal(failed.finish.windowSHA256, createHash('sha256').update('hel').digest('hex'));
+  assert.equal(failed.finish.rangeSHA256, undefined); assert.equal(failed.stdout, '');
+  const recovered = f.run(['read-range', 'example.md', '0', '12']);
+  assert.equal(recovered.stdout, 'hello\nworld\n');
+  const delivery = f.run(['read-range', 'example.md', '0', '5'], { stdout: { write() { throw Object.assign(new Error('closed'), { code: 'EPIPE' }); } } });
+  assert.equal(delivery.code, 1); assert.equal(delivery.finish.operationExitCode, 0);
+  assert.equal(delivery.finish.error.stage, 'output'); assert.equal(delivery.finish.outputBytes, 5);
+});
+
 test('test refusal, failing assertions and spawn failure cannot be recorded as successful execution', t => {
   const f = fixture(t);
   assert.equal(f.run(['test']).finish.error.code, 'NO_TESTS');
@@ -67,6 +146,45 @@ test('test refusal, failing assertions and spawn failure cannot be recorded as s
   assert.equal(spawn.finish.status, 'failed'); assert.equal(spawn.finish.error.code, 'ENOENT');
   fs.writeFileSync(file, "import test from 'node:test'; test('success',()=>{});");
   assert.equal(f.run(['test']).finish.status, 'succeeded');
+});
+
+test('replay runs existing native Node ESM and CommonJS test files without omitting consumers', t => {
+  const f = fixture(t), directory = path.join(f.root, 'input/project/tests');
+  for (const extension of ['cjs', 'js']) fs.writeFileSync(path.join(directory, `native.test.${extension}`),
+    `require('node:test')('${extension} consumer',()=>require('node:assert/strict').equal(2+2,4));`);
+  fs.writeFileSync(path.join(directory, 'native.test.mjs'), "import test from 'node:test'; test('mjs consumer',()=>{});");
+  const result = f.run(['test']);
+  assert.equal(result.code, 0); assert.equal(result.finish.files.length, 3);
+  for (const extension of ['mjs', 'js', 'cjs']) assert.match(result.stdout, new RegExp(`\\b${extension} consumer\\b`));
+  fs.writeFileSync(path.join(directory, 'native.test.cjs'), "require('node:test')('cjs business failure',()=>{throw Error('counter refund violated');});");
+  const failed = f.run(['test']);
+  assert.equal(failed.code, 1); assert.match(failed.stdout, /counter refund violated/);
+});
+
+test('replay discovers both conventional test directories and preserves existing-directory failures', t => {
+  const f = fixture(t), singular = path.join(f.root, 'input/project/test'), plural = path.join(f.root, 'input/project/tests');
+  fs.rmdirSync(plural); fs.mkdirSync(singular);
+  fs.writeFileSync(path.join(singular, 'business.test.cjs'), "require('node:test')('singular business',()=>{});");
+  const single = f.run(['test']);
+  assert.equal(single.code, 0); assert.deepEqual(single.finish.files, ['project/test/business.test.cjs']);
+  assert.deepEqual(single.finish.missingTestDirectories, ['project/tests']);
+  fs.mkdirSync(plural);
+  fs.writeFileSync(path.join(plural, 'adjacent.test.mjs'), "import test from 'node:test'; test('plural business',()=>{});");
+  const both = f.run(['test']);
+  assert.equal(both.code, 0); assert.equal(both.finish.files.length, 2);
+  assert.deepEqual(both.finish.testDirectories, ['project/tests', 'project/test']);
+  assert.deepEqual(both.finish.missingTestDirectories, []);
+  const original = fs.lstatSync; let denied;
+  try {
+    fs.lstatSync = (file, ...args) => {
+      if (file === singular) throw Object.assign(new Error('test directory denied'), { code: 'EACCES' });
+      return original(file, ...args);
+    };
+    denied = f.run(['test']);
+  } finally { fs.lstatSync = original; }
+  assert.equal(denied.code, 1); assert.equal(denied.finish.error.code, 'EACCES');
+  assert.deepEqual(denied.finish.files, ['project/tests/adjacent.test.mjs']);
+  assert.equal(denied.finish.stdout, undefined);
 });
 
 test('search finds source text regardless of extension and exposes skipped non-text files', t => {
