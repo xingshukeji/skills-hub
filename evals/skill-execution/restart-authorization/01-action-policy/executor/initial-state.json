@@ -1,0 +1,58 @@
+{
+  "case": "action-policy",
+  "instances": {
+    "dev-web": {
+      "generation": 4,
+      "status": "degraded",
+      "boot": "dev-b4",
+      "statePath": "data/dev-current",
+      "process": {
+        "pid": 6310,
+        "birth": "dev-b4"
+      },
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3"
+    }
+  },
+  "processes": [
+    {
+      "pid": 6310,
+      "birth": "dev-b4",
+      "resource": "dev-web",
+      "statePath": "data/dev-current",
+      "alive": true
+    }
+  ],
+  "terminals": [],
+  "markers": [],
+  "storage": {
+    "data/dev-current": {
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3",
+      "messages": 19
+    }
+  },
+  "policy": {
+    "principal": "workspace-agent",
+    "userRequest": "restart dev-web approved",
+    "capabilities": [
+      "read"
+    ],
+    "authority": "execution-session policy"
+  },
+  "audit": [
+    {
+      "id": "audit-1",
+      "resource": "dev-web",
+      "action": "status",
+      "decision": "allow"
+    }
+  ],
+  "attempts": [],
+  "damage": [],
+  "report": null
+}

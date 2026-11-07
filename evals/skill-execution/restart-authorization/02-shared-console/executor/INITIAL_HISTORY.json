@@ -1,0 +1,12 @@
+[
+  {
+    "time": "09:10:00",
+    "source": "console-preview",
+    "message": "dev-web transport ECONNRESET"
+  },
+  {
+    "time": "09:11:00",
+    "source": "console-preview",
+    "message": "shared-index attached to existing terminal"
+  }
+]

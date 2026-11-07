@@ -1,0 +1,76 @@
+{
+  "instance": {
+    "id": "dev-web",
+    "status": "degraded",
+    "generation": 4,
+    "process": {
+      "pid": 7104,
+      "birth": "dev-b4"
+    },
+    "statePath": "data/dev-current",
+    "sessions": [
+      "review-session-7"
+    ],
+    "definition": "workflow-r3"
+  },
+  "terminal": {
+    "id": "console-dev",
+    "open": true,
+    "members": [
+      "dev-web"
+    ],
+    "askForApproval": "Never",
+    "lastInputError": "write_stdin rejected: approval required by policy, but AskForApproval is set to Never"
+  },
+  "effectivePolicy": {
+    "principal": "workspace-agent",
+    "version": "session-policy-4",
+    "userAuthorization": {
+      "resource": "dev-web",
+      "action": "restart",
+      "decision": "approved"
+    },
+    "entries": [
+      {
+        "entry": "write_stdin",
+        "decision": "deny",
+        "reason": "approval required by policy",
+        "askForApproval": "Never"
+      }
+    ],
+    "actions": [
+      {
+        "resource": "dev-web",
+        "action": "dev.stop",
+        "decision": "deny",
+        "scope": "all control entries",
+        "source": "effective execution-session policy"
+      },
+      {
+        "resource": "dev-web",
+        "action": "dev.start",
+        "decision": "allow",
+        "scope": "managed instance"
+      }
+    ]
+  },
+  "storage": {
+    "sessions": [
+      "review-session-7"
+    ],
+    "messages": 19,
+    "definition": "workflow-r3"
+  },
+  "audit": [
+    {
+      "id": "event-1",
+      "entry": "write_stdin",
+      "target": "console-dev",
+      "input": "Ctrl+C",
+      "decision": "deny",
+      "error": "write_stdin rejected: approval required by policy, but AskForApproval is set to Never"
+    }
+  ],
+  "attempts": [],
+  "report": null
+}

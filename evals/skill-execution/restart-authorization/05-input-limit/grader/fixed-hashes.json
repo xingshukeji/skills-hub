@@ -1,0 +1,11 @@
+{
+  "executor/REQUEST.md": "d6e4961f442025df0a785bd36e351abf51e3fe81584662106d178f73d6362cb8",
+  "executor/AUTHORIZATION.md": "7d29aebf42a6f2df95c682d2ebb7de1f740ec03db168c2ce35a82a6148e69717",
+  "executor/RUN_CONTRACT.md": "dbeac7e6215cdd199f3516526bee23a189eeedacb4a1c3d4743b4821f343fd0a",
+  "executor/INITIAL_HISTORY.json": "73b151a92a8d8c3e1430791658d4c5340f9bc5a871092af8f85a4ce390cf1057",
+  "executor/initial-state.json": "d5e24f4f6c343f6f96a2adef7558bfbc93d9aee69ad3db748fc06212033d424e",
+  "executor/tool.mjs": "5a67d67a7ba10bd205ad03c5837b64f946e651be2ba43022641b99b7bd172d10",
+  "grader/CRITERIA.md": "504b345dd00d46b1d906f136b84fe5c5bf4fea42607506d90815bfec4e06461a",
+  "grader/grade.mjs": "d0120251fbdcdad87753b38d647e146aa49301e27b9452e4e25dce89aae30539",
+  "grader/witness.mjs": "f101e133791263e539671fe3c1f44c48feb1088ad07a7e120f18e0a1398a7679"
+}

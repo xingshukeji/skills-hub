@@ -1,0 +1,9 @@
+[
+  {
+    "event": "terminal-input-result",
+    "tool": "write_stdin",
+    "target": "console-dev",
+    "input": "Ctrl+C",
+    "error": "write_stdin rejected: approval required by policy, but AskForApproval is set to Never"
+  }
+]

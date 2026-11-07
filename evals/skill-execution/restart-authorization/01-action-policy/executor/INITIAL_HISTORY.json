@@ -1,0 +1,12 @@
+[
+  {
+    "time": "09:10:00",
+    "source": "preview",
+    "message": "preview request timed out"
+  },
+  {
+    "time": "09:10:03",
+    "source": "controller",
+    "message": "last health query succeeded"
+  }
+]

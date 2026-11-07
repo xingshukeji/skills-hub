@@ -1,0 +1,12 @@
+[
+  {
+    "time": "09:10:00",
+    "source": "bootstrap",
+    "message": "legacy marker found at data/dev-old; last recorded pid=6300"
+  },
+  {
+    "time": "09:11:00",
+    "source": "local-import",
+    "message": "resumed import checkpoint batch-12 in data/import-active"
+  }
+]

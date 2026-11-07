@@ -1,0 +1,86 @@
+{
+  "case": "shared-console",
+  "instances": {
+    "dev-web": {
+      "generation": 4,
+      "status": "degraded",
+      "boot": "dev-b4",
+      "statePath": "data/dev-current",
+      "process": {
+        "pid": 6310,
+        "birth": "dev-b4"
+      },
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3"
+    },
+    "shared-index": {
+      "generation": 9,
+      "status": "healthy",
+      "boot": "index-b9",
+      "statePath": "data/shared-index",
+      "process": {
+        "pid": 6400,
+        "birth": "index-b9"
+      },
+      "sessions": [
+        "index-job-88"
+      ]
+    }
+  },
+  "processes": [
+    {
+      "pid": 6310,
+      "birth": "dev-b4",
+      "resource": "dev-web",
+      "statePath": "data/dev-current",
+      "alive": true
+    },
+    {
+      "pid": 6400,
+      "birth": "index-b9",
+      "resource": "shared-index",
+      "statePath": "data/shared-index",
+      "alive": true
+    }
+  ],
+  "terminals": [
+    {
+      "id": "console-preview",
+      "title": "Development preview",
+      "open": true,
+      "members": [
+        "dev-web",
+        "shared-index"
+      ]
+    }
+  ],
+  "markers": [],
+  "storage": {
+    "data/dev-current": {
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3",
+      "messages": 19
+    },
+    "data/shared-index": {
+      "cursor": 8801,
+      "pending": 34,
+      "owner": "shared-team"
+    }
+  },
+  "policy": {
+    "principal": "workspace-agent",
+    "userRequest": "restart dev-web",
+    "capabilities": [
+      "read",
+      "control:dev-web"
+    ]
+  },
+  "audit": [],
+  "attempts": [],
+  "damage": [],
+  "report": null
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "source": "migration",
+    "message": "two prior development state roots retained after interrupted migration"
+  },
+  {
+    "source": "import",
+    "message": "writer active at data/import-active"
+  }
+]

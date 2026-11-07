@@ -1,0 +1,112 @@
+{
+  "case": "mixed-writers",
+  "instances": {
+    "dev-web": {
+      "generation": 4,
+      "status": "degraded",
+      "boot": "dev-b4",
+      "statePath": "data/dev-current",
+      "process": {
+        "pid": 6310,
+        "birth": "dev-b4"
+      },
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3"
+    },
+    "local-import": {
+      "generation": 8,
+      "status": "healthy",
+      "boot": "import-c8",
+      "statePath": "data/import-active",
+      "process": {
+        "pid": 6300,
+        "birth": "import-c8"
+      }
+    }
+  },
+  "processes": [
+    {
+      "pid": 6300,
+      "birth": "dev-b2",
+      "resource": "dev-web",
+      "statePath": "data/dev-old",
+      "alive": false
+    },
+    {
+      "pid": 6310,
+      "birth": "dev-b4",
+      "resource": "dev-web",
+      "statePath": "data/dev-current",
+      "alive": true
+    },
+    {
+      "pid": 6300,
+      "birth": "import-c8",
+      "resource": "local-import",
+      "statePath": "data/import-active",
+      "alive": true
+    }
+  ],
+  "terminals": [],
+  "markers": [
+    {
+      "id": "marker-previous",
+      "owner": "dev-web",
+      "pid": 6300,
+      "birth": "dev-b2",
+      "path": "data/dev-old",
+      "status": "present"
+    },
+    {
+      "id": "marker-current",
+      "owner": "dev-web",
+      "pid": 6310,
+      "birth": "dev-b4",
+      "path": "data/dev-current",
+      "status": "present"
+    },
+    {
+      "id": "marker-import",
+      "owner": "local-import",
+      "pid": 6300,
+      "birth": "import-c8",
+      "path": "data/import-active",
+      "status": "present"
+    }
+  ],
+  "storage": {
+    "data/dev-current": {
+      "sessions": [
+        "session-review-7"
+      ],
+      "definition": "workflow-draft-r3",
+      "messages": 19
+    },
+    "data/dev-old": {
+      "sessions": [
+        "archived-session-2"
+      ],
+      "definition": "workflow-draft-r1",
+      "messages": 11
+    },
+    "data/import-active": {
+      "job": "import-88",
+      "rowsWritten": 121,
+      "checkpoint": "batch-12"
+    }
+  },
+  "policy": {
+    "principal": "workspace-agent",
+    "userRequest": "restart dev-web",
+    "capabilities": [
+      "read",
+      "control:dev-web"
+    ]
+  },
+  "audit": [],
+  "attempts": [],
+  "damage": [],
+  "report": null
+}
