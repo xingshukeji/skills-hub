@@ -206,8 +206,10 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
   }
   clearTimeout(connectTimeout);
   if (!response.ok) {
+    let reader;
     try {
-      const reader = response.body?.getReader(), chunks = [];
+      reader = response.body?.getReader();
+      const chunks = [];
       if (reader) while (true) {
         const part = await reader.read(); if (part.done) break;
         chunks.push(part.value);
@@ -217,10 +219,17 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
     } catch (error) {
       if (error instanceof CliError) throw error;
       throw new CliError(budget.expired() ? 'Waiting for the conversation timed out.' : 'Conversation response was interrupted.', { code: budget.expired() ? 'turn_timeout' : 'network_error' });
-    } finally { controller.abort(); }
+    } finally {
+      controller.abort();
+      if (reader) {
+        try { await reader.cancel(); } catch { /* Preserve the original HTTP failure. */ }
+        finally { reader.releaseLock(); }
+      }
+    }
   }
   if (!response.body || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) {
     controller.abort();
+    try { await response.body?.cancel(); } catch { /* Preserve the invalid-stream response. */ }
     throw new CliError('Runtime returned an invalid conversation stream.', { code: 'invalid_response' });
   }
   const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -241,7 +250,11 @@ async function openStream(ctx, sessionId, headers, runtimeConnection, budget) {
         buffer += decoder.decode(part.value, { stream: true });
       }
     },
-    close() { controller.abort(); },
+    async close() {
+      controller.abort();
+      try { await reader.cancel(); } catch { /* The abort can already have rejected the reader. */ }
+      finally { reader.releaseLock(); }
+    },
   };
 }
 function actionRequired(sessionId, requestId, items, submitted = true) {
@@ -313,7 +326,7 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
         error.hint = submitted ? 'Do not resend. Read history or wait on this session and request ID.' : 'The input was not submitted. Inspect the created session before continuing.';
     }
     throw error;
-  } finally { stream?.close(); }
+  } finally { await stream?.close(); }
 }
 
 export async function chatCommands(ctx, helpers) {

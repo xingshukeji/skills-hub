@@ -5787,8 +5787,10 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
   }
   clearTimeout(connectTimeout);
   if (!response.ok) {
+    let reader2;
     try {
-      const reader2 = response.body?.getReader(), chunks = [];
+      reader2 = response.body?.getReader();
+      const chunks = [];
       if (reader2) while (true) {
         const part = await reader2.read();
         if (part.done) break;
@@ -5801,10 +5803,22 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
       throw new CliError(budget.expired() ? "Waiting for the conversation timed out." : "Conversation response was interrupted.", { code: budget.expired() ? "turn_timeout" : "network_error" });
     } finally {
       controller.abort();
+      if (reader2) {
+        try {
+          await reader2.cancel();
+        } catch {
+        } finally {
+          reader2.releaseLock();
+        }
+      }
     }
   }
   if (!response.body || !/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get("content-type") ?? "")) {
     controller.abort();
+    try {
+      await response.body?.cancel();
+    } catch {
+    }
     throw new CliError("Runtime returned an invalid conversation stream.", { code: "invalid_response" });
   }
   const reader = response.body.getReader(), decoder2 = new TextDecoder();
@@ -5834,8 +5848,14 @@ async function openStream(ctx, sessionId, headers, runtimeConnection2, budget) {
         buffer += decoder2.decode(part.value, { stream: true });
       }
     },
-    close() {
+    async close() {
       controller.abort();
+      try {
+        await reader.cancel();
+      } catch {
+      } finally {
+        reader.releaseLock();
+      }
     }
   };
 }
@@ -5911,7 +5931,7 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
     }
     throw error;
   } finally {
-    stream?.close();
+    await stream?.close();
   }
 }
 async function chatCommands(ctx, helpers) {

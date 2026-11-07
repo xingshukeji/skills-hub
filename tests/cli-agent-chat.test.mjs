@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { spawn } from 'node:child_process';
 import { fixture, mockServer, respond } from './helpers.mjs';
 
 const result = value => JSON.parse(value.stdout);
@@ -12,6 +13,43 @@ const user = (seq, requestId, text) => event('user/message', seq, { source: { ki
 const assistant = (seq, turn, text) => event('assistant/message', seq, { turn, message: { content: [{ type: 'text', text }] } });
 const start = (seq, turn) => event('turn/start', seq, { turn });
 const end = (seq, turn, kind = 'completed') => event('turn/end', seq, { turn, reason: { kind } });
+
+test('SIGINT after input acceptance stops observation without cancelling or replaying the server turn', async t => {
+  const f = fixture(t); let stream, records = [], sends = 0, child;
+  const timers = [];
+  t.after(() => { timers.forEach(clearTimeout); child?.kill(); });
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.endsWith('/stream')) {
+      stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(frame({ type: 'snapshot', records, hasMore: false })); return;
+    }
+    if (hit.url.endsWith('/inputs')) {
+      sends++; const body = hit.json();
+      records = [start(1, 1), user(2, body.requestId, body.content[0].text)];
+      respond(res, { accepted: true }, 202);
+      for (const record of records) stream.write(frame({ type: 'event', ...record }));
+      timers.push(setTimeout(() => child.kill('SIGINT'), 50));
+      timers.push(setTimeout(() => {
+        const terminal = [assistant(3, 1, 'continued after local interrupt'), end(4, 1)];
+        records.push(...terminal);
+        if (!stream.destroyed) for (const record of terminal) stream.write(frame({ type: 'event', ...record }));
+      }, 150)); return;
+    }
+    respond(res, {}, 404);
+  });
+  f.profile(service.url, 'tenant-demo', 'synthetic-token');
+  const options = ['--runtime', service.url, '--request-id', 'interrupted-original', '--wait-timeout', '2', '--json'];
+  child = spawn(process.execPath, [join(process.cwd(), 'src/xrain-cli/bin.mjs'), 'agent', 'chat', 'send', 'original', '--message', 'test', ...options],
+    { env: f.env, windowsHide: true });
+  let progress = ''; child.stdout.resume(); child.stderr.on('data', data => { progress += data; });
+  const interrupted = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', (code, signal) => resolve({ code, signal })); });
+  assert.ok(interrupted.code !== 0 || interrupted.signal);
+  assert.match(progress, /interrupted-original/);
+  const recovered = await f.run(['agent', 'chat', 'wait', 'original', ...options]);
+  assert.equal(recovered.code, 0, recovered.stdout);
+  assert.equal(result(recovered).data.answer, 'continued after local interrupt');
+  assert.equal(sends, 1); assert.ok(service.hits.every(hit => !hit.url.endsWith('/cancel')));
+});
 
 async function delayedConversation(t, { inputDelay = 0, creationDelay = 0, earlyTerminal = false, dropStream = false } = {}) {
   let stream, records = [], creates = 0, sends = 0;

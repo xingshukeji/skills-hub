@@ -4,16 +4,72 @@ import { cpSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
+import { createGzip, constants } from 'node:zlib';
 import { fixture, mockServer, respond } from './helpers.mjs';
 
-function invoke(script, argv, f, env) {
+function invoke(script, argv, f, env, timeout = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script, ...argv], { cwd: f.directory, env, windowsHide: true });
     let stdout = '', stderr = '';
     child.stdout.on('data', value => { stdout += value; }); child.stderr.on('data', value => { stderr += value; });
-    child.on('error', reject); child.on('close', code => resolve({ code, stdout, stderr }));
+    const timer = timeout ? setTimeout(() => child.kill(), timeout) : undefined;
+    child.on('error', error => { clearTimeout(timer); reject(error); });
+    child.on('close', code => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
   });
 }
+
+test('a standalone CLI releases an open compressed event stream after completing the turn', async t => {
+  const f = fixture(t); let stream, closed = false, submissions = 0;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.endsWith('/stream')) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Content-Encoding': 'gzip' });
+      stream = createGzip(); stream.pipe(res); res.on('close', () => { closed = true; stream.destroy(); });
+      stream.write('data: {"type":"snapshot","records":[],"hasMore":false}\n\n');
+      stream.flush(constants.Z_SYNC_FLUSH); return;
+    }
+    if (hit.url.endsWith('/inputs')) {
+      submissions++; const body = hit.json(); respond(res, { accepted: true }, 202);
+      const events = [
+        { type: 'turn/start', data: { turn: 1 } },
+        { type: 'user/message', data: { source: { kind: 'user', rpcId: body.requestId }, content: body.content } },
+        { type: 'assistant/message', data: { turn: 1, message: { content: [{ type: 'text', text: 'compressed reply' }] } } },
+        { type: 'turn/end', data: { turn: 1, reason: { kind: 'completed' } } },
+      ];
+      for (const event of events) stream.write(`data: ${JSON.stringify({ type: 'event', event })}\n\n`);
+      stream.flush(constants.Z_SYNC_FLUSH); return;
+    }
+    respond(res, {}, 404);
+  });
+  const env = { ...f.env, XRAIN_SERVER: service.url, XRAIN_TENANT: 'tenant-demo', XRAIN_TOKEN: 'synthetic-bundle-token' };
+  service.server.keepAliveTimeout = 600_000;
+  const call = await invoke(join(process.cwd(), 'skills/shzw-xrain-cli/scripts/xrain-cli.mjs'),
+    ['agent', 'chat', 'send', 'compressed-session', '--message', 'hello', '--runtime', service.url, '--wait-timeout', '3', '--json'], f, env, 5000);
+  assert.equal(JSON.parse(call.stdout).data.answer, 'compressed reply');
+  assert.equal(call.code, 0, 'A completed compressed stream must not keep the CLI alive');
+  assert.equal(closed, true); assert.equal(submissions, 1);
+  assert.ok(service.hits.every(hit => !hit.url.endsWith('/cancel')));
+});
+
+for (const mode of ['pending', 'denied', 'invalid-type', 'timeout']) test(`a standalone CLI releases its response on ${mode}`, async t => {
+  const f = fixture(t); let stream;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.endsWith('/stream')) {
+      if (mode === 'denied') return respond(res, { error: 'SESSION_NOT_FOUND' }, 404);
+      if (mode === 'invalid-type') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.write('invalid stream'); return; }
+      stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      if (mode === 'pending') res.write(`data: ${JSON.stringify({ type: 'pending-actions', items: [{ kind: 'approval', actionRef: 'original-approval' }] })}\n\n`);
+      res.write('data: {"type":"snapshot","records":[],"hasMore":false}\n\n'); return;
+    }
+    if (hit.url.endsWith('/inputs')) return respond(res, { accepted: true }, 202);
+    respond(res, {}, 404);
+  });
+  const env = { ...f.env, XRAIN_SERVER: service.url, XRAIN_TENANT: 'tenant-demo', XRAIN_TOKEN: 'synthetic-bundle-token' };
+  const call = await invoke(join(process.cwd(), 'skills/shzw-xrain-cli/scripts/xrain-cli.mjs'),
+    ['agent', 'chat', 'send', 'original-session', '--message', 'hello', '--runtime', service.url, '--wait-timeout', '1', '--json'], f, env, 5000);
+  assert.equal(call.code, 1, 'A failed or waiting turn must exit without a retained stream');
+  assert.equal(JSON.parse(call.stdout).error.code, { pending: 'action_required', denied: 'not_found', 'invalid-type': 'invalid_response', timeout: 'turn_timeout' }[mode]);
+  assert.ok(service.hits.every(hit => !hit.url.endsWith('/cancel')));
+});
 
 test('the copied CLI keeps explicit Runtime controls and write recovery after packaging', async t => {
   const f = fixture(t); let stops = 0, updates = 0;
