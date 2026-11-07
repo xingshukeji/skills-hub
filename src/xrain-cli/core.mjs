@@ -41,6 +41,7 @@ valued.add('context-json');
 valued.add('run-id');
 valued.add('entry-id');
 valued.add('save-profile');
+valued.add('attach');
 for (const name of ['workforce', 'channel', 'message-seq', 'task-id', 'schedule-id', 'emoji', 'app-url', 'source-id', 'object-id', 'record-id', 'request-seq']) valued.add(name);
 const optionName = name => name.toLowerCase() === 'pagesize' ? 'page-size' : name.toLowerCase();
 
@@ -57,7 +58,7 @@ export class Args {
       const match = /^--([^=]+)(?:=(.*))?$/s.exec(item);
       if (!match) throw new CliError('Invalid option. Run --help.');
       const key = optionName(match[1]);
-      if (this.options.has(key)) throw new CliError(`--${key} was supplied more than once.`, { code: 'invalid_arguments' });
+      if (this.options.has(key) && key !== 'attach') throw new CliError(`--${key} was supplied more than once.`, { code: 'invalid_arguments' });
       if (flags.has(key)) {
         if (match[2] !== undefined) throw new CliError(`--${key} does not take a value.`);
         this.options.set(key, true);
@@ -65,11 +66,12 @@ export class Args {
         if (!valued.has(key)) throw new CliError(`Unknown option --${key}. Run --help.`);
         const value = match[2] ?? (argv[i + 1]?.startsWith('--') ? undefined : argv[++i]);
         if (!nonempty(value)) throw new CliError(`--${key} requires a value.`);
-        this.options.set(key, value);
+        this.options.set(key, key === 'attach' ? [...(this.options.get(key) ?? []), value] : value);
       }
     }
   }
   value(name) { return this.options.get(optionName(name)); }
+  values(name) { const value = this.value(name); return value === undefined ? [] : Array.isArray(value) ? value : [value]; }
   has(name) { return this.options.has(optionName(name)); }
   command(index) { return this.commands[index]?.toLowerCase(); }
   operand(index) { return this.commands[index]; }

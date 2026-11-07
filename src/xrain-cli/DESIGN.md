@@ -96,6 +96,7 @@ xrain-cli agent directory --mine
 xrain-cli agent subscribe <agentId>
 xrain-cli agent chat start <agentId> --message <问题>
 xrain-cli agent chat send <sessionId> --message <后续问题>
+xrain-cli agent chat send <sessionId> --attach <本地文件> [--attach <另一文件>]
 ```
 
 应用场景可以通过 `profile set --application-id <应用ID>` 设置默认应用，也可以在适用命令上显式提供 `--application-id`。管理者按实际权限创建并启用定义、设置订阅策略或配置应用选用；这些动作不会自动为使用者订阅或批准申请。普通用户沿本人订阅资格使用个人入口。

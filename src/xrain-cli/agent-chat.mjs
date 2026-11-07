@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { openAsBlob } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { CliError, isObject, jsonInput, nonempty, readJsonInput, registerSecrets, segment } from './core.mjs';
-import { responseError } from './http.mjs';
+import { request, requireSuccess, responseError } from './http.mjs';
 import { sessionControl } from './runtime-controls.mjs';
 
 const sessions = '/v1/dsh/sessions';
@@ -29,6 +31,34 @@ function textOf(value) {
   return isObject(value) && Array.isArray(value.content)
     ? value.content.filter(item => isObject(item) && item.type === 'text' && typeof item.text === 'string').map(item => item.text).join('') : '';
 }
+function filesOf(value) {
+  return isObject(value) && Array.isArray(value.content)
+    ? value.content.filter(part => isObject(part) && part.type === 'file' && isObject(part.attachment)).map(part => part.attachment) : [];
+}
+const fileIdentities = files => files.map(file => [file.attachmentId, file.name, file.bytes]);
+async function attachmentInputs(args) {
+  return await Promise.all(args.values('attach').map(async file => {
+    const path = resolve(file), info = await stat(path);
+    if (!info.isFile()) throw new CliError('An attachment must be a regular file.', { code: 'invalid_arguments' });
+    return { path, name: basename(path), bytes: info.size };
+  }));
+}
+async function uploadAttachment(ctx, sessionId, file, headers, helpers, budget, requestId) {
+  const connection = helpers.runtimeConnection(ctx), blob = await openAsBlob(file.path);
+  if (blob.size !== file.bytes) throw new CliError('The attachment changed before upload.', { code: 'invalid_input' });
+  return await helpers.writeOnce(async () => {
+    const result = await request(new URL(`${sessions}/${segment(sessionId)}/files`, connection.runtime), {
+      method: 'POST', token: connection.token, body: blob, signal: budget.signal, timeout: ctx.args.timeout(),
+      headers: { 'X-XRain-Authorization': `Bearer ${connection.token}`, ...headers, 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+    });
+    requireSuccess(result); const receipt = result.json();
+    if (!isObject(receipt) || !nonempty(receipt.receiptId) || !isObject(receipt.file) ||
+        !nonempty(receipt.file.attachmentId) || !nonempty(receipt.file.name) || receipt.file.bytes !== file.bytes)
+      throw new CliError('Runtime returned an invalid attachment receipt.', { code: 'invalid_response' });
+    return receipt;
+  }, 'Attachment upload outcome is unknown. The input was not submitted. Preserve this session and request ID; do not automatically upload or send again.',
+  { sessionId, requestId, phase: 'attachment-upload', inputSubmitted: false, attachment: { name: file.name, bytes: file.bytes } });
+}
 function eventOf(record) { return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null; }
 function sourceOf(data) {
   const message = isObject(data.message) ? data.message : data;
@@ -54,7 +84,7 @@ function toolResult(data, reporter) {
   return { callId, status: failed ? 'failed' : recognized ? 'succeeded' : 'unknown', result: data };
 }
 
-function collector(requestId, expectedText, reporter) {
+function collector(requestId, expectedText, reporter, expectedFiles) {
   let currentTurn, targetTurn, found = false, answer = '', result;
   const tools = new Map();
   function accept(event) {
@@ -68,7 +98,8 @@ function collector(requestId, expectedText, reporter) {
     if (event.type === 'user/message') {
       const message = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
-      if (source.rpcId === requestId && (expectedText === undefined || textOf(message) === expectedText)) {
+      if (source.rpcId === requestId && (expectedText === undefined || textOf(message) === expectedText &&
+          (!expectedFiles || JSON.stringify(fileIdentities(filesOf(message))) === JSON.stringify(fileIdentities(expectedFiles))))) {
         found = true;
         targetTurn = Number.isSafeInteger(data.turn) ? data.turn : currentTurn;
       }
@@ -105,8 +136,8 @@ function visibleHistory(frame, sessionId, reporter) {
       const message = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
       if (event.type === 'user/message' && source.kind && source.kind !== 'user') continue;
-      const text = textOf(message);
-      if (text) items.push({ ...base, type: event.type, text, ...(source.rpcId ? { requestId: source.rpcId } : {}) });
+      const text = textOf(message), attachments = filesOf(message);
+      if (text || attachments.length) items.push({ ...base, type: event.type, text, ...(attachments.length ? { attachments } : {}), ...(source.rpcId ? { requestId: source.rpcId } : {}) });
     } else if (event.type === 'turn/start' || event.type === 'turn/end') {
       items.push({ ...base, type: event.type, ...(isObject(data.reason) && typeof data.reason.kind === 'string' ? { reason: data.reason.kind } : {}) });
     } else if (event.type === 'tool/call' && typeof data.name === 'string') {
@@ -262,13 +293,14 @@ function actionRequired(sessionId, requestId, items, submitted = true) {
     hint: submitted ? 'Inspect the pending action and respond explicitly; then wait on the same session and request ID.' : 'This session already has a pending action. The new input was not submitted.',
     details: { sessionId, requestId, submitted, pendingActions: items } });
 }
-function finish(sessionId, requestId, result) {
+function finish(sessionId, requestId, result, attachments = []) {
   if (result.status !== 'completed') throw new CliError('The agent turn did not complete successfully.', { code: 'turn_failed', details: { sessionId, requestId, ...result } });
-  return { sessionId, requestId, ...result };
+  return { sessionId, requestId, ...result, ...(attachments.length ? { attachments } : {}) };
 }
-async function follow(ctx, sessionId, requestId, text, headers, helpers, budget) {
+async function follow(ctx, sessionId, requestId, text, headers, helpers, budget, files = []) {
   let stream, submitted = text === undefined, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
-  const turn = collector(requestId, text, ctx.reporter);
+  const attachments = [], expectedFiles = [];
+  const turn = collector(requestId, text, ctx.reporter, expectedFiles);
   try {
     budget.check();
     stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
@@ -286,12 +318,17 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
         }
       }
     }
-    if (turn.result()) return finish(sessionId, requestId, turn.result());
+    if (turn.result()) return finish(sessionId, requestId, turn.result(), attachments);
     if (initialPending.length) throw actionRequired(sessionId, requestId, initialPending, submitted);
     let submission = Promise.resolve();
     if (!submitted) {
       budget.check();
-      const body = { requestId, content: [{ type: 'text', text }] };
+      for (const file of files) {
+        budget.check();
+        const receipt = await uploadAttachment(ctx, sessionId, file, headers, helpers, budget, requestId);
+        attachments.push(receipt); expectedFiles.push(receipt.file);
+      }
+      const body = { requestId, content: [...(text ? [{ type: 'text', text }] : []), ...attachments.map(item => ({ type: 'file', receiptId: item.receiptId }))] };
       inputAttempted = true;
       submission = helpers.writeOnce(async () => {
         const accepted = await helpers.runtimeValue(ctx, 'POST', `${sessions}/${segment(sessionId)}/inputs`, body, headers, { signal: budget.signal });
@@ -308,7 +345,7 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
           throw actionRequired(sessionId, requestId, frame.items);
         }
         if (frame?.type === 'event') turn.accept(eventOf(frame));
-        if (turn.result()) return finish(sessionId, requestId, turn.result());
+        if (turn.result()) return finish(sessionId, requestId, turn.result(), attachments);
       }
     })();
     // A correlated terminal event is sufficient even if its HTTP receipt is late.
@@ -321,7 +358,7 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget)
         error.code = 'outcome_unknown';
         error.hint = 'Input outcome is unknown. Do not resend. Read history or wait on this session and request ID.';
       }
-      error.details = { ...error.details, sessionId, requestId, ...(incomplete && !turn.found() ? { historyIncomplete: true } : {}) };
+      error.details = { ...error.details, sessionId, requestId, ...(attachments.length ? { attachments } : {}), ...(incomplete && !turn.found() ? { historyIncomplete: true } : {}) };
       if (['turn_timeout', 'network_error', 'stream_ended', 'invalid_response'].includes(error.code))
         error.hint = submitted ? 'Do not resend. Read history or wait on this session and request ID.' : 'The input was not submitted. Inspect the created session before continuing.';
     }
@@ -371,7 +408,8 @@ export async function chatCommands(ctx, helpers) {
       : await helpers.runtimeValue(ctx, 'GET', `${sessions}/${segment(sessionId)}/history`);
     reporter.print(visibleHistory(page, sessionId, reporter)); return 0;
   }
-  const text = action === 'wait' ? undefined : await messageInput(args, ctx.stdin);
+  const files = action === 'wait' ? [] : await attachmentInputs(args);
+  const text = action === 'wait' ? undefined : files.length && !args.has('message') && !args.has('message-file') ? '' : await messageInput(args, ctx.stdin);
   const requestId = args.value('request-id') ?? randomUUID();
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
@@ -394,7 +432,7 @@ export async function chatCommands(ctx, helpers) {
       reporter.progress(`Session ID: ${sessionId}`);
     }
     sessionId = helpers.identifier(sessionId, 'Session ID');
-    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers, budget), ...context });
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text, headers, helpers, budget, files), ...context });
   }
   catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...context };

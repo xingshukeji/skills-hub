@@ -43,6 +43,7 @@ valued.add("context-json");
 valued.add("run-id");
 valued.add("entry-id");
 valued.add("save-profile");
+valued.add("attach");
 for (const name of ["workforce", "channel", "message-seq", "task-id", "schedule-id", "emoji", "app-url", "source-id", "object-id", "record-id", "request-seq"]) valued.add(name);
 var optionName = (name) => name.toLowerCase() === "pagesize" ? "page-size" : name.toLowerCase();
 var Args = class {
@@ -64,7 +65,7 @@ var Args = class {
       const match2 = /^--([^=]+)(?:=(.*))?$/s.exec(item);
       if (!match2) throw new CliError("Invalid option. Run --help.");
       const key = optionName(match2[1]);
-      if (this.options.has(key)) throw new CliError(`--${key} was supplied more than once.`, { code: "invalid_arguments" });
+      if (this.options.has(key) && key !== "attach") throw new CliError(`--${key} was supplied more than once.`, { code: "invalid_arguments" });
       if (flags.has(key)) {
         if (match2[2] !== void 0) throw new CliError(`--${key} does not take a value.`);
         this.options.set(key, true);
@@ -72,12 +73,16 @@ var Args = class {
         if (!valued.has(key)) throw new CliError(`Unknown option --${key}. Run --help.`);
         const value = match2[2] ?? (argv[i + 1]?.startsWith("--") ? void 0 : argv[++i]);
         if (!nonempty(value)) throw new CliError(`--${key} requires a value.`);
-        this.options.set(key, value);
+        this.options.set(key, key === "attach" ? [...this.options.get(key) ?? [], value] : value);
       }
     }
   }
   value(name) {
     return this.options.get(optionName(name));
+  }
+  values(name) {
+    const value = this.value(name);
+    return value === void 0 ? [] : Array.isArray(value) ? value : [value];
   }
   has(name) {
     return this.options.has(optionName(name));
@@ -2326,8 +2331,8 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   signal?.throwIfAborted();
   const expected = new URL(redirectUri);
   let accept, fail, consumed = false, callbackResponse;
-  const callback = new Promise((resolve14, reject) => {
-    accept = resolve14;
+  const callback = new Promise((resolve15, reject) => {
+    accept = resolve15;
     fail = reject;
   });
   callback.catch(() => {
@@ -2356,9 +2361,9 @@ async function listenForCallback(redirectUri = REDIRECT_URI, { signal } = {}) {
   });
   server.headersTimeout = 1e4;
   server.requestTimeout = 1e4;
-  await new Promise((resolve14, reject) => {
+  await new Promise((resolve15, reject) => {
     server.once("error", () => reject(new CliError("The local login callback port 38749 is unavailable.")));
-    server.listen(Number(expected.port), expected.hostname, resolve14);
+    server.listen(Number(expected.port), expected.hostname, resolve15);
   });
   let closed = false;
   const close = (force = false, reason = new CliError("Login callback closed before completion.", { code: "interrupted" })) => {
@@ -2385,13 +2390,13 @@ async function openBrowser(url) {
     executable = process.platform === "darwin" ? "open" : "xdg-open";
     args = [url];
   }
-  return new Promise((resolve14) => {
+  return new Promise((resolve15) => {
     const child = spawn(executable, args, { windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });
-    child.on("error", () => resolve14(false));
+    child.on("error", () => resolve15(false));
     child.stdin.on("error", () => {
     });
     child.stdin.end(process.platform === "win32" ? url : void 0);
-    child.on("exit", (code) => resolve14(code === 0));
+    child.on("exit", (code) => resolve15(code === 0));
   });
 }
 function tenantSession(response, scope = "tenant") {
@@ -4885,12 +4890,12 @@ command("metadata entities", api2, [], "List the target environment object regis
 command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity fields and constraints; metadata visibility does not imply runtime CRUD access.");
 var runtime = [...api2, "runtime"];
 command("agent directory", [...runtime, "application-id", "personal", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
-command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout", "context-json"], [slot("agent-id")], "Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.");
+command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "attach", "request-id", "wait-timeout", "context-json"], [slot("agent-id")], "Create a conversation, upload each --attach FILE to that session, submit one input and wait for its own completed turn. Object references do not grant Task tools.");
 command("agent run start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file"], [slot("agent-id")], "Submit one managed run through /xrain/runs using its own run context and Runtime-supported default service tools. The run ID is server assigned; no automatic retry.");
 command("agent run show", [...runtime, "run-id"], [slot("run-id")], "Read the original managed run using the same identity. Results are bounded in-memory Runtime state.");
 command("agent ephemeral directory", [...runtime, "application-id", "personal"], [], "List agents available for stateless text generation.");
 command("agent ephemeral generate", [...runtime, "application-id", "personal", "agent-id", "message", "message-file"], [slot("agent-id")], "Generate text without a session, tools or history; requires a currently authorized agent.");
-command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout"], [slot("session-id")], "Send one message to an existing authorized conversation and wait for its own completed turn.");
+command("agent chat send", [...runtime, "session-id", "application-id", "personal", "message", "message-file", "attach", "request-id", "wait-timeout"], [slot("session-id")], "Upload optional --attach FILE inputs to the exact original session and send one message without automatically replaying uploads or input.");
 command("agent chat wait", [...runtime, "session-id", "application-id", "personal", "request-id", "wait-timeout"], [slot("session-id")], "Read or follow one previously submitted request without sending it again.");
 command("agent chat list", [...runtime, "all"], [], "List your CLI conversations; --all includes other sources owned by the same identity.");
 command("agent chat history", [...runtime, "session-id", "through-seq", "before-seq", "page-size"], [slot("session-id")], "Read visible history; page backwards at a fixed --through-seq using --before-seq.");
@@ -5290,7 +5295,7 @@ function validateCommand(args) {
       throw new CliError("--decision must be approved, rejected or revoked.", { code: "invalid_arguments" });
     if (["agent chat start", "agent chat send"].includes(spec.path)) {
       exclusive(["message", "message-file"]);
-      if (!args.has("message") && !args.has("message-file")) throw new CliError("--message or --message-file is required.", { code: "invalid_arguments" });
+      if (!args.has("message") && !args.has("message-file") && !args.has("attach")) throw new CliError("--message, --message-file or --attach is required.", { code: "invalid_arguments" });
     }
     if (spec.path === "agent chat wait") args.required("request-id");
     if (spec.path === "agent chat history" && ["through-seq", "before-seq", "page-size"].some((name) => args.has(name))) {
@@ -5400,7 +5405,7 @@ async function batchCommands(ctx) {
 // src/xrain-cli/agents.mjs
 import { randomBytes as randomBytes6 } from "node:crypto";
 import { writeFileSync as writeFileSync3 } from "node:fs";
-import { resolve as resolve10 } from "node:path";
+import { resolve as resolve11 } from "node:path";
 import { isDeepStrictEqual as isDeepStrictEqual3 } from "node:util";
 
 // src/xrain-cli/definition-file.mjs
@@ -5517,7 +5522,9 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
 
 // src/xrain-cli/agent-chat.mjs
 import { randomUUID } from "node:crypto";
-import { readFile as readFile3 } from "node:fs/promises";
+import { openAsBlob as openAsBlob3 } from "node:fs";
+import { readFile as readFile3, stat as stat4 } from "node:fs/promises";
+import { basename as basename4, resolve as resolve9 } from "node:path";
 import { performance as performance3 } from "node:perf_hooks";
 
 // src/xrain-cli/runtime-controls.mjs
@@ -5594,6 +5601,40 @@ async function messageInput(args, stdin = process.stdin) {
 function textOf(value) {
   return isObject(value) && Array.isArray(value.content) ? value.content.filter((item) => isObject(item) && item.type === "text" && typeof item.text === "string").map((item) => item.text).join("") : "";
 }
+function filesOf(value) {
+  return isObject(value) && Array.isArray(value.content) ? value.content.filter((part) => isObject(part) && part.type === "file" && isObject(part.attachment)).map((part) => part.attachment) : [];
+}
+var fileIdentities = (files) => files.map((file) => [file.attachmentId, file.name, file.bytes]);
+async function attachmentInputs(args) {
+  return await Promise.all(args.values("attach").map(async (file) => {
+    const path = resolve9(file), info = await stat4(path);
+    if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
+    return { path, name: basename4(path), bytes: info.size };
+  }));
+}
+async function uploadAttachment(ctx, sessionId, file, headers, helpers, budget, requestId) {
+  const connection2 = helpers.runtimeConnection(ctx), blob = await openAsBlob3(file.path);
+  if (blob.size !== file.bytes) throw new CliError("The attachment changed before upload.", { code: "invalid_input" });
+  return await helpers.writeOnce(
+    async () => {
+      const result = await request(new URL(`${sessions}/${segment(sessionId)}/files`, connection2.runtime), {
+        method: "POST",
+        token: connection2.token,
+        body: blob,
+        signal: budget.signal,
+        timeout: ctx.args.timeout(),
+        headers: { "X-XRain-Authorization": `Bearer ${connection2.token}`, ...headers, "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(file.name) }
+      });
+      requireSuccess(result);
+      const receipt4 = result.json();
+      if (!isObject(receipt4) || !nonempty(receipt4.receiptId) || !isObject(receipt4.file) || !nonempty(receipt4.file.attachmentId) || !nonempty(receipt4.file.name) || receipt4.file.bytes !== file.bytes)
+        throw new CliError("Runtime returned an invalid attachment receipt.", { code: "invalid_response" });
+      return receipt4;
+    },
+    "Attachment upload outcome is unknown. The input was not submitted. Preserve this session and request ID; do not automatically upload or send again.",
+    { sessionId, requestId, phase: "attachment-upload", inputSubmitted: false, attachment: { name: file.name, bytes: file.bytes } }
+  );
+}
 function eventOf(record) {
   return isObject(record) && isObject(record.event) && isObject(record.event.data) ? record.event : null;
 }
@@ -5623,7 +5664,7 @@ function toolResult(data, reporter) {
   const recognized = message2.role === "tool" || !!block;
   return { callId, status: failed ? "failed" : recognized ? "succeeded" : "unknown", result: data };
 }
-function collector(requestId, expectedText, reporter) {
+function collector(requestId, expectedText, reporter, expectedFiles) {
   let currentTurn, targetTurn, found = false, answer = "", result;
   const tools = /* @__PURE__ */ new Map();
   function accept(event) {
@@ -5637,7 +5678,7 @@ function collector(requestId, expectedText, reporter) {
     if (event.type === "user/message") {
       const message2 = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
-      if (source.rpcId === requestId && (expectedText === void 0 || textOf(message2) === expectedText)) {
+      if (source.rpcId === requestId && (expectedText === void 0 || textOf(message2) === expectedText && (!expectedFiles || JSON.stringify(fileIdentities(filesOf(message2))) === JSON.stringify(fileIdentities(expectedFiles))))) {
         found = true;
         targetTurn = Number.isSafeInteger(data.turn) ? data.turn : currentTurn;
       }
@@ -5673,8 +5714,8 @@ function visibleHistory(frame, sessionId, reporter) {
       const message2 = isObject(data.message) ? data.message : data;
       const source = sourceOf(data);
       if (event.type === "user/message" && source.kind && source.kind !== "user") continue;
-      const text2 = textOf(message2);
-      if (text2) items.push({ ...base4, type: event.type, text: text2, ...source.rpcId ? { requestId: source.rpcId } : {} });
+      const text2 = textOf(message2), attachments = filesOf(message2);
+      if (text2 || attachments.length) items.push({ ...base4, type: event.type, text: text2, ...attachments.length ? { attachments } : {}, ...source.rpcId ? { requestId: source.rpcId } : {} });
     } else if (event.type === "turn/start" || event.type === "turn/end") {
       items.push({ ...base4, type: event.type, ...isObject(data.reason) && typeof data.reason.kind === "string" ? { reason: data.reason.kind } : {} });
     } else if (event.type === "tool/call" && typeof data.name === "string") {
@@ -5866,13 +5907,14 @@ function actionRequired(sessionId, requestId, items, submitted = true) {
     details: { sessionId, requestId, submitted, pendingActions: items }
   });
 }
-function finish(sessionId, requestId, result) {
+function finish(sessionId, requestId, result, attachments = []) {
   if (result.status !== "completed") throw new CliError("The agent turn did not complete successfully.", { code: "turn_failed", details: { sessionId, requestId, ...result } });
-  return { sessionId, requestId, ...result };
+  return { sessionId, requestId, ...result, ...attachments.length ? { attachments } : {} };
 }
-async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget) {
+async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget, files = []) {
   let stream, submitted = text2 === void 0, inputAttempted = false, snapshot = false, initialPending = [], incomplete = false;
-  const turn = collector(requestId, text2, ctx.reporter);
+  const attachments = [], expectedFiles = [];
+  const turn = collector(requestId, text2, ctx.reporter, expectedFiles);
   try {
     budget.check();
     stream = await openStream(ctx, sessionId, headers, helpers.runtimeConnection, budget);
@@ -5891,12 +5933,18 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
         }
       }
     }
-    if (turn.result()) return finish(sessionId, requestId, turn.result());
+    if (turn.result()) return finish(sessionId, requestId, turn.result(), attachments);
     if (initialPending.length) throw actionRequired(sessionId, requestId, initialPending, submitted);
     let submission = Promise.resolve();
     if (!submitted) {
       budget.check();
-      const body = { requestId, content: [{ type: "text", text: text2 }] };
+      for (const file of files) {
+        budget.check();
+        const receipt4 = await uploadAttachment(ctx, sessionId, file, headers, helpers, budget, requestId);
+        attachments.push(receipt4);
+        expectedFiles.push(receipt4.file);
+      }
+      const body = { requestId, content: [...text2 ? [{ type: "text", text: text2 }] : [], ...attachments.map((item) => ({ type: "file", receiptId: item.receiptId }))] };
       inputAttempted = true;
       submission = helpers.writeOnce(async () => {
         const accepted = await helpers.runtimeValue(ctx, "POST", `${sessions}/${segment(sessionId)}/inputs`, body, headers, { signal: budget.signal });
@@ -5914,7 +5962,7 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
           throw actionRequired(sessionId, requestId, frame.items);
         }
         if (frame?.type === "event") turn.accept(eventOf(frame));
-        if (turn.result()) return finish(sessionId, requestId, turn.result());
+        if (turn.result()) return finish(sessionId, requestId, turn.result(), attachments);
       }
     })();
     await Promise.race([submission, following]);
@@ -5925,7 +5973,7 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
         error.code = "outcome_unknown";
         error.hint = "Input outcome is unknown. Do not resend. Read history or wait on this session and request ID.";
       }
-      error.details = { ...error.details, sessionId, requestId, ...incomplete && !turn.found() ? { historyIncomplete: true } : {} };
+      error.details = { ...error.details, sessionId, requestId, ...attachments.length ? { attachments } : {}, ...incomplete && !turn.found() ? { historyIncomplete: true } : {} };
       if (["turn_timeout", "network_error", "stream_ended", "invalid_response"].includes(error.code))
         error.hint = submitted ? "Do not resend. Read history or wait on this session and request ID." : "The input was not submitted. Inspect the created session before continuing.";
     }
@@ -5985,7 +6033,8 @@ async function chatCommands(ctx, helpers) {
     reporter.print(visibleHistory(page3, sessionId, reporter));
     return 0;
   }
-  const text2 = action === "wait" ? void 0 : await messageInput(args, ctx.stdin);
+  const files = action === "wait" ? [] : await attachmentInputs(args);
+  const text2 = action === "wait" ? void 0 : files.length && !args.has("message") && !args.has("message-file") ? "" : await messageInput(args, ctx.stdin);
   const requestId = args.value("request-id") ?? randomUUID();
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
@@ -6007,7 +6056,7 @@ async function chatCommands(ctx, helpers) {
       reporter.progress(`Session ID: ${sessionId}`);
     }
     sessionId = helpers.identifier(sessionId, "Session ID");
-    reporter.print({ ...await follow(ctx, sessionId, requestId, text2, headers, helpers, budget), ...context });
+    reporter.print({ ...await follow(ctx, sessionId, requestId, text2, headers, helpers, budget, files), ...context });
   } catch (error) {
     if (error instanceof CliError) error.details = { ...error.details, ...context };
     throw error;
@@ -6101,7 +6150,7 @@ async function memberTarget(ctx, option, { applicationRequired = true, sessionOn
 
 // src/xrain-cli/agent-publication.mjs
 import { lstat as lstat2, readdir, readFile as readFile4, realpath as realpath2 } from "node:fs/promises";
-import { join as join7, resolve as resolve9 } from "node:path";
+import { join as join7, resolve as resolve10 } from "node:path";
 import { isDeepStrictEqual as isDeepStrictEqual2 } from "node:util";
 var root = "/v1/dsh/agent-definitions";
 var failure = (message2, code = "invalid_arguments", details) => {
@@ -6109,7 +6158,7 @@ var failure = (message2, code = "invalid_arguments", details) => {
 };
 var compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 async function snapshotWorkspace(source) {
-  const directory = await realpath2(resolve9(source)), files = [], directories = [], names = /* @__PURE__ */ new Set();
+  const directory = await realpath2(resolve10(source)), files = [], directories = [], names = /* @__PURE__ */ new Set();
   const visit = async (path, relative2 = "") => {
     const before = await lstat2(path);
     if (before.isSymbolicLink()) failure(`Workspace contains a symbolic link: ${relative2}`, "invalid_workspace");
@@ -6615,7 +6664,7 @@ async function definitionCommands(ctx) {
     const current = await definition2(ctx, id);
     const workspaces = current.workspaceId ? (await runtimeValue(ctx, "GET", definitions + "/options")).workspaces : [];
     if (!Array.isArray(workspaces)) throw new CliError("Runtime returned invalid workspaces.", { code: "invalid_response" });
-    const file = exportDefinition(current, workspaces), output2 = resolve10(args.required("out"));
+    const file = exportDefinition(current, workspaces), output2 = resolve11(args.required("out"));
     const bytes = Buffer.from(JSON.stringify(file, null, 2) + "\n");
     writeFileSync3(output2, bytes, { flag: "wx", mode: 384 });
     reporter.print({ agentId: id, revision: current.revision, runtime: runtimeConnection(ctx).runtime, output: output2, bytes: bytes.length, format: file.format, version: file.version });
@@ -6818,9 +6867,9 @@ async function userSettingsCommands(ctx) {
 }
 
 // src/xrain-cli/files.mjs
-import { openAsBlob as openAsBlob3 } from "node:fs";
-import { stat as stat4 } from "node:fs/promises";
-import { basename as basename4, resolve as resolve11 } from "node:path";
+import { openAsBlob as openAsBlob4 } from "node:fs";
+import { stat as stat5 } from "node:fs/promises";
+import { basename as basename5, resolve as resolve12 } from "node:path";
 var root2 = "/api/service/files/v1/files";
 async function fileCommands(ctx) {
   const { args, reporter, store } = ctx, action = args.command(1), controller = new AbortController();
@@ -6840,9 +6889,9 @@ async function fileCommands(ctx) {
   process.on("SIGINT", interrupt);
   try {
     if (action === "upload") {
-      const input3 = resolve11(args.required("file")), info = await stat4(input3), uploaderId = args.required("uploader-id");
+      const input3 = resolve12(args.required("file")), info = await stat5(input3), uploaderId = args.required("uploader-id");
       if (!info.isFile()) throw new CliError("Upload requires a regular file.", { code: "invalid_arguments" });
-      const blob = await openAsBlob3(input3), fileName = args.value("name") ?? basename4(input3);
+      const blob = await openAsBlob4(input3), fileName = args.value("name") ?? basename5(input3);
       if (blob.size !== info.size) throw new CliError("File changed before upload.", { code: "invalid_input" });
       const value2 = await writeOnce(
         async () => {
@@ -6891,10 +6940,10 @@ async function fileCommands(ctx) {
 
 // src/xrain-cli/market.mjs
 import { accessSync as accessSync2, constants as constants4, copyFileSync, existsSync as existsSync4, unlinkSync as unlinkSync3, writeFileSync as writeFileSync4 } from "node:fs";
-import { dirname as dirname6, resolve as resolve12 } from "node:path";
+import { dirname as dirname6, resolve as resolve13 } from "node:path";
 import { randomBytes as randomBytes7 } from "node:crypto";
 function newOutput(value) {
-  const path = resolve12(value);
+  const path = resolve13(value);
   if (existsSync4(path)) throw new CliError("Output already exists.", { code: "output_exists" });
   accessSync2(dirname6(path), constants4.W_OK);
   return path;
@@ -6993,9 +7042,9 @@ async function marketCommands(ctx) {
 }
 
 // src/xrain-cli/workforce.mjs
-import { openAsBlob as openAsBlob4 } from "node:fs";
-import { readFile as readFile5, stat as stat5 } from "node:fs/promises";
-import { basename as basename5, resolve as resolve13 } from "node:path";
+import { openAsBlob as openAsBlob5 } from "node:fs";
+import { readFile as readFile5, stat as stat6 } from "node:fs/promises";
+import { basename as basename6, resolve as resolve14 } from "node:path";
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
@@ -7045,7 +7094,7 @@ async function workforceCommands(ctx) {
       const catalog = memberValue(await send2("GET", "/api/cli/v1/workbench/speech"));
       if (!isObject(catalog?.selection) || !Number.isSafeInteger(catalog.maxAudioBytes) || catalog.maxAudioBytes < 0)
         throw new CliError("The speech service returned invalid input capabilities.", { code: "invalid_response" });
-      const file = resolve13(args.required("file"));
+      const file = resolve14(args.required("file"));
       const audio = catalog.maxAudioBytes === 0 ? await readFile5(file) : readLimited(file, catalog.maxAudioBytes, "Audio");
       body = { ...catalog.selection, ...body, audioBase64: audio.toString("base64") };
     }
@@ -7081,12 +7130,12 @@ async function workforceCommands(ctx) {
   }
   let upload;
   if (operation.upload) {
-    const path = resolve13(args.required("file"));
-    const info = await stat5(path);
+    const path = resolve14(args.required("file"));
+    const info = await stat6(path);
     if (!info.isFile()) throw new CliError("An attachment must be a regular file.", { code: "invalid_arguments" });
-    const blob = await openAsBlob4(path);
+    const blob = await openAsBlob5(path);
     if (blob.size !== info.size) throw new CliError("The attachment changed before upload.", { code: "invalid_input" });
-    upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename5(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
+    upload = { body: blob, headers: { "X-File-Name": encodeURIComponent(basename6(path)), "Content-Type": "application/octet-stream", "Content-Length": String(blob.size) } };
   }
   const call = async () => {
     const options = upload ?? { json: body };
