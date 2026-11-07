@@ -1,7 +1,7 @@
 import { CliError, isObject, nonempty, segment } from './core.mjs';
 import { messageInput } from './agent-chat.mjs';
 
-// Managed runs are a distinct native protocol; they do not assemble workbench tools.
+// Managed runs use their own native context. The Runtime owns default service tools.
 export async function runtimeRuns(ctx, helpers) {
   const { args, reporter } = ctx, domain = args.command(1), action = args.command(2);
   const connection = helpers.runtimeConnection(ctx);

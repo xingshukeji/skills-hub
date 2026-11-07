@@ -155,7 +155,11 @@ transcribe 的 --file 读取原始 16 kHz 单声道 PCM WAV；可用选择.json 
 
 ## Workforce 计划任务
 
-`workforce schedule` 支持 list/options/bootstrap/agents/models、create/update、enable/pause、history；update、enable、pause、history 带 schedule-id。create/update 的请求为 name、description、ownerId、assigneeId、agentId、scheduleType、executeTime、timeZoneId，可带 provider、model、reasoningEffort；scheduleType 为 Daily 或 Workday，executeTime 为 HH:mm，timeZoneId 使用平台 IANA 选项。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。
+`workforce schedule` 支持 list/options/bootstrap/agents/models、preview、show/lookup、create/update、enable/pause、history。show、update、enable、pause、history 带 schedule-id；lookup 带原 request-id（可写为 `--request-id`）。show 精确读取当前安排，lookup 按原创建键读取，不触发执行。未找到或读取失败不授权换键创建。
+
+create/update 的请求包含 name、description、ownerId、assigneeId、agentId、timeZoneId 和 timing，可带 provider、model、reasoningEffort。timing 支持 Calendar、Interval、Once；旧 Daily/Workday 仅为兼容输入。先用 `preview --request-json <预览.json>` 提交 timeZoneId、timingDraft，复用返回的规范 timing。当地日期按服务端参考时刻与安排时区解释；重试不重新计算“明天”。preview 不保存安排，失败不表示写入未知。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。
+
+启用前 show 原安排并保存 revision，再执行 `enable <schedule-id> --expected-revision <原revision>`，或用 `--request-json` 传 `{"expectedRevision":"<原revision>"}`。两种输入不能混用。旧版不带修订号的启用方式仍可调用；需要防止覆盖先前读取后的修改时，必须提供原修订。schedule.changed 表示安排已变更，不刷新修订后自动再启用。启用结果未知时保留原 ID 和修订，只回查实际状态；当前为 Paused 时不能自动撤销后来的人工作业。
 
 启用时宿主复核并保存同一成员的原凭据，不改执行身份。history 保存原 runId；`workforce schedule run conversation/pending-actions/respond/cancel-action/cancel <scheduleId> <runId>` 沿原运行回读或响应，respond/cancel-action 带 actionRef 和 response。周期安排和员工一次性检查由宿主调度与恢复，CLI 不另起调度进程。
 

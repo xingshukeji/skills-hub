@@ -19,7 +19,7 @@ agent run start <agentId> --message-file <输入.txt>
 agent run show <原runId>
 ```
 
-start 使用 Runtime 原生 `/xrain/runs` 协议，提交 agentId、prompt 和明确应用上下文。它不装配工作台工具，也不复用普通 chat 的 Session 或历史。返回 accepted 仅表示受理；用同一身份查询原 runId，直到 succeeded，再检查 result 的业务含义。failed/cancelled 返回非零退出码及原错误。
+start 使用 Runtime 原生 `/xrain/runs` 协议，提交 agentId、prompt 和明确应用上下文。支持默认服务工具的 Runtime 会为该运行建立独立工具上下文；不借用普通 chat 的工作台绑定或历史。可用工具仍由当前 Runtime 版本、应用、主体资格和定义决定。返回 accepted 仅表示受理；用同一身份查询原 runId，直到 succeeded，再检查 result 的业务含义。failed/cancelled 返回非零退出码及原错误。
 
 runId 由服务生成。回执丢失时没有客户端请求键可恢复，CLI 不自动再发起一次。结果是 Runtime 有界内存状态，重启或淘汰后可能返回 not_found；不据此重放外部操作。普通对话需要工具、续聊或历史时仍使用 agent chat。
 

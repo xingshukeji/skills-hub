@@ -30,12 +30,18 @@ export async function workforceCommands(ctx) {
     const search = new URLSearchParams(Object.entries(query).map(([key, item]) => [key, String(item)]));
     if (search.size) route += '?' + search;
   }
-  if (operation.input) {
+  if (operation.input && (!operation.optionalInput || args.has('request-json') || args.has('file'))) {
     body = await readJsonInput(args.required('request-json', args.value('file')), 'Workforce request', { stdin: ctx.stdin });
     if (!isObject(body)) throw new CliError('Workforce requests must be JSON objects.');
     registerSecrets(reporter, body);
     if (ctx.spec.path === 'workforce session create' && Object.keys(body).some(key => !['taskId', 'agentId', 'source', 'requestId'].includes(key)))
       throw new CliError('Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.', { code: 'invalid_arguments' });
+  }
+  if (operation.expectedRevision) {
+    if (args.has('expected-revision')) body = { expectedRevision: args.required('expected-revision') };
+    if ((args.has('expected-revision') || args.has('request-json') || args.has('file')) &&
+        (Object.keys(body).some(key => key !== 'expectedRevision') || typeof body.expectedRevision !== 'string' || !body.expectedRevision.trim()))
+      throw new CliError('Enable accepts only the nonempty expectedRevision observed on the original schedule.', { code: 'invalid_arguments' });
   }
   if (operation.audio) {
     body = args.has('request-json') ? await readJsonInput(args.value('request-json'), 'Speech request', { stdin: ctx.stdin }) : {};
@@ -55,7 +61,7 @@ export async function workforceCommands(ctx) {
     operation: operation.path, target: operation.publication && isObject(body?.target)
       ? Object.fromEntries(['kind', 'userId', 'channelId'].filter(key => typeof body.target[key] === 'string').map(key => [key, body.target[key]]))
       : Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
-    ...Object.fromEntries(['requestId', 'clientMessageId', 'taskId'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
+    ...Object.fromEntries(['requestId', 'clientMessageId', 'taskId', 'expectedRevision'].filter(key => typeof body?.[key] === 'string').map(key => [key, body[key]])) };
   const command = operation.path === 'workforce session command';
   if (operation.download) {
     const controller = new AbortController(), interrupt = () => controller.abort();
@@ -93,7 +99,7 @@ export async function workforceCommands(ctx) {
   const recovery = operation.publication ? 'Application message outcome is unknown. Preserve the original application, target and clientMessageId. Look up the original request if its channelId is known; do not resend or replay a batch.'
     : operation.path.startsWith('workforce speech ') ? 'Speech outcome is unknown. Read the current speech catalog before another action; do not replay this write or a batch.'
     : 'Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.';
-  const result = operation.method === 'GET' ? await call() : await writeOnce(call, recovery, details);
+  const result = operation.method === 'GET' || operation.readOnly ? await call() : await writeOnce(call, recovery, details);
   const taskReceipt = result?.[operation.taskReceipt];
   if (operation.taskReceipt && (Array.isArray(taskReceipt) && taskReceipt.length > 0 || taskReceipt === 'unavailable'))
     throw new CliError('The task was saved, but its channel association or AI execution did not fully complete.', {

@@ -39,7 +39,7 @@ command('metadata describe', [...api, 'entity'], [slot('entity')], 'Read entity 
 const runtime = [...api, 'runtime'];
 command('agent directory', [...runtime, 'application-id', 'personal', 'mine'], [], 'Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.');
 command('agent chat start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file', 'request-id', 'wait-timeout', 'context-json'], [slot('agent-id')], 'Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.');
-command('agent run start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file'], [slot('agent-id')], 'Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.');
+command('agent run start', [...runtime, 'agent-id', 'application-id', 'personal', 'message', 'message-file'], [slot('agent-id')], 'Submit one managed run through /xrain/runs using its own run context and Runtime-supported default service tools. The run ID is server assigned; no automatic retry.');
 command('agent run show', [...runtime, 'run-id'], [slot('run-id')], 'Read the original managed run using the same identity. Results are bounded in-memory Runtime state.');
 command('agent ephemeral directory', [...runtime, 'application-id', 'personal'], [], 'List agents available for stateless text generation.');
 command('agent ephemeral generate', [...runtime, 'application-id', 'personal', 'agent-id', 'message', 'message-file'], [slot('agent-id')], 'Generate text without a session, tools or history; requires a currently authorized agent.');
@@ -199,10 +199,10 @@ command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument
 for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
 for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', ...(!operation.native ? ['application-id'] : []), ...(operation.native ? credentials : ['auth']), ...routeParameters(operation.route),
-  ...(operation.input || operation.audio ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
-  operation.native ? 'Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved.' :
+  ...(operation.input || operation.audio ? ['request-json', 'file'] : []), ...(operation.expectedRevision ? ['expected-revision'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  operation.description ?? (operation.native ? 'Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved.' :
   operation.audio ? 'Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON.' :
-  'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.');
+  'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.'));
 for (const operation of applicationUserOperations) command(operation.path, [...target, 'app-url', 'application-id', 'auth', ...routeParameters(operation.route),
   ...(operation.input ? ['request-json', 'file'] : []), ...(operation.query ? ['query-json'] : [])], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? 'Use the original application with its actual application ID and your saved platform session. Mail assistance does not save or send; mail app draft explicitly saves a new draft.');
@@ -257,7 +257,7 @@ export function validateCommand(args) {
     if (operation.upload) args.required('file');
     if (operation.download) args.required('out');
     if (operation.audio && !args.has('file') && !args.has('request-json')) throw new CliError('--file or --request-json is required.', { code: 'invalid_arguments' });
-    if (operation.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
+    if (operation.input && !operation.optionalInput && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });
     if (!operation.native && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
   }
   if (['file download', 'file preview-asset', 'data export-file'].includes(spec.path)) args.required('out');
@@ -380,6 +380,7 @@ export function validateCommand(args) {
       throw new CliError('A JSON response is required.', { code: 'invalid_arguments' });
   }
   if (spec.options.includes('request-json') && spec.path !== 'workforce speech transcribe') exclusive(['request-json', 'file']);
+  if (spec.path === 'workforce schedule enable') exclusive(['expected-revision', 'request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
     if (!['app operation wait', 'data import wait'].includes(spec.path) && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
       throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });

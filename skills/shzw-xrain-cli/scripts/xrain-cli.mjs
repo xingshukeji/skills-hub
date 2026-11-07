@@ -4784,9 +4784,22 @@ var workforceOperations = [
   ...["configure", "prepare", "cancel-preparation"].map((action) => define6("speech " + action, "POST", "/workbench/speech/" + action, { input: "object" })),
   define6("speech transcribe", "POST", "/workbench/speech/transcribe", { audio: true }),
   ...["list", "options", "bootstrap", "agents", "models"].map((action) => define6("schedule " + action, "GET", "/task-schedules" + (action === "list" ? "" : "/" + action))),
+  define6("schedule preview", "POST", "/task-schedules/preview", {
+    input: "object",
+    readOnly: true,
+    description: "Preview timingDraft in its IANA time zone without saving. Reuse the returned normalized timing for creation and recovery."
+  }),
+  define6("schedule show", "GET", "/task-schedules/{schedule-id}", { description: "Read the exact original schedule, its current revision, status and nextRunAt without changing it." }),
+  define6("schedule lookup", "GET", "/task-schedules/lookup?requestId={request-id}", { description: "Read the original creation request in this member/application context. Not found does not authorize a replacement create." }),
   define6("schedule create", "POST", "/task-schedules", { input: "object" }),
   define6("schedule update", "PUT", "/task-schedules/{schedule-id}", { input: "object" }),
-  ...["enable", "pause"].map((action) => define6("schedule " + action, "POST", `/task-schedules/{schedule-id}/${action}`)),
+  define6("schedule enable", "POST", "/task-schedules/{schedule-id}/enable", {
+    input: "object",
+    optionalInput: true,
+    expectedRevision: true,
+    description: "Enable the original schedule as its assignee. Pass the observed --expected-revision or a request file containing expectedRevision. After an unknown receipt, read the original schedule; never automatically enable again."
+  }),
+  define6("schedule pause", "POST", "/task-schedules/{schedule-id}/pause"),
   define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["before"] }),
   define6("schedule run show", "GET", "/task-schedules/{schedule-id}/runs/{run-id}"),
   ...["conversation", "pending-actions"].map((action) => define6("schedule run " + action, "GET", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
@@ -4873,7 +4886,7 @@ command("metadata describe", [...api2, "entity"], [slot("entity")], "Read entity
 var runtime = [...api2, "runtime"];
 command("agent directory", [...runtime, "application-id", "personal", "mine"], [], "Discover definitions and current use eligibility from the selected Runtime. --mine limits personal results to approved subscriptions.");
 command("agent chat start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file", "request-id", "wait-timeout", "context-json"], [slot("agent-id")], "Create a conversation, optionally with an exact primary object reference, submit one message and wait for its own completed turn. Object references do not grant Task tools.");
-command("agent run start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file"], [slot("agent-id")], "Submit one managed run through /xrain/runs. The run ID is server assigned; no workbench tool assembly or automatic retry.");
+command("agent run start", [...runtime, "agent-id", "application-id", "personal", "message", "message-file"], [slot("agent-id")], "Submit one managed run through /xrain/runs using its own run context and Runtime-supported default service tools. The run ID is server assigned; no automatic retry.");
 command("agent run show", [...runtime, "run-id"], [slot("run-id")], "Read the original managed run using the same identity. Results are bounded in-memory Runtime state.");
 command("agent ephemeral directory", [...runtime, "application-id", "personal"], [], "List agents available for stateless text generation.");
 command("agent ephemeral generate", [...runtime, "application-id", "personal", "agent-id", "message", "message-file"], [slot("agent-id")], "Generate text without a session, tools or history; requires a currently authorized agent.");
@@ -5084,13 +5097,14 @@ for (const operation of workforceOperations) command(
     ...operation.native ? credentials : ["auth"],
     ...routeParameters(operation.route),
     ...operation.input || operation.audio ? ["request-json", "file"] : [],
+    ...operation.expectedRevision ? ["expected-revision"] : [],
     ...operation.query ? ["query-json"] : [],
     ...operation.upload ? ["file"] : [],
     ...operation.download ? ["out"] : [],
     ...operation.browser ? ["no-browser"] : []
   ],
   routeParameters(operation.route).map((name) => slot(name)),
-  operation.native ? "Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved." : operation.audio ? "Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON." : "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force."
+  operation.description ?? (operation.native ? "Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved." : operation.audio ? "Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON." : "Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.")
 );
 for (const operation of applicationUserOperations) command(
   operation.path,
@@ -5156,7 +5170,7 @@ function validateCommand(args) {
     if (operation.upload) args.required("file");
     if (operation.download) args.required("out");
     if (operation.audio && !args.has("file") && !args.has("request-json")) throw new CliError("--file or --request-json is required.", { code: "invalid_arguments" });
-    if (operation.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
+    if (operation.input && !operation.optionalInput && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
     if (!operation.native && args.has("auth") && args.value("auth") !== "session") throw new CliError("Workforce uses a matching saved platform session.", { code: "invalid_arguments" });
   }
   if (["file download", "file preview-asset", "data export-file"].includes(spec.path)) args.required("out");
@@ -5292,6 +5306,7 @@ function validateCommand(args) {
       throw new CliError("A JSON response is required.", { code: "invalid_arguments" });
   }
   if (spec.options.includes("request-json") && spec.path !== "workforce speech transcribe") exclusive(["request-json", "file"]);
+  if (spec.path === "workforce schedule enable") exclusive(["expected-revision", "request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
     if (!["app operation wait", "data import wait"].includes(spec.path) && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
       throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
@@ -6990,12 +7005,17 @@ async function workforceCommands(ctx) {
     const search = new URLSearchParams(Object.entries(query2).map(([key, item]) => [key, String(item)]));
     if (search.size) route += "?" + search;
   }
-  if (operation.input) {
+  if (operation.input && (!operation.optionalInput || args.has("request-json") || args.has("file"))) {
     body = await readJsonInput(args.required("request-json", args.value("file")), "Workforce request", { stdin: ctx.stdin });
     if (!isObject(body)) throw new CliError("Workforce requests must be JSON objects.");
     registerSecrets(reporter, body);
     if (ctx.spec.path === "workforce session create" && Object.keys(body).some((key) => !["taskId", "agentId", "source", "requestId"].includes(key)))
       throw new CliError("Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.", { code: "invalid_arguments" });
+  }
+  if (operation.expectedRevision) {
+    if (args.has("expected-revision")) body = { expectedRevision: args.required("expected-revision") };
+    if ((args.has("expected-revision") || args.has("request-json") || args.has("file")) && (Object.keys(body).some((key) => key !== "expectedRevision") || typeof body.expectedRevision !== "string" || !body.expectedRevision.trim()))
+      throw new CliError("Enable accepts only the nonempty expectedRevision observed on the original schedule.", { code: "invalid_arguments" });
   }
   if (operation.audio) {
     body = args.has("request-json") ? await readJsonInput(args.value("request-json"), "Speech request", { stdin: ctx.stdin }) : {};
@@ -7018,7 +7038,7 @@ async function workforceCommands(ctx) {
     applicationId: operation.native ? body?.applicationId ?? args.value("application-id") : appId,
     operation: operation.path,
     target: operation.publication && isObject(body?.target) ? Object.fromEntries(["kind", "userId", "channelId"].filter((key) => typeof body.target[key] === "string").map((key) => [key, body.target[key]])) : Object.fromEntries([...operation.route.matchAll(/\{([^}]+)\}/g)].map(([, name]) => [name, args.value(name)])),
-    ...Object.fromEntries(["requestId", "clientMessageId", "taskId"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
+    ...Object.fromEntries(["requestId", "clientMessageId", "taskId", "expectedRevision"].filter((key) => typeof body?.[key] === "string").map((key) => [key, body[key]]))
   };
   const command2 = operation.path === "workforce session command";
   if (operation.download) {
@@ -7062,7 +7082,7 @@ async function workforceCommands(ctx) {
     return result2;
   };
   const recovery2 = operation.publication ? "Application message outcome is unknown. Preserve the original application, target and clientMessageId. Look up the original request if its channelId is known; do not resend or replay a batch." : operation.path.startsWith("workforce speech ") ? "Speech outcome is unknown. Read the current speech catalog before another action; do not replay this write or a batch." : "Workforce outcome is unknown. Read the same Task, message, schedule or original session using the same identity; do not replay this write or a batch.";
-  const result = operation.method === "GET" ? await call() : await writeOnce(call, recovery2, details);
+  const result = operation.method === "GET" || operation.readOnly ? await call() : await writeOnce(call, recovery2, details);
   const taskReceipt = result?.[operation.taskReceipt];
   if (operation.taskReceipt && (Array.isArray(taskReceipt) && taskReceipt.length > 0 || taskReceipt === "unavailable"))
     throw new CliError("The task was saved, but its channel association or AI execution did not fully complete.", {
