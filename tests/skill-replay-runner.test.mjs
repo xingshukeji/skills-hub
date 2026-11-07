@@ -55,6 +55,104 @@ test('read, list and search retain actual hashes, returned content and per-file 
   assert.equal(f.run(['search', '.', 'absent']).finish.matches.length, 0);
 });
 
+test('listing exposes sizes without opening file content and hex reads retain raw and rendered receipts', t => {
+  const f = fixture(t), raw = Buffer.from([0x46, 0x58, 0, 0xff, 0xfe, 0x61, 0x80]);
+  fs.writeFileSync(path.join(f.root, 'input/rate.bin'), raw);
+  const original = fs.openSync; let opened = 0, listed;
+  try {
+    fs.openSync = (file, ...args) => { if (String(file).startsWith(path.join(f.root, 'input') + path.sep)) opened++; return original(file, ...args); };
+    listed = f.run(['list', '.']);
+  } finally { fs.openSync = original; }
+  assert.equal(opened, 0); assert.equal(listed.finish.metadataOnly, true); assert.equal(listed.finish.bytesRead, 0);
+  assert.deepEqual(listed.finish.entries, [{ path: 'example.md', bytes: 12 }, { path: 'rate.bin', bytes: 7 }]);
+  assert.match(listed.stderr, /File sizes \(bytes\):/); assert.equal(listed.stdout, 'example.md\nrate.bin\n');
+  const read = f.run(['read-hex', 'rate.bin']);
+  assert.equal(read.code, 0); assert.equal(read.stdout, raw.toString('hex')); assert.equal(read.finish.bytes, raw.length);
+  assert.equal(read.finish.sha256, createHash('sha256').update(raw).digest('hex'));
+  assert.equal(read.finish.outputEncoding, 'hex'); assert.equal(read.finish.outputBytes, raw.length * 2);
+  assert.equal(read.finish.outputSHA256, createHash('sha256').update(read.stdout).digest('hex'));
+  fs.writeFileSync(path.join(f.root, 'input/malformed.cs'), Buffer.from([0xff, 0xfe, 0x61]));
+  assert.equal(f.run(['read-hex', 'malformed.cs']).stdout, 'fffe61');
+});
+
+test('explicit file-set search excludes unselected archives and deduplicates resolved paths', t => {
+  const f = fixture(t), directory = path.join(f.root, 'input/project/resources');
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, 'Rules.cs'), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('class Needle {}\n', 'utf16le')]));
+  fs.writeFileSync(path.join(directory, 'Program'), 'export const Needle = 1;\n');
+  fs.writeFileSync(path.join(directory, 'archive.capture'), Buffer.alloc(2 * 1024 * 1024, 0));
+  const open = fs.openSync; let archiveOpened = false, result;
+  try {
+    fs.openSync = (file, ...args) => { if (String(file).endsWith('archive.capture')) archiveOpened = true; return open(file, ...args); };
+    result = f.run(['search-files', 'Needle', 'project/resources/Rules.cs', 'project/resources/Program', 'project/resources/../resources/Rules.cs']);
+  } finally { fs.openSync = open; }
+  assert.equal(result.code, 0); assert.equal(archiveOpened, false); assert.equal(result.finish.files.length, 2);
+  assert.deepEqual(result.finish.duplicatePaths, [{ path: 'project/resources/../resources/Rules.cs', duplicateOf: 'project/resources/Rules.cs' }]);
+  assert.equal(result.events.filter(e => e.phase === 'search-file').length, 2);
+  assert.equal(result.finish.matches.length, 2); assert.deepEqual(result.finish.skipped, []);
+  assert.equal(result.finish.bytesRead, fs.statSync(path.join(directory, 'Rules.cs')).size + fs.statSync(path.join(directory, 'Program')).size);
+  const selectedBinary = f.run(['search-files', 'Needle', 'project/resources/archive.capture']);
+  assert.equal(selectedBinary.finish.skipped.length, 1); assert.equal(selectedBinary.finish.bytesRead, 8192);
+});
+
+test('match byte spans round trip through bounded reads for UTF-8 and both UTF-16 orders', t => {
+  const f = fixture(t), text = '序😀\r\nclass Needle { string S = "中😀"; }\nNeedle\r';
+  const le = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+  for (const [name, bytes, encoding] of [['source.cs', le, 'utf-16le'], ['no-extension', Buffer.from(le).swap16(), 'utf-16be'],
+    ['resource.bin', Buffer.from('\ufeff' + text), 'utf-8']]) {
+    fs.writeFileSync(path.join(f.root, 'input', name), bytes);
+    const found = f.run(['search-files', 'Needle', name]);
+    assert.equal(found.finish.matches.length, 2);
+    for (const hit of found.finish.matches) {
+      const raw = bytes.subarray(hit.byteOffset, hit.byteOffset + hit.byteLength);
+      assert.equal(new TextDecoder(encoding, { fatal: true, ignoreBOM: true }).decode(raw), hit.text);
+      const read = f.run(['read-range', name, String(hit.byteOffset), String(hit.byteLength)]);
+      assert.equal(read.stdout, hit.text); assert.ok(read.finish.bytesRead <= hit.byteLength + 10);
+    }
+    const oldEntry = f.run(['search', name, 'Needle']);
+    assert.deepEqual(oldEntry.finish.matches, found.finish.matches);
+  }
+});
+
+test('file-set preflight failures read no content and later read failures retain earlier results', t => {
+  const f = fixture(t);
+  for (const args of [['search-files'], ['search-files', 'hello'], ['search-files', '[', 'example.md'],
+    ['search-files', 'hello', 'example.md', 'missing.cs'], ['search-files', 'hello', 'example.md', '.'],
+    ['search-files', 'hello', 'example.md', '../outside']]) {
+    const failed = f.run(args);
+    assert.equal(failed.code, 1); assert.equal(failed.finish.bytesRead ?? 0, 0);
+    assert.equal(failed.events.filter(e => e.phase === 'search-file').length, 0);
+  }
+  fs.writeFileSync(path.join(f.root, 'input/later.cs'), 'class hello {}');
+  const open = fs.openSync; let failed;
+  try {
+    fs.openSync = (file, ...args) => { if (String(file).endsWith('later.cs')) throw Object.assign(new Error('blocked'), { code: 'EACCES' }); return open(file, ...args); };
+    failed = f.run(['search-files', 'hello', 'example.md', 'later.cs']);
+  } finally { fs.openSync = open; }
+  assert.equal(failed.code, 1); assert.equal(failed.finish.matches.length, 1);
+  assert.equal(failed.finish.bytesRead, 12); assert.equal(failed.events.at(-2).status, 'failed');
+  assert.equal(failed.events.at(-2).path, 'later.cs'); assert.equal(failed.finish.error.code, 'EACCES');
+  assert.equal(f.run(['search-files', 'hello', 'example.md']).code, 0);
+  assert.equal(f.run(['read-hex', 'missing']).code, 1);
+});
+
+test('file-set previews bound wide and long-line output while retaining all matches and recovery ranges', t => {
+  const f = fixture(t), text = Array.from({ length: 300 }, (_, i) => `const Needle${i} = "${'中😀'.repeat(160)}";`).join('\n');
+  fs.writeFileSync(path.join(f.root, 'input/large-source'), text);
+  const result = f.run(['search-files', 'Needle', 'large-source']), output = JSON.parse(result.stdout);
+  assert.equal(result.code, 0); assert.equal(result.finish.matches.length, 300);
+  assert.equal(output.outputScope, 'preview'); assert.equal(output.matchCount, 300);
+  const file = output.files[0];
+  assert.equal(file.matchCount, 300); assert.equal(file.omittedMatchCount + file.matches.length, 300);
+  assert.ok(file.omittedMatchCount > 0); assert.ok(Buffer.byteLength(result.stdout) < 12000);
+  assert.ok(file.matches.every(hit => hit.textIsExcerpt && hit.text.length < result.finish.matches[hit.line - 1].text.length));
+  assert.ok(file.matches.every(hit => !/[\ud800-\udbff]$/.test(hit.text)));
+  const range = file.omittedByteRange;
+  const recovered = f.run(['read-range', 'large-source', String(range.offset), String(range.length)]);
+  assert.equal(recovered.code, 0); assert.match(recovered.stdout, /const Needle150 =/);
+  assert.equal(file.sha256, createHash('sha256').update(text).digest('hex'));
+});
+
 test('bounded source windows cover UTF-8 and BOM UTF-16 without repeated full scans or split characters', t => {
   const f = fixture(t), directory = path.join(f.root, 'input/project/resources');
   fs.mkdirSync(directory, { recursive: true });
@@ -150,6 +248,7 @@ test('test refusal, failing assertions and spawn failure cannot be recorded as s
 
 test('replay runs existing native Node ESM and CommonJS test files without omitting consumers', t => {
   const f = fixture(t), directory = path.join(f.root, 'input/project/tests');
+  fs.writeFileSync(path.join(f.root, 'input/project/package.json'), JSON.stringify({ type: 'commonjs' }));
   for (const extension of ['cjs', 'js']) fs.writeFileSync(path.join(directory, `native.test.${extension}`),
     `require('node:test')('${extension} consumer',()=>require('node:assert/strict').equal(2+2,4));`);
   fs.writeFileSync(path.join(directory, 'native.test.mjs'), "import test from 'node:test'; test('mjs consumer',()=>{});");

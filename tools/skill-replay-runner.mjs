@@ -76,18 +76,20 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       return fs.statSync(file).isDirectory() ? walk(file) : [file];
     });
   try {
-    const arity = { read: 2, 'read-range': 4, list: 2, search: 3, test: 1 };
-    if (!Object.hasOwn(arity, op)) throw invalid('Use read <path>, read-range <path> <byte-offset> <byte-length>, list <path>, search <path> <regex>, or test.');
-    if (args.length !== arity[op] || args.some(value => typeof value !== 'string' || !value.length)) {
+    const arity = { read: 2, 'read-hex': 2, 'read-range': 4, list: 2, search: 3, 'search-files': null, test: 1 };
+    if (!Object.hasOwn(arity, op)) throw invalid('Use read/read-hex <path>, read-range <path> <byte-offset> <byte-length>, list <path>, search <path> <regex>, search-files <regex> <file> [file...], or test.');
+    if ((op === 'search-files' ? args.length < 3 : args.length !== arity[op]) || args.some(value => typeof value !== 'string' || !value.length)) {
       throw invalid(`Invalid arguments for ${op}.`);
     }
-    if (op === 'read') {
+    if (op === 'read' || op === 'read-hex') {
       const bytes = fs.readFileSync(target(requestedPath));
       result = { path: requestedPath, sha256: hash(bytes), bytes: bytes.length,
         outputBytes: 0, outputSHA256: hash(Buffer.alloc(0)) };
       let rendered = bytes;
       const encoding = textEncoding(bytes);
-      if (encoding !== 'utf-8') {
+      if (op === 'read-hex') {
+        result.outputEncoding = 'hex'; rendered = Buffer.from(bytes.toString('hex'));
+      } else if (encoding !== 'utf-8') {
         result.encoding = encoding; result.outputEncoding = 'utf-8';
         rendered = Buffer.from(textDecoder(encoding).decode(bytes));
       }
@@ -150,11 +152,30 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       } finally { fs.closeSync(descriptor); }
     } else if (op === 'list') {
       const file = target(requestedPath), files = fs.statSync(file).isDirectory() ? walk(file).map(relative) : [relative(file)];
-      result = { path: requestedPath, files }; output = files.join('\n') + '\n';
-    } else if (op === 'search') {
-      const regex = new RegExp(pattern, 'i'), file = target(requestedPath);
-      const files = fs.statSync(file).isDirectory() ? walk(file) : [file], matches = [], skipped = [];
-      result = { path: requestedPath, pattern, matches, skipped, bytesRead: 0 };
+      result = { path: requestedPath, files, entries: [], metadataOnly: true, bytesRead: 0 };
+      for (const file of files) result.entries.push({ path: file, bytes: fs.statSync(target(file)).size });
+      output = files.join('\n') + '\n';
+      errorOutput = `File sizes (bytes): ${JSON.stringify(result.entries)}\n`;
+    } else if (op === 'search' || op === 'search-files') {
+      const query = op === 'search-files' ? args[1] : pattern, regex = new RegExp(query, 'i');
+      const files = [], matches = [], skipped = [];
+      result = { ...(op === 'search-files' ? { paths: args.slice(2), files: [], duplicatePaths: [], fileResults: [] } : { path: requestedPath }),
+        pattern: query, matches, skipped, bytesRead: 0 };
+      if (op === 'search-files') {
+        const selected = new Map();
+        // Resolve the whole selection before reading any content: a bad final
+        // path must not leave a partially executed batch looking successful.
+        for (const requested of args.slice(2)) {
+          const file = target(requested);
+          if (!fs.statSync(file).isFile()) throw invalid('search-files accepts files, not directories.');
+          const key = fs.realpathSync(file);
+          if (selected.has(key)) result.duplicatePaths.push({ path: requested, duplicateOf: selected.get(key) });
+          else { selected.set(key, relative(file)); files.push(file); result.files.push(relative(file)); }
+        }
+      } else {
+        const file = target(requestedPath);
+        files.push(...(fs.statSync(file).isDirectory() ? walk(file) : [file]));
+      }
       for (const file of files) {
         let descriptor, size, encoding, bytesRead = 0;
         const readChunk = length => {
@@ -205,11 +226,32 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
           const bytes = Buffer.concat(chunks);
           // The probe is only an early rejection, never proof that a file is text.
           if (!decode(Buffer.alloc(0), false)) { skip(bytes, true); continue; }
-          const lines = textChunks.join('').split(/\r?\n/);
-          const hits = lines.flatMap((text, index) => regex.test(text) ? [{ path: relative(file), line: index + 1, text }] : []);
+          const lines = textChunks.join('').split('\n'), hits = [];
+          const byteEncoding = encoding === 'utf-8' ? 'utf8' : 'utf16le';
+          let byteOffset = encoding === 'utf-8' ? 0 : 2;
+          for (const [index, part] of lines.entries()) {
+            const hasNewline = index < lines.length - 1;
+            const text = hasNewline && part.endsWith('\r') ? part.slice(0, -1) : part;
+            if (regex.test(text)) hits.push({ path: relative(file), line: index + 1, text,
+              byteOffset, byteLength: Buffer.byteLength(text, byteEncoding) });
+            byteOffset += Buffer.byteLength(part, byteEncoding) + (hasNewline ? Buffer.byteLength('\n', byteEncoding) : 0);
+          }
           // Preserve progress even if a later file fails. Scanned bytes are not
           // necessarily content exposed to the model; only returned matches are.
-          emit({ phase: 'search-file', path: relative(file), encoding, sha256: hash(bytes), bytes: bytes.length, bytesRead, matches: hits });
+          const sha256 = hash(bytes);
+          emit({ phase: 'search-file', path: relative(file), encoding, sha256, bytes: bytes.length, bytesRead, matches: hits });
+          if (op === 'search-files') {
+            const shown = hits.length <= 6 ? hits : [...hits.slice(0, 3), ...hits.slice(-3)];
+            result.fileResults.push({ path: relative(file), encoding, bytes: bytes.length, sha256,
+              matchCount: hits.length, omittedMatchCount: hits.length - shown.length,
+              ...(hits.length > shown.length ? { omittedByteRange: { offset: hits[3].byteOffset,
+                length: Math.max(1, hits.at(-4).byteOffset + hits.at(-4).byteLength - hits[3].byteOffset) } } : {}),
+              matches: shown.map(hit => {
+                let text = hit.text.slice(0, 240);
+                if (text.length < hit.text.length && /[\ud800-\udbff]$/.test(text)) text = text.slice(0, -1);
+                return { ...hit, text, textIsExcerpt: text.length < hit.text.length };
+              }) });
+          }
           matches.push(...hits);
         } catch (error) {
           emit({ phase: 'search-file', path: relative(file), status: 'failed', encoding, bytes: size, bytesRead,
@@ -219,7 +261,9 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
           if (descriptor !== undefined) fs.closeSync(descriptor);
         }
       }
-      output = JSON.stringify(matches, null, 2) + '\n';
+      output = JSON.stringify(op === 'search-files'
+        ? { outputScope: 'preview', matchCount: matches.length, files: result.fileResults, skipped }
+        : matches, null, 2) + '\n';
       if (skipped.length) errorOutput = `Search skipped non-text files: ${JSON.stringify(skipped)}\n`;
     } else {
       const files = [];
