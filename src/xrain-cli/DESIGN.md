@@ -11,7 +11,7 @@ Depends On:
 
 本文记录 CLI 的连接、智能体与设置管理合同。实际部署和已安装 Skill 是否包含某项能力，以所用源码、随附包及服务接口为准；构建或源码测试不证明其他消费者已更新。
 
-CLI 的唯一实现位于本仓 `src/xrain-cli/`，交付物是完整 `shzw-xrain-cli` Skill 中的 Node.js 脚本。构建以依赖的仓库内路径生成脚本；即使依赖目录链接到其他位置，同一源码与依赖也应得到相同字节，不包含构建机路径。Workforce 持有团队当前消费副本，跨项目入口链接该副本。后续能力差距、责任项目和验收要求见[能力对齐待办](ALIGNMENT_TODO.md)。
+CLI 的唯一实现位于本仓 `src/xrain-cli/`，交付物是完整 `shzw-xrain-cli` Skill 中的 Node.js 脚本。构建以依赖的仓库内路径生成脚本；即使依赖目录链接到其他位置，同一源码与依赖也应得到相同字节，不包含构建机路径。Workforce 持有团队当前消费副本，跨项目入口链接该副本。
 
 普通HTTP请求不另设CLI默认总截止；未指定--timeout时沿调用方取消和原服务执行等待。显式--timeout仍限制单次请求，操作级--wait-timeout、真实凭据到期及协议校验保持原义。应用操作取显式请求时限和剩余操作预算中较早者；没有有限预算时不创建计时器。导入请求和对话流连接按同一可选时限处理，避免空值转换成零或一毫秒。邮箱、临时生成及语音不再需要单独退出通用截止的分支。
 
@@ -192,6 +192,6 @@ Workforce 的无参数 POST 命令提交空 JSON 对象，满足原会话取消�
 
 `auth tenants` 读取平台的本人企业列表，不修改本地选择；Host 数据库浏览消费原受控数据源 API。独立市场公开读取可匿名进行，写入和本人发布历史仍需独立市场登录。账号绑定和企业代登录通过原浏览器页面完成；CLI 仅返回或打开页面及预期身份，不持有代登录凭据，不把页面打开当成操作完成。
 
-用户功能范围及本轮结果由 [功能对齐](ALIGNMENT_TODO.md)持有；参数、完整请求与恢复动作随 [Workforce](../../skills/shzw-xrain-cli/references/workforce.md)和[子应用](../../skills/shzw-xrain-cli/references/applications.md)参考交付。
+参数、完整请求与恢复动作随 [Workforce](../../skills/shzw-xrain-cli/references/workforce.md)和[子应用](../../skills/shzw-xrain-cli/references/applications.md)参考交付。
 
 项目函数通过 `project function publish/test` 复用共用组装与现有函数管理、版本及试算 API。发布按精确 key 保留来源身份，相同源码和合同复用不可变版本，回执核对实际版本内容；不隐式修改应用选版。测试使用版本 ID 和项目 JSON 用例，对象子集、数组长度及逐项和标量类型分别断言，失败返回非零退出码。来源快照、未知写入、并行版本变化和普通函数的 SDK 副作用按[命令合同](../../skills/shzw-xrain-cli/references/project-functions.md)处理。
