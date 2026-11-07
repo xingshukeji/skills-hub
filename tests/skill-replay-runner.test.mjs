@@ -74,7 +74,7 @@ test('search finds source text regardless of extension and exposes skipped non-t
   fs.writeFileSync(path.join(f.root, 'input/Program.cs'), 'class PermissionSetItem {}\n');
   fs.writeFileSync(path.join(f.root, 'input/contract'), 'PermissionSetItem\n');
   fs.writeFileSync(path.join(f.root, 'input/data.bin'), Buffer.from([0, 1, 2]));
-  fs.writeFileSync(path.join(f.root, 'input/legacy.txt'), Buffer.from([0xff, 0xfe]));
+  fs.writeFileSync(path.join(f.root, 'input/legacy.txt'), Buffer.from([0xff, 0xfe, 0x61]));
   const direct = f.run(['search', 'Program.cs', 'PermissionSetItem']);
   assert.equal(direct.finish.matches.length, 1);
   assert.equal(direct.finish.matches[0].line, 1);
@@ -89,6 +89,84 @@ test('search finds source text regardless of extension and exposes skipped non-t
   assert.match(binary.stderr, /data.bin/);
   assert.equal(binary.events[1].skipped, true);
   assert.equal(binary.finish.skipped.length, 1);
+});
+
+test('BOM UTF-16 source reads and searches preserve raw receipts and decoded source across chunk boundaries', t => {
+  const f = fixture(t);
+  const directory = path.join(f.root, 'input/project/resources');
+  fs.mkdirSync(directory, { recursive: true });
+  let text = '//' + 'x'.repeat(4092) + '😀\n//';
+  text += 'y'.repeat(36862 - text.length) + '😀\nclass TailRule { string Note = "中文"; }\n';
+  const little = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+  for (const [name, encoding, bytes] of [['Rules.cs', 'utf-16le', little],
+    ['RuleSource', 'utf-16be', Buffer.from(little).swap16()]]) {
+    const relative = `project/resources/${name}`, file = path.join(f.root, 'input', relative);
+    fs.writeFileSync(file, bytes);
+    const read = f.run(['read', relative]);
+    assert.equal(read.stdout, text); assert.equal(read.finish.encoding, encoding);
+    assert.equal(read.finish.bytes, bytes.length);
+    assert.equal(read.finish.sha256, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(read.finish.outputBytes, Buffer.byteLength(text));
+    assert.equal(read.finish.outputSHA256, createHash('sha256').update(text).digest('hex'));
+    const open = fs.openSync, close = fs.closeSync, readSync = fs.readSync, descriptors = new Set();
+    let measured = 0, result;
+    try {
+      fs.openSync = (target, ...args) => { const fd = open(target, ...args); if (target === file) descriptors.add(fd); return fd; };
+      fs.closeSync = fd => { descriptors.delete(fd); return close(fd); };
+      fs.readSync = (fd, ...args) => { const count = readSync(fd, ...args); if (descriptors.has(fd)) measured += count; return count; };
+      result = f.run(['search', relative, 'TailRule|😀']);
+    } finally { fs.openSync = open; fs.closeSync = close; fs.readSync = readSync; }
+    assert.equal(result.code, 0); assert.equal(result.finish.bytesRead, measured);
+    assert.equal(measured, bytes.length); assert.deepEqual(result.finish.skipped, []);
+    assert.deepEqual(result.finish.matches.map(hit => [hit.line, hit.text]),
+      text.trimEnd().split('\n').map((line, index) => [index + 1, line]));
+    assert.equal(result.events[1].encoding, encoding);
+    assert.equal(result.events[1].sha256, read.finish.sha256);
+  }
+});
+
+test('UTF-16 BOM detection tolerates short reads and accepts an empty BOM-marked text file', t => {
+  const f = fixture(t), file = path.join(f.root, 'input/Short.cs');
+  const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('class ShortRead {}\n', 'utf16le')]);
+  fs.writeFileSync(file, bytes);
+  const original = fs.readSync;
+  let result;
+  try {
+    fs.readSync = (fd, buffer, offset, length, position) => original(fd, buffer, offset, Math.min(length, 1), position);
+    result = f.run(['search', 'Short.cs', 'ShortRead']);
+  } finally { fs.readSync = original; }
+  assert.equal(result.code, 0); assert.equal(result.finish.matches[0].text, 'class ShortRead {}');
+  assert.equal(result.finish.bytesRead, bytes.length); assert.deepEqual(result.finish.skipped, []);
+  fs.writeFileSync(path.join(f.root, 'input/EmptySource'), Buffer.from([0xfe, 0xff]));
+  const empty = f.run(['search', 'EmptySource', 'absent']);
+  assert.deepEqual(empty.finish.skipped, []); assert.equal(empty.events[1].bytesRead, 2);
+  assert.equal(f.run(['read', 'EmptySource']).stdout, '');
+});
+
+test('malformed or NUL-containing UTF-16 stays skipped and failed decoding cannot emit unreadable bytes', t => {
+  const f = fixture(t);
+  for (const [name, bytes] of [['odd.cs', Buffer.from([0xff, 0xfe, 0x61])],
+    ['surrogate.cs', Buffer.from([0xfe, 0xff, 0xd8, 0x3d])],
+    ['nul.bin', Buffer.from([0xff, 0xfe, 0, 0])]]) {
+    fs.writeFileSync(path.join(f.root, 'input', name), bytes);
+    const search = f.run(['search', name, '.']);
+    assert.equal(search.code, 0); assert.deepEqual(search.finish.matches, []);
+    assert.equal(search.finish.skipped[0].hashScope, 'full');
+    assert.equal(search.finish.skipped[0].sha256, createHash('sha256').update(bytes).digest('hex'));
+  }
+  const failed = f.run(['read', 'odd.cs']);
+  assert.equal(failed.code, 1); assert.equal(failed.stdout, '');
+  assert.equal(failed.finish.bytes, 3); assert.equal(failed.finish.outputBytes, 0);
+  assert.equal(failed.finish.encoding, 'utf-16le'); assert.ok(failed.finish.error);
+  const prefix = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('x'.repeat(40000), 'utf16le')]);
+  const binary = Buffer.concat([prefix, Buffer.from([0, 0]), Buffer.alloc(1024 * 1024)]);
+  fs.writeFileSync(path.join(f.root, 'input/late.bin'), binary);
+  const late = f.run(['search', 'late.bin', 'x']);
+  const skip = late.finish.skipped[0];
+  assert.equal(skip.hashScope, 'prefix'); assert.equal(skip.encoding, 'utf-16le');
+  assert.ok(skip.bytesRead < binary.length); assert.equal(skip.sha256, undefined);
+  assert.equal(skip.sampleSHA256, createHash('sha256').update(binary.subarray(0, skip.bytesRead)).digest('hex'));
+  assert.equal(f.run(['read', 'example.md']).code, 0);
 });
 
 test('search bounds binary probes without excluding source text or splitting valid UTF-8', t => {

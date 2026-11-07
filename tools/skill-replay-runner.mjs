@@ -3,9 +3,20 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isUtf8 } from 'node:buffer';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+function textEncoding(bytes) {
+  if (bytes.length >= 2) {
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
+  }
+  return 'utf-8';
+}
+function textDecoder(encoding) {
+  // Keep the existing UTF-8 BOM behavior; a UTF-16 BOM selects byte order and
+  // is removed when producing readable UTF-8 output or matching source lines.
+  return new TextDecoder(encoding, { fatal: true, ignoreBOM: encoding === 'utf-8' });
+}
 function invalid(message, code = 'INVALID_ARGUMENTS') { return Object.assign(new Error(message), { code }); }
 const descriptorWriter = descriptor => ({ write(value) {
   const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
@@ -72,8 +83,17 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
     }
     if (op === 'read') {
       const bytes = fs.readFileSync(target(requestedPath));
-      result = { path: requestedPath, sha256: hash(bytes), bytes: bytes.length };
-      output = bytes;
+      result = { path: requestedPath, sha256: hash(bytes), bytes: bytes.length,
+        outputBytes: 0, outputSHA256: hash(Buffer.alloc(0)) };
+      let rendered = bytes;
+      const encoding = textEncoding(bytes);
+      if (encoding !== 'utf-8') {
+        result.encoding = encoding; result.outputEncoding = 'utf-8';
+        rendered = Buffer.from(textDecoder(encoding).decode(bytes));
+      }
+      output = rendered;
+      result.outputBytes = output.length;
+      result.outputSHA256 = output === bytes ? result.sha256 : hash(output);
     } else if (op === 'list') {
       const file = target(requestedPath), files = fs.statSync(file).isDirectory() ? walk(file).map(relative) : [relative(file)];
       result = { path: requestedPath, files }; output = files.join('\n') + '\n';
@@ -82,7 +102,7 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
       const files = fs.statSync(file).isDirectory() ? walk(file) : [file], matches = [], skipped = [];
       result = { path: requestedPath, pattern, matches, skipped, bytesRead: 0 };
       for (const file of files) {
-        let descriptor, size, bytesRead = 0;
+        let descriptor, size, encoding, bytesRead = 0;
         const readChunk = length => {
           const buffer = Buffer.allocUnsafe(length);
           const count = fs.readSync(descriptor, buffer, 0, length, null);
@@ -90,7 +110,7 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
           return buffer.subarray(0, count);
         };
         const skip = (sample, complete) => {
-          const item = { path: relative(file), reason: 'Not UTF-8 text without NUL bytes',
+          const item = { path: relative(file), reason: 'Not supported Unicode text without NUL characters', encoding,
             bytes: complete ? sample.length : size, bytesRead, hashScope: complete ? 'full' : 'prefix',
             ...(complete ? { sha256: hash(sample) } : { sampleSHA256: hash(sample), sampleBytes: sample.length }) };
           skipped.push(item);
@@ -99,39 +119,46 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
         try {
           descriptor = fs.openSync(file, 'r');
           size = fs.fstatSync(descriptor).size;
-          const prefix = readChunk(Math.min(8192, size));
-          const decoder = new TextDecoder('utf-8', { fatal: true });
-          let nonText = prefix.includes(0);
-          if (!nonText) {
-            try {
-              // A valid multi-byte character may straddle the probe boundary.
-              decoder.decode(prefix, { stream: prefix.length < size });
-            } catch { nonText = true; }
+          // A regular-file read may be short. Finish the bounded probe before
+          // deciding whether its first bytes form an encoding marker.
+          const probe = []; let remaining = Math.min(8192, size);
+          while (remaining) {
+            const part = readChunk(remaining);
+            if (!part.length) break;
+            probe.push(part); remaining -= part.length;
           }
+          const prefix = Buffer.concat(probe);
+          encoding = textEncoding(prefix);
+          const decoder = textDecoder(encoding), textChunks = [];
+          const decode = (chunk, stream) => {
+            try {
+              const text = decoder.decode(chunk, { stream });
+              if (text.includes('\0')) return false;
+              textChunks.push(text); return true;
+            } catch { return false; }
+          };
+          let nonText = !decode(prefix, prefix.length < size);
           if (nonText) { skip(prefix, prefix.length === size); continue; }
           const chunks = [prefix];
           for (;;) {
             const chunk = readChunk(65536);
             if (!chunk.length) break;
             chunks.push(chunk);
-            nonText = chunk.includes(0);
-            if (!nonText) {
-              try { decoder.decode(chunk, { stream: true }); } catch { nonText = true; }
-            }
+            nonText = !decode(chunk, true);
             if (nonText) { skip(Buffer.concat(chunks), bytesRead === size); break; }
           }
           if (nonText) continue;
           const bytes = Buffer.concat(chunks);
           // The probe is only an early rejection, never proof that a file is text.
-          if (bytes.includes(0) || !isUtf8(bytes)) { skip(bytes, true); continue; }
-          const lines = bytes.toString().split(/\r?\n/);
+          if (!decode(Buffer.alloc(0), false)) { skip(bytes, true); continue; }
+          const lines = textChunks.join('').split(/\r?\n/);
           const hits = lines.flatMap((text, index) => regex.test(text) ? [{ path: relative(file), line: index + 1, text }] : []);
           // Preserve progress even if a later file fails. Scanned bytes are not
           // necessarily content exposed to the model; only returned matches are.
-          emit({ phase: 'search-file', path: relative(file), sha256: hash(bytes), bytes: bytes.length, bytesRead, matches: hits });
+          emit({ phase: 'search-file', path: relative(file), encoding, sha256: hash(bytes), bytes: bytes.length, bytesRead, matches: hits });
           matches.push(...hits);
         } catch (error) {
-          emit({ phase: 'search-file', path: relative(file), status: 'failed', bytes: size, bytesRead,
+          emit({ phase: 'search-file', path: relative(file), status: 'failed', encoding, bytes: size, bytesRead,
             error: { name: error.name, code: error.code ?? null, message: error.message }, matches: [] });
           throw error;
         } finally {
