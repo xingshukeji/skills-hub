@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { runReplay, inspectReplayTrace } from '../tools/skill-replay-runner.mjs';
 
 function fixture(t) {
@@ -88,6 +89,125 @@ test('search finds source text regardless of extension and exposes skipped non-t
   assert.match(binary.stderr, /data.bin/);
   assert.equal(binary.events[1].skipped, true);
   assert.equal(binary.finish.skipped.length, 1);
+});
+
+test('search bounds binary probes without excluding source text or splitting valid UTF-8', t => {
+  const f = fixture(t), binary = path.join(f.root, 'input/large.blob');
+  const descriptor = fs.openSync(binary, 'w');
+  fs.writeSync(descriptor, Buffer.from([0, 1, 2]));
+  fs.ftruncateSync(descriptor, 8 * 1024 * 1024); fs.closeSync(descriptor);
+  // Four-byte characters cross both the probe and next chunk boundary.
+  const source = 'a'.repeat(8191) + '😀' + 'b'.repeat(65532) + '😀\nclass TailNeedle {}\n';
+  fs.writeFileSync(path.join(f.root, 'input/Program.cs'), source);
+  fs.writeFileSync(path.join(f.root, 'input/text.png'), 'TailNeedle\n');
+  fs.writeFileSync(path.join(f.root, 'input/contract'), 'TailNeedle\n');
+  const originalOpen = fs.openSync, originalRead = fs.readSync, originalReadFile = fs.readFileSync, originalClose = fs.closeSync;
+  const descriptors = new Set(); let observedBinaryBytes = 0;
+  t.mock.method(fs, 'openSync', function(file, ...args) {
+    const fd = originalOpen.call(this, file, ...args);
+    if (file === binary) descriptors.add(fd);
+    return fd;
+  });
+  t.mock.method(fs, 'readSync', function(fd, ...args) {
+    const count = originalRead.call(this, fd, ...args);
+    if (descriptors.has(fd)) observedBinaryBytes += count;
+    return count;
+  });
+  t.mock.method(fs, 'closeSync', function(fd) {
+    descriptors.delete(fd);
+    return originalClose.call(this, fd);
+  });
+  t.mock.method(fs, 'readFileSync', function(file, ...args) {
+    assert.notEqual(file, binary, 'Do not read the entire binary just to skip it');
+    return originalReadFile.call(this, file, ...args);
+  });
+  const result = f.run(['search', '.', 'TailNeedle']);
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.finish.matches.map(hit => hit.path).sort(), ['Program.cs', 'contract', 'text.png']);
+  const skipped = result.events.find(e => e.path === 'large.blob' && e.phase === 'search-file');
+  assert.equal(skipped.skipped, true); assert.equal(skipped.hashScope, 'prefix');
+  assert.equal(skipped.bytes, 8 * 1024 * 1024);
+  assert.equal(skipped.bytesRead, 8192); assert.equal(observedBinaryBytes, 8192);
+  assert.equal(skipped.sampleBytes, 8192); assert.match(skipped.sampleSHA256, /^[a-f0-9]{64}$/);
+  const expectedPrefix = Buffer.alloc(8192); expectedPrefix[1] = 1; expectedPrefix[2] = 2;
+  assert.equal(skipped.sampleSHA256, createHash('sha256').update(expectedPrefix).digest('hex'));
+  assert.equal(Object.hasOwn(skipped, 'sha256'), false);
+  const searched = result.events.find(e => e.path === 'Program.cs' && e.phase === 'search-file');
+  assert.equal(searched.bytesRead, Buffer.byteLength(source));
+  assert.equal(searched.sha256, createHash('sha256').update(source).digest('hex'));
+  assert.equal(result.finish.bytesRead, result.events.filter(e => e.phase === 'search-file').reduce((sum, e) => sum + e.bytesRead, 0));
+});
+
+test('a text-looking prefix cannot hide late NUL or malformed UTF-8, and empty text stays searchable', t => {
+  const f = fixture(t), prefix = Buffer.from('Needle\n' + 'a'.repeat(9000));
+  for (const [name, tail] of [['late.cs', Buffer.from([0])], ['late-utf8', Buffer.from([0xff])],
+    ['truncated.cs', Buffer.from([0xe2, 0x82])]]) {
+    const bytes = Buffer.concat([prefix, tail]);
+    fs.writeFileSync(path.join(f.root, 'input', name), bytes);
+    const result = f.run(['search', name, 'Needle']);
+    assert.equal(result.code, 0); assert.deepEqual(result.finish.matches, []);
+    const skipped = result.events[1];
+    assert.equal(skipped.skipped, true); assert.equal(skipped.hashScope, 'full');
+    assert.equal(skipped.bytesRead, bytes.length);
+    assert.equal(skipped.sha256, createHash('sha256').update(bytes).digest('hex'));
+  }
+  fs.writeFileSync(path.join(f.root, 'input/empty.cs'), '');
+  const empty = f.run(['search', 'empty.cs', 'Needle']);
+  assert.equal(empty.code, 0); assert.deepEqual(empty.finish.skipped, []);
+  assert.equal(empty.events[1].bytesRead, 0); assert.deepEqual(empty.finish.matches, []);
+  // An ASCII-looking header must not force reading a large binary tail either.
+  const lateLarge = path.join(f.root, 'input/late-large');
+  const fd = fs.openSync(lateLarge, 'w');
+  fs.writeSync(fd, Buffer.concat([prefix, Buffer.from([0])]));
+  fs.ftruncateSync(fd, 8 * 1024 * 1024); fs.closeSync(fd);
+  const stopped = f.run(['search', 'late-large', 'Needle']);
+  assert.equal(stopped.code, 0); assert.deepEqual(stopped.finish.matches, []);
+  assert.equal(stopped.events[1].hashScope, 'prefix');
+  assert.equal(stopped.events[1].bytesRead, 8192 + 65536);
+  assert.equal(stopped.events[1].sampleBytes, stopped.events[1].bytesRead);
+});
+
+test('search open and mid-read failures retain prior matches, failed paths and measured reads', t => {
+  const f = fixture(t), failed = path.join(f.root, 'input/b.cs');
+  fs.writeFileSync(path.join(f.root, 'input/a.cs'), 'Needle\n');
+  fs.writeFileSync(failed, 'a'.repeat(20000));
+  const originalOpen = fs.openSync, originalRead = fs.readSync, originalClose = fs.closeSync;
+  let mode = 'open', targetDescriptor, targetRead = 0, closed = false;
+  t.mock.method(fs, 'openSync', function(file, ...args) {
+    if (file === failed && mode === 'open') throw Object.assign(new Error('fixture denied'), { code: 'EACCES' });
+    const fd = originalOpen.call(this, file, ...args); if (file === failed) targetDescriptor = fd; return fd;
+  });
+  t.mock.method(fs, 'readSync', function(fd, ...args) {
+    if (fd === targetDescriptor && targetRead++) throw Object.assign(new Error('fixture read error'), { code: 'EIO' });
+    return originalRead.call(this, fd, ...args);
+  });
+  t.mock.method(fs, 'closeSync', function(fd) {
+    if (fd === targetDescriptor) closed = true;
+    return originalClose.call(this, fd);
+  });
+  for (const [currentMode, expectedCode, bytesRead] of [['open', 'EACCES', 0], ['read', 'EIO', 8192]]) {
+    mode = currentMode;
+    const result = f.run(['search', '.', 'Needle']);
+    assert.equal(result.code, 1); assert.equal(result.finish.error.code, expectedCode);
+    assert.equal(result.finish.matches[0].path, 'a.cs');
+    const progress = result.events.find(e => e.phase === 'search-file' && e.path === 'b.cs');
+    assert.equal(progress.status, 'failed'); assert.equal(progress.error.code, expectedCode);
+    assert.equal(progress.bytesRead, bytesRead); assert.equal(Object.hasOwn(progress, 'sha256'), false);
+    assert.match(result.stderr, new RegExp(expectedCode));
+  }
+  assert.equal(closed, true);
+});
+
+test('failed skip disclosure keeps the binary probe and failed output receipt', t => {
+  const f = fixture(t);
+  fs.writeFileSync(path.join(f.root, 'input/binary'), Buffer.alloc(100000));
+  const result = f.run(['search', 'binary', 'absent'], { stderr: { write() {
+    throw Object.assign(new Error('fixture closed output'), { code: 'EPIPE' });
+  } } });
+  assert.equal(result.code, 1); assert.equal(result.finish.operationExitCode, 0);
+  assert.equal(result.finish.error.stage, 'output'); assert.equal(result.finish.error.code, 'EPIPE');
+  assert.equal(result.finish.skipped[0].hashScope, 'prefix');
+  assert.equal(result.events[1].bytesRead, 8192);
 });
 
 test('unavailable journal refuses to run rather than silently losing the attempt', t => {

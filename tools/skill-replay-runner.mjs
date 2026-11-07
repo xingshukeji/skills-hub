@@ -80,21 +80,63 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
     } else if (op === 'search') {
       const regex = new RegExp(pattern, 'i'), file = target(requestedPath);
       const files = fs.statSync(file).isDirectory() ? walk(file) : [file], matches = [], skipped = [];
-      result = { path: requestedPath, pattern, matches, skipped };
+      result = { path: requestedPath, pattern, matches, skipped, bytesRead: 0 };
       for (const file of files) {
-        const bytes = fs.readFileSync(file);
-        if (bytes.includes(0) || !isUtf8(bytes)) {
-          const item = { path: relative(file), reason: 'Not UTF-8 text without NUL bytes' };
+        let descriptor, size, bytesRead = 0;
+        const readChunk = length => {
+          const buffer = Buffer.allocUnsafe(length);
+          const count = fs.readSync(descriptor, buffer, 0, length, null);
+          bytesRead += count; result.bytesRead += count;
+          return buffer.subarray(0, count);
+        };
+        const skip = (sample, complete) => {
+          const item = { path: relative(file), reason: 'Not UTF-8 text without NUL bytes',
+            bytes: complete ? sample.length : size, bytesRead, hashScope: complete ? 'full' : 'prefix',
+            ...(complete ? { sha256: hash(sample) } : { sampleSHA256: hash(sample), sampleBytes: sample.length }) };
           skipped.push(item);
-          emit({ phase: 'search-file', ...item, sha256: hash(bytes), bytes: bytes.length, matches: [], skipped: true });
-          continue;
+          emit({ phase: 'search-file', ...item, matches: [], skipped: true });
+        };
+        try {
+          descriptor = fs.openSync(file, 'r');
+          size = fs.fstatSync(descriptor).size;
+          const prefix = readChunk(Math.min(8192, size));
+          const decoder = new TextDecoder('utf-8', { fatal: true });
+          let nonText = prefix.includes(0);
+          if (!nonText) {
+            try {
+              // A valid multi-byte character may straddle the probe boundary.
+              decoder.decode(prefix, { stream: prefix.length < size });
+            } catch { nonText = true; }
+          }
+          if (nonText) { skip(prefix, prefix.length === size); continue; }
+          const chunks = [prefix];
+          for (;;) {
+            const chunk = readChunk(65536);
+            if (!chunk.length) break;
+            chunks.push(chunk);
+            nonText = chunk.includes(0);
+            if (!nonText) {
+              try { decoder.decode(chunk, { stream: true }); } catch { nonText = true; }
+            }
+            if (nonText) { skip(Buffer.concat(chunks), bytesRead === size); break; }
+          }
+          if (nonText) continue;
+          const bytes = Buffer.concat(chunks);
+          // The probe is only an early rejection, never proof that a file is text.
+          if (bytes.includes(0) || !isUtf8(bytes)) { skip(bytes, true); continue; }
+          const lines = bytes.toString().split(/\r?\n/);
+          const hits = lines.flatMap((text, index) => regex.test(text) ? [{ path: relative(file), line: index + 1, text }] : []);
+          // Preserve progress even if a later file fails. Scanned bytes are not
+          // necessarily content exposed to the model; only returned matches are.
+          emit({ phase: 'search-file', path: relative(file), sha256: hash(bytes), bytes: bytes.length, bytesRead, matches: hits });
+          matches.push(...hits);
+        } catch (error) {
+          emit({ phase: 'search-file', path: relative(file), status: 'failed', bytes: size, bytesRead,
+            error: { name: error.name, code: error.code ?? null, message: error.message }, matches: [] });
+          throw error;
+        } finally {
+          if (descriptor !== undefined) fs.closeSync(descriptor);
         }
-        const lines = bytes.toString().split(/\r?\n/);
-        const hits = lines.flatMap((text, index) => regex.test(text) ? [{ path: relative(file), line: index + 1, text }] : []);
-        // Preserve progress even if a later file fails. Scanned bytes are not
-        // necessarily content exposed to the model; only returned matches are.
-        emit({ phase: 'search-file', path: relative(file), sha256: hash(bytes), bytes: bytes.length, matches: hits });
-        matches.push(...hits);
       }
       output = JSON.stringify(matches, null, 2) + '\n';
       if (skipped.length) errorOutput = `Search skipped non-text files: ${JSON.stringify(skipped)}\n`;
