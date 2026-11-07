@@ -46,6 +46,11 @@ export async function mockServer(t, handler) {
       await handler(hit, res);
     } catch (error) { errors.push(error); if (!res.headersSent) res.writeHead(500); res.end(); }
   });
+  // These mocks test CLI contracts, not idle socket expiry. Synchronous Windows
+  // credential protection can outlast the default idle deadline and race the
+  // next request on a reused socket. Active request deadlines remain testable;
+  // the after hook still closes every connection and the server explicitly.
+  server.keepAliveTimeout = 0;
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); assert.deepEqual(errors, []); });
