@@ -717,7 +717,7 @@ import { randomBytes as randomBytes3 } from "node:crypto";
 import { openAsBlob, constants } from "node:fs";
 import { copyFile, link, lstat, open, stat, unlink } from "node:fs/promises";
 import { basename, dirname as dirname2, extname, join as join2, resolve as resolve2 } from "node:path";
-import { performance } from "node:perf_hooks";
+import { performance as performance2 } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 var protocol = "xrain-import-jobs-v2";
 var mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -757,14 +757,14 @@ function makeClient(ctx, signal) {
 function abortError(client2, error, deadline) {
   if (error instanceof CliError) return error;
   if (client2.signal.aborted) return new CliError("Stopped locally; the server operation may still be running.", { code: "interrupted" });
-  if (deadline !== void 0 && performance.now() >= deadline)
+  if (deadline !== void 0 && performance2.now() >= deadline)
     return new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout" });
   if (["TimeoutError", "AbortError"].includes(error?.name))
     return new CliError("HTTP request timed out.", { code: "timeout", hint: "Check connectivity or set --timeout." });
   return new CliError("HTTP request failed. Check the server URL and connectivity.", { code: "network_error" });
 }
 async function send(client2, method, path, { json: json2, body, deadline, accept = "application/json" } = {}) {
-  const remaining2 = deadline === void 0 ? Infinity : deadline - performance.now();
+  const remaining2 = deadline === void 0 ? Infinity : deadline - performance2.now();
   if (remaining2 <= 0) throw abortError(client2, new Error(), deadline);
   const timeout = Math.min(client2.timeout ?? Infinity, remaining2);
   const headers = new Headers({ ...client2.headers, Accept: accept, "Accept-Encoding": "identity" });
@@ -936,14 +936,14 @@ async function waitJob(ctx, client2, initial, mode, deadline) {
       if (job.version !== lastVersion) ctx.reporter.progress(`Import ${job.jobId}: ${job.status}; committed ${job.progress.committedOutputRows}.`);
       lastVersion = job.version;
     }
-    const left = deadline - performance.now();
+    const left = deadline - performance2.now();
     if (left <= 0) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
     try {
       await delay(Math.min(ctx.args.integer("poll-interval", 2) * 1e3, left), void 0, { signal: client2.signal });
     } catch (error) {
       throw contextualError(abortError(client2, error, deadline), client2.entity, job.requestId, job);
     }
-    if (performance.now() >= deadline) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
+    if (performance2.now() >= deadline) throw new CliError("Stopped waiting; the server job may still be running.", { code: "import_wait_timeout", details: { job } });
     try {
       const next = validatedJob(await jsonRequest(client2, "GET", `${client2.root}/imports/jobs/${segment(job.jobId)}`, { deadline }), client2.entity, job.jobId.toLowerCase(), job.requestId.toLowerCase());
       if (next.disclosure !== "restricted" && job.disclosure !== "restricted" && next.version < job.version)
@@ -1030,7 +1030,7 @@ async function dataImportCommands(ctx) {
     client2 = makeClient(ctx, controller.signal);
     const root3 = `${client2.root}/imports/jobs`;
     const wait2 = action === "wait" || args.has("wait");
-    const deadline = wait2 ? performance.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
+    const deadline = wait2 ? performance2.now() + args.integer("wait-timeout", 300) * 1e3 : void 0;
     if (action === "capabilities") {
       reporter.print(await jsonRequest(client2, "GET", `${client2.root}/imports/capabilities`));
       return 0;
@@ -2763,7 +2763,7 @@ async function fileSha256(path, signal) {
 
 // src/xrain-cli/app-management.mjs
 import { setTimeout as delay3 } from "node:timers/promises";
-import { performance as performance2 } from "node:perf_hooks";
+import { performance as performance3 } from "node:perf_hooks";
 var activeStatuses = /* @__PURE__ */ new Set(["Pending", "Running", "Finalizing"]);
 var statuses2 = /* @__PURE__ */ new Set([...activeStatuses, "WaitingForResolution", "Succeeded", "Failed", "Cancelled"]);
 var installFields = ["versionId", "expectedRevision", "tenantBindings", "confirmations", "maintainInstalledVersion"];
@@ -2874,19 +2874,19 @@ function checkOutcome(operation, cancel = false) {
 }
 function waitSettings(args, wait2) {
   return {
-    deadline: wait2 ? performance2.now() + args.integer("wait-timeout", 300) * 1e3 : void 0,
+    deadline: wait2 ? performance3.now() + args.integer("wait-timeout", 300) * 1e3 : void 0,
     interval: args.integer("poll-interval", 2) * 1e3
   };
 }
 function remaining(settings) {
-  return settings.deadline === void 0 ? void 0 : Math.max(1, Math.ceil(settings.deadline - performance2.now()));
+  return settings.deadline === void 0 ? void 0 : Math.max(1, Math.ceil(settings.deadline - performance3.now()));
 }
 async function waitOperation(ctx, api3, operation, settings) {
   let lastStatus;
   while (activeStatuses.has(operation.status)) {
     if (operation.status !== lastStatus) ctx.reporter.progress(`Operation ${operation.id}: ${operation.status}.`);
     lastStatus = operation.status;
-    const left = settings.deadline - performance2.now();
+    const left = settings.deadline - performance3.now();
     if (left <= 0) throw operationError(
       operation,
       "operation_wait_timeout",
@@ -2894,12 +2894,12 @@ async function waitOperation(ctx, api3, operation, settings) {
       `Use app operation wait --operation ${operation.id} with the same target/profile to resume observation.`
     );
     await delay3(Math.min(settings.interval, left));
-    if (performance2.now() >= settings.deadline) continue;
+    if (performance3.now() >= settings.deadline) continue;
     try {
       const response = requireSuccess(await api3.send("GET", `${api3.root}/operations/${segment(operation.id)}`, { timeout: remaining(settings) }));
       operation = operationResponse(response.json(), operation.id, void 0, operation);
     } catch (error) {
-      if (error.code === "timeout" && performance2.now() >= settings.deadline)
+      if (error.code === "timeout" && performance3.now() >= settings.deadline)
         throw operationError(
           operation,
           "operation_wait_timeout",
@@ -3229,11 +3229,11 @@ async function appStatus(ctx) {
   const packages = await published(send2, root3);
   const filter = ctx.args.value("package");
   const selected = packages.filter((item) => !filter || item.id === filter || item.namespace === filter);
-  const statuses3 = [];
+  const statuses4 = [];
   for (const item of selected) {
     const versions2 = requireSuccess(await send2("GET", `${root3}/packages/${encodeURIComponent(item.id)}/versions`)).json();
     if (!Array.isArray(versions2)) throw new CliError("The server returned an invalid version list.");
-    statuses3.push({
+    statuses4.push({
       id: item.id,
       namespace: item.namespace,
       label: item.label,
@@ -3241,7 +3241,7 @@ async function appStatus(ctx) {
       versions: versions2.filter((v) => ctx.args.has("exchange") || v.publishedAt != null).map((v) => ({ id: v.id, version: v.version, digest: v.digest, publishedAt: v.publishedAt ?? v.createdAt }))
     });
   }
-  ctx.reporter.print(!ctx.reporter.json && statuses3.length === 1 ? statuses3[0] : statuses3);
+  ctx.reporter.print(!ctx.reporter.json && statuses4.length === 1 ? statuses4[0] : statuses4);
   return 0;
 }
 async function appCommands(ctx) {
@@ -4823,6 +4823,10 @@ var workforceOperations = [
   define6("schedule pause", "POST", "/task-schedules/{schedule-id}/pause"),
   define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["before"] }),
   define6("schedule run show", "GET", "/task-schedules/{schedule-id}/runs/{run-id}"),
+  define6("schedule run wait", "GET", "/task-schedules/{schedule-id}/runs/{run-id}", {
+    waitRun: true,
+    description: "Read only the original run until terminal. --wait-timeout (default 120 seconds) covers identity checks, HTTP bodies and polling; --poll-interval defaults to 1 second. Timeout or Ctrl+C stops local observation without cancelling or replaying server work. Failed is a readable terminal, not proof of business success."
+  }),
   ...["conversation", "pending-actions"].map((action) => define6("schedule run " + action, "GET", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
   ...["respond", "cancel-action"].map((action) => define6("schedule run " + action, "POST", `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: "object" })),
   define6("schedule run cancel", "POST", "/task-schedules/{schedule-id}/runs/{run-id}/cancel")
@@ -5119,6 +5123,7 @@ for (const operation of workforceOperations) command(
     ...routeParameters(operation.route),
     ...operation.input || operation.audio ? ["request-json", "file"] : [],
     ...operation.expectedRevision ? ["expected-revision"] : [],
+    ...operation.waitRun ? ["wait-timeout", "poll-interval"] : [],
     ...operation.query ? ["query-json"] : [],
     ...operation.upload ? ["file"] : [],
     ...operation.download ? ["out"] : [],
@@ -5329,7 +5334,7 @@ function validateCommand(args) {
   if (spec.options.includes("request-json") && spec.path !== "workforce speech transcribe") exclusive(["request-json", "file"]);
   if (spec.path === "workforce schedule enable") exclusive(["expected-revision", "request-json", "file"]);
   if (spec.options.includes("wait-timeout")) {
-    if (!["app operation wait", "data import wait"].includes(spec.path) && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
+    if (!["app operation wait", "data import wait", "workforce schedule run wait"].includes(spec.path) && !spec.path.startsWith("agent chat ") && !args.has("wait") && (args.has("wait-timeout") || args.has("poll-interval")))
       throw new CliError("--wait-timeout and --poll-interval require --wait.", { code: "invalid_arguments" });
     for (const name of ["wait-timeout", "poll-interval"]) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: "invalid_arguments" });
@@ -5369,7 +5374,8 @@ function commandHelp(args) {
   else if (!exact || exact.options.includes("request-json")) lines.push("Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.");
   if (prefix[0] === "agent" || !exact) lines.push("Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.");
   if (prefix[0] === "agent" && prefix[1] === "chat") lines.push("Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.");
-  if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
+  if (exact?.path === "workforce schedule run wait") lines.push("Waiting: --wait-timeout SECONDS (default 120, maximum 86400) covers identity checks, response bodies and polling; --poll-interval SECONDS defaults to 1. --timeout remains the per-request limit.");
+  else if (prefix[0] !== "agent" && (!exact || exact.options.includes("wait-timeout"))) lines.push("Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.");
   lines.push(
     "auth login authenticates; login/profile set only save settings. Market login uses browser authentication.",
     "Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed for the CLI; project module compilation uses the project locked esbuild dependency."
@@ -5541,7 +5547,7 @@ import { randomUUID } from "node:crypto";
 import { openAsBlob as openAsBlob3 } from "node:fs";
 import { readFile as readFile3, stat as stat4 } from "node:fs/promises";
 import { basename as basename4, resolve as resolve9 } from "node:path";
-import { performance as performance3 } from "node:perf_hooks";
+import { performance as performance4 } from "node:perf_hooks";
 
 // src/xrain-cli/runtime-controls.mjs
 var reads = { subagents: "subagents", commands: "commands", models: "models" };
@@ -5808,13 +5814,13 @@ async function restoreHistory(ctx, sessionId, requestId, snapshot, headers, help
 }
 function turnBudget(args) {
   const controller = new AbortController(), milliseconds = args.integer("wait-timeout", 120) * 1e3;
-  const deadline = performance3.now() + milliseconds;
+  const deadline = performance4.now() + milliseconds;
   const timeout = setTimeout(() => controller.abort(), milliseconds);
   return {
     signal: controller.signal,
-    expired: () => controller.signal.aborted || performance3.now() >= deadline,
+    expired: () => controller.signal.aborted || performance4.now() >= deadline,
     check() {
-      if (controller.signal.aborted || performance3.now() >= deadline)
+      if (controller.signal.aborted || performance4.now() >= deadline)
         throw new CliError("Waiting for the conversation timed out.", { code: "turn_timeout" });
     },
     close() {
@@ -6152,13 +6158,13 @@ function memberValue(response) {
   if (!response.bytes.length) return null;
   return response.json();
 }
-async function memberTarget(ctx, option, { applicationRequired = true, sessionOnly = true } = {}) {
+async function memberTarget(ctx, option, { applicationRequired = true, sessionOnly = true, signal } = {}) {
   const { args, store } = ctx, profile = store.resolve(args, true);
   const host3 = origin(args.required(option)), appId = applicationRequired ? applicationId(profile) : void 0;
   if (applicationRequired && !appId) throw new CliError("An actual application ID is required.", { code: "invalid_arguments" });
   const token = sessionOnly ? store.loadSession(profile.name, profile.server, profile.tenant, profile.scope) : store.credential(args, profile, { createSecrets: false }).token;
   if (!token) throw new CliError(sessionOnly ? "A matching saved platform login is required." : "An authorized platform credential is required.", { code: "authentication_required" });
-  const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout() }));
+  const identity = memberValue(await request(new URL("/api/service/authen/v1/account/context", profile.server), { token, timeout: args.timeout(), signal }));
   if (!isObject(identity) || identity.tenantId !== profile.tenant || typeof identity.userId !== "string" || !identity.userId)
     throw new CliError("The platform identity does not match the selected target.", { code: "identity_mismatch" });
   const headers = { ...appId ? { "X-XRain-Application-Id": appId } : {}, "X-XRain-Expected-Tenant-Id": profile.tenant, "X-XRain-Expected-User-Id": identity.userId };
@@ -6169,7 +6175,7 @@ async function memberTarget(ctx, option, { applicationRequired = true, sessionOn
     identity,
     token,
     headers,
-    send: (method, path, options = {}) => request(new URL(path, host3), { method, token, timeout: args.timeout(), ...options, headers: { ...headers, ...options.headers } })
+    send: (method, path, options = {}) => request(new URL(path, host3), { method, token, timeout: args.timeout(), signal, ...options, headers: { ...headers, ...options.headers } })
   };
 }
 
@@ -7087,8 +7093,85 @@ async function marketCommands(ctx) {
 import { openAsBlob as openAsBlob5 } from "node:fs";
 import { readFile as readFile5, stat as stat6 } from "node:fs/promises";
 import { basename as basename6, resolve as resolve14 } from "node:path";
+
+// src/xrain-cli/workforce-schedule-wait.mjs
+import { setTimeout as delay4 } from "node:timers/promises";
+var statuses3 = /* @__PURE__ */ new Set(["Running", "Succeeded", "Failed", "Cancelled", "Skipped"]);
+async function waitScheduleRun(ctx, operation) {
+  const { args, reporter } = ctx;
+  const scheduleId = args.required("schedule-id"), runId = args.required("run-id");
+  const seconds = args.integer("wait-timeout", 120), interval = args.integer("poll-interval", 1);
+  const route = operation.route.replace("{schedule-id}", segment(scheduleId)).replace("{run-id}", segment(runId));
+  const controller = new AbortController(), deadline = performance.now() + seconds * 1e3;
+  const waitDeadlineAt = new Date(Date.now() + seconds * 1e3).toISOString();
+  let interrupted = false, lastRun, target2;
+  const interrupt = () => {
+    interrupted = true;
+    controller.abort();
+  };
+  const timer = setTimeout(() => controller.abort(), seconds * 1e3);
+  process.once("SIGINT", interrupt);
+  const recovery2 = () => ({
+    scheduleId,
+    runId,
+    workforce: args.required("workforce"),
+    profile: target2?.profile.name ?? args.value("profile") ?? null,
+    waitDeadlineAt,
+    waitTimeoutSeconds: seconds,
+    ...target2 ? {
+      workforce: target2.host,
+      applicationId: target2.appId,
+      server: target2.profile.server,
+      tenantId: target2.identity.tenantId,
+      userId: target2.identity.userId
+    } : {},
+    lastRun: lastRun ?? null,
+    serverCancelled: false,
+    businessSuccess: "unverified",
+    nextStep: "Read or wait for this same run with the original identity. Inspect its conversation and business result; do not start a replacement."
+  });
+  const check = () => {
+    if (controller.signal.aborted || performance.now() >= deadline) throw new Error("observation stopped");
+  };
+  try {
+    target2 = await memberTarget(ctx, "workforce", { signal: controller.signal });
+    while (true) {
+      check();
+      const run = memberValue(await target2.send("GET", route));
+      check();
+      if (!isObject(run) || run.id !== runId || run.scheduleId !== scheduleId || !statuses3.has(run.status))
+        throw new CliError("Workforce returned a run receipt that does not match the original target.", { code: "invalid_response" });
+      lastRun = run;
+      if (run.status !== "Running") {
+        reporter.print({ ...recovery2(), waitStatus: "terminal", run });
+        return 0;
+      }
+      await delay4(Math.min(interval * 1e3, Math.max(1, deadline - performance.now())), void 0, { signal: controller.signal });
+    }
+  } catch (error) {
+    if (controller.signal.aborted || performance.now() >= deadline) throw new CliError(
+      interrupted ? "Stopped observing the original run; server work was not cancelled." : "Run observation budget expired; server work was not cancelled.",
+      {
+        code: interrupted ? "schedule_wait_interrupted" : "schedule_wait_timeout",
+        details: recovery2()
+      }
+    );
+    if (error instanceof CliError) {
+      error.details = { ...error.details, ...recovery2() };
+      error.hint = "This read did not confirm execution. Inspect the original run; do not create, cancel or replay work because observation failed.";
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    process.removeListener("SIGINT", interrupt);
+    controller.abort();
+  }
+}
+
+// src/xrain-cli/workforce.mjs
 async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find((row) => row.path === ctx.spec.path);
+  if (operation.waitRun) return waitScheduleRun(ctx, operation);
   const { profile, host: host3, appId, identity, send: send2, token, headers } = await memberTarget(
     ctx,
     "workforce",

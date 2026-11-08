@@ -199,7 +199,7 @@ command('batch', ['file'], [slot('file')], 'Run a JSON array of command argument
 for (const operation of managementOperations) command(operation.path, [...api, ...operationOptions(operation)], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? `${operation.method} through the native management API. ${operation.input ? '--request-json supplies the original server DTO; writes are never replayed.' : 'The server enforces the original scope and permissions.'}`);
 for (const operation of workforceOperations) command(operation.path, [...target, 'workforce', ...(!operation.native ? ['application-id'] : []), ...(operation.native ? credentials : ['auth']), ...routeParameters(operation.route),
-  ...(operation.input || operation.audio ? ['request-json', 'file'] : []), ...(operation.expectedRevision ? ['expected-revision'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
+  ...(operation.input || operation.audio ? ['request-json', 'file'] : []), ...(operation.expectedRevision ? ['expected-revision'] : []), ...(operation.waitRun ? ['wait-timeout', 'poll-interval'] : []), ...(operation.query ? ['query-json'] : []), ...(operation.upload ? ['file'] : []), ...(operation.download ? ['out'] : []), ...(operation.browser ? ['no-browser'] : [])], routeParameters(operation.route).map(name => slot(name)),
   operation.description ?? (operation.native ? 'Use the original application publication API and authorized executor credential. Preserve the sender application, target and clientMessageId; accepted is not saved.' :
   operation.audio ? 'Transcribe a local 16 kHz mono PCM WAV with --file; optional --request-json selects providerId/language. Without --file, pass the native audioBase64 request JSON.' :
   'Use the explicit Workforce CLI host API, current platform session and exact application. Native Task, message and schedule rules remain in force.'));
@@ -382,7 +382,7 @@ export function validateCommand(args) {
   if (spec.options.includes('request-json') && spec.path !== 'workforce speech transcribe') exclusive(['request-json', 'file']);
   if (spec.path === 'workforce schedule enable') exclusive(['expected-revision', 'request-json', 'file']);
   if (spec.options.includes('wait-timeout')) {
-    if (!['app operation wait', 'data import wait'].includes(spec.path) && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
+    if (!['app operation wait', 'data import wait', 'workforce schedule run wait'].includes(spec.path) && !spec.path.startsWith('agent chat ') && !args.has('wait') && (args.has('wait-timeout') || args.has('poll-interval')))
       throw new CliError('--wait-timeout and --poll-interval require --wait.', { code: 'invalid_arguments' });
     for (const name of ['wait-timeout', 'poll-interval']) if (args.integer(name, 1) > 86400)
       throw new CliError(`--${name} cannot exceed 86400 seconds.`, { code: 'invalid_arguments' });
@@ -423,7 +423,8 @@ export function commandHelp(args) {
   else if (!exact || exact.options.includes('request-json')) lines.push('Request JSON: --request-json FILE|- (alias --file) accepts the API request. Do not repeat fields in JSON and command options.');
   if (prefix[0] === 'agent' || !exact) lines.push('Agent Runtime commands use the profile Runtime or an explicit --runtime ORIGIN. Definitions and platform subscriptions are separate; inspect --help for each command.');
   if (prefix[0] === 'agent' && prefix[1] === 'chat') lines.push('Chat waits for the submitted turn; a 202 acceptance is not completion. --wait-timeout defaults to 120 seconds. Use --message-file - for stdin and retain session/request IDs for recovery.');
-  if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
+  if (exact?.path === 'workforce schedule run wait') lines.push('Waiting: --wait-timeout SECONDS (default 120, maximum 86400) covers identity checks, response bodies and polling; --poll-interval SECONDS defaults to 1. --timeout remains the per-request limit.');
+  else if (prefix[0] !== 'agent' && (!exact || exact.options.includes('wait-timeout'))) lines.push('Waiting: --wait-timeout SECONDS (default 300) bounds submission and polling; --poll-interval SECONDS (default 2). --timeout remains the per-request limit.');
   lines.push('auth login authenticates; login/profile set only save settings. Market login uses browser authentication.',
     'Runtime: Node.js >=22.12.0. No npm install or .NET SDK needed for the CLI; project module compilation uses the project locked esbuild dependency.');
   return lines.join('\n') + '\n';

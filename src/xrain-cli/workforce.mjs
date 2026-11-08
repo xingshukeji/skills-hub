@@ -8,9 +8,11 @@ import { workforceOperations } from './workforce-operations.mjs';
 import { commandOutcome } from './runtime-controls.mjs';
 import { openBrowser } from './auth.mjs';
 import { saveFile } from './data-import.mjs';
+import { waitScheduleRun } from './workforce-schedule-wait.mjs';
 
 export async function workforceCommands(ctx) {
   const { args, reporter } = ctx, operation = workforceOperations.find(row => row.path === ctx.spec.path);
+  if (operation.waitRun) return waitScheduleRun(ctx, operation);
   const { profile, host, appId, identity, send, token, headers } = await memberTarget(ctx, 'workforce',
     { applicationRequired: !operation.native, sessionOnly: !operation.native });
   if (operation.browser) {

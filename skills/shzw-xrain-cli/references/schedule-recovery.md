@@ -50,6 +50,18 @@ workforce schedule run-once <原scheduleId> --request-json <手动请求.json> -
 
 回执未知时先读取已知原 runId、安排及历史；保留原点击键，不自动生成下一键或重放批次。查询 Failed 运行是一次成功读取，不能将它当作查询失败。手动成功不能替代真实到点验证；没有结束的原生 Session 也不能仅因本地等待超时就另建运行。
 
+## 只读等待原运行
+
+~~~text
+workforce schedule run wait <原scheduleId> <原runId> --wait-timeout 120 --poll-interval 1 --workforce <原宿主> --application-id <原应用> --profile <原执行人> --json
+~~~
+
+默认总预算120秒、轮询间隔1秒，二者为正整数秒，最大86400秒。总预算从首次网络动作前开始，覆盖本人身份预检、请求和响应正文、轮询间隔；--timeout仍限制单个请求，较早截止者生效。命令只GET原运行，不写入、不读取其他运行来替代它。
+
+终态回执的waitStatus=terminal，run保留原status、deadlineAt、Session及失败码。Succeeded、Failed、Cancelled、Skipped均是已成功读取的终态，退出码为0；businessSuccess=unverified表示仍需独立核对业务产物。Running继续观察。
+
+本地预算结束返回schedule_wait_timeout，Ctrl+C返回schedule_wait_interrupted，保留原scheduleId/runId、宿主与profile、本地waitDeadlineAt、已读lastRun、serverCancelled=false和下一步。不会调用服务端取消、再建会话或再次手动执行；使用同一命令接续。404及权限失败保留原业务码，不把未读到当未执行，不自动换键。
+
 ## 判断 JSON 中的业务结果
 
 chat 的 data.status=completed 仅表示原轮次结束。逐项读取 data.toolCalls 的 result.message.content 中原 text JSON，检查 create/enable/lookup 的 ok、outcome、requestId、data.id、status、revision 和 nextRunAt。原生工具 succeeded 仍可能承载 ok:false。

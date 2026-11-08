@@ -157,7 +157,7 @@ transcribe 的 --file 读取原始 16 kHz 单声道 PCM WAV；可用选择.json 
 
 工具目录诊断、五种请求编号、JSON 结果判断及手动执行恢复见[定时诊断与恢复](schedule-recovery.md)。
 
-`workforce schedule` 支持 list/options/bootstrap/agents/models、preview、show/lookup、create/update、enable/pause、run-once、history。show、update、enable、pause、history 带 schedule-id；lookup 带原 request-id（可写为 `--request-id`）。show 精确读取当前安排，lookup 按原创建键读取，不触发执行。未找到或读取失败不授权换键创建。
+`workforce schedule` 支持 list/options/bootstrap/agents/models、preview、show/lookup、create/update、enable/pause、run-once、history、run wait。show、update、enable、pause、history 带 schedule-id；lookup 带原 request-id（可写为 `--request-id`）。show 精确读取当前安排，lookup 按原创建键读取，不触发执行。未找到或读取失败不授权换键创建。
 
 create/update 的请求包含 name、description、ownerId、assigneeId、agentId、timeZoneId 和 timing，可带 provider、model、reasoningEffort。timing 支持 Calendar、Interval、Once；旧 Daily/Workday 仅为兼容输入。先用 `preview --request-json <预览.json>` 提交 timeZoneId、timingDraft，复用返回的规范 timing。当地日期按服务端参考时刻与安排时区解释；重试不重新计算“明天”。preview 不保存安排，失败不表示写入未知。保存默认 Paused，只有原 assignee 可以明确 enable；修改前先 pause。
 

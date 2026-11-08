@@ -78,6 +78,8 @@ export const workforceOperations = [
   define('schedule pause', 'POST', '/task-schedules/{schedule-id}/pause'),
   define('schedule history', 'GET', '/task-schedules/{schedule-id}/history', { query: ['before'] }),
   define('schedule run show', 'GET', '/task-schedules/{schedule-id}/runs/{run-id}'),
+  define('schedule run wait', 'GET', '/task-schedules/{schedule-id}/runs/{run-id}', { waitRun: true,
+    description: 'Read only the original run until terminal. --wait-timeout (default 120 seconds) covers identity checks, HTTP bodies and polling; --poll-interval defaults to 1 second. Timeout or Ctrl+C stops local observation without cancelling or replaying server work. Failed is a readable terminal, not proof of business success.' }),
   ...['conversation', 'pending-actions'].map(action => define('schedule run ' + action, 'GET', `/task-schedules/{schedule-id}/runs/{run-id}/${action}`)),
   ...['respond', 'cancel-action'].map(action => define('schedule run ' + action, 'POST', `/task-schedules/{schedule-id}/runs/{run-id}/${action}`, { input: 'object' })),
   define('schedule run cancel', 'POST', '/task-schedules/{schedule-id}/runs/{run-id}/cancel'),
