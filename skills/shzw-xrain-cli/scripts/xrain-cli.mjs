@@ -253,6 +253,17 @@ import { randomBytes as randomBytes2 } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 // src/xrain-cli/agent-target.mjs
+function applicationAgentIdentity(selection, app3) {
+  if (!isObject(selection) || selection.applicationId !== app3 || !Array.isArray(selection.items) || selection.items.some((item) => !isObject(item) || !nonempty(item.agentId)) || new Set(selection.items.map((item) => item.agentId)).size !== selection.items.length)
+    throw new CliError("XRain returned an invalid application agent selection.", { code: "invalid_response" });
+  const id = selection.defaultAgentId ?? (selection.items.length === 1 ? selection.items[0].agentId : void 0);
+  if (!nonempty(id) || !selection.items.some((item) => item.agentId === id))
+    throw new CliError("The application has no unambiguous selected agent.", {
+      code: "agent_selection_required",
+      hint: "Set the application default or provide an exact --agent-id where supported; existing bindings were not changed."
+    });
+  return identifier(id, "Agent ID");
+}
 function identifier(value, label) {
   if (!nonempty(value) || !/^[a-zA-Z0-9._-]{1,160}$/.test(value) || value === "." || value === "..")
     throw new CliError(`${label} must be a valid exact identifier.`, { code: "invalid_arguments" });
@@ -6195,22 +6206,19 @@ async function selectedIdentity(ctx, options) {
   if (!nonempty(app3)) failure("Specify --agent-id or use an application connection with an existing agent selection.");
   const select = async () => {
     const selection = await apiValue(ctx, "GET", "/api/xrain/v1/agents/qualifications?" + new URLSearchParams({ applicationId: app3 }), void 0, { resolvedProfile: connection2.profile });
-    if (!isObject(selection) || selection.applicationId !== app3 || !Array.isArray(selection.items)) failure("XRain returned an invalid application selection.", "invalid_response");
-    const chosen = selection.items.filter((item) => item.selected === true), id = selection.defaultAgentId ?? (chosen.length === 1 ? chosen[0].agentId : void 0);
-    if (!nonempty(id) || !chosen.some((item) => item.agentId === id)) failure("The application has no unique selected agent.", "agent_selection_required");
-    return identifier(id, "Agent ID");
+    return applicationAgentIdentity(selection, app3);
   };
   return { id: await select(), select, applicationId: app3 };
 }
 function receipt2(value, request2, check) {
-  if (!isObject(value) || value.agentId !== request2.agentId || value.digest !== request2.digest || !nonempty(value.path) || value.checked !== check || value.files !== request2.files.length || !Array.isArray(value.written) || !Array.isArray(value.removed))
+  if (!isObject(value) || value.agentId !== request2.agentId || value.digest !== request2.digest || !nonempty(value.path) || value.checked !== check || typeof value.exists !== "boolean" || !(value.previousDigest === null || typeof value.previousDigest === "string" && /^[a-f0-9]{64}$/.test(value.previousDigest)) || value.files !== request2.files.length || !Array.isArray(value.written) || !Array.isArray(value.removed) || !Array.isArray(value.createdDirectories))
     failure("Runtime returned an invalid workspace publication receipt.", "invalid_response");
   return value;
 }
 async function publishAgent(ctx) {
   const { args, reporter } = ctx, file = await exchangeFile(ctx), snapshot = await snapshotWorkspace(args.required("source"));
   const options = await runtimeValue(ctx, "GET", root + "/options");
-  if (!isObject(options) || options.supportsWorkspacePublication !== true || options.supportsDefinitionValidation !== true || !Array.isArray(options.workspaces))
+  if (!isObject(options) || options.supportsWorkspacePublication !== true || options.supportsWorkspacePublicationPreconditions !== true || options.supportsDefinitionValidation !== true || !Array.isArray(options.workspaces))
     failure("This Runtime does not support complete agent publication.", "unsupported_runtime");
   const identity = await selectedIdentity(ctx, options), id = identity.id;
   let current;
@@ -6220,13 +6228,15 @@ async function publishAgent(ctx) {
     if (!(error instanceof CliError && error.httpStatus === 404 && error.serverCode === "AGENT_DEFINITION_NOT_FOUND")) throw error;
   }
   const expected = current?.revision ?? null, reference = file.definition.workspace;
-  const space = reference.kind === "registered" ? options.workspaces.find((item) => item.id === reference.id) : void 0;
-  const path = args.value("workspace-path") ?? (current?.workspaceDirect ? current.workspacePath : void 0) ?? space?.cwd;
+  const sourceSpace = reference.kind === "registered" ? options.workspaces.find((item) => item.id === reference.id) : void 0;
+  const boundSpace = current && !current.workspaceUnavailable ? options.workspaces.find((item) => item.id === current.workspaceId) : void 0;
+  const path = args.value("workspace-path") ?? (current?.workspaceDirect && !current.workspaceUnavailable ? current.workspacePath : void 0) ?? boundSpace?.cwd ?? sourceSpace?.cwd;
   if (!nonempty(path)) failure("Select the Runtime destination with --workspace-path, or use its configured workspace.", "workspace_unavailable");
   const preset = args.value("preset") ?? file.definition.agentPreset;
   if (!nonempty(preset)) failure("A work mode is required in the definition or --preset.");
   if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true) failure("This Runtime cannot restore native tool inheritance.", "unsupported_runtime");
-  const registered = space?.cwd === path && space.agentPresets?.includes(preset);
+  const space = [boundSpace, sourceSpace].find((item) => item?.cwd === path && item.agentPresets?.includes(preset));
+  const registered = !!space;
   const mapped = { ...file, definition: {
     ...file.definition,
     agentPreset: preset,
@@ -6256,14 +6266,14 @@ async function publishAgent(ctx) {
     });
     return 0;
   }
-  const workspaceChanged = preview.previousDigest !== snapshot.digest || preview.written.length || preview.removed.length || !preview.exists;
+  const workspaceChanged = preview.previousDigest !== snapshot.digest || preview.written.length || preview.removed.length || preview.createdDirectories?.length || !preview.exists;
   if (current && (changedFields.length || workspaceChanged) && !args.has("update")) failure("The target differs from the delivered source. Use --check to review or --update to publish the changes.", "definition_update_required", { agentId: id, revision: expected, changedFields, workspace: preview });
   if (identity.select && await identity.select() !== id) failure("The application agent selection changed before publication.", "agent_selection_changed");
   const details = { agentId: id, expectedRevision: expected, runtime: runtimeConnection(ctx).runtime, workspacePath: path, workspaceDigest: snapshot.digest };
   let workspace, saved = current, stage = "workspace";
   try {
     workspace = await writeOnce(
-      async () => receipt2(await runtimeValue(ctx, "POST", root + "/workspace-publication", request2), request2, false),
+      async () => receipt2(await runtimeValue(ctx, "POST", root + "/workspace-publication", { ...request2, expectedDigest: preview.previousDigest }), request2, false),
       "Workspace publication outcome is unknown. Inspect the original agent and workspace before retrying.",
       details
     );
@@ -6302,16 +6312,40 @@ async function publicationStatus(ctx) {
 }
 async function showAgentTools(ctx) {
   const id = identifier(ctx.args.required("agent-id"), "Agent ID"), current = await definition2(ctx, id);
-  const native = await runtimeValue(ctx, "POST", root + "/tools/native", { ...current.workspaceDirect ? { workspacePath: current.workspacePath } : { workspaceId: current.workspaceId }, agentPreset: current.agentPreset });
-  const business = await runtimeValue(ctx, "POST", root + "/tools/business", {});
-  if (!Array.isArray(native?.items) || !Array.isArray(business?.items)) failure("Runtime returned an invalid tool catalog.", "invalid_response");
+  const catalog = async (kind, body) => {
+    if (kind === "native" && (!current.agentPreset || current.workspaceUnavailable || !(current.workspaceId || current.workspaceDirect && current.workspacePath)))
+      failure("The definition has no available working directory and mode.", "workspace_unavailable");
+    const value = await runtimeValue(ctx, "POST", root + "/tools/" + kind, body);
+    if (!Array.isArray(value?.items)) failure("Runtime returned an invalid tool catalog.", "invalid_response");
+    return value.items;
+  };
+  const results = await Promise.allSettled([
+    catalog("native", { ...current.workspaceDirect ? { workspacePath: current.workspacePath } : { workspaceId: current.workspaceId }, agentPreset: current.agentPreset }),
+    catalog("business", {})
+  ]);
+  const available = {}, catalogErrors = {};
+  for (const [index, kind] of ["native", "business"].entries()) {
+    const result = results[index];
+    if (result.status === "fulfilled") available[kind] = result.value;
+    else {
+      const error = result.reason;
+      catalogErrors[kind] = {
+        code: error.code ?? "catalog_unavailable",
+        message: error.message,
+        ...error.httpStatus ? { httpStatus: error.httpStatus } : {},
+        ...error.serverCode ? { serverCode: error.serverCode } : {}
+      };
+    }
+  }
   ctx.reporter.print({
     agentId: id,
     revision: current.revision,
     nativeTools: current.nativeTools ?? null,
     assistantTools: current.assistantTools ?? [],
     nativeSelection: current.nativeTools === void 0 ? "inherited" : "explicit",
-    available: { native: native.items, business: business.items }
+    complete: !Object.keys(catalogErrors).length,
+    available,
+    ...Object.keys(catalogErrors).length ? { catalogErrors } : {}
   });
   return 0;
 }
@@ -6513,13 +6547,7 @@ async function prepareDefinition(ctx) {
   identifier(app3, "Application ID");
   const selectedIdentity2 = async () => {
     const selection = await apiValue(ctx, "GET", platformAgents + "/qualifications?" + new URLSearchParams({ applicationId: app3 }), void 0, { resolvedProfile: connection2.profile });
-    if (!isObject(selection) || selection.applicationId !== app3 || !Array.isArray(selection.items))
-      throw new CliError("XRain returned an invalid application agent selection.", { code: "invalid_response" });
-    const selected = selection.items.filter((item) => isObject(item) && item.selected === true);
-    const selectedId = selection.defaultAgentId ?? (selected.length === 1 ? selected[0].agentId : void 0);
-    if (!nonempty(selectedId) || !selection.items.some((item) => isObject(item) && item.agentId === selectedId))
-      throw new CliError("The application has no unambiguous selected agent.", { code: "agent_selection_required", hint: "Have the application owner set its existing selection; preparation does not change platform bindings." });
-    return identifier(selectedId, "Agent ID");
+    return applicationAgentIdentity(selection, app3);
   };
   const id = await selectedIdentity2();
   let current;

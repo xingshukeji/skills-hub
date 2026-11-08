@@ -7,7 +7,7 @@ import { definitionFileChanges, exportDefinition, readDefinitionFile } from './d
 import { apiValue, request, responseError, writeOnce } from './http.mjs';
 import { chatCommands } from './agent-chat.mjs';
 import { runtimeRuns } from './runtime-runs.mjs';
-import { applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
+import { applicationAgentIdentity, applicationId, identifier, runtimeOrigin } from './agent-target.mjs';
 import { memberTarget, memberValue } from './member-target.mjs';
 import { publishAgent, publicationStatus, showAgentTools, setAgentTools } from './agent-publication.mjs';
 
@@ -154,13 +154,7 @@ async function prepareDefinition(ctx) {
   identifier(app, 'Application ID');
   const selectedIdentity = async () => {
     const selection = await apiValue(ctx, 'GET', platformAgents + '/qualifications?' + new URLSearchParams({ applicationId: app }), undefined, { resolvedProfile: connection.profile });
-    if (!isObject(selection) || selection.applicationId !== app || !Array.isArray(selection.items))
-      throw new CliError('XRain returned an invalid application agent selection.', { code: 'invalid_response' });
-    const selected = selection.items.filter(item => isObject(item) && item.selected === true);
-    const selectedId = selection.defaultAgentId ?? (selected.length === 1 ? selected[0].agentId : undefined);
-    if (!nonempty(selectedId) || !selection.items.some(item => isObject(item) && item.agentId === selectedId))
-      throw new CliError('The application has no unambiguous selected agent.', { code: 'agent_selection_required', hint: 'Have the application owner set its existing selection; preparation does not change platform bindings.' });
-    return identifier(selectedId, 'Agent ID');
+    return applicationAgentIdentity(selection, app);
   };
   const id = await selectedIdentity();
   let current;

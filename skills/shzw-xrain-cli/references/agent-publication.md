@@ -15,17 +15,19 @@ agent publish --file <定义.json> --source <交付工作空间目录> --agent-i
 agent workspace status <稳定ID> --workspace-path <Runtime目标目录>
 ```
 
-省略 `--agent-id` 时，从当前应用的默认或唯一选用解析已有稳定 ID；没有唯一选用时不创建新身份。目标目录优先取显式 `--workspace-path`，其次取已有直接目录或定义的逻辑工作区在 Runtime 中的配置目录；不会将源电脑导出的直接路径当作另一台机器的默认目标。工作模式取定义中的 `agentPreset`，也可用 `--preset` 明确选择目标可用模式。目标目录不存在时，在已有父目录下创建一层目录；父目录准备仍可用 `agent workspace create`。
+省略 `--agent-id` 时，从当前应用的默认或唯一绑定解析已有稳定 ID；应用资格里的 `selected` 表示个人订阅，不用于筛选应用绑定。没有唯一绑定时不创建新身份。目标目录优先取显式 `--workspace-path`，其次取已有有效的直接目录或登记工作区，最后取源定义的逻辑工作区在 Runtime 中的配置目录；保留目标已绑定工作区的 ID，不要求源、目标电脑使用相同登记 ID。不会将源电脑导出的直接路径当作另一台机器的默认目标。工作模式取定义中的 `agentPreset`，也可用 `--preset` 明确选择目标可用模式。目标目录不存在时，在已有父目录下创建一层目录；父目录准备仍可用 `agent workspace create`。
 
 CLI 先生成完整文件快照和摘要，检查目标文件及定义版本，再交付工作区、校验完整定义、条件保存，最后回读定义及全部交付文件和目录。首次保存为停用，`--enable` 在保存后启用；已有定义保留启用状态。内容相同时保持定义版本；已有交付内容变化须明确 `--update`。应用选用、订阅、员工关系和会话历史保留原值。
 
 `--check` 不写文件或定义。目标目录已存在时，同时检查完整定义的运行准备；目录尚不存在时，只检查交付计划并返回 `definitionValidated: false`，实际发布创建目录后继续检查。它不创建会话或调用模型，检查通过也不预留版本。
 
-Runtime 在工作区的 `.xrain-workspace-publication.json` 保存本租户、本智能体交付的文件清单及摘要。更新只替换或删除清单管理且仍与原摘要一致的文件，移除不再交付的空目录，保留其他运行文件和非空目录；与新内容完全一致的已有文件可纳入清单。本地修改、不同内容的未受管同名文件、链接或其他租户/智能体的交付清单发生冲突时保留现场，不提供自动强制覆盖。`workspace status` 返回每个交付文件及目录的 `intact`、`missing` 或 `modified` 状态，不返回文件正文。
+Runtime 在工作区的 `.xrain-workspace-publication.json` 保存本租户、本智能体交付的文件清单及摘要。写入携带检查时的 `expectedDigest`，服务端在同一工作区写者占用内比较当前清单摘要；期间其他发布先完成时拒绝旧请求，即使定义版本尚未改变。缺少该前提的旧写入请求返回 `WORKSPACE_PUBLICATION_PRECONDITION_REQUIRED`，不会改文件。更新只替换或删除清单管理且仍与原摘要一致的文件，移除不再交付的空目录，保留其他运行文件和非空目录；与新内容完全一致的已有文件可纳入清单。
+
+受管文件和目录支持相互转换，目录中存在未受管内容或本地修改时保留并报告冲突。恢复缺失的空目录也计入更新检查。不同内容的未受管同名文件、链接或其他租户/智能体的交付清单发生冲突时保留现场，不提供自动强制覆盖。`workspace status` 返回每个交付文件及目录的 `intact`、`missing` 或 `modified` 状态；类型或链接变化标为 `modified`，仍列出其余清单，不跟随链接读取正文。
 
 文件交付与定义保存分别确认，不承诺跨文件系统与定义存储的原子事务。普通文件写入失败会尝试恢复已改文件；进程中断或恢复失败须按原目录核对。定义校验或保存失败时，已成功交付的工作区保留，错误中提供 `stage`、`workspacePublished`、原 `agentId`、目录、摘要和已确认版本；不会自动启用或换 ID 重建。回执丢失为 `outcome_unknown`，先查询原定义及 `workspace status`，不自动重放。发布不冻结运行中的文件写入；并发修改由冲突及回读结果报告，实际模型加载与业务结果仍须在原场景验证。
 
-文件快照、Base64 编码和 HTTP JSON 当前使用内存缓冲，不另设 CLI 固定容量门槛，也不承诺常量内存。目标 Runtime 须声明 `supportsWorkspacePublication` 与完整定义校验能力；旧 Runtime 返回不支持，按所属项目的运行入口更新配套程序，不通过远程 shell 绕过管理接口。
+文件快照、Base64 编码和 HTTP JSON 当前使用内存缓冲，不另设 CLI 固定容量门槛，也不承诺常量内存。目标 Runtime 须声明 `supportsWorkspacePublication`、`supportsWorkspacePublicationPreconditions` 与完整定义校验能力；旧 Runtime 在文件交付前返回不支持，按所属项目的运行入口更新配套程序，不通过远程 shell 绕过管理接口。发布中断后的写者占用按 Runtime 运行契约恢复，不按超时或本机 PID 自动删除。
 
 ## 配置查询与管理
 
@@ -44,6 +46,8 @@ agent subscription list
 agent subscription decide <申请ID> --decision approved
 ```
 
-`config show/update` 与定义读取/局部更新使用同一合同，覆盖名称、工作要求、模型及推理等级、工作目录和模式、推荐问题、业务操作、侧栏与工具；省略字段保留原值。`tool show` 一起返回当前选择、是否继承、原生和业务工具目录；目录故障保留原错误，仍可用 `config show` 查看已保存选择。`tool set` 只接收 `nativeTools` 和/或 `assistantTools`，不改变其他设置。`nativeTools: null` 恢复继承，`[]` 明确清空；业务工具使用目录返回的完整工具描述，不按名称编造。
+`config show/update` 与定义读取/局部更新使用同一合同，覆盖名称、工作要求、模型及推理等级、工作目录和模式、推荐问题、业务操作、侧栏与工具；省略字段保留原值。`tool show` 返回当前选择、是否继承，以及分别读取的原生和业务工具目录。草稿没有目录或某个目录读取失败时，保留已保存选择和另一目录，返回 `complete: false` 与对应 `catalogErrors`；不把不可用目录当成空目录。定义本身读取失败仍直接报错，`tool native/business` 的单独查询继续保留原错误。
+
+`tool set` 只接收 `nativeTools` 和/或 `assistantTools`，不改变其他设置。`nativeTools: null` 恢复继承，`[]` 明确清空；业务工具使用目录返回的完整工具描述，不按名称编造。
 
 启停、工具和配置更新均使用实际读取的版本。应用 `set` 替换全部 bindings 和默认项，须保留仍需要的选用。可见性、订阅、审批、应用准入和业务权限分别生效；选择工具或发布文件不授予业务权限。其余策略、订阅、资格及目录命令见[智能体命令](agents.md)。

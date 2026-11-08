@@ -143,6 +143,43 @@ test('platform commands keep personal subscriptions, approvals and application s
   ]);
 });
 
+test('platform configuration reads and writes retain full bindings, defaults, visibility and each approval decision', async t => {
+  const f = fixture(t), policies = [{ agentId: 'a', visibility: 'private' }, { agentId: 'b', visibility: 'public' }];
+  const requests = [
+    { id: 'approve', agentId: 'a', selected: true, approvalStatus: 'pending' },
+    { id: 'reject', agentId: 'a', selected: true, approvalStatus: 'pending' },
+    { id: 'revoke', agentId: 'b', selected: true, approvalStatus: 'approved' },
+  ];
+  let selection = { bindings: [{ agentId: 'a', requireUserSubscription: false }, { agentId: 'b', requireUserSubscription: false }], defaultAgentId: 'b' };
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url.endsWith('/policies')) return respond(res, policies);
+    if (hit.url.endsWith('/a/policy')) { policies[0].visibility = hit.json().visibility; return respond(res, policies[0]); }
+    if (hit.url.endsWith('/subscription-requests')) return respond(res, requests);
+    if (hit.url.includes('/subscription-requests/')) {
+      const item = requests.find(item => hit.url.includes(`/${item.id}/decision`)); item.approvalStatus = hit.json().decision; return respond(res, item);
+    }
+    if (hit.url.endsWith('/applications/app/agents')) {
+      if (hit.method === 'PUT') { const body = hit.json(); selection = { ...body, bindings: body.bindings.map(item => ({ agentId: item.agentId, requireUserSubscription: false })) }; }
+      return respond(res, selection);
+    }
+    assert.ok(hit.url.includes('/qualifications?applicationId=app'));
+    return respond(res, { applicationId: 'app', items: selection.bindings.map(item => ({ ...item, selected: false, canUse: true, approvalStatus: null })), defaultAgentId: selection.defaultAgentId });
+  });
+  f.profile(service.url, 'tenant-demo', 'synthetic');
+  const run = async args => { const result = await f.run(['agent', ...args, '--json']); assert.equal(result.code, 0, result.stdout); return output(result).data; };
+  assert.deepEqual(await run(['policy', 'list']), policies);
+  await run(['policy', 'set', 'a', '--visibility', 'public']); assert.equal((await run(['policy', 'list']))[0].visibility, 'public');
+  assert.deepEqual(await run(['application', 'show', 'app']), selection);
+  const updated = await run(['application', 'set', 'app', ...json({ bindings: [{ agentId: 'a' }, { agentId: 'b' }], defaultAgentId: 'a' })]);
+  assert.equal(updated.bindings.length, 2); assert.equal(updated.defaultAgentId, 'a'); assert.equal(updated.bindings[1].agentId, 'b');
+  assert.deepEqual(await run(['application', 'show', 'app']), updated);
+  assert.deepEqual((await run(['qualifications', '--application-id', 'app'])).items.map(item => item.selected), [false, false]);
+  for (const [id, decision] of [['approve', 'approved'], ['reject', 'rejected'], ['revoke', 'revoked']]) {
+    assert.equal((await run(['subscription', 'decide', id, '--decision', decision])).approvalStatus, decision);
+    assert.equal((await run(['subscription', 'list'])).find(item => item.id === id).approvalStatus, decision);
+  }
+});
+
 test('discovery, tools and workspace operations use the explicit Runtime and reject invalid inputs before writes', async t => {
   const f = fixture(t), runtime = await mockServer(t, (hit, res) => hit.url.endsWith('/limits')
     ? respond(res, { maxDefinitionBytes: 16777216, supportsDefinitionStatusUpdate: true })

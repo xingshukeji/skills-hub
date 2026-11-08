@@ -52,7 +52,7 @@ async function definitions(t, options = {}) {
       ? respond(res, { error: 'AGENT_DEFINITION_LIMIT_UNAVAILABLE' }, 503)
       : respond(res, { maxDefinitionBytes: state.maxDefinitionBytes, supportsDefinitionStatusUpdate: state.supportsDefinitionStatusUpdate });
     if (hit.url.startsWith('/api/xrain/v1/agents/qualifications?')) return respond(res, state.selection ?? { applicationId: state.applicationId,
-      defaultAgentId: state.selectedAgentId, items: state.selectedAgentId ? [{ agentId: state.selectedAgentId, selected: true, canUse: true }] : [] });
+      defaultAgentId: state.selectedAgentId, items: state.selectedAgentId ? [{ agentId: state.selectedAgentId, selected: false, canUse: true, requireUserSubscription: false }] : [] });
     if (hit.url === root + '/options') return respond(res, { applicationId: state.applicationId, workspaces: state.workspaces, presets: ['standard'], models: {},
       maxDefinitionBytes: state.maxDefinitionBytes, supportsNativeToolInheritanceReset: state.supportsNativeToolInheritanceReset, supportsDefinitionValidation: state.supportsDefinitionValidation });
     if (hit.url === root + '/summaries') return respond(res, { canManage: true, items: [...records.values()].map(({ agentId, revision, name, enabled }) => ({ agentId, revision, name, enabled })) });
@@ -327,7 +327,7 @@ test('old Runtime capabilities preserve native choices and do not substitute a s
 
 test('project preparation resolves the selected identity, current revision and local workspace without caller-supplied IDs or paths', async t => {
   for (const cwd of ['D:/成员甲/项目状态', '/members/b/another-checkout/state']) {
-    const { f, records, server, run } = await definitions(t, { selectedAgentId: 'platform-renamed-agent', workspaces: [{ id: 'project', cwd, agentPresets: ['standard'] }] });
+    const { f, records, state, server, run } = await definitions(t, { selectedAgentId: 'platform-renamed-agent', workspaces: [{ id: 'project', cwd, agentPresets: ['standard'] }] });
     const file = join(f.directory, 'project-definition.json');
     writeFileSync(file, JSON.stringify({ ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'project' }, nativeTools: [] } }));
     const args = ['prepare', '--file', file];
@@ -338,6 +338,8 @@ test('project preparation resolves the selected identity, current revision and l
     assert.equal(created.ok, true, JSON.stringify(created));
     assert.equal(created.data.enabled, true); assert.equal(created.data.revision, 2); assert.equal(created.data.operation, 'created');
     assert.deepEqual(records.get('platform-renamed-agent').assistantTools, sample.definition.assistantTools);
+    state.selection = { applicationId: state.applicationId, defaultAgentId: null,
+      items: [{ agentId: 'platform-renamed-agent', selected: false, canUse: true, requireUserSubscription: false }] };
     const unchanged = output(await run([...args, '--enable']));
     assert.equal(unchanged.data.operation, 'unchanged'); assert.equal(unchanged.data.revision, 2);
     records.get('platform-renamed-agent').instructions = 'Local edit';

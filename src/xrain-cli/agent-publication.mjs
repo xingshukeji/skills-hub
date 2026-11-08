@@ -2,7 +2,7 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { CliError, isObject, jsonInput, nonempty, sha256 } from './core.mjs';
-import { applicationId, identifier } from './agent-target.mjs';
+import { applicationAgentIdentity, applicationId, identifier } from './agent-target.mjs';
 import { apiValue, writeOnce } from './http.mjs';
 import { definitionFileChanges } from './definition-file.mjs';
 import { definition, exchangeFile, newDefinition, runtimeConnection, runtimeValue, saveDefinition, updatedDefinition, validateCandidate } from './agents.mjs';
@@ -49,16 +49,14 @@ async function selectedIdentity(ctx, options) {
   if (!nonempty(app)) failure('Specify --agent-id or use an application connection with an existing agent selection.');
   const select = async () => {
     const selection = await apiValue(ctx, 'GET', '/api/xrain/v1/agents/qualifications?' + new URLSearchParams({ applicationId: app }), undefined, { resolvedProfile: connection.profile });
-    if (!isObject(selection) || selection.applicationId !== app || !Array.isArray(selection.items)) failure('XRain returned an invalid application selection.', 'invalid_response');
-    const chosen = selection.items.filter(item => item.selected === true), id = selection.defaultAgentId ?? (chosen.length === 1 ? chosen[0].agentId : undefined);
-    if (!nonempty(id) || !chosen.some(item => item.agentId === id)) failure('The application has no unique selected agent.', 'agent_selection_required');
-    return identifier(id, 'Agent ID');
+    return applicationAgentIdentity(selection, app);
   };
   return { id: await select(), select, applicationId: app };
 }
 function receipt(value, request, check) {
   if (!isObject(value) || value.agentId !== request.agentId || value.digest !== request.digest || !nonempty(value.path) || value.checked !== check ||
-      value.files !== request.files.length || !Array.isArray(value.written) || !Array.isArray(value.removed))
+      typeof value.exists !== 'boolean' || !(value.previousDigest === null || typeof value.previousDigest === 'string' && /^[a-f0-9]{64}$/.test(value.previousDigest)) ||
+      value.files !== request.files.length || !Array.isArray(value.written) || !Array.isArray(value.removed) || !Array.isArray(value.createdDirectories))
     failure('Runtime returned an invalid workspace publication receipt.', 'invalid_response');
   return value;
 }
@@ -66,22 +64,24 @@ function receipt(value, request, check) {
 export async function publishAgent(ctx) {
   const { args, reporter } = ctx, file = await exchangeFile(ctx), snapshot = await snapshotWorkspace(args.required('source'));
   const options = await runtimeValue(ctx, 'GET', root + '/options');
-  if (!isObject(options) || options.supportsWorkspacePublication !== true || options.supportsDefinitionValidation !== true || !Array.isArray(options.workspaces))
+  if (!isObject(options) || options.supportsWorkspacePublication !== true || options.supportsWorkspacePublicationPreconditions !== true || options.supportsDefinitionValidation !== true || !Array.isArray(options.workspaces))
     failure('This Runtime does not support complete agent publication.', 'unsupported_runtime');
   const identity = await selectedIdentity(ctx, options), id = identity.id;
   let current;
   try { current = await definition(ctx, id); }
   catch (error) { if (!(error instanceof CliError && error.httpStatus === 404 && error.serverCode === 'AGENT_DEFINITION_NOT_FOUND')) throw error; }
   const expected = current?.revision ?? null, reference = file.definition.workspace;
-  const space = reference.kind === 'registered' ? options.workspaces.find(item => item.id === reference.id) : undefined;
+  const sourceSpace = reference.kind === 'registered' ? options.workspaces.find(item => item.id === reference.id) : undefined;
+  const boundSpace = current && !current.workspaceUnavailable ? options.workspaces.find(item => item.id === current.workspaceId) : undefined;
   // The saved or configured target supplies machine-local paths; never use a
   // source-machine direct path from the exchange file as an implicit destination.
-  const path = args.value('workspace-path') ?? (current?.workspaceDirect ? current.workspacePath : undefined) ?? space?.cwd;
+  const path = args.value('workspace-path') ?? (current?.workspaceDirect && !current.workspaceUnavailable ? current.workspacePath : undefined) ?? boundSpace?.cwd ?? sourceSpace?.cwd;
   if (!nonempty(path)) failure('Select the Runtime destination with --workspace-path, or use its configured workspace.', 'workspace_unavailable');
   const preset = args.value('preset') ?? file.definition.agentPreset;
   if (!nonempty(preset)) failure('A work mode is required in the definition or --preset.');
   if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true) failure('This Runtime cannot restore native tool inheritance.', 'unsupported_runtime');
-  const registered = space?.cwd === path && space.agentPresets?.includes(preset);
+  const space = [boundSpace, sourceSpace].find(item => item?.cwd === path && item.agentPresets?.includes(preset));
+  const registered = !!space;
   const mapped = { ...file, definition: { ...file.definition, agentPreset: preset,
     workspace: registered ? { kind: 'registered', id: space.id, path } : { kind: 'direct', path } } };
   const { changes } = definitionFileChanges(mapped, current ?? newDefinition(id, {}), options.workspaces);
@@ -100,13 +100,13 @@ export async function publishAgent(ctx) {
     reporter.print({ agentId: id, revision: expected, checked: true, definitionValidated: !!validation, changedFields, workspace: preview,
       ...(!validation ? { note: 'The target directory will be created by publication; definition readiness is checked after creation.' } : {}) }); return 0;
   }
-  const workspaceChanged = preview.previousDigest !== snapshot.digest || preview.written.length || preview.removed.length || !preview.exists;
+  const workspaceChanged = preview.previousDigest !== snapshot.digest || preview.written.length || preview.removed.length || preview.createdDirectories?.length || !preview.exists;
   if (current && (changedFields.length || workspaceChanged) && !args.has('update')) failure('The target differs from the delivered source. Use --check to review or --update to publish the changes.', 'definition_update_required', { agentId: id, revision: expected, changedFields, workspace: preview });
   if (identity.select && await identity.select() !== id) failure('The application agent selection changed before publication.', 'agent_selection_changed');
   const details = { agentId: id, expectedRevision: expected, runtime: runtimeConnection(ctx).runtime, workspacePath: path, workspaceDigest: snapshot.digest };
   let workspace, saved = current, stage = 'workspace';
   try {
-    workspace = await writeOnce(async () => receipt(await runtimeValue(ctx, 'POST', root + '/workspace-publication', request), request, false),
+    workspace = await writeOnce(async () => receipt(await runtimeValue(ctx, 'POST', root + '/workspace-publication', { ...request, expectedDigest: preview.previousDigest }), request, false),
       'Workspace publication outcome is unknown. Inspect the original agent and workspace before retrying.', details);
     stage = 'definition-validation';
     // Check the actual destination after file delivery, before changing its definition.
@@ -140,11 +140,30 @@ export async function publicationStatus(ctx) {
 
 export async function showAgentTools(ctx) {
   const id = identifier(ctx.args.required('agent-id'), 'Agent ID'), current = await definition(ctx, id);
-  const native = await runtimeValue(ctx, 'POST', root + '/tools/native', { ...(current.workspaceDirect ? { workspacePath: current.workspacePath } : { workspaceId: current.workspaceId }), agentPreset: current.agentPreset });
-  const business = await runtimeValue(ctx, 'POST', root + '/tools/business', {});
-  if (!Array.isArray(native?.items) || !Array.isArray(business?.items)) failure('Runtime returned an invalid tool catalog.', 'invalid_response');
+  const catalog = async (kind, body) => {
+    if (kind === 'native' && (!current.agentPreset || current.workspaceUnavailable || !(current.workspaceId || current.workspaceDirect && current.workspacePath)))
+      failure('The definition has no available working directory and mode.', 'workspace_unavailable');
+    const value = await runtimeValue(ctx, 'POST', root + '/tools/' + kind, body);
+    if (!Array.isArray(value?.items)) failure('Runtime returned an invalid tool catalog.', 'invalid_response');
+    return value.items;
+  };
+  const results = await Promise.allSettled([
+    catalog('native', { ...(current.workspaceDirect ? { workspacePath: current.workspacePath } : { workspaceId: current.workspaceId }), agentPreset: current.agentPreset }),
+    catalog('business', {}),
+  ]);
+  const available = {}, catalogErrors = {};
+  for (const [index, kind] of ['native', 'business'].entries()) {
+    const result = results[index];
+    if (result.status === 'fulfilled') available[kind] = result.value;
+    else {
+      const error = result.reason;
+      catalogErrors[kind] = { code: error.code ?? 'catalog_unavailable', message: error.message,
+        ...(error.httpStatus ? { httpStatus: error.httpStatus } : {}), ...(error.serverCode ? { serverCode: error.serverCode } : {}) };
+    }
+  }
   ctx.reporter.print({ agentId: id, revision: current.revision, nativeTools: current.nativeTools ?? null, assistantTools: current.assistantTools ?? [],
-    nativeSelection: current.nativeTools === undefined ? 'inherited' : 'explicit', available: { native: native.items, business: business.items } }); return 0;
+    nativeSelection: current.nativeTools === undefined ? 'inherited' : 'explicit', complete: !Object.keys(catalogErrors).length, available,
+    ...(Object.keys(catalogErrors).length ? { catalogErrors } : {}) }); return 0;
 }
 export async function setAgentTools(ctx) {
   const { args, reporter } = ctx, id = identifier(args.required('agent-id'), 'Agent ID');
