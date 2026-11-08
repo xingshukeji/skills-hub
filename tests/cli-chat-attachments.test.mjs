@@ -14,6 +14,7 @@ test('chat uploads exact binary files to its created session, sends only receipt
   const a = join(f.directory, '资料.bin'), b = join(f.directory, '资料.txt'); writeFileSync(a, binary); writeFileSync(b, text);
   let stream; const uploaded = [], refs = [];
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.url === '/v1/dsh/sessions') return respond(res, { sessionId: 'original-session' }, 201);
     if (hit.url.endsWith('/stream')) { stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(frame({ type: 'snapshot', records: [] })); return; }
     if (hit.url.endsWith('/files')) {
@@ -48,6 +49,7 @@ test('pending actions, invalid local files and ambiguous upload receipts never s
   const f = fixture(t), file = join(f.directory, 'sample.txt'); writeFileSync(file, 'private test');
   let pending = true, stream, uploads = 0;
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.url.endsWith('/stream')) { stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       if (pending) res.write(frame({ type: 'pending-actions', items: [{ actionRef: 'needs-answer' }] }));
       res.write(frame({ type: 'snapshot', records: [] })); return; }
@@ -73,6 +75,7 @@ test('a later rejected attachment preserves earlier receipts without sending or 
   let uploads = 0;
   const receipt = { receiptId: 'first-receipt', file: { attachmentId: 'file-one', name: 'sample.txt', bytes: 6 } };
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.url.endsWith('/stream')) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.write(frame({ type: 'snapshot', records: [] })); return;
     }

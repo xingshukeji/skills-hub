@@ -19,6 +19,7 @@ test('SIGINT after input acceptance stops observation without cancelling or repl
   const timers = [];
   t.after(() => { timers.forEach(clearTimeout); child?.kill(); });
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.url.endsWith('/stream')) {
       stream = res; res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(frame({ type: 'snapshot', records, hasMore: false })); return;
@@ -57,6 +58,7 @@ async function delayedConversation(t, { inputDelay = 0, creationDelay = 0, early
   const later = (action, ms) => { const timer = setTimeout(() => { timers.delete(timer); action(); }, ms); timers.add(timer); };
   t.after(() => { for (const timer of timers) clearTimeout(timer); });
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.method === 'POST' && hit.url === '/v1/dsh/sessions') {
       creates++; later(() => { if (!res.destroyed) respond(res, { sessionId: 'delayed-session' }, 201); }, creationDelay); return;
     }
@@ -136,6 +138,7 @@ function setup(t, { pending = false, initialPending = false, interrupted = false
   const prior = [start(1, 1), user(2, 'old-request', 'old'), assistant(3, 1, 'old answer'), end(4, 1)];
   const histories = () => answered ? [...prior, start(5, 2), user(6, requestId, savedText), assistant(7, 2, 'new answer'), end(8, 2)] : prior;
   const servicePromise = mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     assert.equal(hit.headers.authorization, 'Bearer synthetic-token');
     const url = new URL(hit.url, 'http://local');
     if (hit.method === 'GET' && url.pathname === '/v1/dsh/sessions') return respond(res, { items: [{ sessionId: 'session-1', source: 'xrain-cli', agentId: 'agent-one', applicationId: 'app-1' }] });
@@ -279,6 +282,7 @@ function paginatedConversation(t, { pending = false, badPage = false, pageDelay 
   let stream, terminalSent = false;
   t.after(() => { for (const timer of timers) clearTimeout(timer); });
   const servicePromise = mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     assert.equal(hit.headers['x-xrain-application-id'], applicationId ?? undefined);
     const url = new URL(hit.url, 'http://local');
     if (url.pathname.endsWith('/stream')) {
@@ -400,3 +404,25 @@ test('invalid history page arguments fail batch validation before an earlier wri
   }
   assert.equal(service.hits.length, 0);
 });
+
+for (const capabilities of [{}, { supportsDefaultServiceTools: false, serviceToolProtocolVersions: [1] }, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [2] }]) {
+  test('application inputs reject unsupported default tool capabilities before writes: ' + JSON.stringify(capabilities), async t => {
+    const f = fixture(t);
+    const service = await mockServer(t, (hit, res) => {
+      if (hit.url === '/v1/dsh/workbench-agents') { assert.equal(hit.headers['x-xrain-application-id'], 'app'); return respond(res, { items: [], ...capabilities }); }
+      if (hit.method === 'GET' && hit.url.includes('/history')) return respond(res, { type: 'snapshot', records: [], hasMore: false });
+      assert.fail('Unsupported Runtime must receive no session, upload or input write: ' + hit.url);
+    });
+    f.profile(service.url, 'tenant', 'synthetic-token');
+    for (const action of ['start', 'send']) {
+      const call = await f.run(['agent', 'chat', action, action === 'start' ? 'agent' : 'original', '--runtime', service.url,
+        '--application-id', 'app', '--message', 'schedule', '--request-id', 'original-input', '--json']);
+      const error = result(call).error;
+      assert.equal(call.code, 1); assert.equal(error.code, 'tools.runtime_unsupported');
+      assert.equal(error.details.inputSubmitted, false); assert.equal(error.details.requestId, 'original-input');
+      assert.equal(error.details.sessionId, action === 'send' ? 'original' : undefined);
+    }
+    const history = await f.run(['agent', 'chat', 'history', 'original', '--runtime', service.url, '--json']);
+    assert.equal(history.code, 0); assert.ok(service.hits.every(hit => hit.method === 'GET'));
+  });
+}

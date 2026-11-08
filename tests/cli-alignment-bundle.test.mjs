@@ -12,6 +12,7 @@ test('the complete copied CLI Skill performs metadata, Workforce and file operat
   const metadataKey = 'metadata:original/'.repeat(120);
   let conversation;
   const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/v1/dsh/workbench-agents') return respond(res, { supportsDefaultServiceTools: true, serviceToolProtocolVersions: [1] });
     if (hit.url === '/api/service/authen/v1/account/context') return respond(res, { tenantId: 'TEN', userId: 'human' });
     if (hit.url === '/api/metadata/v1/entities/customer/describe') return respond(res, { object: { entityApiName: 'customer' }, fields: [] }, 200, { ETag: '"real-8"' });
     if (['/api/metadata/v1/entities', '/api/metadata/v1/entities/customer/fields', '/api/metadata/v1/entities/customer/fields/amount/failed-deployment'].includes(hit.url)) {

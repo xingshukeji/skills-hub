@@ -27,6 +27,8 @@ data query-batch接收非空完整queries集合，不叠加8项准入。CLI先�
 
 临时文本生成沿当前调用的取消和 Runtime、模型生命周期等待，不叠加独立HTTP默认截止。用户显式提供 --timeout 时仍按该值结束本次等待；中断或回执未知不自动再次生成。
 
+应用对话开始和发送前，CLI 按原应用及成员读取 `/v1/dsh/workbench-agents` 的 `supportsDefaultServiceTools` 与 `serviceToolProtocolVersions`，要求明确支持协议 1。缺失或不兼容返回 `tools.runtime_unsupported`，不写会话或输入，不换目标重试；旧会话的只读和等待入口保留。该能力由 Runtime 公共目录声明，不要求成员具备定义管理权限。
+
 ## 用户结果与现状
 
 智能体完整交付使用 `agent publish`，将版本 1 定义与显式工作空间目录交给 Runtime 的工作区发布能力，再沿原完整校验、条件保存及启用接口处理定义。Runtime 维护交付文件清单，按原摘要保护本地修改并保留运行生成文件；CLI 回读定义、文件及空目录。文件与定义分别确认，失败保留原身份和部分结果，不追加分布式事务或自动重放。目标不存在时的预览不声明定义已验证。参数、跨机器目录解析、冲突和恢复合同由[发布与配置](../../skills/shzw-xrain-cli/references/agent-publication.md)随完整 Skill 交付。

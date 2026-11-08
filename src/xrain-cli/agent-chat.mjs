@@ -414,6 +414,14 @@ export async function chatCommands(ctx, helpers) {
   reporter.progress(`Request ID: ${requestId}`);
   const budget = turnBudget(args);
   try {
+    if (app && (action === 'start' || action === 'send')) {
+      const capabilities = await helpers.runtimeValue(ctx, 'GET', '/v1/dsh/workbench-agents', undefined, headers, { signal: budget.signal });
+      if (capabilities?.supportsDefaultServiceTools !== true || !Array.isArray(capabilities.serviceToolProtocolVersions) || !capabilities.serviceToolProtocolVersions.includes(1))
+        throw new CliError('Runtime does not support application default service tools protocol 1.', {
+          code: 'tools.runtime_unsupported', hint: 'Use a Runtime that advertises default service tools protocol 1. No session or input was submitted.',
+          details: { requestId, inputSubmitted: false, ...(sessionId ? { sessionId } : {}) },
+        });
+    }
     if (action === 'start') {
       const agentId = helpers.identifier(args.required('agent-id'), 'Agent ID');
       let primaryObjectRef;
