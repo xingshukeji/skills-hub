@@ -246,14 +246,17 @@ function normalizeOwnedPath(repo, value, { allowMissing = false, checkIgnoredIfM
 
   const lower = `/${relative.toLowerCase()}`;
   const base = path.posix.basename(lower);
-  const blockedSegments = ["/node_modules/", "/dist/", "/bin/", "/obj/", "/.venv/", "/target/", "/.git/"];
+  const blockedSegments = ["/node_modules/", "/dist/", "/bin/", "/obj/", "/.venv/", "/target/", "/.git/",
+    "/__pycache__/", "/node-compile-cache/", "/.artifacts/", "/.workforce/", "/.xrain-runtime/",
+    "/.agent/tmp/", "/.agent/state/"];
+  const privateOperationPath = relative.toLowerCase().split("/").some((part) => part === ".local" || part.startsWith(".local-"));
   const blockedNames = new Set([".env", "id_rsa", "id_ed25519"]);
   const blockedExtensions = [".log", ".pem", ".key", ".pfx", ".p12"];
   if (
-    blockedSegments.some((segment) => lower.includes(segment)) ||
+    privateOperationPath || blockedSegments.some((segment) => lower.includes(segment)) ||
     blockedNames.has(base) ||
     base.startsWith(".env.") ||
-    blockedExtensions.some((extension) => base.endsWith(extension))
+    blockedExtensions.some((extension) => base.endsWith(extension)) || base.endsWith(".pyc")
   ) {
     throw new CloseoutError("unsafe_path", "Owned path matches a blocked secret or generated-output class.", { path: relative });
   }
@@ -269,11 +272,11 @@ function normalizeOwnedPath(repo, value, { allowMissing = false, checkIgnoredIfM
   if (!allowMissing && !fs.existsSync(resolved) && !tracked) {
     throw new CloseoutError("path_not_found", "Owned path is neither an existing file nor a tracked deletion.", { path: relative });
   }
-  if ((!allowMissing || checkIgnoredIfMissing) && !tracked) {
+  if ((!allowMissing || checkIgnoredIfMissing) && (!tracked || fs.existsSync(resolved) || checkIgnoredIfMissing)) {
     // check-ignore accepts literal path names, but rejects Git's literal pathspec magic.
-    const ignored = runGit(repo, ["check-ignore", "-q", "--", relative], { allowFailure: true, literalPaths: false });
+    const ignored = runGit(repo, ["check-ignore", "--no-index", "-q", "--", relative], { allowFailure: true, literalPaths: false });
     if (ignored.status === 0) {
-      throw new CloseoutError("ignored_path", "The selected untracked file is ignored and cannot be delivered by this closeout.", { path: relative });
+      throw new CloseoutError("ignored_path", "The selected file is ignored and cannot be delivered by this closeout, even when force-added.", { path: relative });
     }
     if (ignored.status !== 1) {
       throw new CloseoutError("ignore_state_unreadable", "Git could not determine whether the selected path is ignored.", {

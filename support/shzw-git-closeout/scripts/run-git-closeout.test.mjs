@@ -953,6 +953,25 @@ test("refuses to resume a commit containing an undeclared file", (t) => {
   assert.notEqual(git(fixture.repo, ["ls-remote", "origin", "refs/heads/main"]).split(/\s+/)[0], sha);
 });
 
+test("force-added private operations and candidate trees cannot bypass path protection", (t) => {
+  const fixture = createRepository();
+  t.after(() => fs.rmSync(fixture.root, { recursive: true, force: true }));
+  const head = git(fixture.repo, ["rev-parse", "HEAD"]);
+  write(path.join(fixture.repo, ".git/info/exclude"), ".local/\n.local-validation/\n");
+  for (const file of [".local/operations/probe.py", ".local-validation/evidence.json", "node-compile-cache/data.json"] ) {
+    write(path.join(fixture.repo, file), "{}\n");
+    git(fixture.repo, ["add", "-f", "--", file]);
+    const result = run(fixture.repo, ["--mode", "commit-push", "--include-staged-owned", "--message", "must refuse", "--path", file]);
+    assert.equal(result.json.code, "unsafe_path");
+    assert.equal(git(fixture.repo, ["rev-parse", "HEAD"]), head);
+    const tree = makeCandidateTree(fixture, { [file]: "{}\n" });
+    const candidate = run(fixture.repo, ["--mode", "commit-tree", "--expected-base", head,
+      "--expected-tree", tree, "--message", "must refuse", "--path", file]);
+    assert.equal(candidate.json.code, "unsafe_path");
+    assert.equal(git(fixture.remote, ["rev-parse", "main"]), head);
+  }
+});
+
 test("rejects ignored paths and treats path names literally", (t) => {
   const fixture = createRepository();
   t.after(() => cleanupFixture(fixture));
@@ -965,6 +984,18 @@ test("rejects ignored paths and treats path names literally", (t) => {
   assert.equal(ignored.json.code, "ignored_path");
   assert.equal(glob.json.code, "path_not_found");
   assert.equal(git(fixture.repo, ["diff", "--cached", "--name-only"]), "");
+});
+
+test("force-adding a repository-specific ignored file does not turn it into deliverable source", (t) => {
+  const fixture = createRepository();
+  t.after(() => fs.rmSync(fixture.root, { recursive: true, force: true }));
+  write(path.join(fixture.repo, ".git/info/exclude"), "scratch/\n");
+  write(path.join(fixture.repo, "scratch/private.json"), "{}\n");
+  git(fixture.repo, ["add", "-f", "scratch/private.json"]);
+  const head = git(fixture.repo, ["rev-parse", "HEAD"]);
+  const result = run(fixture.repo, ["--mode", "commit-push", "--include-staged-owned", "--message", "refuse ignored input", "--path", "scratch/private.json"]);
+  assert.equal(result.json.code, "ignored_path");
+  assert.equal(git(fixture.remote, ["rev-parse", "main"]), head);
 });
 
 test("fast-forwards safe remote changes and requires revalidation before committing", (t) => {

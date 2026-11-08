@@ -12,3 +12,8 @@ skills/**/bin/
 skills/**/obj/
 __pycache__/
 *.pyc
+
+# Private operation inputs, evidence and interpreter caches.
+.local/
+.local-*/
+node-compile-cache/
