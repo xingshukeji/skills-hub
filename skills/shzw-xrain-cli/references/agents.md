@@ -43,8 +43,6 @@ agent use <agentId> [--application-id <应用ID> | --personal]
 ```text
 agent chat start <agentId> --message-file <输入.txt>
 agent chat send <sessionId> --message-file <输入.txt>
-agent chat start <agentId> --message "读取附上的资料" --attach <资料.pdf> --attach <数据.csv>
-agent chat send <sessionId> --attach <补充资料.txt>
 agent chat list
 agent chat list --all
 agent chat history <sessionId>
@@ -54,17 +52,13 @@ agent chat pending --session-id <sessionId>
 agent chat respond <actionRef> --values-json <回答.json>
 ```
 
-`--message-file <文件>` 读取原 UTF-8 文本，使用 `-` 从标准输入读取；也可用 `--message` 直接输入。完整输入由各原服务核验类型、资格及原生模型合同，CLI 不另设文字容量准入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；可用 `--request-id` 提供原稳定编号。CLI 原样传递请求与响应编号，不按智能体名称的格式改写或拒绝。
+`--message-file <文件>` 读取原 UTF-8 文本，使用 `-` 从标准输入读取；也可用 `--message` 直接输入。完整输入由各原服务核验类型、资格及原生模型合同，CLI 不另设文字容量准入。新建会话使用 `xrain-cli` 来源；默认列表只列该来源，`--all` 显示当前主体的其他来源。`start` 建立新会话并发送一条输入，`send` 继续准确指定的已有会话。命令在提交前输出 sessionId 和 requestId；可用 `--request-id` 提供原稳定编号。CLI 原样传递请求与响应编号，不按智能体名称的格式改写或拒绝。 文件输入见[对话附件](agent-attachments.md)。
 
 命令等待本次请求自己的 `turn/end`，默认最多 120 秒，可用 `--wait-timeout` 调整。该总预算在本地输入校验后、首次网络操作前开始，覆盖 `start` 的会话创建，以及流连接、输入提交回执和本轮结果跟随，不在各阶段重新计时。单次 HTTP 请求仍受 `--timeout` 约束。已经观察到同一 requestId、输入及本轮结束的完成事件时，可先于迟到的提交回执返回。`completed` 表示原 Runtime 已完成该轮；没有文字回复时保留空 answer，不另判失败。文字答复不证明业务结果正确；`toolCalls` 的每项包含原 callId、状态及 result。result 保留原 tool/result 数据中的正文、错误和元数据，凭据仍脱敏；可从中取得原记录 ID 或具体失败原因。`history` 的工具结果使用相同 result，`hasMore` 表示当前返回并非完整历史。工具失败不改变原轮次的完成状态，轮次失败时原回执保留在 error.details.toolCalls。
 
 `wait` 在首屏缺少原请求或轮次起点时，会沿首屏固定的 cursor 自动补读较早历史，再按时间顺序关联原请求；分页计入同一等待预算。`history` 返回 cursor 和可选 nextBeforeSeq；有更早记录时，将它们分别传给 `--through-seq` 和 `--before-seq`，继续读取同一快照的前一页，页大小默认 100。旧 Runtime 未提供分页或返回重复、越界页时明确报错，保留原会话和请求，不重发输入。
 
 `action_required` 会给出待处理问题或审批的 actionRef；不能自动批准。用户明确选择后可发送 `{"outcome":"allowed-once"}` 或 `{"outcome":"rejected"}`，问题按服务返回的 question ID 提供 `{"answers":[{"id":"<问题ID>","selected":["<选择>"],"custom":"<可选文字>"}]}`。响应有独立的 responseId，结果未知时先检查原事项；提交后使用原 sessionId/requestId 的 `wait` 读取该轮结果，不重发对话。超时只结束本地等待，不发出服务端取消请求，也不证明输入未接收。输入已尝试提交但未确认时返回 `outcome_unknown` 并保留原 ID；超时、断流、会话创建或输入结果未知先查 `list`、`history` 或 `wait`。历史分页导致无法确认时不能把旧回复当作新结果。
-
-`--attach <文件>` 可重复指定，也可单独发送附件。CLI 在联网前核对本地文件，按二进制上传到本次原会话，再在同一输入中提交原生上传回执；不会把本机路径作为模型附件引用。返回的 attachments 和 history 保留文件编号、名称和字节数。文件读取仍取决于所选定义的原生能力；后续定时运行需要独立可读的持久资料，创建对话的附件不会自动转给未来会话。
-
-上传计入同一等待预算。上传结果未知时，错误保留原 sessionId、requestId、attachment-upload 阶段及 inputSubmitted=false，不自动重传或发送输入；多个附件中已取得的回执也保留在错误中。明确拒绝则保留原 HTTP 错误。附件不支持子智能体输入；当前 Runtime 未提供会话上传时保留其不支持错误，不能改用全局上传或其他人的会话。
 
 ## 定义创建与修改
 
