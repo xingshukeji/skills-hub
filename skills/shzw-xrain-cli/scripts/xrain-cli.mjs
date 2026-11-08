@@ -4815,6 +4815,11 @@ var workforceOperations = [
     expectedRevision: true,
     description: "Enable the original schedule as its assignee. Pass the observed --expected-revision or a request file containing expectedRevision. After an unknown receipt, read the original schedule; never automatically enable again."
   }),
+  define6("schedule run-once", "POST", "/task-schedules/{schedule-id}/run-once", {
+    input: "object",
+    manualRun: true,
+    description: "Execute the original schedule once with a stable requestId in --request-json. The same request recovers its original Manual run; it does not consume nextRunAt or enable the arrangement. Never replace the key after an unknown receipt."
+  }),
   define6("schedule pause", "POST", "/task-schedules/{schedule-id}/pause"),
   define6("schedule history", "GET", "/task-schedules/{schedule-id}/history", { query: ["before"] }),
   define6("schedule run show", "GET", "/task-schedules/{schedule-id}/runs/{run-id}"),
@@ -7118,6 +7123,8 @@ async function workforceCommands(ctx) {
     if (ctx.spec.path === "workforce session create" && Object.keys(body).some((key) => !["taskId", "agentId", "source", "requestId"].includes(key)))
       throw new CliError("Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.", { code: "invalid_arguments" });
   }
+  if (operation.manualRun && (Object.keys(body).some((key) => key !== "requestId") || typeof body.requestId !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/.test(body.requestId)))
+    throw new CliError("Run-once requires only the original stable requestId (1–128 letters, digits, underscores or hyphens).", { code: "invalid_arguments" });
   if (operation.expectedRevision) {
     if (args.has("expected-revision")) body = { expectedRevision: args.required("expected-revision") };
     if ((args.has("expected-revision") || args.has("request-json") || args.has("file")) && (Object.keys(body).some((key) => key !== "expectedRevision") || typeof body.expectedRevision !== "string" || !body.expectedRevision.trim()))
@@ -7177,6 +7184,8 @@ async function workforceCommands(ctx) {
   const call = async () => {
     const options = upload ?? { json: body };
     const result2 = memberValue(await send2(operation.method, route, options));
+    if (operation.manualRun && (!isObject(result2) || typeof result2.id !== "string" || !result2.id || result2.scheduleId !== args.required("schedule-id") || result2.trigger !== "Manual" || typeof result2.status !== "string" || !result2.status))
+      throw new CliError("Workforce returned an invalid manual run receipt.", { code: "invalid_response" });
     if (command2 && !commandOutcome(result2)) throw new CliError("Workforce returned an invalid command receipt.", { code: "invalid_response" });
     if (operation.feedback && result2?.saved !== true) throw new CliError("Workforce returned an invalid feedback receipt.", { code: "invalid_response" });
     if (operation.audio && typeof result2?.text !== "string") throw new CliError("The speech service returned an invalid transcription.", { code: "invalid_response" });

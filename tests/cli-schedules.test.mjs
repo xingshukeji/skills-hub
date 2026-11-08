@@ -82,3 +82,54 @@ test('enable transmits the observed revision, preserves conflicts and unknown re
   ]) assert.equal((await f.run(invalid)).code, 1);
   assert.equal(writes, 4, 'ambiguous or invalid revision input is never written');
 });
+
+
+test('manual execution keeps its stable key and original run while reads of failed runs remain successful', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  const receipt = { id: 'manual-original', scheduleId: 'schedule', trigger: 'Manual', status: 'Running' }; let writes = 0;
+  const host = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers.authorization, 'Bearer member-session'); assert.equal(hit.headers['x-xrain-expected-user-id'], 'human');
+    if (hit.method === 'POST') { writes++; assert.equal(hit.url, '/api/cli/v1/task-schedules/schedule/run-once'); assert.deepEqual(hit.json(), { requestId: 'stable-click' }); return respond(res, receipt); }
+    assert.equal(hit.url, '/api/cli/v1/task-schedules/schedule/runs/manual-original'); respond(res, { ...receipt, status: 'Failed', failureCode: 'business.rejected' });
+  }); login(f, platform.url);
+  const args = ['workforce', 'schedule', 'run-once', 'schedule', '--workforce', host.url, '--request-json', input(f, 'manual', { requestId: 'stable-click' }), '--json'];
+  for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(output(await f.run(args)).data, receipt);
+  const read = await f.run(['workforce', 'schedule', 'run', 'show', 'schedule', 'manual-original', '--workforce', host.url, '--json']);
+  assert.equal(read.code, 0); assert.equal(output(read).data.status, 'Failed'); assert.equal(writes, 2);
+  for (const body of [{}, { requestId: '' }, { requestId: 'bad/key' }, { requestId: 'stable-click', userId: 'someone' }]) {
+    const invalid = await f.run(['workforce', 'schedule', 'run-once', 'schedule', '--workforce', host.url, '--request-json', input(f, 'invalid-manual', body), '--json']);
+    assert.equal(output(invalid).error.code, 'invalid_arguments');
+  } assert.equal(writes, 2, 'invalid manual requests never reach the write route');
+});
+
+test('manual execution preserves its key after unknown receipts and retains real permission and overlap failures', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  let mode = 'drop', writes = 0;
+  const host = await mockServer(t, (hit, res) => {
+    if (hit.method === 'GET') return respond(res, { id: 'original', revision: 'unchanged', status: 'Enabled', nextRunAt: '2026-12-01T01:00:00Z' });
+    writes++;
+    if (mode === 'drop') return res.destroy();
+    if (mode === 'invalid') return respond(res, { id: 'wrong-run', scheduleId: 'another', trigger: 'Manual', status: 'Running' });
+    return respond(res, { code: mode === 'forbidden' ? 'schedule.assignee_required' : 'schedule.already_running' }, mode === 'forbidden' ? 403 : 409);
+  }); login(f, platform.url);
+  const args = ['workforce', 'schedule', 'run-once', 'original', '--workforce', host.url, '--request-json', input(f, 'manual-key', { requestId: 'keep-key' }), '--json'];
+  for (mode of ['drop', 'invalid']) { const failed = output(await f.run(args)).error; assert.equal(failed.code, 'outcome_unknown'); assert.equal(failed.details.requestId, 'keep-key'); assert.equal(failed.details.target['schedule-id'], 'original'); }
+  for (mode of ['forbidden', 'overlap']) { const failed = output(await f.run(args)).error; assert.notEqual(failed.code, 'outcome_unknown'); assert.equal(failed.serverCode, mode === 'forbidden' ? 'schedule.assignee_required' : 'schedule.already_running'); }
+  assert.equal((await f.run(['workforce', 'schedule', 'show', 'original', '--workforce', host.url, '--json'])).code, 0); assert.equal(writes, 4);
+});
+
+
+test('history forwards each original cursor and failed run inspection is read-only', async t => {
+  const f = fixture(t), platform = await mockServer(t, (_hit, res) => respond(res, { tenantId: 'TEN', userId: 'human' }));
+  const first = { items: [{ id: 'newer', scheduleId: 'original', status: 'Succeeded' }], nextCursor: '2026-11-08T09:00:00.000Z' };
+  const last = { items: [{ id: 'failed', scheduleId: 'original', status: 'Failed' }], nextCursor: null };
+  const host = await mockServer(t, (hit, res) => { assert.equal(hit.method, 'GET'); const url = new URL(hit.url, 'http://local');
+    if (url.pathname.endsWith('/history')) return respond(res, url.searchParams.has('before') ? last : first);
+    assert.equal(url.pathname, '/api/cli/v1/task-schedules/original/runs/failed'); respond(res, last.items[0]); });
+  login(f, platform.url); const base = ['--workforce', host.url, '--json'];
+  const page = output(await f.run(['workforce', 'schedule', 'history', 'original', ...base])).data;
+  const second = output(await f.run(['workforce', 'schedule', 'history', 'original', '--query-json', input(f, 'cursor', { before: page.nextCursor }), ...base])).data;
+  assert.deepEqual([...page.items, ...second.items].map(run => run.id), ['newer', 'failed']); assert.equal(second.nextCursor, null);
+  assert.equal(new URL(host.hits[1].url, 'http://local').searchParams.get('before'), first.nextCursor);
+  const inspected = await f.run(['workforce', 'schedule', 'run', 'show', 'original', 'failed', ...base]); assert.equal(inspected.code, 0); assert.equal(output(inspected).data.status, 'Failed'); assert.equal(host.hits.length, 3);
+});

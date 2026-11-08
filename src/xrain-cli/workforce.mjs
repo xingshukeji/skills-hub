@@ -37,6 +37,8 @@ export async function workforceCommands(ctx) {
     if (ctx.spec.path === 'workforce session create' && Object.keys(body).some(key => !['taskId', 'agentId', 'source', 'requestId'].includes(key)))
       throw new CliError('Session creation accepts taskId, agentId, source and requestId. Task grants remain private to the host.', { code: 'invalid_arguments' });
   }
+  if (operation.manualRun && (Object.keys(body).some(key => key !== 'requestId') || typeof body.requestId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(body.requestId)))
+    throw new CliError('Run-once requires only the original stable requestId (1–128 letters, digits, underscores or hyphens).', { code: 'invalid_arguments' });
   if (operation.expectedRevision) {
     if (args.has('expected-revision')) body = { expectedRevision: args.required('expected-revision') };
     if ((args.has('expected-revision') || args.has('request-json') || args.has('file')) &&
@@ -84,6 +86,8 @@ export async function workforceCommands(ctx) {
   const call = async () => {
     const options = upload ?? { json: body };
     const result = value(await send(operation.method, route, options));
+    if (operation.manualRun && (!isObject(result) || typeof result.id !== 'string' || !result.id || result.scheduleId !== args.required('schedule-id') || result.trigger !== 'Manual' || typeof result.status !== 'string' || !result.status))
+      throw new CliError('Workforce returned an invalid manual run receipt.', { code: 'invalid_response' });
     if (command && !commandOutcome(result)) throw new CliError('Workforce returned an invalid command receipt.', { code: 'invalid_response' });
     if (operation.feedback && result?.saved !== true) throw new CliError('Workforce returned an invalid feedback receipt.', { code: 'invalid_response' });
     if (operation.audio && typeof result?.text !== 'string') throw new CliError('The speech service returned an invalid transcription.', { code: 'invalid_response' });

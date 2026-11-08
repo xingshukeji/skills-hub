@@ -73,6 +73,8 @@ export const workforceOperations = [
   define('schedule create', 'POST', '/task-schedules', { input: 'object' }), define('schedule update', 'PUT', '/task-schedules/{schedule-id}', { input: 'object' }),
   define('schedule enable', 'POST', '/task-schedules/{schedule-id}/enable', { input: 'object', optionalInput: true, expectedRevision: true,
     description: 'Enable the original schedule as its assignee. Pass the observed --expected-revision or a request file containing expectedRevision. After an unknown receipt, read the original schedule; never automatically enable again.' }),
+  define('schedule run-once', 'POST', '/task-schedules/{schedule-id}/run-once', { input: 'object', manualRun: true,
+    description: 'Execute the original schedule once with a stable requestId in --request-json. The same request recovers its original Manual run; it does not consume nextRunAt or enable the arrangement. Never replace the key after an unknown receipt.' }),
   define('schedule pause', 'POST', '/task-schedules/{schedule-id}/pause'),
   define('schedule history', 'GET', '/task-schedules/{schedule-id}/history', { query: ['before'] }),
   define('schedule run show', 'GET', '/task-schedules/{schedule-id}/runs/{run-id}'),
