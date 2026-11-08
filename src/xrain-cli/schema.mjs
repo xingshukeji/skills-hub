@@ -49,11 +49,11 @@ command('agent chat list', [...runtime, 'all'], [], 'List your CLI conversations
 command('agent chat history', [...runtime, 'session-id', 'through-seq', 'before-seq', 'page-size'], [slot('session-id')], 'Read visible history; page backwards at a fixed --through-seq using --before-seq.');
 command('agent chat pending', [...runtime, 'session-id'], [], 'List your pending questions or approvals, optionally filtered by session.');
 command('agent chat respond', [...runtime, 'action-ref', 'application-id', 'personal', 'request-id', 'values', 'values-json', 'file'], [slot('action-ref')], 'Submit an explicitly supplied answer or approval decision to one pending action.');
-command('agent chat cancel', [...runtime, 'session-id'], [slot('session-id')], 'Explicitly stop the original session run. Earlier external effects and history remain.');
-command('agent chat cancel-question', [...runtime, 'action-ref', 'request-id'], [slot('action-ref')], 'Cancel one pending question. Approval decisions still require an explicit response.');
-for (const action of ['subagents', 'commands', 'models']) command(`agent chat ${action}`, [...runtime, 'session-id'], [slot('session-id')], `Read the original authorized session ${action} catalog.`);
-command('agent chat command', [...runtime, 'session-id', 'line'], [slot('session-id')], 'Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.');
-command('agent chat model', [...runtime, 'session-id', 'values', 'values-json', 'file'], [slot('session-id')], 'Select provider, model and optional reasoningEffort for the original session.');
+command('agent chat cancel', [...runtime, 'session-id', 'application-id', 'personal'], [slot('session-id')], 'Explicitly stop the original session run. Earlier external effects and history remain.');
+command('agent chat cancel-question', [...runtime, 'action-ref', 'request-id', 'application-id', 'personal'], [slot('action-ref')], 'Cancel one pending question. Approval decisions still require an explicit response.');
+for (const action of ['subagents', 'commands', 'models']) command(`agent chat ${action}`, [...runtime, 'session-id', 'application-id', 'personal'], [slot('session-id')], `Read the original authorized session ${action} catalog.`);
+command('agent chat command', [...runtime, 'session-id', 'line', 'application-id', 'personal'], [slot('session-id')], 'Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.');
+command('agent chat model', [...runtime, 'session-id', 'values', 'values-json', 'file', 'application-id', 'personal'], [slot('session-id')], 'Select provider, model and optional reasoningEffort for the original session.');
 command('agent qualifications', [...api, 'application-id', 'personal'], [], 'Read XRain eligibility for this person or one application; this does not verify Runtime definitions.');
 command('agent use', [...api, 'agent-id', 'application-id', 'personal'], [slot('agent-id')], 'Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.');
 for (const action of ['subscribe', 'unsubscribe']) command(`agent ${action}`, [...api, 'agent-id'], [slot('agent-id')],

@@ -4912,11 +4912,11 @@ command("agent chat list", [...runtime, "all"], [], "List your CLI conversations
 command("agent chat history", [...runtime, "session-id", "through-seq", "before-seq", "page-size"], [slot("session-id")], "Read visible history; page backwards at a fixed --through-seq using --before-seq.");
 command("agent chat pending", [...runtime, "session-id"], [], "List your pending questions or approvals, optionally filtered by session.");
 command("agent chat respond", [...runtime, "action-ref", "application-id", "personal", "request-id", "values", "values-json", "file"], [slot("action-ref")], "Submit an explicitly supplied answer or approval decision to one pending action.");
-command("agent chat cancel", [...runtime, "session-id"], [slot("session-id")], "Explicitly stop the original session run. Earlier external effects and history remain.");
-command("agent chat cancel-question", [...runtime, "action-ref", "request-id"], [slot("action-ref")], "Cancel one pending question. Approval decisions still require an explicit response.");
-for (const action of ["subagents", "commands", "models"]) command(`agent chat ${action}`, [...runtime, "session-id"], [slot("session-id")], `Read the original authorized session ${action} catalog.`);
-command("agent chat command", [...runtime, "session-id", "line"], [slot("session-id")], "Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.");
-command("agent chat model", [...runtime, "session-id", "values", "values-json", "file"], [slot("session-id")], "Select provider, model and optional reasoningEffort for the original session.");
+command("agent chat cancel", [...runtime, "session-id", "application-id", "personal"], [slot("session-id")], "Explicitly stop the original session run. Earlier external effects and history remain.");
+command("agent chat cancel-question", [...runtime, "action-ref", "request-id", "application-id", "personal"], [slot("action-ref")], "Cancel one pending question. Approval decisions still require an explicit response.");
+for (const action of ["subagents", "commands", "models"]) command(`agent chat ${action}`, [...runtime, "session-id", "application-id", "personal"], [slot("session-id")], `Read the original authorized session ${action} catalog.`);
+command("agent chat command", [...runtime, "session-id", "line", "application-id", "personal"], [slot("session-id")], "Execute one explicitly supplied Runtime slash command in the original session, without automatic retries.");
+command("agent chat model", [...runtime, "session-id", "values", "values-json", "file", "application-id", "personal"], [slot("session-id")], "Select provider, model and optional reasoningEffort for the original session.");
 command("agent qualifications", [...api2, "application-id", "personal"], [], "Read XRain eligibility for this person or one application; this does not verify Runtime definitions.");
 command("agent use", [...api2, "agent-id", "application-id", "personal"], [slot("agent-id")], "Check XRain use eligibility; this does not run the agent or prove the Runtime definition is available.");
 for (const action of ["subscribe", "unsubscribe"]) command(
@@ -5546,13 +5546,13 @@ function commandOutcome(value) {
   if (!isObject(execution) || !nonempty(execution.commandId) || !isObject(execution.result)) return void 0;
   return execution.result.kind === "success" ? "succeeded" : execution.result.kind === "error" && typeof execution.result.text === "string" ? "failed" : void 0;
 }
-async function sessionControl(ctx, helpers, connection2) {
+async function sessionControl(ctx, helpers, connection2, { headers, context }) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
   const sessionId = helpers.identifier(args.required("session-id"), "Session ID");
   const root3 = `/v1/dsh/sessions/${segment(sessionId)}`;
   if (Object.hasOwn(reads, action)) {
-    const value2 = await helpers.runtimeValue(ctx, "GET", `${root3}/${reads[action]}`);
+    const value2 = await helpers.runtimeValue(ctx, "GET", `${root3}/${reads[action]}`, void 0, headers);
     if (!isObject(value2) || action === "commands" && !Array.isArray(value2.items) || action === "subagents" && (!isObject(value2.catalog) || !Array.isArray(value2.summaries)) || action === "models" && !isObject(value2.catalog))
       throw new CliError("Runtime returned an invalid session catalog.", { code: "invalid_response" });
     reporter.print(value2);
@@ -5570,9 +5570,9 @@ async function sessionControl(ctx, helpers, connection2) {
     if (!isObject(body) || Object.keys(body).some((key) => !["provider", "model", "reasoningEffort"].includes(key)) || !nonempty(body.provider) || !nonempty(body.model) || body.reasoningEffort !== void 0 && !nonempty(body.reasoningEffort))
       throw new CliError("Model selection requires provider and model, with optional reasoningEffort.", { code: "invalid_arguments" });
   }
-  const details = { operation: ctx.spec.path, profile: connection2.profile.name, runtime: connection2.runtime, sessionId };
+  const details = { operation: ctx.spec.path, profile: connection2.profile.name, sessionId, ...context };
   const value = await helpers.writeOnce(async () => {
-    const result = await helpers.runtimeValue(ctx, "POST", `${root3}/${suffix}`, body);
+    const result = await helpers.runtimeValue(ctx, "POST", `${root3}/${suffix}`, body, headers);
     if (!isObject(result) || action === "cancel" && result.accepted !== true || action === "command" && !commandOutcome(result))
       throw new CliError("Runtime returned an invalid operation receipt.", { code: "invalid_response" });
     return result;
@@ -5996,7 +5996,7 @@ async function follow(ctx, sessionId, requestId, text2, headers, helpers, budget
 async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
   const connection2 = helpers.runtimeConnection(ctx);
-  const app3 = ["start", "send", "wait", "respond"].includes(action) ? helpers.applicationId(connection2.profile) : void 0;
+  const app3 = ["start", "send", "wait", "respond", "cancel-question", "cancel", "subagents", "commands", "models", "command", "model"].includes(action) ? helpers.applicationId(connection2.profile) : void 0;
   const context = { runtime: connection2.runtime, applicationId: app3 ?? null };
   const headers = app3 ? { "X-XRain-Application-Id": app3 } : {};
   if (action === "list") {
@@ -6028,7 +6028,7 @@ async function chatCommands(ctx, helpers) {
     reporter.print({ actionRef: ref, responseId, ...result, ...context });
     return 0;
   }
-  if (await sessionControl(ctx, helpers, connection2)) return 0;
+  if (await sessionControl(ctx, helpers, connection2, { headers, context })) return 0;
   let sessionId = args.value("session-id");
   if (action === "history") {
     sessionId = helpers.identifier(sessionId, "Session ID");

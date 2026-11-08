@@ -9,13 +9,13 @@ export function commandOutcome(value) {
   return execution.result.kind === 'success' ? 'succeeded' : execution.result.kind === 'error' && typeof execution.result.text === 'string' ? 'failed' : undefined;
 }
 
-export async function sessionControl(ctx, helpers, connection) {
+export async function sessionControl(ctx, helpers, connection, { headers, context }) {
   const { args, reporter } = ctx, action = args.command(2);
   if (!Object.hasOwn(reads, action) && !writes.has(action)) return false;
   const sessionId = helpers.identifier(args.required('session-id'), 'Session ID');
   const root = `/v1/dsh/sessions/${segment(sessionId)}`;
   if (Object.hasOwn(reads, action)) {
-    const value = await helpers.runtimeValue(ctx, 'GET', `${root}/${reads[action]}`);
+    const value = await helpers.runtimeValue(ctx, 'GET', `${root}/${reads[action]}`, undefined, headers);
     if (!isObject(value) || action === 'commands' && !Array.isArray(value.items) ||
         action === 'subagents' && (!isObject(value.catalog) || !Array.isArray(value.summaries)) ||
         action === 'models' && !isObject(value.catalog))
@@ -34,9 +34,9 @@ export async function sessionControl(ctx, helpers, connection) {
         !nonempty(body.provider) || !nonempty(body.model) || body.reasoningEffort !== undefined && !nonempty(body.reasoningEffort))
       throw new CliError('Model selection requires provider and model, with optional reasoningEffort.', { code: 'invalid_arguments' });
   }
-  const details = { operation: ctx.spec.path, profile: connection.profile.name, runtime: connection.runtime, sessionId };
+  const details = { operation: ctx.spec.path, profile: connection.profile.name, sessionId, ...context };
   const value = await helpers.writeOnce(async () => {
-    const result = await helpers.runtimeValue(ctx, 'POST', `${root}/${suffix}`, body);
+    const result = await helpers.runtimeValue(ctx, 'POST', `${root}/${suffix}`, body, headers);
     if (!isObject(result) || action === 'cancel' && result.accepted !== true ||
         action === 'command' && !commandOutcome(result))
       throw new CliError('Runtime returned an invalid operation receipt.', { code: 'invalid_response' });

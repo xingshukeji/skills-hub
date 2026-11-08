@@ -84,3 +84,74 @@ test('session catalogs, slash commands and model selection use their native sess
   }
   assert.equal(service.hits.length, count);
 });
+
+test('native session controls carry the saved or explicit application and allow personal scope', async t => {
+  const f = fixture(t); let expected;
+  const service = await mockServer(t, (hit, res) => {
+    assert.equal(hit.headers['x-xrain-application-id'], expected);
+    if (hit.url.endsWith('/subagents')) respond(res, { catalog: { entries: [] }, summaries: [] });
+    else if (hit.url.endsWith('/models')) respond(res, { catalog: {} });
+    else if (hit.method === 'GET') respond(res, { items: [] });
+    else if (hit.url.endsWith('/model')) { assert.deepEqual(hit.json(), { provider: 'provider', model: 'second' }); respond(res, { selected: true }); }
+    else if (hit.url.endsWith('/commands')) { assert.deepEqual(hit.json(), { line: '/goal' }); respond(res, { execution: { commandId: 'native', result: { kind: 'success' } } }); }
+    else respond(res, { accepted: true }, 202);
+  });
+  f.store.save({ activeProfile: 'Demo', profiles: { Demo: { server: service.url, tenant: 'tenant-one', bearerToken: 'own-token', applicationId: 'app-default' } } });
+  const actions = [
+    ['subagents', 'original'], ['commands', 'original'], ['models', 'original'],
+    ['command', 'original', '--line', '/goal'], ['model', 'original', '--values', '{"provider":"provider","model":"second"}'],
+    ['cancel', 'original'], ['cancel-question', 'question'],
+  ];
+  for (const [scope, application] of [[[], 'app-default'], [['--application-id', 'app-session'], 'app-session'], [['--personal'], undefined]]) {
+    expected = application;
+    for (const action of actions) {
+      const value = await f.run(['agent', 'chat', ...action, ...scope, '--runtime', service.url, '--json']);
+      assert.equal(value.code, 0, value.stdout);
+      if (!['subagents', 'commands', 'models'].includes(action[0])) assert.equal(output(value).data.applicationId, application ?? null);
+    }
+  }
+  assert.equal(service.hits.length, actions.length * 3);
+  const count = service.hits.length;
+  for (const action of actions) {
+    assert.equal((await f.run(['agent', 'chat', ...action, '--application-id', 'app-session', '--personal', '--runtime', service.url, '--json'])).code, 1);
+  }
+  assert.equal(service.hits.length, count);
+});
+
+test('application controls preserve binding refusal and never fall back to personal or another app', async t => {
+  const f = fixture(t); let writes = 0;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.headers['x-xrain-application-id'] !== 'original-app') { respond(res, { error: 'WORKBENCH_AGENT_UNAVAILABLE' }, 403); return; }
+    writes++;
+    if (hit.url.endsWith('/commands')) respond(res, { execution: { commandId: 'native', result: { kind: 'success' } } });
+    else respond(res, { provider: 'provider', model: 'second' });
+  });
+  f.profile(service.url, 'tenant-one', 'own-token');
+  const actions = [['command', '--line', '/goal'], ['model', '--values', '{"provider":"provider","model":"second"}']];
+  let expectedWrites = 0;
+  for (const [action, ...args] of actions) {
+    for (const scope of [['--application-id', 'wrong-app'], ['--personal']]) {
+      const result = await f.run(['agent', 'chat', action, 'original', ...args, ...scope, '--runtime', service.url, '--json']);
+      assert.equal(output(result).error.httpStatus, 403);
+      assert.equal(output(result).error.serverCode, 'WORKBENCH_AGENT_UNAVAILABLE');
+    }
+    assert.equal(writes, expectedWrites);
+    assert.equal((await f.run(['agent', 'chat', action, 'original', ...args, '--application-id', 'original-app', '--runtime', service.url, '--json'])).code, 0);
+    expectedWrites++;
+  }
+  assert.equal(service.hits.length, 6); assert.equal(writes, 2);
+});
+
+test('lost application command and model receipts retain their context without replay', async t => {
+  for (const action of ['command', 'model']) {
+    const f = fixture(t), service = await mockServer(t, (hit, res) => {
+      assert.equal(hit.headers['x-xrain-application-id'], 'original-app'); res.destroy();
+    });
+    f.profile(service.url, 'tenant-one', 'own-token');
+    const result = await f.run(['agent', 'chat', action, 'original', ...(action === 'command' ? ['--line', '/goal'] : ['--values', '{"provider":"provider","model":"second"}']), '--application-id', 'original-app', '--runtime', service.url, '--json']);
+    assert.equal(output(result).error.code, 'outcome_unknown');
+    assert.equal(output(result).error.details.applicationId, 'original-app');
+    assert.equal(output(result).error.details.sessionId, 'original');
+    assert.equal(service.hits.length, 1);
+  }
+});

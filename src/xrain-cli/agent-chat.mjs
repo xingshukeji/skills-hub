@@ -369,7 +369,8 @@ async function follow(ctx, sessionId, requestId, text, headers, helpers, budget,
 export async function chatCommands(ctx, helpers) {
   const { args, reporter } = ctx, action = args.command(2);
   const connection = helpers.runtimeConnection(ctx);
-  const app = ['start', 'send', 'wait', 'respond'].includes(action) ? helpers.applicationId(connection.profile) : undefined;
+  const app = ['start', 'send', 'wait', 'respond', 'cancel-question', 'cancel', 'subagents', 'commands', 'models', 'command', 'model'].includes(action)
+    ? helpers.applicationId(connection.profile) : undefined;
   const context = { runtime: connection.runtime, applicationId: app ?? null };
   const headers = app ? { 'X-XRain-Application-Id': app } : {};
   if (action === 'list') {
@@ -398,7 +399,7 @@ export async function chatCommands(ctx, helpers) {
     }, 'Response outcome is unknown. Inspect this pending action before retrying.', { actionRef: ref, responseId, ...context });
     reporter.print({ actionRef: ref, responseId, ...result, ...context }); return 0;
   }
-  if (await sessionControl(ctx, helpers, connection)) return 0;
+  if (await sessionControl(ctx, helpers, connection, { headers, context })) return 0;
   let sessionId = args.value('session-id');
   if (action === 'history') {
     sessionId = helpers.identifier(sessionId, 'Session ID');
