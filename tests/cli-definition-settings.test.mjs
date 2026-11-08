@@ -379,9 +379,12 @@ test('a lost dynamic creation receipt retains the resolved identity and never en
 });
 
 test('service exclusions round trip and legacy imports preserve target exclusions', () => {
-  const file = exportDefinition({ ...empty, disabledAssistantTools: ['service_schedule_create'] }, []);
+  const file = exportDefinition({ ...empty, inheritDefaultAssistantTools: false, disabledAssistantTools: ['service_schedule_create'] }, []);
   assert.deepEqual(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.disabledAssistantTools, ['service_schedule_create']);
+  assert.equal(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.inheritDefaultAssistantTools, false);
   const legacy = exportDefinition(empty, []);
   assert.equal(Object.hasOwn(definitionFileChanges(legacy, { ...empty, disabledAssistantTools: ['service_schedule_create'] }, []).changes, 'disabledAssistantTools'), false);
+  assert.equal(Object.hasOwn(definitionFileChanges(legacy, { ...empty, inheritDefaultAssistantTools: false }, []).changes, 'inheritDefaultAssistantTools'), false);
+  assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, inheritDefaultAssistantTools: 'false' } }));
   assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, disabledAssistantTools: ['service_a', 'service_a'] } }));
 });

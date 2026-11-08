@@ -45,6 +45,7 @@ function exportDefinition(value, workspaces) {
     reasoningEffort: value.reasoningEffort ?? null,
     agentPreset: value.agentPreset,
     workspace,
+    ...(value.inheritDefaultAssistantTools === undefined ? {} : { inheritDefaultAssistantTools: value.inheritDefaultAssistantTools }),
     ...(value.disabledAssistantTools === undefined ? {} : { disabledAssistantTools: value.disabledAssistantTools }),
     nativeTools: value.nativeTools ?? null,
     assistantTools: value.assistantTools ?? [],
@@ -56,7 +57,7 @@ function exportDefinition(value, workspaces) {
 function readDefinitionFile(value) {
   if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
   const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
-  if (keys.some(key => !(key in v)) || Object.keys(v).some((key) => ![...keys, 'disabledAssistantTools'].includes(key)) || v.disabledAssistantTools !== undefined && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every(name => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
+  if (keys.some(key => !(key in v)) || Object.keys(v).some((key) => ![...keys, 'disabledAssistantTools', 'inheritDefaultAssistantTools'].includes(key)) || v.inheritDefaultAssistantTools !== undefined && typeof v.inheritDefaultAssistantTools !== 'boolean' || v.disabledAssistantTools !== undefined && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every(name => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
   return value;
 }
 function sameWorkspacePath(left, right) {
@@ -73,6 +74,7 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     model: v.model,
     reasoningEffort: v.reasoningEffort ?? void 0,
     assistantTools: v.assistantTools,
+    ...(v.inheritDefaultAssistantTools === undefined ? {} : { inheritDefaultAssistantTools: v.inheritDefaultAssistantTools }),
     ...(v.disabledAssistantTools === undefined ? {} : { disabledAssistantTools: v.disabledAssistantTools }),
     suggestedQuestions: v.suggestedQuestions ?? void 0,
     businessActions: v.businessActions ?? void 0,

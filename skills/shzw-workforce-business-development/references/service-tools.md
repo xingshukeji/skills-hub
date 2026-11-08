@@ -24,6 +24,7 @@ export default {
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   displayName: '查看本人身份',
+  category: 'business',
   entries: ['personal', 'application', 'employee'],
   defaultAvailable: false,
   effect: 'read',
@@ -44,7 +45,11 @@ export default {
 
 `defaultAvailable: false` 或省略时，管理者在定义的业务工具中显式选择，保存为 `assistantTools`。true 表示面向其 entries 的默认能力；新增文件被发现不等于新能力必须对所有定义默认开放。
 
-支持 `supportsServiceToolExclusions: true` 的 Runtime 接受定义字段 `disabledAssistantTools`，以稳定工具名称记录关闭项。实际能力是当前目录内适用入口的“默认项＋有效显式选择”，再去掉关闭项。关闭优先于显式选择；`disabledAssistantTools: []` 恢复默认。缺省字段保留旧行为，`assistantTools: []` 只清空可选项，不单独撤销默认项。提供者暂时不可用时保留关闭项，恢复后也不得重新开放。
+定义的 `inheritDefaultAssistantTools` 控制是否自动启用默认工具。true 或省略时，实际能力为适用默认项与有效 `assistantTools` 的并集；false 时仅使用有效 `assistantTools`，空数组表示全部不启用。管理页提供“自动启用默认工具”开关，开启时仍完整显示默认工具，关闭后逐项选择。options 的 `supportsDefaultAssistantToolInheritance` 声明该能力；旧环境不能保存此开关时保留原配置并明确提示。
+
+`disabledAssistantTools` 继续兼容已有单项关闭配置，按稳定工具名称排除，优先于默认和显式选择。提供者暂时不可用时保留关闭项。关闭自动启用时，页面先将当前有效项转换为明确选择，避免切换模式时意外丢失已有能力；重新开启是用户明确恢复默认的动作。定义导入、导出和 CLI 局部修改均保留开关，旧文件省略此字段时保留目标原值。
+
+工具用途与默认启用状态分别声明。服务工具的 `category: 'business'` 表示企业业务能力，例如车型和报价；`category: 'general'` 表示通用能力，例如 Workforce 的消息和计划。省略 category 按 business 处理。文件、搜索和终端等原生能力单列为基础工具；不能仅因 defaultAvailable 为 true 就把工具归为业务能力或基础工具。
 
 定义管理页面应显示当前生效的默认和可选工具；设置取消恢复完整草稿，保存后重新读取核对。模型只决定调用已获准能力，不能自行启用未获准工具。工具改变后在下一轮装配，并在每次调用前复验当前定义；已经开始的业务操作仍以真实回执判断。
 

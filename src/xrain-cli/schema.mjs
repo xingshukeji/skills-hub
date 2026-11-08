@@ -87,7 +87,7 @@ for (const action of ['enable', 'disable']) command(`agent definition ${action}`
 command('agent tool native', [...runtime, 'workspace-id', 'workspace-path', 'preset'], [], 'Read native tools for an existing directory or registered workspace and its preset.');
 command('agent tool business', runtime, [], 'Read the business tools available in the current Runtime context.');
 command('agent tool show', [...runtime, 'agent-id'], [slot('agent-id')], 'Read configured tools, inheritance and available native/business catalogs for an agent.');
-command('agent tool set', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file'], [slot('agent-id')], 'Change nativeTools, assistantTools and/or disabledAssistantTools at an observed revision; disabledAssistantTools excludes named default service tools, [] restores defaults.');
+command('agent tool set', [...runtime, 'agent-id', 'expected-revision', 'values', 'values-json', 'file'], [slot('agent-id')], 'Change nativeTools, assistantTools, disabledAssistantTools and/or inheritDefaultAssistantTools at an observed revision; false selects service tools manually, true includes defaults.');
 command('agent workspace status', [...runtime, 'agent-id', 'workspace-path'], [slot('agent-id')], 'Inspect a delivered workspace inventory and detect missing or modified files without writing.');
 for (const action of ['browse', 'create', 'register']) command(`agent workspace ${action}`, [...runtime, 'values', 'values-json', 'file'], [],
   action === 'browse' ? 'Browse a Runtime-side directory from a JSON request.' : action === 'create' ? 'Create a directory on the Runtime host from a JSON request.' : 'Register an existing Runtime-side directory as a workspace from a JSON request.');
