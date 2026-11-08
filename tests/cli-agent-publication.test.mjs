@@ -89,6 +89,11 @@ test('tool-only updates preserve other settings and config aliases retain revisi
   assert.equal(JSON.parse(stale.stdout).error.code, 'conflict'); assert.equal(current.name, 'Keep');
   const invalid = await run(['tool', 'set', 'fixed', '--expected-revision', '9', '--values', '{"instructions":"not a tool"}']);
   assert.equal(JSON.parse(invalid.stdout).error.code, 'invalid_arguments');
+  const changed = await run(['tool', 'set', 'fixed', '--expected-revision', '9', '--values', JSON.stringify({ disabledAssistantTools: ['service_schedule_create'] })]);
+  assert.equal(changed.code, 0, changed.stdout);
+  assert.deepEqual(JSON.parse(changed.stdout).data.disabledAssistantTools, ['service_schedule_create']);
+  assert.equal(current.instructions, 'Keep instructions');
+  assert.equal(current.model, 'changed');
 });
 
 test('publication preserves a valid target registered binding when the source uses a different machine reference', async t => {

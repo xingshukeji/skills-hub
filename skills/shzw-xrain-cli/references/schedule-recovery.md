@@ -8,7 +8,7 @@
 
 有原定义管理权限时，使用 agent definition options、agent tool business 及 agent tool show <定义ID>。business 保留服务返回的 protocolVersion、defaultAvailable、entries、targetApplicationId 和工具 Schema；show 将保存的 assistantTools、nativeTools 与可读目录分别返回。complete 仅表示目录读取完整，不证明某个具体对话具有该工具。
 
-默认工具与定义显式选用分别核对。assistantTools=[] 不会撤除 defaultAvailable=true 的工具。entries 限定 personal/application/employee 等适用入口；目标应用与来源应用分别受当前成员准入约束。通用目录不会赋予 CLI 某个 chat 的可信 currentAgentId、Task grant 或员工事项。
+默认工具与定义显式选用分别核对。assistantTools=[] 不会单独撤除 defaultAvailable=true 的工具；支持关闭配置的 Runtime 还须检查 disabledAssistantTools，命中名称后默认工具也不可调用。entries 限定 personal/application/employee 等适用入口；目标应用与来源应用分别受当前成员准入约束。通用目录不会赋予 CLI 某个 chat 的可信 currentAgentId、Task grant 或员工事项。
 
 保留原错误和 catalogErrors：403 是当前身份未获相应读取或业务资格；tools.runtime_unsupported 是协议不兼容；tools.definition_changed、tools.target_changed 分别是合同或目标变化。模块裁剪要结合该实例已知的装配变更和前后目录差异核对，不能只凭空数组断言模块未激活。普通成员诊断失败时保留原身份，不换管理员执行原业务。
 

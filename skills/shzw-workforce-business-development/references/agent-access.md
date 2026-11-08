@@ -11,7 +11,7 @@ Runtime 持有定义的名称、工作要求、模型、工作模式、工作目
 
 定义详情支持导出已保存内容。新建或编辑时选择“从文件导入”：读取成功后直接更新当前草稿，保存后生效；无法还原的目录或无法核对的工具会提示。文本或 Markdown 只替换工作要求；旧 JSON 工作文件包含 `instructions` 和 `assistantTools`，导入后替换这两项。取消选择、错误或迟到的读取不覆盖现有输入。
 
-页面导出文件顶层为 `format: "xrain-workforce-agent-definition"`、`version: 1` 和 `definition`。`definition` 包含 `name`、`enabled`、`instructions`、`provider`、`model`、`reasoningEffort`、`agentPreset`、`workspace`、`nativeTools`、`assistantTools`、`suggestedQuestions`、`businessActions` 和 `uiPlugins`。其中 `enabled` 仅记录导出时的状态；导入保留目标身份、版本、启用状态及使用范围。`nativeTools: null` 表示继承工作模式，空数组表示不选可选工具；`uiPlugins: null` 表示沿用默认侧栏，空数组表示不显示。`assistantTools: []` 表示没有业务工具。
+页面导出文件顶层为 `format: "xrain-workforce-agent-definition"`、`version: 1` 和 `definition`。`definition` 包含 `name`、`enabled`、`instructions`、`provider`、`model`、`reasoningEffort`、`agentPreset`、`workspace`、`nativeTools`、`assistantTools`、`suggestedQuestions`、`businessActions` 和 `uiPlugins`。其中 `enabled` 仅记录导出时的状态；导入保留目标身份、版本、启用状态及使用范围。`nativeTools: null` 表示继承工作模式，空数组表示不选可选工具；`uiPlugins: null` 表示沿用默认侧栏，空数组表示不显示。`assistantTools: []` 表示没有显式选用的业务工具，默认能力仍由当前目录提供。支持的 Runtime 通过 `disabledAssistantTools` 记录按稳定名称关闭的工具；缺省保留旧行为，空数组恢复默认，旧文件没有此字段时保留目标的关闭配置。发现、选择和逐次调用规则见[工具文件与启用](service-tools.md)。
 
 `workspace.kind` 为 `direct` 时有当前 Runtime 机器的 `path`；为 `registered` 时有工作区 `id` 及可取得的 `path`；`none` 表示未设置，`unavailable` 表示导出时不能取得路径。导入后仍由当前环境核验目录和工作模式。无法确认的登记目录和已启用定义的空目录会保留目标设置并提示；支持恢复继承的 Runtime 可按文件恢复工具继承，旧版本保留目标选择并提示。模型、业务工具和业务对象也须在当前环境可用；工具目录变化时核对完整工具描述，不按名称猜测或自动替换。
 

@@ -46,7 +46,7 @@ agent subscription list
 agent subscription decide <申请ID> --decision approved
 ```
 
-`config show/update` 与定义读取/局部更新使用同一合同，覆盖名称、工作要求、模型及推理等级、工作目录和模式、推荐问题、业务操作、侧栏与工具；省略字段保留原值。`tool show` 返回当前选择、是否继承，以及分别读取的原生和业务工具目录。草稿没有目录或某个目录读取失败时，保留已保存选择和另一目录，返回 `complete: false` 与对应 `catalogErrors`；不把不可用目录当成空目录。定义本身读取失败仍直接报错，`tool native/business` 的单独查询继续保留原错误。
+`config show/update` 与定义读取/局部更新使用同一合同，覆盖名称、工作要求、模型及推理等级、工作目录和模式、推荐问题、业务操作、侧栏与工具；省略字段保留原值。`tool set` 支持 `nativeTools`、`assistantTools` 和 `disabledAssistantTools`；后者是关闭的服务工具名称，关闭单项时保留其他关闭项，空数组恢复默认。仅支持该字段的 Runtime 接受此变更。`tool show` 返回当前选择、关闭项、是否继承，以及分别读取的原生和业务工具目录。草稿没有目录或某个目录读取失败时，保留已保存选择和另一目录，返回 `complete: false` 与对应 `catalogErrors`；不把不可用目录当成空目录。定义本身读取失败仍直接报错，`tool native/business` 的单独查询继续保留原错误。
 
 `tool set` 只接收 `nativeTools` 和/或 `assistantTools`，不改变其他设置。`nativeTools: null` 恢复继承，`[]` 明确清空；业务工具使用目录返回的完整工具描述，不按名称编造。
 

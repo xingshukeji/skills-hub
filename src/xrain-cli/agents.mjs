@@ -17,7 +17,7 @@ export { writeOnce } from './http.mjs';
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
 const definitionFields = ['name', 'enabled', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset',
-  'workspaceId', 'nativeTools', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools'];
+  'workspaceId', 'nativeTools', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools', 'disabledAssistantTools'];
 const inputFields = new Set([...definitionFields, 'workspaceChange']);
 
 const runtimeConnections = new WeakMap();

@@ -117,7 +117,7 @@ export async function publishAgent(ctx) {
     if (args.has('enable') && !saved.enabled) saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true);
     stage = 'verification';
     const actual = await definition(ctx, id), status = await runtimeValue(ctx, 'POST', root + '/workspace-publication/status', { agentId: id, path });
-    const fields = ['name', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset', 'nativeTools', 'assistantTools', 'suggestedQuestions', 'businessActions', 'uiPlugins'];
+    const fields = ['name', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset', 'nativeTools', 'assistantTools', 'disabledAssistantTools', 'suggestedQuestions', 'businessActions', 'uiPlugins'];
     const definitionMatches = fields.every(key => isDeepStrictEqual(actual[key], key === 'nativeTools' && body[key] === null ? undefined : body[key]));
     const directoryMatches = registered ? actual.workspaceId === space.id : actual.workspaceDirect === true && actual.workspacePath === workspace.path;
     if (actual.revision !== saved.revision || actual.enabled !== saved.enabled || !definitionMatches || !directoryMatches || actual.workspaceUnavailable ||
@@ -161,15 +161,15 @@ export async function showAgentTools(ctx) {
         ...(error.httpStatus ? { httpStatus: error.httpStatus } : {}), ...(error.serverCode ? { serverCode: error.serverCode } : {}) };
     }
   }
-  ctx.reporter.print({ agentId: id, revision: current.revision, nativeTools: current.nativeTools ?? null, assistantTools: current.assistantTools ?? [],
+  ctx.reporter.print({ agentId: id, revision: current.revision, nativeTools: current.nativeTools ?? null, assistantTools: current.assistantTools ?? [], disabledAssistantTools: current.disabledAssistantTools ?? [],
     nativeSelection: current.nativeTools === undefined ? 'inherited' : 'explicit', complete: !Object.keys(catalogErrors).length, available,
     ...(Object.keys(catalogErrors).length ? { catalogErrors } : {}) }); return 0;
 }
 export async function setAgentTools(ctx) {
   const { args, reporter } = ctx, id = identifier(args.required('agent-id'), 'Agent ID');
   const patch = await jsonInput(args, 'values', true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
-  if (!isObject(patch) || !Object.keys(patch).length || Object.keys(patch).some(key => !['nativeTools', 'assistantTools'].includes(key))) failure('Supply nativeTools and/or assistantTools only.');
+  if (!isObject(patch) || !Object.keys(patch).length || Object.keys(patch).some(key => !['nativeTools', 'assistantTools', 'disabledAssistantTools'].includes(key))) failure('Supply nativeTools, assistantTools and/or disabledAssistantTools only.');
   const current = await definition(ctx, id), body = updatedDefinition(current, patch, args.integer('expected-revision'));
   const saved = await saveDefinition(ctx, id, body);
-  reporter.print({ agentId: id, revision: saved.revision, nativeTools: saved.nativeTools ?? null, assistantTools: saved.assistantTools ?? [] }); return 0;
+  reporter.print({ agentId: id, revision: saved.revision, nativeTools: saved.nativeTools ?? null, assistantTools: saved.assistantTools ?? [], disabledAssistantTools: saved.disabledAssistantTools ?? [] }); return 0;
 }
