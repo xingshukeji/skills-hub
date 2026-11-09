@@ -4963,7 +4963,7 @@ for (const action of ["enable", "disable"]) command(`agent definition ${action}`
 command("agent tool native", [...runtime, "workspace-id", "workspace-path", "preset"], [], "Read native tools for an existing directory or registered workspace and its preset.");
 command("agent tool business", runtime, [], "Read the business tools available in the current Runtime context.");
 command("agent tool show", [...runtime, "agent-id"], [slot("agent-id")], "Read configured tools, inheritance and available native/business catalogs for an agent.");
-command("agent tool set", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file"], [slot("agent-id")], "Change nativeTools, assistantTools, disabledAssistantTools and/or inheritDefaultAssistantTools at an observed revision; false selects service tools manually, true includes defaults.");
+command("agent tool set", [...runtime, "agent-id", "expected-revision", "values", "values-json", "file"], [slot("agent-id")], "Change nativeToolsEnabled, nativeTools, assistantTools, disabledAssistantTools and/or inheritDefaultAssistantTools at an observed revision; false selects service tools manually, true includes defaults.");
 command("agent workspace status", [...runtime, "agent-id", "workspace-path"], [slot("agent-id")], "Inspect a delivered workspace inventory and detect missing or modified files without writing.");
 for (const action of ["browse", "create", "register"]) command(
   `agent workspace ${action}`,
@@ -5475,6 +5475,7 @@ function exportDefinition(value, workspaces) {
     reasoningEffort: value.reasoningEffort ?? null,
     agentPreset: value.agentPreset,
     workspace,
+    ...value.nativeToolsEnabled === void 0 ? {} : { nativeToolsEnabled: value.nativeToolsEnabled },
     ...value.inheritDefaultAssistantTools === void 0 ? {} : { inheritDefaultAssistantTools: value.inheritDefaultAssistantTools },
     ...value.disabledAssistantTools === void 0 ? {} : { disabledAssistantTools: value.disabledAssistantTools },
     nativeTools: value.nativeTools ?? null,
@@ -5487,7 +5488,7 @@ function exportDefinition(value, workspaces) {
 function readDefinitionFile(value) {
   if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
   const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
-  if (keys.some((key) => !(key in v)) || Object.keys(v).some((key) => ![...keys, "disabledAssistantTools", "inheritDefaultAssistantTools"].includes(key)) || v.inheritDefaultAssistantTools !== void 0 && typeof v.inheritDefaultAssistantTools !== "boolean" || v.disabledAssistantTools !== void 0 && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every((name) => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
+  if (keys.some((key) => !(key in v)) || Object.keys(v).some((key) => ![...keys, "disabledAssistantTools", "inheritDefaultAssistantTools", "nativeToolsEnabled"].includes(key)) || v.nativeToolsEnabled !== void 0 && typeof v.nativeToolsEnabled !== "boolean" || v.inheritDefaultAssistantTools !== void 0 && typeof v.inheritDefaultAssistantTools !== "boolean" || v.disabledAssistantTools !== void 0 && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every((name) => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
   return value;
 }
 function sameWorkspacePath(left, right) {
@@ -5504,6 +5505,7 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     model: v.model,
     reasoningEffort: v.reasoningEffort ?? void 0,
     assistantTools: v.assistantTools,
+    ...v.nativeToolsEnabled === void 0 ? {} : { nativeToolsEnabled: v.nativeToolsEnabled },
     ...v.inheritDefaultAssistantTools === void 0 ? {} : { inheritDefaultAssistantTools: v.inheritDefaultAssistantTools },
     ...v.disabledAssistantTools === void 0 ? {} : { disabledAssistantTools: v.disabledAssistantTools },
     suggestedQuestions: v.suggestedQuestions ?? void 0,
@@ -6258,6 +6260,7 @@ async function publishAgent(ctx) {
   if (!nonempty(path)) failure("Select the Runtime destination with --workspace-path, or use its configured workspace.", "workspace_unavailable");
   const preset = args.value("preset") ?? file.definition.agentPreset;
   if (!nonempty(preset)) failure("A work mode is required in the definition or --preset.");
+  if (file.definition.nativeToolsEnabled !== void 0 && options.supportsNativeToolEnablement !== true) failure("This Runtime cannot control the native tools master switch.", "unsupported_runtime");
   if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true) failure("This Runtime cannot restore native tool inheritance.", "unsupported_runtime");
   const space = [boundSpace, sourceSpace].find((item) => item?.cwd === path && item.agentPresets?.includes(preset));
   const registered = !!space;
@@ -6309,7 +6312,7 @@ async function publishAgent(ctx) {
     if (args.has("enable") && !saved.enabled) saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true);
     stage = "verification";
     const actual = await definition2(ctx, id), status = await runtimeValue(ctx, "POST", root + "/workspace-publication/status", { agentId: id, path });
-    const fields2 = ["name", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "nativeTools", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+    const fields2 = ["name", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "nativeTools", "nativeToolsEnabled", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
     const definitionMatches = fields2.every((key) => isDeepStrictEqual2(actual[key], key === "nativeTools" && body[key] === null ? void 0 : body[key]));
     const directoryMatches = registered ? actual.workspaceId === space.id : actual.workspaceDirect === true && actual.workspacePath === workspace.path;
     if (actual.revision !== saved.revision || actual.enabled !== saved.enabled || !definitionMatches || !directoryMatches || actual.workspaceUnavailable || status.agentId !== id || status.path !== workspace.path || status.digest !== snapshot.digest || !Array.isArray(status.files) || status.files.length !== snapshot.files.length || status.files.some((item) => item.status !== "intact") || !Array.isArray(status.directories) || status.directories.length !== snapshot.directories.length || status.directories.some((item) => item.status !== "intact"))
@@ -6364,6 +6367,7 @@ async function showAgentTools(ctx) {
   ctx.reporter.print({
     agentId: id,
     revision: current.revision,
+    nativeToolsEnabled: current.nativeToolsEnabled !== false,
     nativeTools: current.nativeTools ?? null,
     assistantTools: current.assistantTools ?? [],
     disabledAssistantTools: current.disabledAssistantTools ?? [],
@@ -6378,10 +6382,10 @@ async function showAgentTools(ctx) {
 async function setAgentTools(ctx) {
   const { args, reporter } = ctx, id = identifier(args.required("agent-id"), "Agent ID");
   const patch = await jsonInput(args, "values", true, { limit: Infinity, stdin: ctx.stdin, utf8: true });
-  if (!isObject(patch) || !Object.keys(patch).length || Object.keys(patch).some((key) => !["nativeTools", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools"].includes(key))) failure("Supply nativeTools, assistantTools, disabledAssistantTools and/or inheritDefaultAssistantTools only.");
+  if (!isObject(patch) || !Object.keys(patch).length || Object.keys(patch).some((key) => !["nativeTools", "nativeToolsEnabled", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools"].includes(key))) failure("Supply nativeTools, assistantTools, disabledAssistantTools and/or inheritDefaultAssistantTools only.");
   const current = await definition2(ctx, id), body = updatedDefinition(current, patch, args.integer("expected-revision"));
   const saved = await saveDefinition(ctx, id, body);
-  reporter.print({ agentId: id, revision: saved.revision, nativeTools: saved.nativeTools ?? null, assistantTools: saved.assistantTools ?? [], disabledAssistantTools: saved.disabledAssistantTools ?? [], inheritDefaultAssistantTools: saved.inheritDefaultAssistantTools !== false });
+  reporter.print({ agentId: id, revision: saved.revision, nativeToolsEnabled: saved.nativeToolsEnabled !== false, nativeTools: saved.nativeTools ?? null, assistantTools: saved.assistantTools ?? [], disabledAssistantTools: saved.disabledAssistantTools ?? [], inheritDefaultAssistantTools: saved.inheritDefaultAssistantTools !== false });
   return 0;
 }
 
@@ -6398,6 +6402,7 @@ var definitionFields = [
   "agentPreset",
   "workspaceId",
   "nativeTools",
+  "nativeToolsEnabled",
   "suggestedQuestions",
   "businessActions",
   "uiPlugins",
@@ -6593,6 +6598,8 @@ async function prepareDefinition(ctx) {
       details: { workspaceId: reference.id, agentPreset: file.definition.agentPreset },
       hint: "Prepare the project’s configured Runtime and workspace. No definition was saved."
     });
+  if (file.definition.nativeToolsEnabled !== void 0 && options.supportsNativeToolEnablement !== true)
+    throw new CliError("This Runtime cannot control the native tools master switch.", { code: "unsupported_runtime" });
   if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true)
     throw new CliError("This Runtime cannot restore the project’s native tool inheritance.", { code: "unsupported_runtime" });
   const mapped = { ...file, definition: { ...file.definition, workspace: { kind: "registered", id: workspace.id, path: workspace.cwd } } };
@@ -6656,6 +6663,8 @@ async function importDefinition(ctx) {
     workspace: { kind: "direct", path: args.required("workspace-path") },
     agentPreset: args.required("preset")
   } };
+  if (file.definition.nativeToolsEnabled !== void 0 && options.supportsNativeToolEnablement !== true)
+    throw new CliError("This Runtime cannot control the native tools master switch.", { code: "unsupported_runtime" });
   const canRestoreInheritance = options.supportsNativeToolInheritanceReset === true;
   const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, canRestoreInheritance);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));

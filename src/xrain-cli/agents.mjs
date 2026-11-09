@@ -17,7 +17,7 @@ export { writeOnce } from './http.mjs';
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
 const definitionFields = ['name', 'enabled', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset',
-  'workspaceId', 'nativeTools', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools', 'disabledAssistantTools', 'inheritDefaultAssistantTools'];
+  'workspaceId', 'nativeTools', 'nativeToolsEnabled', 'suggestedQuestions', 'businessActions', 'uiPlugins', 'assistantTools', 'disabledAssistantTools', 'inheritDefaultAssistantTools'];
 const inputFields = new Set([...definitionFields, 'workspaceChange']);
 
 const runtimeConnections = new WeakMap();
@@ -166,6 +166,8 @@ async function prepareDefinition(ctx) {
   if (!workspace || !nonempty(workspace.cwd) || !Array.isArray(workspace.agentPresets) || !workspace.agentPresets.includes(file.definition.agentPreset))
     throw new CliError('The project workspace reference cannot be resolved on this Runtime.', { code: 'workspace_unavailable',
       details: { workspaceId: reference.id, agentPreset: file.definition.agentPreset }, hint: 'Prepare the project’s configured Runtime and workspace. No definition was saved.' });
+  if (file.definition.nativeToolsEnabled !== undefined && options.supportsNativeToolEnablement !== true)
+    throw new CliError('This Runtime cannot control the native tools master switch.', { code: 'unsupported_runtime' });
   if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true)
     throw new CliError('This Runtime cannot restore the project’s native tool inheritance.', { code: 'unsupported_runtime' });
   // The source supplies a logical reference; the running host supplies its local directory.
@@ -213,6 +215,8 @@ async function importDefinition(ctx) {
   // silently adopt another computer’s directory or replace an existing binding.
   if (args.has('workspace-path')) file = { ...file, definition: { ...file.definition,
     workspace: { kind: 'direct', path: args.required('workspace-path') }, agentPreset: args.required('preset') } };
+  if (file.definition.nativeToolsEnabled !== undefined && options.supportsNativeToolEnablement !== true)
+    throw new CliError('This Runtime cannot control the native tools master switch.', { code: 'unsupported_runtime' });
   const canRestoreInheritance = options.supportsNativeToolInheritanceReset === true;
   const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, canRestoreInheritance);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
