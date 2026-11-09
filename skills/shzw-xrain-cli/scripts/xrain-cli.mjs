@@ -5450,7 +5450,7 @@ function validTool(v) {
   return object(v) && text(v.name, 160) && text(v.description, Infinity) && text(v.serviceId, 160) && text(v.operation, 160) && object(v.parameters) && (v.resultReference === void 0 || typeof v.resultReference === "boolean");
 }
 function validQuestion(v) {
-  return text(v, Infinity) || object(v) && text(v.text, Infinity) && optionalObject(v.when) && (!v.when || ["conversation", "object", "businessSourceId", "objectType"].every((key) => v.when && object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
+  return text(v, Infinity) && !!v.trim() && v.trim() === v && !/[\r\n]/.test(v);
 }
 function validAction(v) {
   return object(v) && text(v.businessSourceId, 160) && text(v.objectType, 160) && ["read", "create", "edit"].includes(String(v.action)) && optionalStrings(v.createFields) && optionalObject(v.when) && (!v.when || ["conversation", "object"].every((key) => object(v.when) && (v.when[key] === void 0 || text(v.when[key], 160))));
@@ -5483,6 +5483,7 @@ function exportDefinition(value, workspaces) {
     reasoningEffort: value.reasoningEffort ?? null,
     agentPreset: value.agentPreset,
     workspace,
+    followUpQuestionsEnabled: value.followUpQuestionsEnabled !== false,
     ...value.nativeToolsEnabled === void 0 ? {} : { nativeToolsEnabled: value.nativeToolsEnabled },
     ...value.inheritDefaultAssistantTools === void 0 ? {} : { inheritDefaultAssistantTools: value.inheritDefaultAssistantTools },
     ...value.disabledAssistantTools === void 0 ? {} : { disabledAssistantTools: value.disabledAssistantTools },
@@ -5496,7 +5497,8 @@ function exportDefinition(value, workspaces) {
 function readDefinitionFile(value) {
   if (!object(value) || value.format !== "xrain-workforce-agent-definition" || value.version !== 1 || Object.keys(value).some((key) => !["format", "version", "definition"].includes(key)) || !object(value.definition)) throw Error("invalid");
   const v = value.definition, keys = ["name", "enabled", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "workspace", "nativeTools", "assistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
-  if (keys.some((key) => !(key in v)) || Object.keys(v).some((key) => ![...keys, "disabledAssistantTools", "inheritDefaultAssistantTools", "nativeToolsEnabled"].includes(key)) || v.nativeToolsEnabled !== void 0 && typeof v.nativeToolsEnabled !== "boolean" || v.inheritDefaultAssistantTools !== void 0 && typeof v.inheritDefaultAssistantTools !== "boolean" || v.disabledAssistantTools !== void 0 && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every((name) => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
+  if (v.followUpQuestionsEnabled !== void 0 && typeof v.followUpQuestionsEnabled !== "boolean") throw Error("invalid");
+  if (keys.some((key) => !(key in v)) || Object.keys(v).some((key) => ![...keys, "disabledAssistantTools", "inheritDefaultAssistantTools", "nativeToolsEnabled", "followUpQuestionsEnabled"].includes(key)) || v.nativeToolsEnabled !== void 0 && typeof v.nativeToolsEnabled !== "boolean" || v.inheritDefaultAssistantTools !== void 0 && typeof v.inheritDefaultAssistantTools !== "boolean" || v.disabledAssistantTools !== void 0 && (!strings(v.disabledAssistantTools) || new Set(v.disabledAssistantTools).size !== v.disabledAssistantTools.length || !v.disabledAssistantTools.every((name) => /^service_[A-Za-z0-9_-]+$/.test(name))) || !text(v.name, 160) || typeof v.enabled !== "boolean" || !text(v.instructions, Infinity) || !text(v.provider, 160) || !text(v.model, 240) || !(v.reasoningEffort === null || text(v.reasoningEffort, 160)) || !text(v.agentPreset, 160) || !object(v.workspace) || !["none", "unavailable", "direct", "registered"].includes(String(v.workspace.kind)) || v.workspace.kind === "direct" && (!text(v.workspace.path, 4096) || !v.workspace.path) || v.workspace.kind === "registered" && (!text(v.workspace.id, 160) || !v.workspace.id || v.workspace.path !== void 0 && !text(v.workspace.path, 4096)) || !(v.nativeTools === null || strings(v.nativeTools)) || !Array.isArray(v.assistantTools) || !v.assistantTools.every(validTool) || !nullableArray(v.suggestedQuestions, validQuestion) || !nullableArray(v.businessActions, validAction) || !nullableArray(v.uiPlugins, validSidebar)) throw Error("invalid");
   return value;
 }
 function sameWorkspacePath(left, right) {
@@ -5507,6 +5509,7 @@ function sameWorkspacePath(left, right) {
 function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = true) {
   const v = file.definition, warnings = [];
   const changes = {
+    followUpQuestionsEnabled: v.followUpQuestionsEnabled !== false,
     name: v.name,
     instructions: v.instructions,
     provider: v.provider,
@@ -6320,7 +6323,7 @@ async function publishAgent(ctx) {
     if (args.has("enable") && !saved.enabled) saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true);
     stage = "verification";
     const actual = await definition2(ctx, id), status = await runtimeValue(ctx, "POST", root + "/workspace-publication/status", { agentId: id, path });
-    const fields2 = ["name", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "nativeTools", "nativeToolsEnabled", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools", "suggestedQuestions", "businessActions", "uiPlugins"];
+    const fields2 = ["name", "instructions", "provider", "model", "reasoningEffort", "agentPreset", "nativeTools", "nativeToolsEnabled", "assistantTools", "disabledAssistantTools", "inheritDefaultAssistantTools", "suggestedQuestions", "followUpQuestionsEnabled", "businessActions", "uiPlugins"];
     const definitionMatches = fields2.every((key) => isDeepStrictEqual2(actual[key], key === "nativeTools" && body[key] === null ? void 0 : body[key]));
     const directoryMatches = registered ? actual.workspaceId === space.id : actual.workspaceDirect === true && actual.workspacePath === workspace.path;
     if (actual.revision !== saved.revision || actual.enabled !== saved.enabled || !definitionMatches || !directoryMatches || actual.workspaceUnavailable || status.agentId !== id || status.path !== workspace.path || status.digest !== snapshot.digest || !Array.isArray(status.files) || status.files.length !== snapshot.files.length || status.files.some((item) => item.status !== "intact") || !Array.isArray(status.directories) || status.directories.length !== snapshot.directories.length || status.directories.some((item) => item.status !== "intact"))
@@ -6412,6 +6415,7 @@ var definitionFields = [
   "nativeTools",
   "nativeToolsEnabled",
   "suggestedQuestions",
+  "followUpQuestionsEnabled",
   "businessActions",
   "uiPlugins",
   "assistantTools",

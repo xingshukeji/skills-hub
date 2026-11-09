@@ -118,7 +118,7 @@ export async function publishAgent(ctx) {
     if (args.has('enable') && !saved.enabled) saved = await saveDefinition(ctx, id, { agentId: id, revision: saved.revision, enabled: true }, true);
     stage = 'verification';
     const actual = await definition(ctx, id), status = await runtimeValue(ctx, 'POST', root + '/workspace-publication/status', { agentId: id, path });
-    const fields = ['name', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset', 'nativeTools', 'nativeToolsEnabled', 'assistantTools', 'disabledAssistantTools', 'inheritDefaultAssistantTools', 'suggestedQuestions', 'businessActions', 'uiPlugins'];
+    const fields = ['name', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset', 'nativeTools', 'nativeToolsEnabled', 'assistantTools', 'disabledAssistantTools', 'inheritDefaultAssistantTools', 'suggestedQuestions', 'followUpQuestionsEnabled', 'businessActions', 'uiPlugins'];
     const definitionMatches = fields.every(key => isDeepStrictEqual(actual[key], key === 'nativeTools' && body[key] === null ? undefined : body[key]));
     const directoryMatches = registered ? actual.workspaceId === space.id : actual.workspaceDirect === true && actual.workspacePath === workspace.path;
     if (actual.revision !== saved.revision || actual.enabled !== saved.enabled || !definitionMatches || !directoryMatches || actual.workspaceUnavailable ||

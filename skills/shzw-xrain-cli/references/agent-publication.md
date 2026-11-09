@@ -31,6 +31,8 @@ Runtime 在工作区的 `.xrain-workspace-publication.json` 保存本租户、�
 
 ## 配置查询与管理
 
+`suggestedQuestions` 只接受有序字符串开场问题，点击只填草稿。`followUpQuestionsEnabled` 缺省或 true 启用回复后的动态推荐，false 关闭；可通过 `config update --values-json` 修改，定义文件导入导出、准备和完整发布均保留该值。后续问题由本轮智能体决定，不在定义中预制条件。不转换、迁移或兼容旧问题条件对象。
+
 ```text
 agent config show <agentId>
 agent config update <agentId> --expected-revision <实际版本> --values-json <配置补丁.json>

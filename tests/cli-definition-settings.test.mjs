@@ -12,6 +12,24 @@ const output = result => JSON.parse(result.stdout);
 const inline = value => ['--values', JSON.stringify(value)];
 const empty = { aiUserId: '', name: 'Target', enabled: false, instructions: '', provider: '', model: '', agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [] };
 
+test('follow-up suggestions default on and preserve an explicit off value through CLI edits and exchange files', async t => {
+  for (const enabled of [undefined, true, false]) {
+    const file = exportDefinition({ ...empty, followUpQuestionsEnabled: enabled, suggestedQuestions: ['开始核对'] }, []);
+    assert.equal(file.definition.followUpQuestionsEnabled, enabled !== false);
+    assert.equal(definitionFileChanges(readDefinitionFile(file), empty, []).changes.followUpQuestionsEnabled, enabled !== false);
+    assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, followUpQuestionsEnabled: 'false' } }));
+    assert.throws(() => readDefinitionFile({ ...file, definition: { ...file.definition, suggestedQuestions: [{ text: '旧条件', when: { conversation: 'blank' } }] } }));
+  }
+  const { records, run } = await definitions(t);
+  const created = output(await run(['create', '--agent-id', 'follow-up', '--name', 'Follow-up', ...inline({ followUpQuestionsEnabled: false, suggestedQuestions: ['开始核对'] })]));
+  assert.equal(created.ok, true, JSON.stringify(created));
+  assert.equal(records.get('follow-up').followUpQuestionsEnabled, false);
+  const updated = output(await run(['update', 'follow-up', '--expected-revision', '1', ...inline({ followUpQuestionsEnabled: true })]));
+  assert.equal(updated.ok, true, JSON.stringify(updated));
+  assert.equal(records.get('follow-up').followUpQuestionsEnabled, true);
+  assert.deepEqual(records.get('follow-up').suggestedQuestions, ['开始核对']);
+});
+
 test('version 1 tools retain long descriptions, wide schemas and literal reference data', () => {
   const tool = { name: 'service_lookup', serviceId: 'records', operation: 'lookup', description: '完整业务说明。'.repeat(600),
     parameters: { type: 'object', properties: Object.fromEntries(Array.from({ length: 180 }, (_, index) => [
@@ -30,7 +48,7 @@ test('version 1 tools retain long descriptions, wide schemas and literal referen
 
 test('version 1 questions and create fields retain complete text, ordering and conditions', () => {
   const long = '请核对以下事项：' + '当前资料与需求。'.repeat(80) + '保留完整末尾。';
-  const suggestedQuestions = [long, { text: long + '继续核对。', when: { conversation: 'started', object: 'linked', businessSourceId: 'xrain', objectType: 'customer' } }];
+  const suggestedQuestions = [long, long + '继续核对。'];
   const businessActions = [{ businessSourceId: 'xrain', objectType: 'customer', action: 'create', createFields: Array.from({ length: 513 }, (_, index) => `Field${index}`) }];
   const file = exportDefinition({ ...empty, suggestedQuestions, businessActions }, []);
   const read = readDefinitionFile(JSON.parse(JSON.stringify(file)));
