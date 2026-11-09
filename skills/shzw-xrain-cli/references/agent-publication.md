@@ -48,8 +48,12 @@ agent subscription list
 agent subscription decide <申请ID> --decision approved
 ```
 
-`config show/update` 与定义读取/局部更新使用同一合同，覆盖名称、工作要求、模型及推理等级、工作目录和模式、推荐问题、业务操作、侧栏与工具；省略字段保留原值。`tool set` 支持 `nativeToolsEnabled`、`nativeTools`、`assistantTools`、`disabledAssistantTools` 和 `inheritDefaultAssistantTools`。将继承开关设为 false 后仅使用明确选择的服务工具，空 assistantTools 表示全部关闭；true 恢复自动加入默认工具。disabledAssistantTools 继续保留已有单项排除，关闭优先。基础工具总开关 `nativeToolsEnabled` 为 false 时保留原 `nativeTools` 清单但停止使用，为 true 时恢复原清单；省略时保留当前值。先读取 options 的 `supportsNativeToolEnablement` 等字段确认目标支持，工作模式不支持限制时保存会拒绝。`tool show` 返回原生工具继承状态、服务工具默认开关、选择与关闭项，以及分别读取的目录。目录内 category 区分业务和通用能力。草稿没有目录或某个目录读取失败时，保留已保存选择和另一目录，返回 `complete: false` 与对应 `catalogErrors`；不把不可用目录当成空目录。定义本身读取失败仍直接报错，`tool native/business` 的单独查询继续保留原错误。
+`config show/update` 与定义读取/局部更新使用同一合同；省略字段保留原值。`tool set` 只接收 `nativeTools` 和/或 `assistantTools` 的明确数组。`[]` 清空该组，`null`、独立总开关、默认继承及排除列表不再作为新选择入口。服务工具须使用当前目录返回的完整描述，不按名字编造。先读取 Runtime options 的 `supportsExplicitToolSelection`，旧 Runtime 不支持时先更新受支持的运行环境，不用旧字段模拟。
 
-`tool set` 只接收 `nativeTools` 和/或 `assistantTools`，不改变其他设置。`nativeTools: null` 恢复继承，`[]` 明确清空；业务工具使用目录返回的完整工具描述，不按名称编造。
+新定义的工具默认不选。推荐工具只在用户选择推荐动作时，把当前真实目录里 `recommended: true` 的条目写入明确清单；之后仍可逐项增删，保存后新增工具不自动加入。定义文件、页面和 CLI 保存同一清单。旧定义由受管宿主在接入时一次性把原有效工具固化，保留其他配置和历史；转换失败保留原数据并报告，不静默放开或关闭。
+
+`tool show` 返回两份已选清单、原生及服务目录和完整性状态。目录的 `provider`、`sourceId` 来自实际注册者，区分 DSH、Workforce、业务应用和来源未知；`category` 只表示用途，不证明来源。Workforce 的发送消息及五项定时工具不属于 DSH；业务应用的车型和报价工具不属于 Workforce。工具注册到 DSH 执行不改变来源。目录失败保留已保存选择及另一目录，返回 `complete: false` 和 `catalogErrors`；不当成空目录。
+
+DSH 的精确选择使用其公开作用域限制、逐步准备及调用校验扩展点，保留原生执行器和审批。内部执行通道不是普通可选工具；当前不支持可靠逐项限制的 run_code/PTC 模式明确拒绝，不静默放开。
 
 启停、工具和配置更新均使用实际读取的版本。应用 `set` 替换全部 bindings 和默认项，须保留仍需要的选用。可见性、订阅、审批、应用准入和业务权限分别生效；选择工具或发布文件不授予业务权限。其余策略、订阅、资格及目录命令见[智能体命令](agents.md)。

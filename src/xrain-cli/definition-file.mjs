@@ -46,10 +46,7 @@ function exportDefinition(value, workspaces) {
     agentPreset: value.agentPreset,
     workspace,
     followUpQuestionsEnabled: value.followUpQuestionsEnabled !== false,
-    ...(value.nativeToolsEnabled === undefined ? {} : { nativeToolsEnabled: value.nativeToolsEnabled }),
-    ...(value.inheritDefaultAssistantTools === undefined ? {} : { inheritDefaultAssistantTools: value.inheritDefaultAssistantTools }),
-    ...(value.disabledAssistantTools === undefined ? {} : { disabledAssistantTools: value.disabledAssistantTools }),
-    nativeTools: value.nativeTools ?? null,
+    nativeTools: value.nativeToolsEnabled === false ? [] : value.nativeTools ?? [],
     assistantTools: value.assistantTools ?? [],
     suggestedQuestions: value.suggestedQuestions ?? null,
     businessActions: value.businessActions ?? null,
@@ -78,16 +75,15 @@ function definitionFileChanges(file, draft, workspaces, canRestoreInheritance = 
     model: v.model,
     reasoningEffort: v.reasoningEffort ?? void 0,
     assistantTools: v.assistantTools,
-    ...(v.nativeToolsEnabled === undefined ? {} : { nativeToolsEnabled: v.nativeToolsEnabled }),
-    ...(v.inheritDefaultAssistantTools === undefined ? {} : { inheritDefaultAssistantTools: v.inheritDefaultAssistantTools }),
-    ...(v.disabledAssistantTools === undefined ? {} : { disabledAssistantTools: v.disabledAssistantTools }),
     suggestedQuestions: v.suggestedQuestions ?? void 0,
     businessActions: v.businessActions ?? void 0,
     uiPlugins: v.uiPlugins ?? void 0
   };
-  if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
-  else if (canRestoreInheritance) changes.nativeTools = void 0;
-  else warnings.push('当前运行环境暂不支持恢复沿用工作模式提供的工具，已保留现有选择。');
+  if (v.nativeToolsEnabled === false) changes.nativeTools = [];
+  else if (v.nativeTools !== null) changes.nativeTools = v.nativeTools;
+  else warnings.push('旧文件没有明确工具清单，已保留当前选择；请逐项核对后保存。');
+  if (v.inheritDefaultAssistantTools !== undefined && v.inheritDefaultAssistantTools !== false) { changes.assistantTools = draft.assistantTools ?? []; warnings.push('旧文件使用默认工具继承，已保留当前服务工具；请按当前目录选择明确清单。'); }
+  else if (v.disabledAssistantTools?.length) changes.assistantTools = v.assistantTools.filter(tool => !v.disabledAssistantTools.includes(tool.name));
   const w = v.workspace;
   if (w.kind === "direct") Object.assign(changes, {
     workspaceId: null,

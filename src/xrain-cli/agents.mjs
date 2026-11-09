@@ -17,7 +17,7 @@ export { writeOnce } from './http.mjs';
 const definitions = '/v1/dsh/agent-definitions';
 const platformAgents = '/api/xrain/v1/agents';
 const definitionFields = ['name', 'enabled', 'instructions', 'provider', 'model', 'reasoningEffort', 'agentPreset',
-  'workspaceId', 'nativeTools', 'nativeToolsEnabled', 'suggestedQuestions', 'followUpQuestionsEnabled', 'businessActions', 'uiPlugins', 'assistantTools', 'disabledAssistantTools', 'inheritDefaultAssistantTools'];
+  'workspaceId', 'nativeTools', 'suggestedQuestions', 'followUpQuestionsEnabled', 'businessActions', 'uiPlugins', 'assistantTools'];
 const inputFields = new Set([...definitionFields, 'workspaceChange']);
 
 const runtimeConnections = new WeakMap();
@@ -116,14 +116,14 @@ async function definitionInput(ctx, required = true) {
 }
 export function newDefinition(id, value) {
   return { aiUserId: '', agentId: id, revision: null, enabled: false, instructions: '', provider: '', model: '',
-    agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [], ...value };
+    agentPreset: '', workspaceId: null, toolSelectionVersion: 1, nativeTools: [], assistantTools: [], allowedCallerUserIds: [], ...value };
 }
 export function updatedDefinition(current, patch, expected) {
   if (current.revision !== expected) throw new CliError('Definition revision changed. Review the current definition before saving.', {
     code: 'conflict', details: { agentId: current.agentId, expectedRevision: expected, currentRevision: current.revision },
   });
   const base = Object.fromEntries(definitionFields.filter(key => Object.hasOwn(current, key)).map(key => [key, current[key]]));
-  return { ...base, ...patch, aiUserId: '', agentId: current.agentId, revision: expected, allowedCallerUserIds: [],
+  return { ...base, ...patch, toolSelectionVersion: 1, aiUserId: '', agentId: current.agentId, revision: expected, allowedCallerUserIds: [],
     workspaceChange: patch.workspaceChange ?? { operation: 'keep' } };
 }
 
@@ -166,15 +166,10 @@ async function prepareDefinition(ctx) {
   if (!workspace || !nonempty(workspace.cwd) || !Array.isArray(workspace.agentPresets) || !workspace.agentPresets.includes(file.definition.agentPreset))
     throw new CliError('The project workspace reference cannot be resolved on this Runtime.', { code: 'workspace_unavailable',
       details: { workspaceId: reference.id, agentPreset: file.definition.agentPreset }, hint: 'Prepare the project’s configured Runtime and workspace. No definition was saved.' });
-  if (file.definition.nativeToolsEnabled !== undefined && options.supportsNativeToolEnablement !== true)
-    throw new CliError('This Runtime cannot control the native tools master switch.', { code: 'unsupported_runtime' });
-  if (file.definition.nativeTools === null && options.supportsNativeToolInheritanceReset !== true)
-    throw new CliError('This Runtime cannot restore the project’s native tool inheritance.', { code: 'unsupported_runtime' });
   // The source supplies a logical reference; the running host supplies its local directory.
   const mapped = { ...file, definition: { ...file.definition, workspace: { kind: 'registered', id: workspace.id, path: workspace.cwd } } };
   const { changes, warnings } = definitionFileChanges(mapped, draft, options.workspaces);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
-  if (file.definition.nativeTools === null) patch.nativeTools = null;
   workspaceChange(patch);
   const body = current ? updatedDefinition(current, patch, expected) : newDefinition(id, patch);
   const validation = await validateCandidate(ctx, id, expected, body);
@@ -215,12 +210,9 @@ async function importDefinition(ctx) {
   // silently adopt another computer’s directory or replace an existing binding.
   if (args.has('workspace-path')) file = { ...file, definition: { ...file.definition,
     workspace: { kind: 'direct', path: args.required('workspace-path') }, agentPreset: args.required('preset') } };
-  if (file.definition.nativeToolsEnabled !== undefined && options.supportsNativeToolEnablement !== true)
-    throw new CliError('This Runtime cannot control the native tools master switch.', { code: 'unsupported_runtime' });
   const canRestoreInheritance = options.supportsNativeToolInheritanceReset === true;
   const { changes, warnings } = definitionFileChanges(file, current, options.workspaces, canRestoreInheritance);
   const patch = Object.fromEntries(Object.entries(changes).filter(([key]) => inputFields.has(key)));
-  if (file.definition.nativeTools === null && canRestoreInheritance) patch.nativeTools = null;
   workspaceChange(patch);
   const body = expected === null ? newDefinition(id, patch) : updatedDefinition(current, patch, expected);
   for (const warning of warnings) reporter.progress(warning);

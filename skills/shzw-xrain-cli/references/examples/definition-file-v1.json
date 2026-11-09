@@ -13,7 +13,7 @@
       "kind": "direct",
       "path": "/synthetic/existing-directory"
     },
-    "nativeTools": null,
+    "nativeTools": [],
     "assistantTools": [
       {
         "name": "read_synthetic_record",

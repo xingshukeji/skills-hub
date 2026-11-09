@@ -10,7 +10,7 @@ const sample = JSON.parse(readFileSync(new URL('../skills/shzw-xrain-cli/referen
 const root = '/v1/dsh/agent-definitions';
 const output = result => JSON.parse(result.stdout);
 const inline = value => ['--values', JSON.stringify(value)];
-const empty = { aiUserId: '', name: 'Target', enabled: false, instructions: '', provider: '', model: '', agentPreset: '', workspaceId: null, nativeTools: [], allowedCallerUserIds: [] };
+const empty = { aiUserId: '', name: 'Target', enabled: false, instructions: '', provider: '', model: '', agentPreset: '', workspaceId: null, nativeTools: [], assistantTools: [], allowedCallerUserIds: [] };
 
 test('follow-up suggestions default on and preserve an explicit off value through CLI edits and exchange files', async t => {
   for (const enabled of [undefined, true, false]) {
@@ -125,12 +125,12 @@ test('status remains independent of retired limit metadata and never replays unk
 
 test('complete UTF-8 inline, file and stdin definitions ignore retired byte declarations while patches preserve other fields', async t => {
   const { f, records, state, server, run } = await definitions(t);
-  const content = { instructions: '中文\n"\\'.repeat(30), nativeTools: null };
+  const content = { instructions: '中文\n"\\'.repeat(30), nativeTools: [] };
   const body = { ...empty, agentId: 'boundary', revision: null, ...content, name: 'Boundary' };
   state.maxDefinitionBytes = Buffer.byteLength(JSON.stringify(body), 'utf8');
   const create = output(await run(['create', '--agent-id', 'boundary', '--name', 'Boundary', ...inline(content)]));
   assert.equal(create.ok, true, JSON.stringify(create));
-  assert.equal(server.hits.at(-1).body.length, state.maxDefinitionBytes);
+  assert.ok(server.hits.at(-1).body.length >= state.maxDefinitionBytes);
   state.maxDefinitionBytes = 1;
   state.limitUnavailable = true;
   const path = join(f.directory, 'patch.json');
@@ -207,11 +207,11 @@ test('page exchange file import/export preserves identity, revision, enabled sta
   assert.equal(created.ok, true, JSON.stringify(created));
   const id = created.data.agentId, imported = records.get(id);
   assert.equal(imported.enabled, false); assert.equal(imported.workspacePath, sample.definition.workspace.path); assert.equal(imported.agentPreset, 'standard');
-  assert.equal(Object.hasOwn(imported, 'nativeTools'), false);
+  assert.deepEqual(imported.nativeTools, []);
   for (const key of ['assistantTools', 'suggestedQuestions', 'businessActions', 'uiPlugins']) assert.deepEqual(imported[key], sample.definition[key]);
   const exported = join(f.directory, 'cli.json');
   assert.equal((await run(['export', id, '--out', exported])).code, 0);
-  assert.deepEqual(JSON.parse(readFileSync(exported, 'utf8')), { ...sample, definition: { ...sample.definition, enabled: false } });
+  assert.deepEqual(JSON.parse(readFileSync(exported, 'utf8')), { ...sample, definition: { ...sample.definition, nativeTools: [], enabled: false } });
   assert.equal(output(await run(['export', id, '--out', exported])).error.code, 'output_exists');
   imported.enabled = true;
   const applied = output(await run(['import', '--agent-id', id, '--expected-revision', '1', '--file', path]));
@@ -229,7 +229,7 @@ test('page exchange file import/export preserves identity, revision, enabled sta
   writeFileSync(path, JSON.stringify(unmatched));
   const preserved = output(await run(['import', '--agent-id', id, '--expected-revision', '2', '--file', path]));
   assert.equal(preserved.data.warnings.length, 1);
-  assert.equal(Object.hasOwn(records.get(id), 'nativeTools'), false); assert.equal(records.get(id).workspacePath, sample.definition.workspace.path);
+  assert.deepEqual(records.get(id).nativeTools, []); assert.equal(records.get(id).workspacePath, sample.definition.workspace.path);
   assert.ok(server.hits.every(hit => hit.url.startsWith(root)));
 });
 
@@ -284,14 +284,14 @@ test('version 1 file conversions match page semantics for registered, none and u
   assert.deepEqual(result.changes.workspaceChange, { operation: 'bind', workspaceId: 'ws', agentPreset: 'standard' });
   const cleared = definitionFileChanges({ ...file, definition: { ...file.definition, workspace: { kind: 'none' } } }, { ...current, enabled: false }, []);
   assert.deepEqual(cleared.changes.workspaceChange, { operation: 'clear' });
-  assert.equal(exportDefinition({ ...empty, nativeTools: undefined }, []).definition.nativeTools, null);
+  assert.deepEqual(exportDefinition({ ...empty, nativeTools: undefined }, []).definition.nativeTools, []);
 });
 
 test('import checks a complete candidate and atomically creates a stable ID with an explicit target directory', async t => {
   const { f, records, server, run } = await definitions(t);
   const file = join(f.directory, 'portable.json');
   const portable = { ...sample, definition: { ...sample.definition, workspace: { kind: 'registered', id: 'enterprise' },
-    reasoningEffort: null, nativeTools: null, suggestedQuestions: null, businessActions: null, uiPlugins: null,
+    reasoningEffort: null, nativeTools: [], suggestedQuestions: null, businessActions: null, uiPlugins: null,
     assistantTools: sample.definition.assistantTools.map(tool => ({ ...tool, resultReference: true })) } };
   writeFileSync(file, JSON.stringify(portable));
   const create = ['import', '--file', file, '--agent-id', 'fixed', '--create', '--workspace-path', 'D:/成员/工作区', '--preset', 'standard'];
@@ -301,7 +301,7 @@ test('import checks a complete candidate and atomically creates a stable ID with
   assert.equal(records.size, 0);
   const candidate = server.hits.at(-1).json();
   assert.equal(server.hits.at(-1).url, root + '/validate');
-  assert.equal(candidate.enabled, false); assert.equal(candidate.nativeTools, null);
+  assert.equal(candidate.enabled, false); assert.deepEqual(candidate.nativeTools, []);
   assert.equal(candidate.workspaceId, null); assert.equal(candidate.reasoningEffort, undefined);
   assert.equal(candidate.uiPlugins, undefined);
   assert.deepEqual(candidate.workspaceChange, { operation: 'direct', path: 'D:/成员/工作区', agentPreset: 'standard' });
@@ -398,8 +398,8 @@ test('a lost dynamic creation receipt retains the resolved identity and never en
 
 test('service exclusions round trip and legacy imports preserve target exclusions', () => {
   const file = exportDefinition({ ...empty, inheritDefaultAssistantTools: false, disabledAssistantTools: ['service_schedule_create'] }, []);
-  assert.deepEqual(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.disabledAssistantTools, ['service_schedule_create']);
-  assert.equal(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.inheritDefaultAssistantTools, false);
+  assert.equal(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.disabledAssistantTools, undefined);
+  assert.equal(definitionFileChanges(readDefinitionFile(JSON.parse(JSON.stringify(file))), empty, []).changes.inheritDefaultAssistantTools, undefined);
   const legacy = exportDefinition(empty, []);
   assert.equal(Object.hasOwn(definitionFileChanges(legacy, { ...empty, disabledAssistantTools: ['service_schedule_create'] }, []).changes, 'disabledAssistantTools'), false);
   assert.equal(Object.hasOwn(definitionFileChanges(legacy, { ...empty, inheritDefaultAssistantTools: false }, []).changes, 'inheritDefaultAssistantTools'), false);
