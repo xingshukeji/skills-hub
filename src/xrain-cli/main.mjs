@@ -14,6 +14,7 @@ import { fileCommands } from './files.mjs';
 import { marketCommands } from './market.mjs';
 import { workforceCommands } from './workforce.mjs';
 import { applicationUserCommand } from './application-user.mjs';
+import { anbangCommands } from './anbang.mjs';
 
 export const HELP = commandHelp(new Args([]));
 
@@ -38,6 +39,7 @@ async function dispatch(ctx) {
     case 'app': return appCommands(ctx);
     case 'project': return projectCommands(ctx);
     case 'agent': return agentCommands(ctx);
+    case 'anbang': return anbangCommands(ctx);
     case 'health': {
       const action = args.command(1) ?? 'ready';
       return api(ctx, 'GET', new Map([['ready', '/health/ready'], ['live', '/health/live'], ['healthz', '/healthz']]).get(action));

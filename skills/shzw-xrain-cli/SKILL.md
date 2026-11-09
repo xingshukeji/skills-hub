@@ -23,6 +23,7 @@ metadata:
 - 邮箱和顾客：[子应用](references/applications.md)；记录及导入导出：[命令](references/commands.md)。
 - 智能体定义、工具和工作区：[智能体](references/agents.md)；定义与工作空间完整发布、配置查询和管理：[发布与配置](references/agent-publication.md)；人员权限：[管理](references/management.md)；应用包：[安装与恢复](references/installation.md)。
 - 从项目源码发布函数或运行指定版本用例：[项目函数](references/project-functions.md)。组装、发布版本、应用选用和业务调用分别核验。
+- 铵帮管理员使用 Excel 案例批量核对当前销售报价：[文件报价核验](references/anbang-quotation.md)。
 
 能力归属不清时查[任务选择](references/task-selection.md)。首次连接、选择凭据或复杂恢复时查[执行前提](references/operation-boundaries.md)。命令已明确时直接查其帮助。
 

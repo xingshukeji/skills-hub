@@ -25,6 +25,7 @@ valued.add('line');
 valued.add('project');
 valued.add('key');
 valued.add('cases');
+valued.add('case');
 valued.add('field');
 valued.add('share-id');
 valued.add('tree-id');

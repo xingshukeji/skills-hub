@@ -14,6 +14,8 @@ const specs = [];
 function command(path, options = [], operands = [], description = '') {
   specs.push({ path, words: path.split(' '), options: [...common, ...options], operands, description });
 }
+command('anbang quotation defaults', [...app, 'workforce', 'application-id', 'out'], [], 'Download the deployed Anbang quotation case workbook to a new --out file using the authorized tenant administrator session.');
+command('anbang quotation verify', [...app, 'workforce', 'application-id', 'cases', 'case', 'out'], [], 'Verify a local --cases Excel workbook or deployed defaults through the same sales quotation service. --case selects comma-separated case IDs; --out writes a new Excel report. Any difference, failed or unverified case returns nonzero.');
 
 command('login', [...target, 'bearer', 'token-name', 'check', 'runtime', 'application-id', 'personal'], [], 'Save connection settings; use auth login for browser authentication.');
 command('logout', ['profile'], [], 'Remove the selected profile and its platform session.');
@@ -261,6 +263,11 @@ export function validateCommand(args) {
     if (!operation.native && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Workforce uses a matching saved platform session.', { code: 'invalid_arguments' });
   }
   if (['file download', 'file preview-asset', 'data export-file'].includes(spec.path)) args.required('out');
+  if (spec.path.startsWith('anbang quotation ')) {
+    args.required('workforce');
+    if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Quotation verification uses the matching saved tenant session.', { code: 'invalid_arguments' });
+    if (spec.path.endsWith(' defaults')) args.required('out');
+  }
   if (spec.path.startsWith('market ')) {
     args.required('exchange');
     if (spec.path === 'market download') args.required('out');
