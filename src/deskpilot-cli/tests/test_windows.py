@@ -116,7 +116,7 @@ class WindowsContracts(unittest.TestCase):
         self.desktop._send = Mock()
         self.desktop.type_secret('synthetic-value', lambda: None, window={'native': 10, 'pid': 9},
                                  target_kind='native_password')
-        self.desktop._send.assert_called_once()
+        self.assertEqual(self.desktop._send.call_count, len('synthetic-value'))
         self.desktop._send.reset_mock()
         focused.CurrentIsPassword = False
         with self.assertRaises(DeskPilotError) as caught:
@@ -132,6 +132,27 @@ class WindowsContracts(unittest.TestCase):
                                      target_kind='native_password')
         self.assertEqual(caught.exception.code, 'WINDOW_NOT_FOREGROUND')
         self.desktop._send.assert_not_called()
+
+    def test_unicode_input_keeps_surrogates_together_and_checks_between_characters(self):
+        self.desktop._send = Mock()
+        checkpoint = Mock()
+        self.desktop._type_unicode('A中🙂Z', checkpoint)
+        self.assertEqual(checkpoint.call_count, 4)
+        self.assertEqual([len(call.args[0]) for call in self.desktop._send.call_args_list], [2, 2, 4, 2])
+        units = [event.ki.wScan for call in self.desktop._send.call_args_list for event in call.args[0][::2]]
+        self.assertEqual(units, [ord('A'), ord('中'), 0xD83D, 0xDE42, ord('Z')])
+        self.assertAlmostEqual(self.clock.now, 0.04)
+
+    def test_sensitive_input_stops_when_focus_changes_between_characters(self):
+        focused = SimpleNamespace(CurrentIsPassword=True, CurrentIsEnabled=True,
+                                  CurrentIsOffscreen=False, CurrentProcessId=9)
+        self.desktop._automation = lambda: SimpleNamespace(GetFocusedElement=lambda: focused)
+        self.desktop.foreground = lambda: 10
+        self.desktop._send = Mock(side_effect=lambda events: setattr(focused, 'CurrentIsPassword', False))
+        with self.assertRaises(DeskPilotError) as caught:
+            self.desktop.type_secret('synthetic', lambda: None, window={'native': 10, 'pid': 9}, target_kind='native_password')
+        self.assertEqual(caught.exception.code, 'SENSITIVE_FOCUS_NOT_CONFIRMED')
+        self.desktop._send.assert_called_once()
 
     def test_scroll_keeps_the_pointer_at_the_selected_target_briefly(self):
         class User:

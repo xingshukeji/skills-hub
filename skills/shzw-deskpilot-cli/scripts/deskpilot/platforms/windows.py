@@ -656,15 +656,19 @@ class WindowsDesktop:
         self._type_unicode(text, checkpoint)
 
     def _type_unicode(self, text: str, checkpoint):
-        units = text.encode("utf-16-le")
-        for index in range(0, len(units), 128):
+        # Controlled Chromium inputs must process each character before the
+        # next arrives. A single bulk SendInput can race their value updates.
+        # Keep surrogate pairs together, and retain the sensitive-input guard.
+        for character in text:
             checkpoint()
+            units = character.encode("utf-16-le")
             events = []
-            for offset in range(index, min(index + 128, len(units)), 2):
+            for offset in range(0, len(units), 2):
                 unit = int.from_bytes(units[offset:offset + 2], "little")
                 events.extend([INPUT(type=1, ki=KEYBDINPUT(wScan=unit, dwFlags=4)),
                                INPUT(type=1, ki=KEYBDINPUT(wScan=unit, dwFlags=6))])
             self._send(events)
+            time.sleep(0.01)
 
     def type_secret(self, text, checkpoint, *, window, target_kind):
         def guard():
