@@ -57,6 +57,14 @@ When a user correction changes the direction contract, regenerate every dependen
 
 Use exact paths, routes, contracts, tables, jobs, and owners only to substantiate a decision or when a coding-ready follow-up is requested. Keep the main plan concise.
 
+### Shape a changed public interface from its callers
+
+When a nontrivial change shapes a public interface or moves ownership, write the actual caller's usage before deriving types and signatures. Include the normal call and the materially different caller or failure/recovery path that constrains the interface. Check what each caller supplies, observes and must coordinate; keep internal timing, storage and transport choices inside their owner.
+
+Reconcile the sketch to those real uses, then compile or run the smallest consumer example against the proposed surface. A caller that must understand hidden stages is evidence to reconsider the boundary. Do not add a mandatory scaffold, fixed number of alternatives or approval round. Ordinary internal edits do not need this exercise.
+
+If the existing shape has a material but unclear reason, first use the installed shzw-code-review [历史约束复原](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-code-review/modes/engineering/references/source-reconstruction.md) to recover the constraints. This caller-first technique comes from [pstack architect's runner](https://github.com/cursor/plugins/blob/6b0300214a09fd6029cfb7077043125758cd1fd2/pstack/skills/architect/references/runner-prompt.md); model choice, delegation and implementation authority remain with the original task.
+
 ### Working plan for authorized implementation or requested detail
 
 State the intended behavior, bounded change, responsible owner and direct evidence of success. Include only actual prerequisites, affected compatibility or data boundaries, and material unresolved choices. Separate verified facts from assumptions. A short plan can cover these points in a paragraph; extra headings, task records and approval rounds are not evidence of readiness.

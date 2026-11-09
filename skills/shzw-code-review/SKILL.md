@@ -53,7 +53,7 @@ metadata:
 | 测试与证据 | 断言是否保护业务结果，替身是否删掉原故障条件；受影响的合法路径和失败路径是否真正执行，不用测试数量证明覆盖 |
 | 界面与交互 | 当前画面、反馈与可达操作是否支持用户任务；页面或截图 review 进入 [前端方法](modes/frontend/GUIDE.md)，逻辑 diff 只补受影响画面 |
 
-同类遗漏、修复反复或多轮结论合并命中时，读取 [反复缺陷方法](modes/engineering/references/recurring-defects.md)。专项由实际对象和风险触发，不等用户再次点名。无需加载未命中的资料，也不强制子智能体；当前执行者可顺序完成以下步骤。
+删除、合并或重写机制前，当前调用链仍不足以说明原约束时，按[历史约束复原](modes/engineering/references/source-reconstruction.md)追到语义变更及仍需保留的保证。同类遗漏、修复反复或多轮结论合并命中时，读取 [反复缺陷方法](modes/engineering/references/recurring-defects.md)。专项由实际对象和风险触发，不等用户再次点名。无需加载未命中的资料，也不强制子智能体；当前执行者可顺序完成以下步骤。
 
 ## 2. 分别检查适用项
 
