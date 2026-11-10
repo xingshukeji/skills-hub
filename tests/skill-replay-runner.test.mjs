@@ -55,6 +55,37 @@ test('read, list and search retain actual hashes, returned content and per-file 
   assert.equal(f.run(['search', '.', 'absent']).finish.matches.length, 0);
 });
 
+test('case directories reached through an ancestor link retain reads while rejecting links outside input', t => {
+  const f = fixture(t), parent = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-replay-alias-'));
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const alias = path.join(parent, 'case');
+  fs.symlinkSync(f.root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const options = { caseDirectory: alias };
+  const read = f.run(['read', 'example.md'], options);
+  assert.equal(read.code, 0); assert.equal(read.stdout, 'hello\nworld\n');
+  assert.deepEqual(f.run(['list', '.'], options).finish.files, ['example.md']);
+  assert.equal(f.run(['search-files', 'world', 'example.md'], options).finish.matches[0].line, 2);
+  const outside = path.join(parent, 'outside');
+  fs.mkdirSync(outside); fs.writeFileSync(path.join(outside, 'secret.md'), 'outside input');
+  fs.symlinkSync(outside, path.join(f.root, 'input', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+  for (const args of [['read', 'escape/secret.md'], ['search-files', 'outside', 'escape/secret.md'], ['read', '../output/trace.jsonl']]) {
+    const result = f.run(args, options);
+    assert.equal(result.code, 1); assert.equal(result.finish.error.code, 'OUTSIDE_INPUT');
+    assert.equal(result.stdout, '');
+  }
+});
+
+test('the input directory itself cannot redirect reads outside the case', t => {
+  const f = fixture(t), outside = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-replay-outside-'));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, 'secret.md'), 'outside input');
+  fs.rmSync(path.join(f.root, 'input'), { recursive: true });
+  fs.symlinkSync(outside, path.join(f.root, 'input'), process.platform === 'win32' ? 'junction' : 'dir');
+  const result = f.run(['read', 'secret.md']);
+  assert.equal(result.code, 1); assert.equal(result.finish.error.code, 'OUTSIDE_INPUT');
+  assert.equal(result.stdout, '');
+});
+
 test('listing exposes sizes without opening file content and hex reads retain raw and rendered receipts', t => {
   const f = fixture(t), raw = Buffer.from([0x46, 0x58, 0, 0xff, 0xfe, 0x61, 0x80]);
   fs.writeFileSync(path.join(f.root, 'input/rate.bin'), raw);

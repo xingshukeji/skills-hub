@@ -66,7 +66,10 @@ export function runReplay({ caseDirectory, args, nodeExecutable = process.execPa
     const file = path.resolve(input, value);
     if (!inside(file)) throw invalid('Path leaves this case input.', 'OUTSIDE_INPUT');
     const real = fs.realpathSync(file);
-    if (!inside(real)) throw invalid('Resolved path leaves this case input.', 'OUTSIDE_INPUT');
+    // Ancestors of the case directory may be links (for example macOS /var).
+    // Compare physical paths on both sides without changing receipt paths.
+    const realInput = path.join(fs.realpathSync(base), 'input');
+    if (real !== realInput && !real.startsWith(realInput + path.sep)) throw invalid('Resolved path leaves this case input.', 'OUTSIDE_INPUT');
     return file;
   };
   const relative = file => path.relative(input, file).replaceAll('\\', '/');
