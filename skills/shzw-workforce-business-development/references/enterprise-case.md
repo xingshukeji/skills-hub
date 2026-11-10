@@ -7,7 +7,7 @@
 
 ## 平台与业务的分工
 
-应用支持车型查询、政策解释、购车测算、方案确认和特价申请：
+应用支持车型查询、政策解释、购车测算和方案确认：
 
 | 实现位置 | 职责 |
 | --- | --- |
@@ -29,9 +29,9 @@
 
 | 职责 | 示例能力 |
 | --- | --- |
-| 销售 | 测算、接待、本人申请及成交记录 |
+| 销售 | 测算、接待及成交记录 |
 | 资料维护人员 | `custom.sales.catalog.manage`、`custom.sales.policy.manage`、`custom.sales.quote.review` |
-| 主管 | `custom.sales.price.approve`、`custom.sales.quote.review`、`custom.sales.report.read` |
+| 主管 | `custom.sales.quote.review`、`custom.sales.report.read` |
 
 职责之外仍需应用准入、对象/字段权限与记录范围。本例用销售身份读取可见资料，受管后台操作复用配置身份并检查业务调用者；执行主体按目标项目选择。
 
