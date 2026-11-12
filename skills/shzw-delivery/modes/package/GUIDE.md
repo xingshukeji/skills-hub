@@ -10,6 +10,10 @@
 
 包版本按 SemVer 2.0 校验，保留原包中的预发布及 build metadata；不为规范化版本重写 tarball 或省略 `+build` 后缀。
 
+## 确定发布制品
+
+按产品构建入口、公共 exports 和消费锁确认实际发布单位。Workforce 直接编译本仓 packages/record-file/src，记录文件功能随 @xrain/workforce-application 交付；铵帮消费该公共包的 ./record-file 与 ./record-file/styles.css。all_in_one 保留独立 @xrain/record-file 的 workspace 构建。只有目标明确消费独立原包时，才按该原包准备独立发布；账号允许的目录和历史补传命令不能代替当前消费依赖。
+
 ## 固定发布凭据
 
 团队共享 Nexus `https://nexus.atlas-xrain.com/` 的应用公共包统一复用既有程序账号 `applications-ci-publisher-v1`。成员和 CI 使用同一受管发布凭据，无需另建或提供个人 Nexus 账号。这个账号虽包含 `ci`，也供本技能的直接发包入口使用。

@@ -67,7 +67,7 @@ XRain 已实现面向租户业务对象的 XLSX 模板、预览、整批导入�
 
 需要大文件分块、暂停或继续时，另按[CLI 导入作业](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-xrain-cli/references/commands.md)和目标服务能力核对实际作业协议与客户端版本。作业不是普通整批原子导入：已提交分块不会因后续失败自动回滚；详情受限时保留原作业标识，不能把不可见的进度当成零、完成或失败。协议不匹配时不能通过循环调用旧原子导入绕过。
 
-使用已取得的 `@xrain/record-file` React 组件或其 `createRecordFileClient` 时，按该版本公开类型接入并保留真实主体与租户。独立界面还须实现原批次恢复和跨页面批次认领；不能仅凭发出请求判定提交。不要在业务应用重复实现平台文件解析、匹配和批次框架。
+Workforce 及其企业应用从 `@xrain/workforce-application/record-file` 消费 React 组件、`createRecordFileClient` 和 `createImportJobClient`，并加载 `@xrain/workforce-application/record-file/styles.css`。Workforce 构建直接编译本仓组件源码，随公共包交付。all_in_one 的 XRain 管理端仍按其 workspace 消费 `@xrain/record-file`。接入时，按该版本公开类型接入并保留真实主体与租户。独立界面还须实现原批次恢复和跨页面批次认领；不能仅凭发出请求判定提交。不要在业务应用重复实现平台文件解析、匹配和批次框架。
 
 令 `E=/api/data/v1/entities/{entityCode}`。目标提供相应合同后，文件接口如下：
 
