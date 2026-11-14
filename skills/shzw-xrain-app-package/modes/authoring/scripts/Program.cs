@@ -110,7 +110,7 @@ static class Appkg
     static readonly HashSet<string> FieldTypes = Words("Text,LongText,Number,Decimal,Money,Date,DateTime,Boolean,Picklist,MultiPicklist,UserRef,Lookup");
     const int EntryLimit = 1024 * 1024, ArchiveLimit = 16 * 1024 * 1024, ExpandedLimit = 32 * 1024 * 1024;
     static readonly JsonObject Kinds = Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "kinds.json"))).AsObject();
-    static readonly HashSet<string> Boolean = Words("isActive,isMuted,nullable,unique,searchable,sortable,isSensitive,allowActorPolicyReference,share2AllRoles,manualSharingEnabled,triggersEnabled,isLocalCall,supportsTrigger,readable,updateable,deleteable");
+    static readonly HashSet<string> Boolean = Words("isActive,isMuted,nullable,unique,searchable,sortable,isSensitive,allowActorPolicyReference,share2AllRoles,manualSharingEnabled,triggersEnabled,alwaysHardDelete,isLocalCall,supportsTrigger,readable,updateable,deleteable");
     static readonly HashSet<string> Integer = Words("length,scale,triggerOrder,versionNo");
     static readonly HashSet<string> Objects = Words("contractJson,fieldValues,inputModel,fieldLabelOverrides,presentation,fieldPresentationOverrides,subjectCondition,orchestrationExecutionPolicyOverrides");
     static readonly HashSet<string> Arrays = Words("fieldNames,picklistFields,conditions,sort,cellColorRules,filterItems,toRules,ccRules,bccRules");

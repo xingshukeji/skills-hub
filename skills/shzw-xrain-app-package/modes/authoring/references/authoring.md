@@ -16,7 +16,7 @@ namespace 匹配 `^[a-z][a-z0-9]{1,15}$`。对象 API Name 为 `<namespace>__<na
 
 [kinds.json](kinds.json) 精确列出 23 kind 的 prefix、required、optional；未列 values 字段禁止。所有资源顶层只允许 id/kind/values。不声明 tenantId、ownerId、isDeleted、审计、externalId/externalSource、status、账户密码和执行历史。
 
-布尔：isActive/isMuted/nullable/searchable/sortable/isSensitive/allowActorPolicyReference/share2AllRoles/manualSharingEnabled/triggersEnabled/isLocalCall/supportsTrigger/readable/updateable/deleteable。非负 Int32：length/scale/triggerOrder；versionNo 必须大于 0。对象：contractJson/fieldValues/inputModel/fieldLabelOverrides/presentation/fieldPresentationOverrides/subjectCondition/orchestrationExecutionPolicyOverrides。数组：fieldNames/picklistFields/conditions/sort/cellColorRules/filterItems/toRules/ccRules/bccRules。query/headers 编写为对象；其余普通字段为字符串；inputJson/body/value/searchFields 遵循所用能力的 JSON 语义，不把对象双重编码成字符串。
+布尔：isActive/isMuted/nullable/searchable/sortable/isSensitive/allowActorPolicyReference/share2AllRoles/manualSharingEnabled/triggersEnabled/alwaysHardDelete/isLocalCall/supportsTrigger/readable/updateable/deleteable。非负 Int32：length/scale/triggerOrder；versionNo 必须大于 0。对象：contractJson/fieldValues/inputModel/fieldLabelOverrides/presentation/fieldPresentationOverrides/subjectCondition/orchestrationExecutionPolicyOverrides。数组：fieldNames/picklistFields/conditions/sort/cellColorRules/filterItems/toRules/ccRules/bccRules。query/headers 编写为对象；其余普通字段为字符串；inputJson/body/value/searchFields 遵循所用能力的 JSON 语义，不把对象双重编码成字符串。
 
 required 中可为 null 的键只有 body/subjectCondition/replyToRule/textBodyTemplate/htmlBodyTemplate。可选字段不使用时优先省略。离线检查允许可选 null 不表示所有业务 owner 都接受它。
 

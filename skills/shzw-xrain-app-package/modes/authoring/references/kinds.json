@@ -18,7 +18,8 @@
       "share2AllRoles",
       "manualSharingEnabled",
       "triggersEnabled",
-      "visibilityScope"
+      "visibilityScope",
+      "alwaysHardDelete"
     ],
     "required": [
       "keyPrefix",
