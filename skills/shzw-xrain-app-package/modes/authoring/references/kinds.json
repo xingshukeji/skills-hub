@@ -18,6 +18,7 @@
       "share2AllRoles",
       "manualSharingEnabled",
       "triggersEnabled",
+      "isTrackable",
       "visibilityScope",
       "alwaysHardDelete"
     ],

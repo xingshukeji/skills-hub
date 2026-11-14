@@ -110,7 +110,7 @@ static class Appkg
     static readonly HashSet<string> FieldTypes = Words("Text,LongText,Number,Decimal,Money,Date,DateTime,Boolean,Picklist,MultiPicklist,UserRef,Lookup");
     const int EntryLimit = 1024 * 1024, ArchiveLimit = 16 * 1024 * 1024, ExpandedLimit = 32 * 1024 * 1024;
     static readonly JsonObject Kinds = Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "kinds.json"))).AsObject();
-    static readonly HashSet<string> Boolean = Words("isActive,isMuted,nullable,unique,searchable,sortable,isSensitive,allowActorPolicyReference,share2AllRoles,manualSharingEnabled,triggersEnabled,alwaysHardDelete,isLocalCall,supportsTrigger,readable,updateable,deleteable");
+    static readonly HashSet<string> Boolean = Words("isActive,isMuted,nullable,unique,searchable,sortable,isSensitive,allowActorPolicyReference,share2AllRoles,manualSharingEnabled,triggersEnabled,isTrackable,alwaysHardDelete,isLocalCall,supportsTrigger,readable,updateable,deleteable");
     static readonly HashSet<string> Integer = Words("length,scale,triggerOrder,versionNo");
     static readonly HashSet<string> Objects = Words("contractJson,fieldValues,inputModel,fieldLabelOverrides,presentation,fieldPresentationOverrides,subjectCondition,orchestrationExecutionPolicyOverrides");
     static readonly HashSet<string> Arrays = Words("fieldNames,picklistFields,conditions,sort,cellColorRules,filterItems,toRules,ccRules,bccRules");
@@ -230,7 +230,11 @@ static class Appkg
             }
             foreach (var (key, v) in values)
             {
-                if (v == null) continue;
+                if (v == null)
+                {
+                    Need(key != "isTrackable", "Invalid type: " + kind + "." + key);
+                    continue;
+                }
                 var type = v.GetValueKind();
                 var valid = Boolean.Contains(key) ? type is JsonValueKind.True or JsonValueKind.False :
                     Integer.Contains(key) ? v is JsonValue j && j.TryGetValue<int>(out var n) && n >= (key == "versionNo" ? 1 : 0) :
@@ -410,6 +414,14 @@ static class Appkg
         void Reject(Action action) { try { action(); } catch (Exception e) when (e is InvalidDataException or JsonException) { tests++; return; } throw new Exception("Invalid input accepted."); }
         var sample = new JsonObject { ["packageId"] = Id("apg","demo"), ["versionId"] = Id("apv","demo|1.0.0"), ["namespace"] = "demo", ["label"] = "演示", ["version"] = "1.0.0", ["records"] = new JsonArray(new JsonObject { ["id"] = Id("004","demo|object"), ["kind"] = "BizObject", ["values"] = new JsonObject { ["entityApiName"] = "demo__item__c", ["label"] = "项目", ["keyPrefix"] = "19x" } }) };
         var first = Build(sample); Pass(first.SequenceEqual(Build(sample))); Pass(Validate(first)["records"]!.AsArray().Count == 1);
+        var tracking = sample.DeepClone().AsObject();
+        var objectValues = tracking["records"]![0]!["values"]!;
+        objectValues["isTrackable"] = false;
+        Pass(Validate(Build(tracking))["records"]!.AsArray().Count == 1);
+        objectValues["isTrackable"] = "false";
+        Reject(() => Build(tracking));
+        objectValues["isTrackable"] = null;
+        Reject(() => Build(tracking));
         Reject(() => Id("apg\n", "demo"));
         foreach (var field in new[] { "packageId", "versionId" })
         {
