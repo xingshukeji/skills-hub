@@ -35,7 +35,7 @@ security org-node add-members <treeId> <nodeId> --request-json <成员ID数组.j
 security org-node remove-members <treeId> <nodeId> --request-json <成员ID数组.json>
 ```
 
-成员编辑支持平台声明的 userName、name、password、isAI、companyCode、departmentCode、managerUserId、employeeNo、avatar、email。仅提交实际要求的修改，秘密通过文件或 stdin 输入。列表中的 isActive 是租户成员状态；CLI 不将全局账号状态混入这一结果。停用、恢复、有效期、移除及组织关系属于不同动作，不相互代替。
+成员编辑维护租户成员资料，包括 companyCode、departmentCode、managerUserId、employeeNo、avatar 和 email，提交时按平台请求格式带现有 name。本人密码通过 [auth password change](login.md#修改本人密码) 修改。列表中的 isActive 是租户成员状态。停用、恢复、有效期、移除及组织关系按各自命令操作。
 
 组织成员文件是 `["<ID1>","<ID2>"]` 所示的 JSON 数组。组织树和节点使用平台原生对象字段；父子节点、默认树和删除影响由服务器检查。先读取原树再准备修改，不复制另一租户的对象或身份。
 

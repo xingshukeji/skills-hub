@@ -26,6 +26,7 @@ command('profile use', ['name', 'profile'], [slot('name', ['profile'])], 'Select
 command('profile remove', ['name', 'profile'], [{ ...slot('name', ['profile']), optional: true }], 'Remove a saved profile and session.');
 command('profile path', [], [], 'Show the profile store path.');
 command('auth login', [...target, 'exchange', 'device', 'no-browser', 'native', 'user', 'password-stdin'], [], 'Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.');
+command('auth password change', [...target, 'auth', 'request-json', 'file'], [], 'Change your own password using a saved tenant login. Pipe currentPassword and newPassword as JSON via --request-json -. Sign in again after success.');
 command('auth login-as', [...target, 'auth', 'user', 'save-profile'], [], 'Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.');
 command('auth tenants', [...target, 'auth'], [], 'Discover your accessible enterprises using the saved platform login. Does not switch the current connection.');
 command('auth switch-tenant', ['server', 'profile', 'timeout', 'auth', 'tenant-id', 'save-profile'], [slot('tenant-id')], 'Exchange your saved tenant session for the same person in another accessible tenant and select it. --save-profile preserves the original connection separately.');
@@ -236,6 +237,10 @@ export function validateCommand(args) {
   const management = managementOperations.find(item => item.path === spec.path);
   const applicationUser = applicationUserOperations.find(item => item.path === spec.path);
   if (['auth tenants', 'auth switch-tenant'].includes(spec.path) && args.has('auth') && args.value('auth') !== 'session') throw new CliError('Enterprise discovery and switching use your saved platform login.', { code: 'invalid_arguments' });
+  if (spec.path === 'auth password change') {
+    if (args.has('auth') && args.value('auth') !== 'session') throw new CliError('Password change uses your saved tenant login.', { code: 'invalid_arguments' });
+    args.required('request-json', args.value('file'));
+  }
   if (applicationUser) {
     args.required('app-url');
     if (applicationUser.input && !args.has('request-json') && !args.has('file')) throw new CliError('--request-json or --file is required.', { code: 'invalid_arguments' });

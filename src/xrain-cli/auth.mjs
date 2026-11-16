@@ -4,8 +4,8 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createLocalJWKSet, jwtVerify } from 'jose';
-import { CliError, equalIgnoreCase, httpUrl, isObject, nonempty, segment } from './core.mjs';
-import { request, requireSuccess, writeOnce } from './http.mjs';
+import { CliError, equalIgnoreCase, httpUrl, isObject, nonempty, readJsonInput, segment } from './core.mjs';
+import { request, requireSuccess, responseError, writeOnce } from './http.mjs';
 import { samePlatformTarget } from './agent-target.mjs';
 
 export const REDIRECT_URI = 'http://127.0.0.1:38749/callback/';
@@ -277,6 +277,41 @@ export async function nativeLogin(ctx) {
     throw new CliError('The server returned a different tenant session.');
   savePlatformLogin(ctx, profile, session);
   ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : `Logged in with profile '${profile.name}'.`);
+  return 0;
+}
+
+export async function changeOwnPassword({ args, store, reporter, stdin, spec }) {
+  const profile = store.resolve(args, true);
+  const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
+  if (!token) throw new CliError('A matching saved tenant login is required.', {
+    code: 'authentication_required', hint: 'Run auth login for this profile first.',
+  });
+  const input = await readJsonInput(args.required('request-json', args.value('file')), 'Password change JSON', { stdin, utf8: true });
+  if (!isObject(input) || Object.keys(input).length !== 2 || !nonempty(input.currentPassword) || !nonempty(input.newPassword))
+    throw new CliError('Password change JSON requires currentPassword and newPassword only.', { code: 'invalid_arguments' });
+  const { currentPassword, newPassword } = input;
+  reporter.secret(currentPassword);
+  reporter.secret(newPassword);
+  const path = '/api/service/authen/v1/account/password';
+  await writeOnce(async () => {
+    const response = await request(new URL(path, profile.server), {
+      method: 'POST', token, json: { currentPassword, newPassword }, timeout: args.timeout(),
+    });
+    if (response.status === 204) return;
+    if (response.status === 404 || response.status === 405)
+      throw new CliError('This server does not expose the tenant password change endpoint.', {
+        code: 'password_change_unavailable', httpStatus: response.status,
+      });
+    if (!response.ok) {
+      const error = responseError(response);
+      delete error.details.response;
+      throw error;
+    }
+    throw new CliError('The server did not return the expected password change receipt.', { code: 'invalid_response' });
+  }, 'The password change outcome is unknown. Verify the new password in a fresh login before attempting another change.', {
+    operation: spec.path, profile: profile.name, server: profile.server, tenant: profile.tenant,
+  });
+  reporter.print(reporter.json ? { changed: true, reauthenticationRequired: true } : 'Password changed. Sign in again with the new password.');
   return 0;
 }
 

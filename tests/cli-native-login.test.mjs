@@ -78,6 +78,75 @@ test('native login requires safe stdin and rejects incompatible modes before mak
   assert.equal(service.hits.length, 0);
 });
 
+test('password change uses the saved tenant login and requires a fresh login after the server confirms it', async t => {
+  const f = fixture(t), token = 'synthetic-saved-tenant-token';
+  const currentPassword = '  original-password-字  ', newPassword = 'h7r4d6ak';
+  let password = currentPassword;
+  const service = await mockServer(t, (hit, res) => {
+    if (hit.url === '/api/service/authen/v1/account/password') {
+      assert.equal(hit.method, 'POST');
+      assert.equal(hit.headers.authorization, 'Bearer ' + token);
+      assert.deepEqual(hit.json(), { currentPassword, newPassword });
+      password = newPassword;
+      return res.writeHead(204).end();
+    }
+    assert.equal(hit.url, '/api/service/authen/v1/account/login');
+    assert.deepEqual(hit.json(), { userName: 'member', password, tenantId: 'tenant-demo' });
+    return respond(res, { access_token: 'fresh-tenant-login', token_type: 'Bearer', tenantId: 'tenant-demo',
+      expires_at_utc: new Date(Date.now() + 300000).toISOString() });
+  });
+  f.profile(service.url, 'tenant-demo');
+  f.store.saveSession('Demo', service.url, 'tenant-demo', token, Date.now() + 300000);
+  f.env.XRAIN_TOKEN = 'unrelated-api-token';
+  const args = ['auth', 'password', 'change', '--profile', 'Demo', '--auth', 'session', '--request-json', '-', '--json'];
+  const result = await run(f, args, JSON.stringify({ currentPassword, newPassword }));
+  assert.equal(result.code, 0);
+  assert.deepEqual(JSON.parse(result.stdout).data, { changed: true, reauthenticationRequired: true });
+  assert.equal(service.hits.length, 1);
+  for (const secret of [currentPassword, newPassword, token, f.env.XRAIN_TOKEN])
+    assert.ok(!(result.stdout + result.stderr).includes(secret));
+  const logged = await run(f, ['auth', 'login', '--native', '--user', 'member', '--password-stdin', '--json'], newPassword);
+  assert.equal(logged.code, 0);
+  assert.equal(f.store.loadSession('Demo', service.url, 'tenant-demo'), 'fresh-tenant-login');
+});
+
+test('password change distinguishes unsupported targets, rejected credentials and unknown write outcomes without replay', async t => {
+  const f = fixture(t), currentPassword = 'private-current-pass', newPassword = 'x7c3t6me';
+  let resultMode = 404;
+  const service = await mockServer(t, (_hit, res) => {
+    if (resultMode === 'disconnect') return res.destroy();
+    return respond(res, { errorCode: 'platform.authen.current_password_invalid',
+      message: currentPassword + ' ' + newPassword, echo: { currentPassword, newPassword } }, resultMode);
+  });
+  f.profile(service.url);
+  f.store.saveSession('Demo', service.url, 'tenant-demo', 'known-session', Date.now() + 300000);
+  const args = ['auth', 'password', 'change', '--request-json', '-', '--json'];
+  for (const [mode, code] of [[404, 'password_change_unavailable'], [405, 'password_change_unavailable'],
+    [400, 'http_error'], [403, 'permission_denied'], [200, 'outcome_unknown'], ['disconnect', 'outcome_unknown']]) {
+    resultMode = mode;
+    const count = service.hits.length;
+    const result = await run(f, args, JSON.stringify({ currentPassword, newPassword }));
+    const error = JSON.parse(result.stdout).error;
+    assert.equal(result.code, 1);
+    assert.equal(error.code, code);
+    if (mode === 400) assert.equal(error.serverCode, 'platform.authen.current_password_invalid');
+    if (code === 'outcome_unknown') assert.match(error.hint, /fresh login/);
+    assert.equal(service.hits.length, count + 1);
+    assert.ok(!(result.stdout + result.stderr).includes(currentPassword));
+    assert.ok(!(result.stdout + result.stderr).includes(newPassword));
+  }
+  const touches = service.hits.length;
+  const extraUser = await run(f, args, JSON.stringify({ currentPassword, newPassword, userName: 'another-user' }));
+  assert.equal(JSON.parse(extraUser.stdout).error.code, 'invalid_arguments');
+  const host = await run(f, [...args, '--scope', 'host'], JSON.stringify({ currentPassword, newPassword }));
+  assert.equal(JSON.parse(host.stdout).error.code, 'tenant_required');
+  f.store.deleteSession('Demo');
+  f.env.XRAIN_TOKEN = 'unrelated-api-token';
+  const noSession = await run(f, args, JSON.stringify({ currentPassword, newPassword }));
+  assert.equal(JSON.parse(noSession.stdout).error.code, 'authentication_required');
+  assert.equal(service.hits.length, touches);
+});
+
 test('explicit Host login binds scope, ignores an inherited tenant, and cannot reuse its session for a tenant', async t => {
   const f = fixture(t), token = 'synthetic-host-session', password = 'synthetic-host-password';
   let wrongScope = false;

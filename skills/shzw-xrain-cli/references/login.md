@@ -22,6 +22,16 @@ security user ensure --user <固定登录名> --values-json - --profile <目标>
 
 新合成身份用系统随机密码并存指定秘密库；不要内联密码。创建不自动授角色；全局同名身份已存在时，由获准 Host 管理入口将原 userId 加入目标租户，不改名再建。提交未知先 security user show 查询。
 
+## 修改本人密码
+
+通过 `auth login --native` 登录要改密的原生账号，再用 `auth whoami --auth session` 核对账号和租户。将含 `currentPassword` 和 `newPassword` 的 UTF-8 JSON 从受控程序传入标准输入。
+
+```text
+auth password change --profile <本人连接> --auth session --request-json - --json
+```
+
+平台根据本人租户会话识别账号并核验原密码。Host、代理会话和 API Token 无法代替本人登录。平台成功后用新密码重新原生登录，核对原 `userId` 与租户。目标返回 404 或 405 时，先核对部署版本是否包含本人改密接口。写入结果不明时先用新密码重新登录验证，再决定是否重试。密码只从标准输入或受保护文件传入。
+
 ## 切换本人的企业
 
 先用 `auth tenants --auth session` 查询本人可访问企业，再执行：

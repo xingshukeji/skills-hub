@@ -2487,6 +2487,48 @@ async function nativeLogin(ctx) {
   ctx.reporter.print(ctx.reporter.json ? { profile: profile.name, server: profile.server, authenticated: true } : `Logged in with profile '${profile.name}'.`);
   return 0;
 }
+async function changeOwnPassword({ args, store, reporter, stdin, spec }) {
+  const profile = store.resolve(args, true);
+  const token = store.loadSession(profile.name, profile.server, profile.tenant, profile.scope);
+  if (!token) throw new CliError("A matching saved tenant login is required.", {
+    code: "authentication_required",
+    hint: "Run auth login for this profile first."
+  });
+  const input3 = await readJsonInput(args.required("request-json", args.value("file")), "Password change JSON", { stdin, utf8: true });
+  if (!isObject(input3) || Object.keys(input3).length !== 2 || !nonempty(input3.currentPassword) || !nonempty(input3.newPassword))
+    throw new CliError("Password change JSON requires currentPassword and newPassword only.", { code: "invalid_arguments" });
+  const { currentPassword, newPassword } = input3;
+  reporter.secret(currentPassword);
+  reporter.secret(newPassword);
+  const path = "/api/service/authen/v1/account/password";
+  await writeOnce(async () => {
+    const response = await request(new URL(path, profile.server), {
+      method: "POST",
+      token,
+      json: { currentPassword, newPassword },
+      timeout: args.timeout()
+    });
+    if (response.status === 204) return;
+    if (response.status === 404 || response.status === 405)
+      throw new CliError("This server does not expose the tenant password change endpoint.", {
+        code: "password_change_unavailable",
+        httpStatus: response.status
+      });
+    if (!response.ok) {
+      const error = responseError(response);
+      delete error.details.response;
+      throw error;
+    }
+    throw new CliError("The server did not return the expected password change receipt.", { code: "invalid_response" });
+  }, "The password change outcome is unknown. Verify the new password in a fresh login before attempting another change.", {
+    operation: spec.path,
+    profile: profile.name,
+    server: profile.server,
+    tenant: profile.tenant
+  });
+  reporter.print(reporter.json ? { changed: true, reauthenticationRequired: true } : "Password changed. Sign in again with the new password.");
+  return 0;
+}
 async function proxyLogin(ctx) {
   const { args, store, reporter } = ctx;
   const administrator = store.resolve(args, true);
@@ -3950,6 +3992,7 @@ async function authCommands(ctx) {
     return 0;
   }
   if (args.command(1) === "login") return args.has("native") ? nativeLogin(ctx) : browserLogin(ctx);
+  if (args.command(1) === "password") return changeOwnPassword(ctx);
   if (args.command(1) === "login-as") return proxyLogin(ctx);
   if (args.command(1) === "switch-tenant") return switchTenant(ctx);
   const market = args.has("exchange"), profile = market ? store.market(args) : store.resolve(args);
@@ -4899,6 +4942,7 @@ command("profile use", ["name", "profile"], [slot("name", ["profile"])], "Select
 command("profile remove", ["name", "profile"], [{ ...slot("name", ["profile"]), optional: true }], "Remove a saved profile and session.");
 command("profile path", [], [], "Show the profile store path.");
 command("auth login", [...target, "exchange", "device", "no-browser", "native", "user", "password-stdin"], [], "Authenticate in the browser or with a native account. Explicit --scope host requires native login; password comes from stdin.");
+command("auth password change", [...target, "auth", "request-json", "file"], [], "Change your own password using a saved tenant login. Pipe currentPassword and newPassword as JSON via --request-json -. Sign in again after success.");
 command("auth login-as", [...target, "auth", "user", "save-profile"], [], "Use a saved tenant administrator session to sign in as an existing member. Save the member session separately and retain the administrator connection.");
 command("auth tenants", [...target, "auth"], [], "Discover your accessible enterprises using the saved platform login. Does not switch the current connection.");
 command("auth switch-tenant", ["server", "profile", "timeout", "auth", "tenant-id", "save-profile"], [slot("tenant-id")], "Exchange your saved tenant session for the same person in another accessible tenant and select it. --save-profile preserves the original connection separately.");
@@ -5176,6 +5220,10 @@ function validateCommand(args) {
   const management = managementOperations.find((item) => item.path === spec.path);
   const applicationUser = applicationUserOperations.find((item) => item.path === spec.path);
   if (["auth tenants", "auth switch-tenant"].includes(spec.path) && args.has("auth") && args.value("auth") !== "session") throw new CliError("Enterprise discovery and switching use your saved platform login.", { code: "invalid_arguments" });
+  if (spec.path === "auth password change") {
+    if (args.has("auth") && args.value("auth") !== "session") throw new CliError("Password change uses your saved tenant login.", { code: "invalid_arguments" });
+    args.required("request-json", args.value("file"));
+  }
   if (applicationUser) {
     args.required("app-url");
     if (applicationUser.input && !args.has("request-json") && !args.has("file")) throw new CliError("--request-json or --file is required.", { code: "invalid_arguments" });
