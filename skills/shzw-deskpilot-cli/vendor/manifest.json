@@ -194,8 +194,8 @@
     },
     {
       "path": "scripts/deskpilot/platforms/windows.py",
-      "bytes": 50978,
-      "sha256": "0bc9f368ad8eb7589c283a71ac6fbeaa798ad4ebbfb3085f8daa9d49a209ac45",
+      "bytes": 51004,
+      "sha256": "d90f8c0546b2b4d7ad7ab489385bb601aaa43ac7eafcc4058be672ef4453fa6a",
       "component": "DeskPilot source",
       "license": "repository",
       "source": "src/deskpilot-cli/deskpilot/platforms/windows.py"

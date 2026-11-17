@@ -693,7 +693,7 @@ class WindowsDesktop:
                    "TAB": 9, "ESC": 0x1B, "ESCAPE": 0x1B, "BACKSPACE": 8,
                    "DELETE": 0x2E, "SPACE": 0x20, "LEFT": 0x25, "UP": 0x26,
                    "RIGHT": 0x27, "DOWN": 0x28, "HOME": 0x24, "END": 0x23,
-                   "PAGEUP": 0x21, "PAGEDOWN": 0x22, "INSERT": 0x2D}
+                   "PAGEUP": 0x21, "PAGEDOWN": 0x22, "INSERT": 0x2D, "COMMA": 0xBC, ",": 0xBC}
         codes = []
         for name in keys:
             name = name.upper()

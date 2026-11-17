@@ -70,6 +70,15 @@ class WindowsContracts(unittest.TestCase):
         self.desktop.click(window, 500, 351)
         self.desktop._send.assert_called_once()
 
+    def test_ctrl_comma_sends_and_releases_the_windows_shortcut(self):
+        for key in (',', 'COMMA'):
+            with self.subTest(key=key):
+                self.desktop._send = Mock()
+                self.desktop.key(['CTRL', key])
+                events = [call.args[0][0].ki for call in self.desktop._send.call_args_list]
+                self.assertEqual([(event.wVk, event.dwFlags) for event in events],
+                                 [(0x11, 0), (0xBC, 0), (0xBC, 2), (0x11, 2)])
+
     def test_delayed_value_is_read_until_confirmed_without_repeating_write(self):
         pattern = self.value_pattern(['old', 'old', 'new', 'new'])
         result = self.desktop.set_value(self.element, 'new')
