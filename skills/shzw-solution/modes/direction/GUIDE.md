@@ -20,6 +20,8 @@ For clear routine implementation, briefly confirm the requested result, allowed 
 
 Reuse already-read current root `AGENTS.md`, `文档/TASK_CONTROL.md` and matched project context; load only missing sources needed to resolve a direction-changing fact. Read `文档/WORK_CANDIDATES.md` only when the user asks about later, remaining, next, or roadmap work. Follow `WORKFLOW_CONTRACT.md` only for workspace changes or cross-session recovery.
 
+When a product dependency question leads to a deployment runbook, establish the product's runtime and build requirements from its source and configuration contract. Check a named environment's jobs, settings, or live state only when its deployment or a question about that environment is within the user's scope. For requests about environment isolation, use the product's actual state, identity, and consumer boundaries unless the user names an existing target.
+
 ## Build the Direction Contract
 
 Keep the contract compact and domain-independent:
