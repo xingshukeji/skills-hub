@@ -25,7 +25,6 @@ const commandMap = {
     doctor: "doctor",
     diagnose: "doctor",
     check: "status",
-    feed: "xrain:feed",
     "test-install-atomicity": "xrain:test:install-atomicity",
     "candidate-check": "xrain:candidate:check",
     "candidate-build": "xrain:candidate:build",
