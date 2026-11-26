@@ -7,12 +7,12 @@ Do not infer a SystemTest or Deployment task from build success, CI, a tag, a ca
 Start at the affected client entry. Use [client-fast-path.md](references/client-fast-path.md) when platform, packaging, runtime or update ownership needs investigation; an ordinary page change does not require the full worksheet.
 
 1. Read the root and project entrypoints, then the smallest formal owner for the requested client facts.
-2. Classify this request as Development, SystemTest, or Deployment from the user's goal.
+2. Classify the user's requested result using only task types supported by the responsible repository. A local-development-only repository builds and verifies local clients; it does not register or execute external publication, deployment or recovery.
 3. Resolve only affected contract fields. A UI change needs the existing UI owner, user action, data/identity contract and completion rule; packaging/runtime/update work additionally needs the corresponding owners below.
 4. Keep the existing product as the owner of its business UI and routes. Preserve project-owned native loading, error and recovery feedback without duplicating business interactions.
 5. When delivery shape is in scope, choose thin/full/hybrid only from measured payload size, offline requirements, prerequisites, and component ownership.
 6. Verify the changed user behavior in its actual consumer. When packaging, runtime or installed behavior changed, also build the relevant candidate and check that exact artifact; do not require a launcher doctor for a web-only fix.
-7. Report Development evidence separately from any later SystemTest, Deployment, and Git result.
+7. Report the requested, in-scope result and its evidence; report Git state separately.
 
 If a material choice about the outcome, ownership, persisted/public contract, compatibility promise, or external target remains unresolved after checking the request and project sources, pause only the dependent path and explain two or three mutually exclusive choices. Continue from already approved decisions; discoverable implementation details do not require another decision.
 
@@ -84,15 +84,15 @@ Implement the requested client behavior and run affected source/type checks and 
 
 Run only when the user explicitly asks for an independent integration, system, full-suite, candidate-acceptance, or regression result. Fixes found there require a separate Development authorization.
 
-### Deployment
+### External publication and deployment
 
-Run only when the user explicitly names a release artifact and target. Require the deployment workflow's admission evidence, authorization, rollback, and post-deployment checks. OSS publication and production signing are not implied by Development completion.
+Use this path only in a repository that owns the requested publication or deployment and has its own delivery contract. Fix the explicitly authorized artifact and target, then use that owner's admission, recovery and result checks. A named artifact, target or user authorization alone does not add deployment responsibility to a local-development-only repository. Such a repository completes the local build and verification without a deployment plan or external recovery record. OSS publication and production signing are not implied by Development completion.
 
 ## Verification Floor
 
 Use [client-verification-matrix.md](references/client-verification-matrix.md) to scale evidence to the changed boundary. Verify the affected contract/owners and source/types/tests. Add final-tree doctor, startup/readiness, process cleanup, state preservation, update, drain, activation or recovery checks only when those behaviors are affected.
 
-按用户主要结果判定验收类型。用户明确要求独立的公开制品、干净机器或故障验收时进入 SystemTest；实现或修复附带的范围匹配检查仍属 Development。正式发布及目标准入沿已授权 Deployment，测试手段本身不新增任务或发布授权。
+按用户主要结果及责任仓允许的范围判定验收类型。用户明确要求独立的已有制品、干净机器或故障验收时进入 SystemTest；实现或修复附带的范围匹配检查仍属 Development。正式发布及目标准入由拥有该职责的项目按自身交付合同执行，测试手段本身不新增任务或发布授权。
 
 ## Stop Conditions
 
@@ -102,7 +102,7 @@ Stop only the affected path when a required item below cannot be resolved from t
 - product/UI ownership is ambiguous or the proposed change would duplicate another product's UI;
 - runtime, update, or recovery ownership is missing;
 - a public or persisted compatibility promise is implied but not owned;
-- the requested action would change an external target without explicit Deployment authorization;
+- the requested action would change an external target outside the responsible repository's declared scope or current explicit authorization;
 - final candidate bytes, installed behavior, or required health evidence cannot be observed;
 - a required signature, credential, or platform prerequisite is missing for the selected production/channel contract.
 

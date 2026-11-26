@@ -6,7 +6,7 @@ Use this reference when the request affects client ownership, packaging, runtime
 
 ### 1. Request boundary
 
-Record one sentence for the observable result and one sentence for what is explicitly out of scope. Classify the request from the user's goal:
+Record one sentence for the observable result and one sentence for what is explicitly out of scope. Classify the request from the user's goal and the task types allowed by the responsible repository:
 
 When resuming or expanding verification, carry forward the original target, permitted persistent writes and restoration requirements using [task boundary and consumer evidence](client-verification-matrix.md#task-boundary-and-consumer-evidence).
 
@@ -14,7 +14,7 @@ When resuming or expanding verification, carry forward the original target, perm
 |---|---|
 | Build, change, fix, refactor, or govern client behavior | Development |
 | Independently test an existing workspace or fixed candidate | SystemTest |
-| Publish, release, migrate, switch, or roll back a named artifact/target | Deployment |
+| Publish, release, migrate, switch, or roll back a named artifact/target | Use the owning repository's delivery contract only when that operation is in scope and explicitly authorized; a local-development-only repository does not create this task |
 
 Do not infer the last two rows from a build, candidate, tag, CI job, or test breadth.
 
@@ -61,4 +61,4 @@ When this task changes a delivered artifact, build from a clean output directory
 
 ### 5. Stop and report
 
-Stop the dependent path when its required owner, platform, installer source, recovery mode, compatibility promise, or external authorization is missing; unrelated installer facts do not block a page fix. Report Development, SystemTest, Deployment, and Git results separately. A local candidate is not a public release.
+Stop the dependent path when its required owner, platform, installer source, recovery mode, compatibility promise, repository scope, or external authorization is missing; unrelated installer facts do not block a page fix. Report only the established in-scope tasks and their evidence, with Git state separate. A local candidate is not a public release.

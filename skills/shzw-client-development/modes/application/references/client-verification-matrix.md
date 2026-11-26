@@ -1,6 +1,6 @@
 # Client Verification Matrix
 
-Scale verification to the changed boundary. This matrix distinguishes Development evidence from separately requested SystemTest and Deployment evidence.
+Scale verification to the changed boundary and the responsible repository's runtime scope. Development evidence does not establish an independent test or external delivery task. A local-development-only repository verifies its local candidate and consumes existing authorized services without installing, upgrading or restoring an external environment.
 
 ## Task Boundary And Consumer Evidence
 
@@ -22,7 +22,7 @@ Keep this evidence in the current task record; add no product UI, telemetry serv
 | Business Web surface | actual application loads the changed UI; save/read/re-entry and relevant failure or late-result behavior | full browser/desktop regression |
 | Native shell or loading boundary | changed installed client loads the owned product surface and preserves identity/state without duplicate UI/IPC | complete supported-platform regression |
 | Update and activation | staging preserves current, confirmation/drain boundary, activation health, selected recovery path | repeated upgrade matrix, long-run checks, candidate acceptance |
-| Publication | frozen candidate and local read-back verifier | configured source admission, deployment, rollback |
+| Publication | frozen candidate and local read-back verifier | source admission and recovery checks only under an explicitly requested delivery owned by the responsible repository |
 
 ## Positive And Nearby Negative Cases
 

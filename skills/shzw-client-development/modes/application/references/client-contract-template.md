@@ -12,7 +12,7 @@ In scope:
 Out of scope:
 Target objects and allowed persistent writes:
 State to preserve or restore:
-Execution type: Development | SystemTest | Deployment
+Execution type: select from the responsible repository's supported task types
 
 Product role:
 Existing UI owner:
@@ -53,4 +53,4 @@ When two sources disagree, stop expansion and repair the owner. Do not preserve 
 
 ## Completion Check
 
-The contract is ready when the requested result, affected boundaries and observable completion rule are resolved. Resolve install, Runtime, update and recovery ownership only when those responsibilities change or are needed to prove this result; unchanged or inapplicable responsibilities do not block implementation. Later publication or independent system testing remains a separate task.
+The contract is ready when the requested result, affected boundaries and observable completion rule are resolved. Resolve install, Runtime, update and recovery ownership only when those responsibilities change or are needed to prove this result; unchanged or inapplicable responsibilities do not block implementation. Publication or independent system testing becomes a separate task only when explicitly requested and supported by its responsible repository; a local-development-only repository retains no external publication or recovery task.
