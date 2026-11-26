@@ -1,6 +1,6 @@
 # 公共 npm 包发布
 
-本模式用于产品已构建的 npm tarball 发布到 Nexus Raw。发布工具在本技能的 `scripts/publish-package.py`，仅需要 Python 3.10+ 标准库。完整目录复制到任意安装位置即可运行，不读取 skills-hub 或 xrain-cicd 源码，不要求消费项目。
+本模式用于产品已构建的 npm tarball 发布到 Nexus Raw。发布工具在本技能的 `scripts/publish-package.py`，仅需要 Python 3.10+ 标准库。完整目录复制到任意安装位置即可运行，不读取技能维护仓或交付仓源码，不要求消费项目。
 
 ## 选择操作
 

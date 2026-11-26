@@ -1,6 +1,6 @@
 # Workforce 及关联项目的判断线索
 
-2026-11-03 从 Workforce 项目职责和实际依赖回溯：XRain/AiInfra 承担平台及数据能力，Harness 承担原生运行，OAuth 承担统一认证，铵帮承担业务模型，应用市场承担分发目录，CI/CD 与 deploy-ops 承担交付和运维，skills-hub 持有方法。kh-anbang、xrain-ontology、旧 DSH Desktop 和 window10GUI 仅沿需求、模型或工具继承关系追溯；不因历史项目相关就恢复其旧入口。
+Workforce 的职责是产品开发、验证和开发环境本地运行，不承担共享测试或生产环境的部署。XRain/AiInfra 承担平台及数据能力，Harness 承担原生运行，OAuth 承担统一认证，铵帮承担业务模型，应用市场承担分发目录，skills-hub 持有方法。按当前依赖定位源码与服务提供方，不恢复已退役的操作入口。
 
 本页是检索入口及审查反例。先结合[通用校准](../../engineering/references/judgment-calibration.md)和[all_in_one 历史](../../engineering/references/project-history-calibration.md)，再进入下表的责任技能。当前业务事实仍查责任项目；历史要求、实际实现、包已发布和目标已生效分别判断。这里不重复客户字段或配置，也不把一次人工走查称为稳定性证明。
 

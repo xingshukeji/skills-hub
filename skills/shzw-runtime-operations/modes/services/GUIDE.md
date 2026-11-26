@@ -6,7 +6,7 @@
 
 Treat root `package.json` as the only user-facing service command registry. Do not invent ad hoc startup commands or expose `.agent/scripts` as the normal entry.
 
-Determine this task's execution type from the user's primary requested result before any state-changing action; do not infer it from the command or environment. In Development, start or restart only the directly affected local service when scoped verification cannot proceed otherwise. In an explicitly requested SystemTest task, use the environment fixed in the current task for temporary execution or the service setup named by the Active durable SystemTestPlan and Runbook. Do not use this skill for formal package publication, target-environment migration, rollout, cutover, or rollback; route those actions to [shzw-delivery](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-delivery/modes/deployment/GUIDE.md) and WF-0006.
+Determine this task's execution type from the user's primary requested result before any state-changing action; do not infer it from the command or environment. In Development, start or restart only the directly affected local service when scoped verification cannot proceed otherwise. In an explicitly requested SystemTest task, use the environment fixed in the current task for temporary execution or the service setup named by the Active durable SystemTestPlan and Runbook. Do not use this skill for formal package publication, target-environment migration, rollout, cutover, or rollback; route those actions to [shzw-delivery](https://github.com/xingshukeji/skills-hub/blob/main/skills/shzw-delivery/modes/deployment/GUIDE.md) under the target repository’s own workflow.
 
 ## Resolve
 

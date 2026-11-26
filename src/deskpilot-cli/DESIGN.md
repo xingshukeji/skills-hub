@@ -298,4 +298,3 @@ Python、客户端不使用包管理器、完整源码与依赖随 Skill 交付�
 - [pywinauto](https://github.com/pywinauto/pywinauto) 提供 Windows Win32/UIA 接入；[PyObjC 框架绑定](https://pyobjc.readthedocs.io/en/latest/notes/framework-wrappers.html)提供 macOS 系统框架访问；[AT-SPI](https://gnome.pages.gitlab.gnome.org/at-spi2-core/libatspi/index.html)提供 Linux 辅助功能接口。现成接口存在不代表本项目已经适配。
 - [XDG RemoteDesktop Portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.RemoteDesktop.html)定义会话、用户授予的输入设备与屏幕协作接口。Wayland 支持需按实际桌面后端核验。
 - Python 标准库 [zipapp](https://docs.python.org/3/library/zipapp.html)支持从本地 Python 目录创建可执行归档；原生扩展放在文件系统中并匹配目标架构。[ctypes](https://docs.python.org/3/library/ctypes.html)提供系统共享库调用，[winreg](https://docs.python.org/3/library/winreg.html)提供 Windows 注册表访问；实际组合和安装证据以上表与源码检查为准。
-- Linux 命名目标、图形生命周期及原始回执由 xrain-cicd 的 [RUN-0019](../../../xrain-cicd/文档/运行/RUN-0019-DeskPilotLinux验证桌面.md)和[验证记录](../../../xrain-cicd/records/2026-10-29-dev-32618-deskpilot-gui.json)持有，Skill 使用者不需要读取这些内部环境资料。
