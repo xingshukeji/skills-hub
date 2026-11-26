@@ -4262,11 +4262,13 @@ var hostOperations = [
     headers: { "Idempotency-Key": "request-key" },
     description: "创建业务租户，默认同时申请开通标准 Workforce。"
   }),
-  host("tenant workforce show", "GET", tenant + "/standard-workforce", {
-    description: "查看平台记录的 Workforce 开通选择（enabled）和修订号（revision）。"
+  host("tenant workforce show", "GET", "/api/standard/tenants/{tenant-id}", {
+    workforceHost: true,
+    description: "查看 Workforce 记录的开通选择（enabled）和修订号（revision）。"
   }),
-  host("tenant workforce import", "PUT", tenant + "/standard-workforce/applications", { input: "object", inputFields: ["workforceApplicationId", "definitionsApplicationId"] }),
-  host("tenant workforce set", "PUT", tenant + "/standard-workforce", {
+  host("tenant workforce import", "PUT", "/api/standard/tenants/{tenant-id}/applications", { workforceHost: true, input: "object", inputFields: ["workforceApplicationId", "definitionsApplicationId"] }),
+  host("tenant workforce set", "PUT", "/api/standard/tenants/{tenant-id}", {
+    workforceHost: true,
     input: "object",
     inputFields: ["enabled", "expectedRevision"],
     readback: ["host", "tenant", "workforce", "show"],
@@ -4659,12 +4661,58 @@ async function rawOutput(ctx, call, context) {
   }
 }
 
+// src/xrain-cli/standard-tenant.mjs
+var hostTenants = "/api/service/authen/v1/host/tenants";
+async function find(ctx, path, search, options, matches) {
+  for (let page3 = 1; ; page3++) {
+    const query2 = new URLSearchParams({ search, page: page3, pageSize: 100 });
+    const result = await apiValue(ctx, "GET", path + "?" + query2, void 0, options);
+    if (!Array.isArray(result?.items) || !Number.isSafeInteger(result.totalCount))
+      throw new CliError("The Host directory returned an invalid page.", { code: "invalid_response" });
+    const item = result.items.find(matches);
+    if (item || page3 * 100 >= result.totalCount) return item;
+  }
+}
+async function recoverTenantCreation(ctx, profile, body, headers, mutation2) {
+  const options = { requireTenant: false, resolvedProfile: profile };
+  const name = typeof body.name === "string" && body.name.trim();
+  if (!name) throw new CliError("Tenant name is required.", { code: "invalid_arguments" });
+  const prior = await find(ctx, hostTenants, name, options, (item) => item.name.toLowerCase() === name.toLowerCase());
+  const detail = await apiValue(ctx, "POST", hostTenants, body, { ...options, headers, mutation: mutation2 });
+  const path = hostTenants + "/" + segment(detail.tenantId) + "/members";
+  const marker = ctx.env.XRAIN_WORKFORCE_ENROLLMENT_USER_ID;
+  let receipt4;
+  if (marker) {
+    const read = () => find(ctx, path, marker, options, (item) => item.userId === marker);
+    try {
+      receipt4 = await read();
+      if (!receipt4 && !prior) {
+        try {
+          receipt4 = await apiValue(ctx, "POST", path, { userId: marker, isAdministrator: false }, { ...options, mutation: mutation2 });
+        } catch (error) {
+          if (!(error instanceof CliError)) throw error;
+          receipt4 = await read();
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof CliError)) throw error;
+    }
+  }
+  const recorded = !prior && receipt4?.userId === marker && receipt4?.isActive === true;
+  return { ...detail, standardWorkforce: {
+    tenantId: detail.tenantId,
+    state: recorded ? "pending" : "unconfirmed",
+    hint: recorded ? "租户已创建。租户管理员可从原门户继续开通 Workforce。" : "租户已创建。门户恢复后用 workforce show 查询，未受理时用 workforce set 开通。"
+  } };
+}
+
 // src/xrain-cli/management.mjs
 var managementOperations = [...authOperations, ...memberOperations, ...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2) => match2[1]);
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
   ...routeParameters(operation.route),
+  ...operation.standardWorkforce || operation.workforceHost ? ["workforce"] : [],
   ...operation.standardWorkforce ? ["no-standard-workforce", "standard-workforce"] : [],
   ...operation.credentialOutput || operation.raw ? ["out"] : [],
   ...Object.values(operation.headers ?? {}),
@@ -4727,6 +4775,12 @@ async function managementCommand(ctx) {
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
   }
+  const withWorkforce = operation.standardWorkforce && body.standardWorkforce !== false;
+  if (operation.standardWorkforce) delete body.standardWorkforce;
+  if (withWorkforce || operation.workforceHost) {
+    const portal = origin(args.value("workforce") || ctx.env.XRAIN_WORKFORCE_URL || profile.server);
+    route = new URL(withWorkforce ? "/api/standard/tenants" : route, portal).href;
+  }
   const write = operation.method !== "GET" && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(["requestId", "idempotencyKey", "whatId", "operationId", "versionId", "applicationId", "installationId", "expectedRevision", "entityCode", "resourceId", "recordId", "subjectUserId", "catalogKey", "tokenId"].filter((key) => ["string", "number"].includes(typeof body[key])).map((key) => [key, body[key]])) : {};
   const mutation2 = {
@@ -4756,11 +4810,20 @@ async function managementCommand(ctx) {
     ...write ? { mutation: mutation2 } : {}
   });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation2 };
-  let value = operation.raw ? await writeOnce(
+  let value;
+  if (operation.raw) value = await writeOnce(
     () => rawOutput(ctx, call, context),
     "Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.",
     context
-  ) : await call();
+  );
+  else {
+    try {
+      value = await call();
+    } catch (error) {
+      if (!withWorkforce || !(error.code === "outcome_unknown" || [404, 405].includes(error.httpStatus))) throw error;
+      value = await recoverTenantCreation(ctx, profile, body, headers, mutation2);
+    }
+  }
   const outcome = operation.outcome?.(value);
   if (outcome === "failed" || outcome === "unknown") throw new CliError(outcome === "unknown" ? "The service reported an unknown outcome." : "The execution reported failure.", {
     code: outcome === "unknown" ? "outcome_unknown" : "execution_failed",
@@ -5455,8 +5518,10 @@ function commandHelp(args) {
     "",
     '以 Host 管理员身份创建租户。tenant.json 至少填写名称，例如 {"name":"demo"}。',
     "  xrain-cli host tenant create --request-key demo-001 --request-json tenant.json",
-    "回执中 standardWorkforce.enabled 为 true 表示平台已受理，关闭 CLI 后系统仍会继续准备。",
-    "用回执中的 tenantId 查看平台记录的开通选择和修订号。",
+    "环境一次配置 XRAIN_WORKFORCE_URL 为标准门户地址，与平台共用域名时可省略。也可用 --workforce 指定。",
+    "XRAIN_WORKFORCE_ENROLLMENT_USER_ID 为环境专用的接单成员 ID。门户离线时，CLI 仍可创建租户并登记待办，租户管理员下次登录可续办。",
+    "回执中 standardWorkforce.enabled 为 true 表示 Workforce 已受理，关闭 CLI 后系统仍会继续准备。",
+    "用回执中的 tenantId 查看开通选择和修订号。",
     "  xrain-cli host tenant workforce show <tenantId>",
     "获准成员从原 Workforce 门户登录。若显示“Workforce 开通尚未完成”，可点击“继续开通 Workforce”。",
     '只创建租户、暂缓开通时加 --no-standard-workforce，或在请求文件中设置 "standardWorkforce": false。旧脚本仍可使用 --standard-workforce。',
@@ -7612,7 +7677,7 @@ async function main(argv = process.argv.slice(2), { env = process.env, stdin = p
       store = sharedStore ?? new Store(env, reporter);
       previousReporter = store.reporter;
       store.reporter = reporter;
-      const ctx = { args, store, reporter, stdin, spec, execute: (next, io) => main(next, { env, store, ...io }) };
+      const ctx = { args, env, store, reporter, stdin, spec, execute: (next, io) => main(next, { env, store, ...io }) };
       code = await dispatch(ctx);
     }
   } catch (error) {

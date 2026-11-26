@@ -1,4 +1,4 @@
-import { CliError, isObject, readJsonInput, registerSecrets, segment } from './core.mjs';
+import { CliError, isObject, origin, readJsonInput, registerSecrets, segment } from './core.mjs';
 import { apiValue, writeOnce } from './http.mjs';
 import { authOperations, memberOperations, securityOperations } from './security-operations.mjs';
 import { applicationOperations, hostOperations } from './application-operations.mjs';
@@ -8,11 +8,13 @@ import { metadataOperations } from './metadata-operations.mjs';
 import { workflowOperations, settingsOperations } from './workflow-operations.mjs';
 import { deliveryOperations } from './delivery-operations.mjs';
 import { rawOutput } from './raw-response.mjs';
+import { recoverTenantCreation } from './standard-tenant.mjs';
 
 export const managementOperations = [...authOperations, ...memberOperations, ...securityOperations, ...applicationOperations, ...hostOperations, ...metadataOperations, ...workflowOperations, ...settingsOperations, ...deliveryOperations];
 export const routeParameters = route => [...route.matchAll(/\{([^}]+)\}/g)].map(match => match[1]);
 const pageOptions = new Map([['page', 'page'], ['page-size', 'pageSize'], ['search', 'search'], ['status', 'status']]);
 export const operationOptions = operation => [...routeParameters(operation.route),
+  ...(operation.standardWorkforce || operation.workforceHost ? ['workforce'] : []),
   ...(operation.standardWorkforce ? ['no-standard-workforce', 'standard-workforce'] : []),
   ...(operation.credentialOutput || operation.raw ? ['out'] : []),
   ...Object.values(operation.headers ?? {}),
@@ -78,6 +80,12 @@ export async function managementCommand(ctx) {
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === 'string') reporter.secret(body[field]);
   }
+  const withWorkforce = operation.standardWorkforce && body.standardWorkforce !== false;
+  if (operation.standardWorkforce) delete body.standardWorkforce;
+  if (withWorkforce || operation.workforceHost) {
+    const portal = origin(args.value('workforce') || ctx.env.XRAIN_WORKFORCE_URL || profile.server);
+    route = new URL(withWorkforce ? '/api/standard/tenants' : route, portal).href;
+  }
   const write = operation.method !== 'GET' && !operation.readOnly;
   const selectors = isObject(body) ? Object.fromEntries(['requestId', 'idempotencyKey', 'whatId', 'operationId', 'versionId', 'applicationId', 'installationId', 'expectedRevision', 'entityCode', 'resourceId', 'recordId', 'subjectUserId', 'catalogKey', 'tokenId']
     .filter(key => ['string', 'number'].includes(typeof body[key])).map(key => [key, body[key]])) : {};
@@ -92,8 +100,16 @@ export async function managementCommand(ctx) {
     raw: operation.raw, validate: value => (!operation.outcome || ['succeeded', 'failed', 'unknown'].includes(operation.outcome(value))) && (!operation.validate || operation.validate(value, { args, body })),
     ...(write ? { mutation } : {}) });
   const context = { operation: operation.path, profile: profile.name, server: profile.server, tenant: profile.tenant ?? null, ...mutation };
-  let value = operation.raw ? await writeOnce(() => rawOutput(ctx, call, context),
-    'Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.', context) : await call();
+  let value;
+  if (operation.raw) value = await writeOnce(() => rawOutput(ctx, call, context),
+    'Debug outcome is unknown. Inspect the original response and any effects before another action; do not replay this request or batch.', context);
+  else {
+    try { value = await call(); }
+    catch (error) {
+      if (!withWorkforce || !(error.code === 'outcome_unknown' || [404, 405].includes(error.httpStatus))) throw error;
+      value = await recoverTenantCreation(ctx, profile, body, headers, mutation);
+    }
+  }
   const outcome = operation.outcome?.(value);
   if (outcome === 'failed' || outcome === 'unknown') throw new CliError(outcome === 'unknown' ? 'The service reported an unknown outcome.' : 'The execution reported failure.', { code: outcome === 'unknown' ? 'outcome_unknown' : 'execution_failed',
     hint: 'Inspect the returned result and any effects before another action. Do not replay the batch.',
