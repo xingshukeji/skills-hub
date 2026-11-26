@@ -46,12 +46,12 @@ If request authority is absent, do not create a task or plan. Candidate and Envi
 
 ## Boundaries
 
-- Preparing an isolated test environment from the Candidate is allowed; publishing a formal package or changing a production/staging deployment target is not.
+- Prepare an isolated test environment from the Candidate only within the responsible repository's declared runtime scope. In a local-development-only repository, run the subject locally and consume existing authorized shared services; do not install, upgrade or restore a shared environment. Publishing a formal package or changing a production/staging deployment target is outside SystemTest.
 - Do not edit product source, test source, migrations, fixtures, or configuration tracked by the product during the campaign. Such changes belong to Development.
 - Do not turn Development evidence into SystemTest because it uses integration boundaries, a browser, real database, real service, multiple roles, or a large suite. Test scope and environment are execution inputs, not substitutes for the user's explicit test goal.
-- A passing controlled candidate campaign may provide evidence for a later Deployment task. Neither normal nor controlled testing creates or authorizes Deployment.
+- A passing controlled candidate campaign proves only its fixed assertions and environment. An external delivery owner may consume that evidence under its own contract; testing creates no deployment task or authorization.
 - An unavailable environment means SystemTest evidence is unavailable. It does not reverse a previously completed Development result.
 
 ## Closeout
 
-Report `Task type: SystemTest`, control strength, persistence, tested workspace or Candidate, Environment, selected scenarios, exact commands or runners, assertion results, environment failures, skipped scope, retained safe evidence, and residual risk. Report deployment eligibility only for a controlled candidate campaign. Remove a durable SystemTestPlan and task when its candidate receives a final conclusion. Keep defect records separate from repair execution; any already authorized repair continues under its own result and scope. Do not run deployment or imply deployment authorization.
+Report `Task type: SystemTest`, control strength, persistence, tested workspace or Candidate, Environment, selected scenarios, exact commands or runners, assertion results, environment failures, skipped scope, retained safe evidence, and residual risk. Report deployment eligibility only when the user explicitly requested that assessment and the responsible repository owns it; a local-development-only repository reports local verification and external service dependencies. Remove a durable SystemTestPlan and task when its candidate receives a final conclusion. Keep defect records separate from repair execution; any already authorized repair continues under its own result and scope. Do not run deployment or imply deployment authorization.

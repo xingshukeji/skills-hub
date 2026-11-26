@@ -22,4 +22,4 @@ Use publisher signing, notarization, store provenance, or another channel-specif
 
 ## Deployment Boundary
 
-Publication to a named target remains a separate Deployment task. Deployment requires its own artifact, target, admission evidence, authorization, rollback, and post-deployment checks.
+Named-target publication follows the responsible repository's supported task types and distribution contract. A repository limited to local development delivers the verified local build and does not create deployment tasks, production promotion steps or external-environment recovery records. Where publication is in scope and explicitly authorized, use that owner's artifact, target, admission evidence, recovery conditions and result checks; this reference does not establish a Deployment workflow.
