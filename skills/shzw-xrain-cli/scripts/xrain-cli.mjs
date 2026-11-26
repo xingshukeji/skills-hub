@@ -21,7 +21,7 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "create", "update", "enable", "wait", "maintain-installed-version", "mine", "all", "agent", "personal", "release"]);
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "create", "update", "enable", "wait", "maintain-installed-version", "mine", "all", "agent", "personal", "release", "standard-workforce"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
 valued.add("line");
 valued.add("project");
@@ -4256,7 +4256,10 @@ var hostOperations = [
   host("database catalog", "GET", "/api/service/authen/v1/host/databases/{source-id}/catalog", { sessionOnly: true }),
   host("database table", "GET", "/api/service/authen/v1/host/databases/{source-id}/schemas/{schema}/tables/{table}", { query: ["previewLimit"], sessionOnly: true }),
   host("tenant list", "GET", tenants, { query: ["page", "pageSize", "search", "isActive"] }),
-  host("tenant create", "POST", tenants, { input: "object", headers: { "Idempotency-Key": "request-key" } }),
+  host("tenant create", "POST", tenants, { input: "object", standardWorkforce: true, headers: { "Idempotency-Key": "request-key" } }),
+  host("tenant workforce show", "GET", tenant + "/standard-workforce"),
+  host("tenant workforce import", "PUT", tenant + "/standard-workforce/applications", { input: "object", inputFields: ["workforceApplicationId", "definitionsApplicationId"] }),
+  host("tenant workforce set", "PUT", tenant + "/standard-workforce", { input: "object", inputFields: ["enabled", "expectedRevision"], readback: ["host", "tenant", "workforce", "show"] }),
   host("tenant show", "GET", tenant),
   host("tenant update", "PATCH", tenant, { input: "object", headers: { "If-Match": "if-match" } }),
   ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
@@ -4650,6 +4653,7 @@ var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
   ...routeParameters(operation.route),
+  ...operation.standardWorkforce ? ["standard-workforce"] : [],
   ...operation.credentialOutput || operation.raw ? ["out"] : [],
   ...Object.values(operation.headers ?? {}),
   ...operation.input ? ["request-json", "file"] : [],
@@ -4695,6 +4699,11 @@ async function managementCommand(ctx) {
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: "invalid_arguments" });
     if (operation.inputFields && Object.keys(body).some((key) => !operation.inputFields.includes(key)))
       throw new CliError(`Request JSON supports only ${operation.inputFields.join(", ")}.`, { code: "invalid_arguments" });
+    if (operation.standardWorkforce && args.has("standard-workforce")) {
+      if (body.standardWorkforce !== void 0 && body.standardWorkforce !== true)
+        throw new CliError("--standard-workforce conflicts with the request JSON.", { code: "invalid_arguments" });
+      body.standardWorkforce = true;
+    }
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
   }

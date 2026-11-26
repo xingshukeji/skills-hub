@@ -13,6 +13,7 @@ export const managementOperations = [...authOperations, ...memberOperations, ...
 export const routeParameters = route => [...route.matchAll(/\{([^}]+)\}/g)].map(match => match[1]);
 const pageOptions = new Map([['page', 'page'], ['page-size', 'pageSize'], ['search', 'search'], ['status', 'status']]);
 export const operationOptions = operation => [...routeParameters(operation.route),
+  ...(operation.standardWorkforce ? ['standard-workforce'] : []),
   ...(operation.credentialOutput || operation.raw ? ['out'] : []),
   ...Object.values(operation.headers ?? {}),
   ...(operation.input ? ['request-json', 'file'] : []),
@@ -61,6 +62,11 @@ export async function managementCommand(ctx) {
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: 'invalid_arguments' });
     if (operation.inputFields && Object.keys(body).some(key => !operation.inputFields.includes(key)))
       throw new CliError(`Request JSON supports only ${operation.inputFields.join(', ')}.`, { code: 'invalid_arguments' });
+    if (operation.standardWorkforce && args.has('standard-workforce')) {
+      if (body.standardWorkforce !== undefined && body.standardWorkforce !== true)
+        throw new CliError('--standard-workforce conflicts with the request JSON.', { code: 'invalid_arguments' });
+      body.standardWorkforce = true;
+    }
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === 'string') reporter.secret(body[field]);
   }

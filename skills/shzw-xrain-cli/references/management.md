@@ -119,6 +119,10 @@ execution-authorization 提供 get/grant，grant 接收请求文件。message-ro
 host tenant list
 host tenant show <tenantId>
 host tenant create --request-key <稳定键> --request-json <租户.json>
+host tenant create --standard-workforce --request-key <稳定键> --request-json <租户.json>
+host tenant workforce show <tenantId>
+host tenant workforce set <tenantId> --request-json <服务变更.json>
+host tenant workforce import <tenantId> --request-json <原应用.json>
 host tenant update <tenantId> --if-match <原ETag> --request-json <租户.json>
 host tenant activate <tenantId>
 host tenant suspend <tenantId>
@@ -135,5 +139,9 @@ host user ai set <userId> --request-json <AI标记.json>
 使用已有 Host 登录及实际管理权限。租户创建保留显式 Idempotency-Key，修改使用原 If-Match，冲突不更新基线重试。连接凭据经文件传递，不打印或写入命令参数。成员创建复用既有全局 userId；普通添加优先沿用 member ensure，不自动改成管理员。Host 用户 AI 标记与租户成员字段分别判断。
 
 Host member list 的查询文件支持 page、pageSize、search、isActive；例如 `{"page":1,"pageSize":20,"isActive":false}` 读取目标租户的停用成员。基础分页和搜索也可使用原快捷参数；不要与完整查询文件混用。
+
+在创建业务租户时加 `--standard-workforce`，服务选择随原请求一起保存。回执中的 `standardWorkforce` 带有租户、修订和启用状态。关闭终端后，服务端仍会继续准备。获准成员可从原门户继续尚未完成的申请。
+
+变更已有租户时先用 `workforce show` 读修订，再用 `workforce set` 提交选择。例如对修订 1 的租户提交 `{"enabled":false,"expectedRevision":1}` 即可停用。修订冲突后重读。已有静态部署在首次开通前，可用 `workforce import` 提交原应用的 `workforceApplicationId` 和 `definitionsApplicationId` 以保留原发布范围。
 
 以上写入结果未知时保留目标、原请求标识和回读入口。服务器拒绝、版本冲突和未知结果分别处理，不换身份、自动授予或重放。
