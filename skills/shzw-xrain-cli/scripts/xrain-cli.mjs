@@ -21,7 +21,7 @@ function segment(value) {
   if (value === "." || value === "..") throw new CliError("Resource names cannot be dot path segments.");
   return encodeURIComponent(value);
 }
-var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "create", "update", "enable", "wait", "maintain-installed-version", "mine", "all", "agent", "personal", "release", "standard-workforce"]);
+var flags = /* @__PURE__ */ new Set(["help", "json", "device", "no-browser", "native", "password-stdin", "no-total", "check", "create", "update", "enable", "wait", "maintain-installed-version", "mine", "all", "agent", "personal", "release", "standard-workforce", "no-standard-workforce"]);
 var valued = new Set("server tenant scope tenant-id user-id bearer token-name auth profile name timeout exchange namespace label dir source output file package entity id query query-json values values-json filter filter-json page page-size search fields sort user role permission-set roles permission-sets permissions names version-id installation operation request-json expected-revision request-id request-key wait-timeout poll-interval runtime agent-id application-id visibility decision workspace-id workspace-path preset session-id action-ref message message-file job options-json out application plan-revision action status cursor through-seq before-seq view-version source-row match-value code purpose import-source-key setting mib bytes expected-bytes value".split(" "));
 valued.add("line");
 valued.add("project");
@@ -4256,10 +4256,22 @@ var hostOperations = [
   host("database catalog", "GET", "/api/service/authen/v1/host/databases/{source-id}/catalog", { sessionOnly: true }),
   host("database table", "GET", "/api/service/authen/v1/host/databases/{source-id}/schemas/{schema}/tables/{table}", { query: ["previewLimit"], sessionOnly: true }),
   host("tenant list", "GET", tenants, { query: ["page", "pageSize", "search", "isActive"] }),
-  host("tenant create", "POST", tenants, { input: "object", standardWorkforce: true, headers: { "Idempotency-Key": "request-key" } }),
-  host("tenant workforce show", "GET", tenant + "/standard-workforce"),
+  host("tenant create", "POST", tenants, {
+    input: "object",
+    standardWorkforce: true,
+    headers: { "Idempotency-Key": "request-key" },
+    description: "创建业务租户，默认同时申请开通标准 Workforce。"
+  }),
+  host("tenant workforce show", "GET", tenant + "/standard-workforce", {
+    description: "查看平台记录的 Workforce 开通选择（enabled）和修订号（revision）。"
+  }),
   host("tenant workforce import", "PUT", tenant + "/standard-workforce/applications", { input: "object", inputFields: ["workforceApplicationId", "definitionsApplicationId"] }),
-  host("tenant workforce set", "PUT", tenant + "/standard-workforce", { input: "object", inputFields: ["enabled", "expectedRevision"], readback: ["host", "tenant", "workforce", "show"] }),
+  host("tenant workforce set", "PUT", tenant + "/standard-workforce", {
+    input: "object",
+    inputFields: ["enabled", "expectedRevision"],
+    readback: ["host", "tenant", "workforce", "show"],
+    description: "开通或停用已有租户的 Workforce。先用 workforce show 读取 revision，再在请求文件中填写 enabled 和 expectedRevision。"
+  }),
   host("tenant show", "GET", tenant),
   host("tenant update", "PATCH", tenant, { input: "object", headers: { "If-Match": "if-match" } }),
   ...["activate", "suspend"].map((action) => host("tenant " + action, "POST", tenant + "/" + action)),
@@ -4653,7 +4665,7 @@ var routeParameters = (route) => [...route.matchAll(/\{([^}]+)\}/g)].map((match2
 var pageOptions = /* @__PURE__ */ new Map([["page", "page"], ["page-size", "pageSize"], ["search", "search"], ["status", "status"]]);
 var operationOptions = (operation) => [
   ...routeParameters(operation.route),
-  ...operation.standardWorkforce ? ["standard-workforce"] : [],
+  ...operation.standardWorkforce ? ["no-standard-workforce", "standard-workforce"] : [],
   ...operation.credentialOutput || operation.raw ? ["out"] : [],
   ...Object.values(operation.headers ?? {}),
   ...operation.input ? ["request-json", "file"] : [],
@@ -4699,10 +4711,18 @@ async function managementCommand(ctx) {
       throw new CliError(`Request JSON must be an ${operation.input}.`, { code: "invalid_arguments" });
     if (operation.inputFields && Object.keys(body).some((key) => !operation.inputFields.includes(key)))
       throw new CliError(`Request JSON supports only ${operation.inputFields.join(", ")}.`, { code: "invalid_arguments" });
-    if (operation.standardWorkforce && args.has("standard-workforce")) {
-      if (body.standardWorkforce !== void 0 && body.standardWorkforce !== true)
-        throw new CliError("--standard-workforce conflicts with the request JSON.", { code: "invalid_arguments" });
-      body.standardWorkforce = true;
+    if (operation.standardWorkforce) {
+      const enable = args.has("standard-workforce");
+      const skip = args.has("no-standard-workforce");
+      if (enable && skip)
+        throw new CliError("Choose only one of --standard-workforce and --no-standard-workforce.", { code: "invalid_arguments" });
+      if (body.standardWorkforce !== void 0 && typeof body.standardWorkforce !== "boolean")
+        throw new CliError("standardWorkforce in the request JSON must be true or false.", { code: "invalid_arguments" });
+      if (enable || skip) {
+        if (body.standardWorkforce !== void 0 && body.standardWorkforce !== enable)
+          throw new CliError("The Workforce option conflicts with standardWorkforce in the request JSON.", { code: "invalid_arguments" });
+        body.standardWorkforce = enable;
+      }
     }
     registerSecrets(reporter, body);
     for (const field of operation.secretInput ?? []) if (typeof body?.[field] === "string") reporter.secret(body[field]);
@@ -5431,6 +5451,18 @@ function commandHelp(args) {
     lines.push("  " + spec.description);
     if (exact) lines.push("  Options: " + spec.options.map((name) => "--" + name).join(", "));
   }
+  if (exact?.path === "host tenant create") lines.push(
+    "",
+    '以 Host 管理员身份创建租户。tenant.json 至少填写名称，例如 {"name":"demo"}。',
+    "  xrain-cli host tenant create --request-key demo-001 --request-json tenant.json",
+    "回执中 standardWorkforce.enabled 为 true 表示平台已受理，关闭 CLI 后系统仍会继续准备。",
+    "用回执中的 tenantId 查看平台记录的开通选择和修订号。",
+    "  xrain-cli host tenant workforce show <tenantId>",
+    "获准成员从原 Workforce 门户登录。若显示“Workforce 开通尚未完成”，可点击“继续开通 Workforce”。",
+    '只创建租户、暂缓开通时加 --no-standard-workforce，或在请求文件中设置 "standardWorkforce": false。旧脚本仍可使用 --standard-workforce。',
+    "回读同一次创建请保留原 --request-key 和租户资料。",
+    ""
+  );
   if (!exact) lines.push("", "Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json");
   if (!exact || exact.options.includes("timeout")) lines.push("HTTP requests have no default CLI deadline. Use --timeout SECONDS to limit a request explicitly; operation waiting budgets still apply.");
   if (!exact || exact.options.includes("bearer")) lines.push("Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.");

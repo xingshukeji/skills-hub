@@ -119,7 +119,7 @@ execution-authorization 提供 get/grant，grant 接收请求文件。message-ro
 host tenant list
 host tenant show <tenantId>
 host tenant create --request-key <稳定键> --request-json <租户.json>
-host tenant create --standard-workforce --request-key <稳定键> --request-json <租户.json>
+host tenant create --help
 host tenant workforce show <tenantId>
 host tenant workforce set <tenantId> --request-json <服务变更.json>
 host tenant workforce import <tenantId> --request-json <原应用.json>
@@ -140,7 +140,9 @@ host user ai set <userId> --request-json <AI标记.json>
 
 Host member list 的查询文件支持 page、pageSize、search、isActive；例如 `{"page":1,"pageSize":20,"isActive":false}` 读取目标租户的停用成员。基础分页和搜索也可使用原快捷参数；不要与完整查询文件混用。
 
-在创建业务租户时加 `--standard-workforce`，服务选择随原请求一起保存。回执中的 `standardWorkforce` 带有租户、修订和启用状态。关闭终端后，服务端仍会继续准备。获准成员可从原门户继续尚未完成的申请。
+创建业务租户默认同时申请标准 Workforce。用 Host 管理员登录后，准备包含 `{"name":"demo"}` 的 `tenant.json`，执行 `xrain-cli host tenant create --request-key demo-001 --request-json tenant.json`。平台在租户激活时记录申请。回执里的 `standardWorkforce.enabled` 为 `true` 表示申请已受理，关闭终端后系统仍会继续准备。将回执中的 `tenantId` 传给 `host tenant workforce show` 可以查询开通选择和修订号。获准成员从原门户登录，准备尚未完成时可点击“继续开通 Workforce”。
+
+暂时只需要业务租户时，可加 `--no-standard-workforce`，也可在租户 JSON 中设置 `"standardWorkforce": false`。已有脚本中的 `--standard-workforce` 仍表示显式开通。用原请求键和相同租户资料回读时，平台保留原申请的选择。执行 `xrain-cli help host tenant create` 或 `xrain-cli host tenant create --help` 均可查看示例。
 
 变更已有租户时先用 `workforce show` 读修订，再用 `workforce set` 提交选择。例如对修订 1 的租户提交 `{"enabled":false,"expectedRevision":1}` 即可停用。修订冲突后重读。已有静态部署在首次开通前，可用 `workforce import` 提交原应用的 `workforceApplicationId` 和 `definitionsApplicationId` 以保留原发布范围。
 

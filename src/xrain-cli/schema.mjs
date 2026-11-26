@@ -427,6 +427,15 @@ export function commandHelp(args) {
     lines.push('  ' + spec.description);
     if (exact) lines.push('  Options: ' + spec.options.map(name => '--' + name).join(', '));
   }
+  if (exact?.path === 'host tenant create') lines.push('',
+    '以 Host 管理员身份创建租户。tenant.json 至少填写名称，例如 {"name":"demo"}。',
+    '  xrain-cli host tenant create --request-key demo-001 --request-json tenant.json',
+    '回执中 standardWorkforce.enabled 为 true 表示平台已受理，关闭 CLI 后系统仍会继续准备。',
+    '用回执中的 tenantId 查看平台记录的开通选择和修订号。',
+    '  xrain-cli host tenant workforce show <tenantId>',
+    '获准成员从原 Workforce 门户登录。若显示“Workforce 开通尚未完成”，可点击“继续开通 Workforce”。',
+    '只创建租户、暂缓开通时加 --no-standard-workforce，或在请求文件中设置 "standardWorkforce": false。旧脚本仍可使用 --standard-workforce。',
+    '回读同一次创建请保留原 --request-key 和租户资料。', '');
   if (!exact) lines.push('', 'Common where supported: --profile NAME --server URL --tenant ID --timeout SECONDS --json');
   if (!exact || exact.options.includes('timeout')) lines.push('HTTP requests have no default CLI deadline. Use --timeout SECONDS to limit a request explicitly; operation waiting budgets still apply.');
   if (!exact || exact.options.includes('bearer')) lines.push('Credentials: XRAIN_TOKEN (preferred over --bearer to avoid shell history); --auth session selects the saved session explicitly.');
