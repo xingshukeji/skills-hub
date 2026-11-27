@@ -1,0 +1,29 @@
+{
+  "models": {
+    "bytes": 13131555,
+    "file": "ocr.zip",
+    "sha256": "f94d3276b4d1fdba985a09aea66f29b4806a39876060900bf942c9b649eee3a0"
+  },
+  "platforms": {
+    "linux-x64": {
+      "bytes": 43844299,
+      "file": "linux-x64.zip",
+      "sha256": "f1bd5dbc576659845b19e0c8a9c24bc75e69ca12db5c3d2a6caa483f19c84377"
+    },
+    "macos-arm64": {
+      "bytes": 48201510,
+      "file": "macos-arm64.zip",
+      "sha256": "421b5bdfd080cc1729617bc7a0630122cf7b19c6f96e966924eec77229c061e2"
+    },
+    "macos-x64": {
+      "bytes": 54370122,
+      "file": "macos-x64.zip",
+      "sha256": "83f3e8b22ddb91429806967419878edddc531ad71270954e6fdf0e41be82ebb7"
+    },
+    "windows-x64": {
+      "bytes": 31874797,
+      "file": "windows-x64.zip",
+      "sha256": "9efa07df489dc6626f6e498c1159ece9c34f726d4f533a00f2dc43a5736747b2"
+    }
+  }
+}
