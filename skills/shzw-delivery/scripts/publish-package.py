@@ -16,6 +16,7 @@ import re
 import tarfile
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 
 MAX_PACKAGE_BYTES = 16 * 1024**2
@@ -103,9 +104,30 @@ def inspect_package(package, declaration, expected_sha256, expected_integrity=No
                  'url': declaration['releaseRoot'].rstrip('/') + '/' + version + '/' + filename}
 
 
+def require_publish_target(url):
+    approved = os.environ.get('XRAIN_NEXUS_PUBLISH_ROOT', '').rstrip('/')
+    require(approved, 'Caller-approved Nexus release root is required')
+    parts = urllib.parse.urlsplit(approved)
+    require(parts.scheme in ('http', 'https') and parts.hostname and parts.username is None
+            and not any(c in approved for c in '?#\\') and not any(c.isspace() for c in approved),
+            'Invalid caller-approved Nexus release root')
+    target = url.rsplit('/', 2)
+    require(len(target) == 3 and target[0] == approved and valid_version(target[1])
+            and not any(c in target[2] for c in '?#%\\') and target[2].endswith('.tgz'),
+            'Publication target differs from the caller-approved Nexus release root')
+
+
+class NexusRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if req.get_method() == 'PUT':
+            return None
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def request(url, method='GET', raw=None):
     headers = {'Accept': 'application/gzip'}
     if method == 'PUT':
+        require_publish_target(url)
         username = os.environ.get('XRAIN_NEXUS_PUBLISH_USER')
         password = os.environ.get('XRAIN_NEXUS_PUBLISH_PASSWORD')
         require(username and password, 'Caller Nexus publisher credentials are required')
@@ -113,7 +135,7 @@ def request(url, method='GET', raw=None):
                         'Content-Type': 'application/gzip'})
     try:
         req = urllib.request.Request(url, data=raw, method=method, headers=headers)
-        with urllib.request.urlopen(req, timeout=60) as response:
+        with urllib.request.build_opener(NexusRedirectHandler()).open(req, timeout=60) as response:
             content = response.read(MAX_PACKAGE_BYTES + 1)
             require(len(content) <= MAX_PACKAGE_BYTES, 'Unexpected Raw response size')
             return response.status, content
@@ -127,6 +149,7 @@ def request(url, method='GET', raw=None):
 
 def publish(raw, identity, evidence, authorization, *, http=request):
     require(authorization and authorization.strip(), 'Current publication authorization is required')
+    require_publish_target(identity['url'])
     require(hashlib.sha256(raw).hexdigest() == identity['sha256']
             and 'sha512-' + base64.b64encode(hashlib.sha512(raw).digest()).decode() == identity['integrity'],
             'Publication bytes differ from the approved artifact')

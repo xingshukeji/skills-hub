@@ -51,6 +51,7 @@ async function fixture(t, kind = 'runtime') {
     f.requests.push({ method: req.method, authorization: req.headers.authorization, url: req.url });
     if (req.method === 'PUT') {
       if (req.headers.authorization !== authorization) { res.writeHead(403).end(); return; }
+      if (f.uploadLocation) { res.writeHead(307, { Location: f.uploadLocation }).end(); return; }
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
       if (f.putStatus === 201) f.remote = Buffer.concat(chunks);
@@ -84,7 +85,8 @@ function run(f, { execute = true, extra = [], credentials = true, env = {} } = {
   const args = [f.script, '--project', f.project, '--package', f.package, '--expected-sha256', f.sha256,
     '--expected-integrity', f.integrity, '--evidence-directory', f.evidence, ...extra];
   if (execute) args.push('--execute', '--authorization-ref', 'user:publish-isolated-fixture');
-  const childEnv = { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1', ...env };
+  const childEnv = { ...process.env, PYTHONDONTWRITEBYTECODE: '1', PYTHONUTF8: '1',
+    XRAIN_NEXUS_PUBLISH_ROOT: f.declaration.releaseRoot, ...env };
   delete childEnv.XRAIN_PACKAGE_PUBLISHER;
   delete childEnv.XRAIN_NEXUS_PUBLISH_USER;
   delete childEnv.XRAIN_NEXUS_PUBLISH_PASSWORD;
@@ -151,6 +153,32 @@ test('missing member credentials fail without an upload or operation journal', a
   assert.match(output.result.reason, /credentials/);
   assert.equal(f.requests.length, 0);
   await assert.rejects(readFile(join(f.evidence, 'publication.json')), { code: 'ENOENT' });
+});
+
+test('execution requires an independently authorized origin and product directory', async t => {
+  const f = await fixture(t);
+  const root = new URL(f.declaration.releaseRoot);
+  for (const approved of ['', 'https://registry.example.invalid' + root.pathname,
+    root.origin + '/repository/another-product']) {
+    const output = await run(f, { env: { XRAIN_NEXUS_PUBLISH_ROOT: approved } });
+    assert.equal(output.code, 1);
+    assert.match(output.result.reason, /approved Nexus release root/);
+  }
+  assert.equal(f.requests.length, 0);
+  await assert.rejects(readFile(join(f.evidence, 'publication.json')), { code: 'ENOENT' });
+  const preview = await run(f, { execute: false, credentials: false, env: { XRAIN_NEXUS_PUBLISH_ROOT: '' } });
+  assert.equal(preview.code, 0, preview.stdout);
+  assert.equal(f.requests.length, 0);
+});
+
+test('an upload redirect is reported and never followed', async t => {
+  const f = await fixture(t);
+  f.uploadLocation = '/repository/other-directory';
+  const output = await run(f);
+  assert.equal(output.code, 1);
+  assert.match(output.result.reason, /HTTP 307/);
+  assert.deepEqual(f.requests.map(r => r.method), ['GET', 'PUT']);
+  assert.equal(f.requests.some(r => r.url === f.uploadLocation), false);
 });
 
 test('same remote bytes are reused while a different immutable release cannot be overwritten', async t => {
