@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 import { mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -90,3 +91,5 @@ if (check) {
   if (await readFile(manifestPath, 'utf8') !== expectedText) throw new Error('DeskPilot source manifest is stale. Run npm run build.');
 } else await writeFile(manifestPath, expectedText);
 console.log(`${check ? 'Verified' : 'Prepared'} complete DeskPilot Skill (${generated.length} Python source files; ${fixed.length} fixed resources).`);
+execFileSync(process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3'),
+  [join(root, 'tools/deskpilot-distribution.py'), ...(check ? ['--check'] : [])], { stdio: 'inherit' });
