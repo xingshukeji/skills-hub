@@ -19,6 +19,8 @@ test('the committed CLI build is reproducible with dependencies linked from anot
   });
   for (const folder of ['tools', 'src', 'skills/shzw-xrain-cli']) mkdirSync(join(fixture, folder), { recursive: true });
   cpSync(join(root, 'tools/build.mjs'), join(fixture, 'tools/build.mjs'));
+  cpSync(join(root, 'tools/deskpilot-distribution.py'), join(fixture, 'tools/deskpilot-distribution.py'));
+  cpSync(join(root, 'distributions/skillhub'), join(fixture, 'distributions/skillhub'), { recursive: true });
   cpSync(join(root, 'src/xrain-cli'), join(fixture, 'src/xrain-cli'), { recursive: true });
   cpSync(join(root, 'skills/shzw-xrain-cli/scripts'), join(fixture, 'skills/shzw-xrain-cli/scripts'), { recursive: true });
   for (const folder of ['node_modules', 'src/deskpilot-cli', 'skills/shzw-deskpilot-cli']) {
