@@ -63,7 +63,7 @@ export function readCredentialFile(path, profile) {
   if (!isObject(data) || !nonempty(data.token) || data.server !== profile.server ||
       data.scope !== (profile.scope ?? 'tenant') || !equalIgnoreCase(data.tenant, profile.tenant))
     throw new CliError('Credential file does not match this server, tenant and scope.', { code: 'credential_target_mismatch' });
-  if (data.expiresAtUtc !== undefined && (!Number.isFinite(Date.parse(data.expiresAtUtc)) || Date.parse(data.expiresAtUtc) <= Date.now()))
+  if (data.expiresAtUtc != null && (!Number.isFinite(Date.parse(data.expiresAtUtc)) || Date.parse(data.expiresAtUtc) <= Date.now()))
     throw new CliError('Credential file has expired or has an invalid expiry.', { code: 'credential_expired' });
   return data.token;
 }

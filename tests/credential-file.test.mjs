@@ -12,13 +12,14 @@ test('API tokens are saved privately and used only for their original platform t
   const f = fixture(t), token = 'synthetic-issued-private-api-token';
   const service = await mockServer(t, (hit, res) => {
     if (hit.method === 'POST') {
+      assert.equal(hit.json().neverExpires, true);
       assert.equal(hit.headers.authorization, 'Bearer admin-session');
-      respond(res, { api_token: token, expires_at_utc: '2099-01-01T00:00:00Z', subjectUserId: 'service-subject', note: token }, 201);
+      respond(res, { api_token: token, expires_at_utc: null, subjectUserId: 'service-subject', note: token }, 200);
     } else { assert.equal(hit.headers.authorization, 'Bearer ' + token); respond(res, { recordId: 'one', values: {} }); }
   });
   f.profile(service.url, 'tenant-one', 'admin-session');
   const file = join(f.directory, 'request.json'), out = join(f.directory, 'token.json');
-  writeFileSync(file, '{"subjectUserId":"service-subject","expiresAtUtc":"2099-01-01T00:00:00Z"}');
+  writeFileSync(file, '{"subjectUserId":"service-subject","neverExpires":true}');
   const created = await f.run(['security', 'api-token', 'create', '--request-json', file, '--out', out, '--json']);
   assert.equal(created.code, 0, created.stdout);
   assert.ok(!created.stdout.includes(token)); assert.ok(!created.stderr.includes(token));
@@ -74,6 +75,13 @@ test('credential receipts bind to the target used for the request even when the 
   const result = await f.run(['security', 'api-token', 'reveal', 'token-id', '--out', out, '--json']);
   assert.equal(result.code, 0, result.stdout);
   assert.equal(readCredentialFile(out, { server: service.url, tenant: 'tenant-one', scope: 'tenant' }), 'synthetic-revealed-private-token');
+  const profile = { server: service.url, tenant: 'tenant-one', scope: 'tenant' };
+  for (const [date, valid] of [['2099-01-01T00:00:00Z', true], ['invalid-date', false]]) {
+    const path = join(f.directory, valid ? 'dated.json' : 'invalid.json');
+    saveCredentialFile(path, '<TOKEN>', profile, { expiresAtUtc: date });
+    if (valid) assert.equal(readCredentialFile(path, profile), '<TOKEN>');
+    else assert.throws(() => readCredentialFile(path, profile), { code: 'credential_expired' });
+  }
   const expired = join(f.directory, 'expired.json');
   saveCredentialFile(expired, 'synthetic-expired-token', { server: service.url, tenant: 'tenant-one', scope: 'tenant' }, { expiresAtUtc: '2000-01-01T00:00:00Z' });
   assert.throws(() => readCredentialFile(expired, { server: service.url, tenant: 'tenant-one', scope: 'tenant' }), { code: 'credential_expired' });
