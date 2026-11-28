@@ -78,11 +78,15 @@ debug 请求与返回见[业务 API](business-api.md)。它真实执行 callable
 
 createFunctionVersion 不收源码参数，先保存源码/合同再创建版本。changes 按当前管理合同；应用关联项 id 对应 resourceId，不等于 functionId/versionId。
 
-执行带 expectedVersionId，修改选择带 expectedRevision；冲突后重读。正式函数及依赖须在应用有效关联中。不可变版本不冻结外部数据或动态依赖；需要历史重现时保存必要输入与依据。
+应用管理人读取函数目录并选择版本，修改选择时提交 `expectedRevision`。获准成员用自己的会话和应用内的 `resourceId` 调用选用版本。调用需要固定到已核对的版本时传 `expectedVersionId`，遇到版本冲突后重新核对。已知资源 ID 的成员可以直接调用，读取管理目录另需应用管理权限。需要历史重现时保存输入与依据，外部数据和动态依赖可独立变化。
+
+核对管理员操作时，分别回读目标租户的函数、应用选版和函数实际调用的接口。普通应用函数用 `runtime.records.*` 访问记录时，平台按调用人的租户、对象、字段和记录权限求值。函数同步调用已登记的 raw 接口时，目标服务按请求模板使用的[连接器凭据](integration.md#xrain-的三类-http-资源)授权，须核对该身份和允许的具体操作。
+
+对于后台作业，平台可通过 [Routine](#定时执行-routine) 以租户配置的执行人运行编排，编排可调用已启用的租户函数。验证时核对执行人及业务结果。同步应用调用返回函数输出，手动启动 Routine 返回运行 ID。
 
 ### 受保护纯函数
 
-XRain 与 Workforce 源码新增 `tenant.sealed.<名称>` 受保护纯函数；截至本次源码修改尚不能据此判断目标环境或已发布 SDK 是否具备该能力。函数只消费宿主提供的获权输入，不能调用 SDK、网络、记录或环境随机数和时间。普通应用执行与普通编排中的嵌套调用拒绝该前缀；函数源管理者的指定版本试算须有管理权限，且同样使用纯执行。纯执行能力缺失时不回退普通执行。
+XRain 通过 `tenant.sealed.<名称>` 提供受保护纯函数。函数只消费宿主提供的获权输入，不能调用 SDK、网络、记录或环境随机数和时间。普通应用执行与普通编排中的嵌套调用拒绝该前缀；函数源管理者的指定版本试算须有管理权限，且同样使用纯执行。纯执行能力缺失时不回退普通执行。
 
 支持该能力的服务端 `XRainRuntimeClient.executeSealedApplicationFunction(applicationId, resourceId, input, { functionKey, keyId, key, expectedVersionId?, signal? })` 以当前用户执行绑定调用应用当前选版，返回 `{ resourceId, versionId, invocationId, output }`。平台和业务宿主的受保护配置按租户、应用及完整函数 key 登记同一个 64 字节随机密钥和密钥标识。密钥只供服务端使用，不放入模型参数、浏览器、函数源码、租户普通配置或日志；不能用密钥或资源标识替代用户身份及字段权限。
 
